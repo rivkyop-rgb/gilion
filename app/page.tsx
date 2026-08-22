@@ -42,7 +42,7 @@ export default function TokensPage() {
   return (
     <main className="mx-auto max-w-[1440px] p-8">
       <header className="mb-10 flex items-center gap-4">
-        <Image src="/brand/mark.svg" alt="" width={48} height={48} priority />
+        <Image src="/brand/logo-mark.png" alt="" width={72} height={48} priority />
         <div>
           <h1 className="text-[32px] leading-10 font-semibold">Gilion — דף טוקנים</h1>
           <p className="text-on-surface-variant">

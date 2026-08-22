@@ -25,7 +25,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Gilion",
   description: "מערכת לניהול פרסום בעיתון",
-  icons: { icon: "/brand/favicon.svg" },
+  icons: { icon: "/brand/logo-mark.png" },
 };
 
 // The font variables belong on <html>, not <body>. globals.css declares
