@@ -63,10 +63,11 @@
   --color-status-neutral-fg: #43474e;
 
   /* --- typography — conventions.md §1 ---
-     Frank Ruhl Libre + Heebo replace Libre Caslon / Hanken Grotesk, which
-     have no Hebrew glyphs. JetBrains Mono stays for Latin metadata only. */
+     Frank Ruhl Libre (headings) + Google Sans (UI) replace Libre Caslon /
+     Hanken Grotesk, which have no Hebrew glyphs. Google Sans is self-hosted and
+     replaced Heebo on 23/08/2026. JetBrains Mono stays for Latin metadata only. */
   --font-serif: var(--font-frank-ruhl), Georgia, "Times New Roman", serif;
-  --font-sans: var(--font-heebo), system-ui, -apple-system, sans-serif;
+  --font-sans: var(--font-google-sans), system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
 
   /* --- radii — values taken from the Stitch code, not its prose --- */
@@ -80,7 +81,7 @@
   --container-page: 1440px;
 }
 
-/* Default body typography: body-md (14px/20px Heebo) — design-system.md §2 */
+/* Default body typography: body-md (14px/20px Google Sans) — design-system.md §2 */
 body {
   background-color: var(--color-background);
   color: var(--color-on-surface);

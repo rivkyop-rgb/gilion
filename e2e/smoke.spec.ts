@@ -11,15 +11,34 @@ test.describe("stage 00 smoke", () => {
     await page.goto("/");
     await page.evaluate(() => document.fonts.ready);
 
-    // Chromium activates a @font-face only when something actually needs it, so
-    // asking for status alone proves nothing. document.fonts.load() forces the
-    // load for a specific string: it returns the faces that can render that text,
-    // and an empty result means the browser would fall back.
-    const loaded = await page.evaluate(async () => {
+    // Family names are derived from the page rather than hardcoded: next/font
+    // mangles them (Frank Ruhl Libre -> __Frank_Ruhl_Libre_xxxx) and next/font/local
+    // names the family after the JS variable, so any literal here would rot.
+    const stacks = await page.evaluate(() => {
+      const first = (el: Element | null) =>
+        el ? getComputedStyle(el).fontFamily.split(",")[0]!.replace(/["']/g, "").trim() : "";
+      return {
+        serif: first(document.querySelector("h1")),
+        sans: first(document.body),
+        mono: first(document.querySelector(".font-mono")),
+      };
+    });
+
+    expect(stacks.serif, "h1 must resolve to the serif face, not inherit the sans").toMatch(
+      /Frank[_ ]Ruhl/,
+    );
+    expect(stacks.sans).not.toBe(stacks.serif);
+    expect(stacks.mono).toMatch(/[Mm]ono/);
+
+    // Chromium activates a @font-face only when something needs it, so checking
+    // status alone proves nothing. document.fonts.load() forces the load for a
+    // specific string and returns the faces that can render it — an empty result
+    // means the browser would fall back.
+    const loaded = await page.evaluate(async ({ serif, sans, mono }) => {
       const wanted: Array<[string, string]> = [
-        ["Frank Ruhl Libre", "כותרת עמוד בעברית"],
-        ["Heebo", "טקסט רגיל בעברית"],
-        ["JetBrains Mono", "INV-2023-081"],
+        [serif, "כותרת עמוד בעברית"],
+        [sans, "טקסט רגיל בעברית"],
+        [mono, "INV-2023-081"],
       ];
       const out: Record<string, number> = {};
       for (const [family, text] of wanted) {
@@ -27,16 +46,11 @@ test.describe("stage 00 smoke", () => {
         out[family] = faces.filter((f) => f.status === "loaded").length;
       }
       return out;
-    });
+    }, stacks);
 
-    expect(loaded["Frank Ruhl Libre"], "Frank Ruhl Libre must cover Hebrew").toBeGreaterThan(0);
-    expect(loaded["Heebo"], "Heebo must cover Hebrew").toBeGreaterThan(0);
-    expect(loaded["JetBrains Mono"], "JetBrains Mono must cover Latin").toBeGreaterThan(0);
-
-    // And the h1 must actually resolve to the serif face, not inherit the sans.
-    const heading = page.getByRole("heading", { level: 1 });
-    const serif = await heading.evaluate((el) => getComputedStyle(el).fontFamily);
-    expect(serif).toMatch(/Frank[_ ]Ruhl/);
+    expect(loaded[stacks.serif], `${stacks.serif} must cover Hebrew`).toBeGreaterThan(0);
+    expect(loaded[stacks.sans], `${stacks.sans} must cover Hebrew`).toBeGreaterThan(0);
+    expect(loaded[stacks.mono], `${stacks.mono} must cover Latin`).toBeGreaterThan(0);
   });
 
   test("no console errors", async ({ page }) => {

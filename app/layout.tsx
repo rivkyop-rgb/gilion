@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Frank_Ruhl_Libre, Heebo, JetBrains_Mono } from "next/font/google";
+import { Frank_Ruhl_Libre, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
 // conventions.md §1 — all three fonts carry full Hebrew coverage except
@@ -10,10 +11,15 @@ const frankRuhl = Frank_Ruhl_Libre({
   weight: ["400", "500", "600", "700"],
 });
 
-const heebo = Heebo({
-  variable: "--font-heebo",
-  subsets: ["hebrew", "latin"],
-  weight: ["400", "500", "600", "700"],
+// Google Sans replaces Heebo as the UI sans (user's choice, 23/08/2026).
+// Self-hosted rather than fetched from Google Fonts: it is not served by the
+// Google Fonts CSS API, and the file ships under the OFL (app/fonts/GoogleSans-OFL.txt).
+// Verified to carry full Hebrew coverage — all 22 letters plus the shekel sign.
+const googleSans = localFont({
+  src: "./fonts/GoogleSans-Variable.ttf",
+  variable: "--font-google-sans",
+  weight: "100 900",
+  display: "swap",
 });
 
 const jetbrainsMono = JetBrains_Mono({
@@ -38,7 +44,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html
       dir="rtl"
       lang="he"
-      className={`${frankRuhl.variable} ${heebo.variable} ${jetbrainsMono.variable}`}
+      className={`${frankRuhl.variable} ${googleSans.variable} ${jetbrainsMono.variable}`}
     >
       <body className="antialiased">{children}</body>
     </html>

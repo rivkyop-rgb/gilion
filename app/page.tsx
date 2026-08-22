@@ -60,8 +60,10 @@ export default function TokensPage() {
           <p className="font-serif text-[32px] leading-10 font-semibold">
             כותרת עמוד — הזמנת פרסום חדשה
           </p>
-          <p className="font-sans text-xl font-semibold">כותרת כרטיס — Heebo</p>
-          <p className="font-sans text-base">טקסט מורחב בגופן Heebo, ברירת המחדל של המערכת.</p>
+          <p className="font-sans text-xl font-semibold">כותרת כרטיס — Google Sans</p>
+          <p className="font-sans text-base">
+            טקסט מורחב בגופן Google Sans, ברירת המחדל של המערכת.
+          </p>
           <p className="font-sans text-sm">טקסט ברירת מחדל 14px — טבלאות, תפריטים וטפסים.</p>
           <p className="ltr-isolate font-mono text-xs tracking-[0.05em]">
             INV-2023-081 · 130x380 mm · EDITORIAL PORTAL
