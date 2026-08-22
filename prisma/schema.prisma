@@ -1,15 +1,13 @@
 // Gilion — Prisma schema
-// Stage 00 holds no business models on purpose: the empty initial migration
-// exists only to prove the pipeline works end to end (docs/plan/00-foundation.md).
 //
-// Conventions fixed here and binding for every model added later:
+// Conventions binding for every model (docs/plan/00-foundation.md):
 //   - id is String @id @default(cuid())
 //   - every model carries created_at / updated_at
 //   - @@map gives the table the PascalCase name used in docs/erd.md
 //   - every ERD enum becomes a Prisma enum
 //
-// The connection URL lives in prisma.config.ts, not here: Prisma 7 removed
-// `url` from the datasource block in favour of a driver adapter.
+// The connection URL lives in prisma.config.ts: Prisma 7 removed `url` from
+// the datasource block in favour of a driver adapter.
 
 generator client {
   provider = "prisma-client-js"
@@ -17,4 +15,111 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Stage 01 — auth, tenancy, audit
+// ---------------------------------------------------------------------------
+
+enum UserType {
+  internal
+  customer
+}
+
+enum MembershipRole {
+  admin
+  sales
+  designer
+  accounting
+  customer
+}
+
+enum MembershipStatus {
+  active
+  inactive
+}
+
+/// The seven auditable actions from docs/erd.md. The enum is closed on
+/// purpose: adding an action is a deliberate schema change, not a string typo.
+enum AuditAction {
+  approve_order
+  reject_order
+  cancel_publication
+  close_issue
+  generate_pdf
+  update_payment
+  override_duplicate_placement
+}
+
+/// An independent business in the multi-tenant system (FR-1, FR-2).
+model Business {
+  id         String   @id @default(cuid())
+  name       String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  memberships UserMembership[]
+  audit_logs  AuditLog[]
+
+  @@map("Business")
+}
+
+/// Internal user or customer-portal user (FR-2, FR-8, FR-9, US-009).
+/// password_hash is not in the ERD but is required for credentials auth.
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  password_hash String
+  user_type     UserType
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  memberships UserMembership[]
+  audit_logs  AuditLog[]
+
+  @@map("User")
+}
+
+/// Binds a user to a business with one fixed role (FR-2, FR-8, FR-9).
+model UserMembership {
+  id          String           @id @default(cuid())
+  user_id     String
+  business_id String
+  /// Required when role = customer, forbidden otherwise. Enforced by a CHECK
+  /// constraint in the migration as well as in the domain layer.
+  customer_id String?
+  role        MembershipRole
+  status      MembershipStatus @default(active)
+  created_at  DateTime         @default(now())
+  updated_at  DateTime         @updatedAt
+
+  user     User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [business_id], references: [id], onDelete: Restrict)
+
+  @@unique([user_id, business_id])
+  @@index([business_id, status])
+  @@map("UserMembership")
+}
+
+/// Append-only audit trail (FR-10). There is no update or delete path:
+/// lib/data/audit.ts exposes writes only.
+model AuditLog {
+  id          String      @id @default(cuid())
+  business_id String
+  user_id     String
+  action      AuditAction
+  target_type String
+  target_id   String
+  /// Only the fields that changed, not the whole record (conventions.md §6).
+  old_value   Json?
+  new_value   Json?
+  created_at  DateTime    @default(now())
+
+  business Business @relation(fields: [business_id], references: [id], onDelete: Restrict)
+  user     User     @relation(fields: [user_id], references: [id], onDelete: Restrict)
+
+  @@index([business_id, created_at(sort: Desc)])
+  @@index([target_type, target_id])
+  @@map("AuditLog")
 }
