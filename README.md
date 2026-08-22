@@ -29,13 +29,13 @@ npm run dev            # http://localhost:3100
 
 ### Docker
 
-המשתמש אינו בקבוצת `docker`, ולכן `npm run db:up` דורש `sudo`. לתיקון חד־פעמי:
+המשתמש `runner` **כבר חבר בקבוצת `docker`**, אבל סשן שנפתח לפני שהחברות נוספה עדיין לא רואה אותה.
+לכן ב־session ישן `npm run db:up` נכשל ב־`permission denied`.
 
-```bash
-sudo usermod -aG docker $USER   # ואז יציאה וכניסה מחדש
-```
+- **תיקון:** לצאת ולהתחבר מחדש (או `newgrp docker` בטרמינל הנוכחי). אחרי זה `npm run db:up` עובד רגיל.
+- **עקיפה זמנית:** `sudo docker compose -f docker-compose.dev.yml up -d`
 
-עד אז: `sudo docker compose -f docker-compose.dev.yml up -d`.
+לבדיקה שהחברות נכנסה לתוקף: `docker ps` בלי `sudo`.
 
 ---
 
