@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth/config";
+import { authEdge } from "@/lib/auth/edge";
 
 /**
  * Route gating (FR-2, FR-9).
@@ -8,7 +8,7 @@ import { auth } from "@/lib/auth/config";
  * the check, because middleware runs on the edge with a matcher that is easy to
  * get wrong, and a tenancy hole must not depend on one regex being right.
  */
-export default auth((req) => {
+export default authEdge((req) => {
   const { nextUrl } = req;
   const session = req.auth;
   const path = nextUrl.pathname;

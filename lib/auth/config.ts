@@ -12,6 +12,7 @@ import bcrypt from "bcryptjs";
 
 import { basePrisma } from "@/lib/data/db";
 import { activeMembership, activeMembershipsFor } from "./memberships";
+import { sessionCallbacks } from "./session-shape";
 import type { Role } from "./rbac";
 
 export const {
@@ -74,15 +75,7 @@ export const {
       return token;
     },
 
-    async session({ session, token }) {
-      session.user.id = token.sub!;
-      session.user.userType = token.userType as "internal" | "customer";
-      session.user.businessId = token.businessId as string | undefined;
-      session.user.role = token.role as Role | undefined;
-      session.user.customerId = token.customerId as string | undefined;
-      session.user.membershipCount = (token.membershipCount as number | undefined) ?? 0;
-      return session;
-    },
+    session: sessionCallbacks.session,
   },
 });
 
