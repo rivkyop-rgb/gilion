@@ -1,0 +1,358 @@
+<html dir="rtl" lang="he"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={theme:{extend:{"colors":{"error":"#ba1a1a","tertiary-fixed-dim":"#c5c7c8","secondary-fixed-dim":"#e9c349","primary-container":"#001f3f","on-primary":"#ffffff","secondary-fixed":"#ffe088","secondary":"#735c00","surface-tint":"#476083","error-container":"#ffdad6","on-tertiary-container":"#848688","surface-variant":"#d8e3fa","on-primary-container":"#6f88ad","on-secondary":"#ffffff","inverse-on-surface":"#ebf1ff","on-error-container":"#93000a","on-primary-fixed-variant":"#2f486a","surface-dim":"#cfdaf1","surface-bright":"#f9f9ff","on-error":"#ffffff","surface-container-highest":"#d8e3fa","on-surface":"#111c2c","on-primary-fixed":"#001c3a","surface-container-high":"#dee8ff","primary-fixed":"#d4e3ff","outline":"#74777f","on-tertiary-fixed-variant":"#454748","on-tertiary":"#ffffff","surface-container-low":"#f0f3ff","secondary-container":"#fed65b","primary":"#000613","on-secondary-container":"#745c00","on-background":"#111c2c","tertiary":"#040607","tertiary-container":"#1c1f20","background":"#f9f9ff","surface-container-lowest":"#ffffff","inverse-surface":"#263142","primary-fixed-dim":"#afc8f0","on-secondary-fixed-variant":"#574500","surface":"#f9f9ff","outline-variant":"#c4c6cf","on-surface-variant":"#43474e","on-tertiary-fixed":"#191c1d","on-secondary-fixed":"#241a00","inverse-primary":"#afc8f0","tertiary-fixed":"#e1e3e4","surface-container":"#e7eeff"},"borderRadius":{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},"spacing":{"gutter":"16px","container-max":"1440px","margin-mobile":"16px","margin-desktop":"32px","unit":"4px"},"fontFamily":{"headline-lg-mobile":["Libre Caslon Text"],"headline-lg":["Libre Caslon Text"],"display-lg":["Libre Caslon Text"],"label-sm":["JetBrains Mono"],"headline-md":["Hanken Grotesk"],"body-lg":["Hanken Grotesk"],"body-md":["Hanken Grotesk"],"caption":["Hanken Grotesk"]},"fontSize":{"headline-lg-mobile":["24px",{"lineHeight":"32px","fontWeight":"600"}],"headline-lg":["32px",{"lineHeight":"40px","fontWeight":"600"}],"display-lg":["48px",{"lineHeight":"56px","fontWeight":"700"}],"label-sm":["12px",{"lineHeight":"16px","letterSpacing":"0.05em","fontWeight":"500"}],"headline-md":["20px",{"lineHeight":"28px","fontWeight":"600"}],"body-lg":["16px",{"lineHeight":"24px","fontWeight":"400"}],"body-md":["14px",{"lineHeight":"20px","fontWeight":"400"}],"caption":["12px",{"lineHeight":"16px","fontWeight":"500"}]}}}}</script><link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;family=Libre+Caslon+Text:wght@400;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/></head><body class="bg-background font-body-md text-on-surface"><aside class="fixed right-0 top-0 h-full w-[280px] bg-surface-container-lowest z-50 flex flex-col border-l border-outline-variant"><div class="p-gutter mb-unit flex items-center gap-3"><div class="w-10 h-10 bg-primary-container rounded-lg flex items-center justify-center"><span class="material-symbols-outlined text-on-primary">newspaper</span></div><span class="font-headline-md text-headline-md text-primary">יומון</span></div><nav class="flex-1 px-unit space-y-1" data-active-classes="bg-secondary-container text-on-secondary-container font-bold border-r-4 border-secondary"><a class="flex items-center gap-3 px-gutter py-3 text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-all rounded-lg" data-path="dashboard" href="#"><span class="material-symbols-outlined">dashboard</span><span class="font-body-md">דשבורד</span></a><a class="flex items-center gap-3 px-gutter py-3 text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-all rounded-lg" data-path="layout-board" href="#"><span class="material-symbols-outlined">grid_view</span><span class="font-body-md">לוח שיבוץ</span></a><a aria-current="page" class="flex items-center gap-3 px-gutter py-3 transition-all rounded-lg bg-secondary-container text-on-secondary-container font-bold border-r-4 border-secondary" data-path="new-orders" href="#"><span class="material-symbols-outlined">add_shopping_cart</span><span class="font-body-md">הזמנות חדשות</span></a><a class="flex items-center gap-3 px-gutter py-3 text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-all rounded-lg" data-path="file-management" href="#"><span class="material-symbols-outlined">folder_open</span><span class="font-body-md">ניהול קבצים</span></a><a class="flex items-center gap-3 px-gutter py-3 text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-all rounded-lg" data-path="billing" href="#"><span class="material-symbols-outlined">receipt_long</span><span class="font-body-md">גבייה וחשבונות</span></a><a class="flex items-center gap-3 px-gutter py-3 text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-all rounded-lg" data-path="customers" href="#"><span class="material-symbols-outlined">group</span><span class="font-body-md">לקוחות</span></a><div class="my-4 border-t border-outline-variant mx-gutter"></div><a class="flex items-center gap-3 px-gutter py-3 text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-all rounded-lg" data-path="settings" href="#"><span class="material-symbols-outlined">settings</span><span class="font-body-md">הגדרות</span></a></nav></aside><div class="pr-[280px]"><header class="fixed top-0 right-[280px] left-0 h-16 bg-surface-container-lowest/80 backdrop-blur-xl border-b border-outline-variant z-40 flex items-center justify-between px-margin-desktop"><div class="flex items-center gap-gutter"><span class="material-symbols-outlined text-on-surface-variant cursor-pointer">menu</span><div class="flex items-center gap-2"><span class="font-label-sm text-label-sm bg-surface-container-high px-2 py-1 rounded uppercase text-on-primary-container">Editorial Portal</span></div></div><div class="flex items-center gap-6"><div class="flex items-center gap-3 text-on-surface-variant"><span class="material-symbols-outlined cursor-pointer">search</span><span class="material-symbols-outlined cursor-pointer">notifications</span></div><div class="flex items-center gap-3 border-r border-outline-variant pr-gutter"><div class="text-left"><p class="font-body-md font-bold text-on-surface leading-none">מנהל מערכת</p><p class="font-caption text-caption text-on-surface-variant">Yomon Admin</p></div><img alt="Profile" class="w-10 h-10 rounded-full object-cover border border-outline-variant" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHCiuzzMEzIY1aoi7B9jA8PErHf0n_WXe67a1SUSNvA-B_fNb-VxJOkpcsdxsp0HvGLSHhDKZWZ53SX5CFt_l536R22lLFLcn4vq3XjjGdMz8W_oZf6-RaUdMgG_UMZ-zlcwkEnQ4PZgs1269r43jByU2oig9gCrT8ppAIAd1TZ-_wPMHa7B2mgQcc4bTb0TjRGyn3su6r7ER-5IZ-O3S6ICyhGpAxYtRdAUroaP0KEVSUzFcadrAVIQ"/></div></div></header><main class="relative pt-16 min-h-screen"><div class="flex flex-col w-full relative">
+<div class="max-w-container-max mx-auto w-full px-margin-desktop pb-margin-desktop pt-8">
+<!-- Header Section -->
+<div class="flex items-end justify-between mb-8 pb-4 border-b border-outline-variant relative">
+<div>
+<div class="flex items-center gap-2 mb-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-sm">home</span>
+<span class="text-sm">/</span>
+<span class="text-sm">הזמנות מודעות</span>
+<span class="text-sm">/</span>
+<span class="text-sm font-semibold text-primary">הזמנה חדשה</span>
+</div>
+<h1 class="font-display-lg text-display-lg text-on-surface">הזמנת פרסום חדשה</h1>
+</div>
+<div class="flex items-center gap-4">
+<span class="font-label-sm text-label-sm bg-surface-container-high px-3 py-1.5 rounded-full uppercase text-on-primary-container tracking-wider">Draft Mode</span>
+</div>
+<!-- Decorative Accent -->
+<div class="absolute -bottom-px right-0 w-32 h-[2px] bg-secondary"></div>
+</div>
+<div class="grid grid-cols-12 gap-gutter items-start">
+<!-- Main Content Area (Right - 8 cols) -->
+<div class="col-span-12 lg:col-span-8 flex flex-col gap-6">
+<!-- Customer Selection Card -->
+<div class="bg-surface rounded-xl border border-outline-variant shadow-sm overflow-hidden relative group">
+<!-- Subtle Glow Effect -->
+<div class="absolute -inset-1 bg-gradient-to-r from-transparent via-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition duration-1000 blur-sm pointer-events-none"></div>
+<div class="p-6 relative bg-surface">
+<div class="flex items-center justify-between mb-6">
+<h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary">person_search</span>
+                                פרטי לקוח
+                            </h2>
+<button class="flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary-fixed-dim transition-colors" type="button">
+<span class="material-symbols-outlined text-sm">person_add</span>
+                                + לקוח חדש
+                            </button>
+</div>
+<div class="relative w-full max-w-md">
+<label class="block font-headline-md text-sm font-bold text-on-surface-variant mb-1.5" for="customer-select">בחר לקוח מהרשימה או חפש</label>
+<div class="relative group/input">
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within/input:text-primary transition-colors z-10">search</span>
+<input autocomplete="off" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-3 pr-10 py-3 text-on-surface font-body-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-shadow" id="customer-select" placeholder="הקלד שם לקוח, ח.פ, או טלפון..." type="text"/>
+<!-- Fake Dropdown for visual -->
+<div class="hidden absolute top-full left-0 right-0 mt-1 bg-surface-container-lowest border border-outline-variant rounded-lg shadow-xl z-20 max-h-60 overflow-y-auto" id="customer-dropdown">
+<div class="p-2 cursor-pointer hover:bg-surface-container-low flex justify-between items-center group/item transition-colors">
+<div>
+<div class="font-body-md font-bold text-on-surface group-hover/item:text-primary">משרד פרסום מקאן אריקסון</div>
+<div class="font-caption text-caption text-on-surface-variant">ח.פ: 512345678</div>
+</div>
+<span class="material-symbols-outlined text-secondary opacity-0 group-hover/item:opacity-100 transition-opacity">check</span>
+</div>
+<div class="p-2 cursor-pointer hover:bg-surface-container-low flex justify-between items-center group/item transition-colors">
+<div>
+<div class="font-body-md font-bold text-on-surface group-hover/item:text-primary">עיריית תל אביב יפו</div>
+<div class="font-caption text-caption text-on-surface-variant">ח.פ: 500000000</div>
+</div>
+<span class="material-symbols-outlined text-secondary opacity-0 group-hover/item:opacity-100 transition-opacity">check</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Ad Rows Card -->
+<div class="bg-surface rounded-xl border border-outline-variant shadow-sm overflow-hidden flex flex-col min-h-[400px]">
+<div class="p-6 border-b border-outline-variant bg-surface-container-lowest flex items-center justify-between">
+<h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary">view_list</span>
+                            שורות פרסום
+                        </h2>
+<div class="flex items-center gap-3">
+<span class="font-caption text-caption text-on-surface-variant">תצוגה מקדימה זמינה בחלונית הצד</span>
+<span class="material-symbols-outlined text-outline cursor-help text-sm" title="כל שורה מייצגת הופעה אחת של המודעה בגיליון ספציפי.">info</span>
+</div>
+</div>
+<!-- Table Container -->
+<div class="flex-1 overflow-x-auto">
+<table class="w-full text-right border-collapse" id="ad-rows-table">
+<thead>
+<tr class="bg-surface-container-low border-b border-outline-variant text-on-surface-variant font-label-sm text-label-sm uppercase tracking-wide">
+<th class="py-3 px-4 font-medium w-12 text-center">#</th>
+<th class="py-3 px-4 font-medium w-48">עיתון / מוסף</th>
+<th class="py-3 px-4 font-medium w-32">תאריך הוצאה</th>
+<th class="py-3 px-4 font-medium w-40">סוג עמוד</th>
+<th class="py-3 px-4 font-medium w-40">צורת פרסום</th>
+<th class="py-3 px-4 font-medium w-32 text-left">מחיר נטו (₪)</th>
+<th class="py-3 px-4 font-medium w-16"></th>
+</tr>
+</thead>
+<tbody class="font-body-md" id="ad-rows-body">
+<!-- Row 1 -->
+<tr class="border-b border-outline-variant hover:bg-surface-container-lowest transition-colors group/row">
+<td class="py-2 px-4 text-center text-on-surface-variant font-mono text-xs">1</td>
+<td class="py-2 px-4">
+<select class="w-full bg-transparent border border-transparent group-hover/row:border-outline-variant focus:border-primary rounded px-2 py-1.5 focus:outline-none transition-colors cursor-pointer appearance-none">
+<option>הארץ - יומון</option>
+<option>גלריה</option>
+<option>TheMarker</option>
+<option>מוסף שבת</option>
+</select>
+</td>
+<td class="py-2 px-4">
+<input class="w-full bg-transparent border border-transparent group-hover/row:border-outline-variant focus:border-primary rounded px-2 py-1 text-sm focus:outline-none transition-colors cursor-text" type="date" value="2023-11-15"/>
+</td>
+<td class="py-2 px-4">
+<select class="w-full bg-transparent border border-transparent group-hover/row:border-outline-variant focus:border-primary rounded px-2 py-1.5 focus:outline-none transition-colors cursor-pointer appearance-none">
+<option>עמוד ימני רגיל</option>
+<option>עמוד שמאלי</option>
+<option>שער אחורי</option>
+<option>כפולת אמצע</option>
+</select>
+</td>
+<td class="py-2 px-4">
+<select class="w-full bg-transparent border border-transparent group-hover/row:border-outline-variant focus:border-primary rounded px-2 py-1.5 focus:outline-none transition-colors cursor-pointer appearance-none">
+<option>עמוד שלם</option>
+<option>חצי עמוד</option>
+<option>סטריפ תחתון</option>
+<option>רבע עמוד</option>
+</select>
+</td>
+<td class="py-2 px-4 text-left">
+<div class="relative">
+<input class="w-full bg-transparent border border-transparent group-hover/row:border-outline-variant focus:border-primary rounded pl-2 pr-6 py-1 text-left focus:outline-none transition-colors font-mono row-price" onchange="calculateTotal()" step="0.01" type="number" value="4500.00"/>
+<span class="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-xs">₪</span>
+</div>
+</td>
+<td class="py-2 px-4 text-center">
+<button class="text-on-surface-variant hover:text-error opacity-0 group-hover/row:opacity-100 transition-opacity" onclick="this.closest('tr').remove(); calculateTotal();" title="מחק שורה" type="button">
+<span class="material-symbols-outlined text-sm">delete</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="border-b border-outline-variant hover:bg-surface-container-lowest transition-colors group/row">
+<td class="py-2 px-4 text-center text-on-surface-variant font-mono text-xs">2</td>
+<td class="py-2 px-4">
+<select class="w-full bg-transparent border border-transparent group-hover/row:border-outline-variant focus:border-primary rounded px-2 py-1.5 focus:outline-none transition-colors cursor-pointer appearance-none">
+<option>הארץ - יומון</option>
+<option selected="">TheMarker</option>
+<option>גלריה</option>
+<option>מוסף שבת</option>
+</select>
+</td>
+<td class="py-2 px-4">
+<input class="w-full bg-transparent border border-transparent group-hover/row:border-outline-variant focus:border-primary rounded px-2 py-1 text-sm focus:outline-none transition-colors cursor-text" type="date" value="2023-11-16"/>
+</td>
+<td class="py-2 px-4">
+<select class="w-full bg-transparent border border-transparent group-hover/row:border-outline-variant focus:border-primary rounded px-2 py-1.5 focus:outline-none transition-colors cursor-pointer appearance-none">
+<option>עמוד ימני רגיל</option>
+<option>עמוד שמאלי</option>
+<option selected="">שער אחורי</option>
+<option>כפולת אמצע</option>
+</select>
+</td>
+<td class="py-2 px-4">
+<select class="w-full bg-transparent border border-transparent group-hover/row:border-outline-variant focus:border-primary rounded px-2 py-1.5 focus:outline-none transition-colors cursor-pointer appearance-none">
+<option selected="">חצי עמוד</option>
+<option>עמוד שלם</option>
+<option>סטריפ תחתון</option>
+<option>רבע עמוד</option>
+</select>
+</td>
+<td class="py-2 px-4 text-left">
+<div class="relative">
+<input class="w-full bg-transparent border border-transparent group-hover/row:border-outline-variant focus:border-primary rounded pl-2 pr-6 py-1 text-left focus:outline-none transition-colors font-mono row-price" onchange="calculateTotal()" step="0.01" type="number" value="2800.50"/>
+<span class="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-xs">₪</span>
+</div>
+</td>
+<td class="py-2 px-4 text-center">
+<button class="text-on-surface-variant hover:text-error opacity-0 group-hover/row:opacity-100 transition-opacity" onclick="this.closest('tr').remove(); calculateTotal();" title="מחק שורה" type="button">
+<span class="material-symbols-outlined text-sm">delete</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Add Row Area -->
+<div class="p-4 border-t border-outline-variant bg-surface-container-lowest">
+<button class="w-full py-3 border-2 border-dashed border-outline-variant hover:border-primary text-on-surface-variant hover:text-primary rounded-lg flex items-center justify-center gap-2 transition-colors font-headline-md text-sm font-bold bg-surface-container-low/50 hover:bg-surface-container-low" onclick="addNewRow()" type="button">
+<span class="material-symbols-outlined text-sm">add</span>
+                            הוסף שורת פרסום
+                        </button>
+</div>
+</div>
+</div>
+<!-- Sticky Summary Sidebar (Left - 4 cols) -->
+<div class="col-span-12 lg:col-span-4 relative">
+<div class="sticky top-[100px] bg-surface rounded-xl border border-outline-variant shadow-md overflow-hidden">
+<!-- Top Color Bar -->
+<div class="h-2 w-full bg-gradient-to-r from-primary to-secondary"></div>
+<div class="p-6">
+<h3 class="font-display-lg text-2xl font-bold text-on-surface border-b border-outline-variant pb-4 mb-6">סיכום הזמנה</h3>
+<!-- Summary Stats -->
+<div class="space-y-4 mb-8">
+<div class="flex justify-between items-center">
+<span class="font-body-md text-on-surface-variant">סה"כ מופעים:</span>
+<span class="font-label-sm text-lg font-bold text-on-surface" id="total-rows-count">2</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="font-body-md text-on-surface-variant">תאריך יעד ראשון:</span>
+<span class="font-body-md font-medium text-on-surface">15/11/2023</span>
+</div>
+<div class="pt-4 border-t border-outline-variant border-dashed">
+<div class="flex justify-between items-end">
+<div class="flex flex-col">
+<span class="font-body-md text-on-surface-variant mb-1">סה"כ לתשלום (לפני מע"מ)</span>
+<span class="text-xs text-secondary">*לא כולל עמלת משרד</span>
+</div>
+<div class="flex items-baseline gap-1">
+<span class="font-label-sm text-sm text-on-surface-variant">₪</span>
+<span class="font-label-sm text-3xl font-bold text-primary" id="total-sum">7,300.50</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="flex flex-col gap-3">
+<button class="w-full bg-primary hover:bg-primary/90 text-on-primary font-headline-md text-sm font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow-sm hover:shadow group relative overflow-hidden" type="button">
+<span class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></span>
+<span class="material-symbols-outlined text-sm relative z-10">check_circle</span>
+<span class="relative z-10">אשר הזמנה</span>
+</button>
+<button class="w-full border border-primary text-primary hover:bg-primary/5 font-headline-md text-sm font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors" type="button">
+<span class="material-symbols-outlined text-sm">save</span>
+                                שמור טיוטה
+                            </button>
+<button class="w-full text-on-surface-variant hover:text-error hover:bg-error/5 font-headline-md text-sm font-bold py-2 px-4 rounded-lg transition-colors mt-2" type="button">
+                                ביטול
+                            </button>
+</div>
+</div>
+<!-- Footer Note -->
+<div class="bg-surface-container-low p-4 text-center border-t border-outline-variant">
+<p class="font-caption text-caption text-on-surface-variant flex items-center justify-center gap-1">
+<span class="material-symbols-outlined text-[14px]">info</span>
+                            פרסומים מחייבים ייווצרו רק לאחר אישור
+                        </p>
+</div>
+</div>
+<!-- Decorative Graphic below sticky sidebar to avoid empty space -->
+<div aria-hidden="true" class="mt-8 opacity-20 pointer-events-none hidden lg:block">
+<svg class="w-full h-auto text-primary" viewbox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+<path d="M44.7,-76.4C58.8,-69.2,71.8,-59.1,81.3,-46.3C90.8,-33.5,96.8,-18.1,96.5,-3C96.2,12.2,89.5,27.3,80.3,40.1C71.1,53,59.3,63.6,45.8,71.9C32.3,80.2,17.1,86.2,1.8,83.2C-13.5,80.2,-28.9,68.2,-42.6,58C-56.3,47.8,-68.3,39.4,-77.2,27.5C-86.1,15.6,-91.9,0.2,-91.5,-14.7C-91.1,-29.6,-84.5,-44,-73.8,-53.9C-63.1,-63.8,-48.3,-69.2,-34.5,-75C-20.7,-80.8,-7.9,-87,4.8,-95.2C17.5,-103.4,30.6,-83.6,44.7,-76.4Z" fill="currentColor" transform="translate(100 100) scale(0.9)"></path>
+</svg>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script>
+    // Simple interactions
+    
+    // Fake combobox dropdown
+    const input = document.getElementById('customer-select');
+    const dropdown = document.getElementById('customer-dropdown');
+    
+    input.addEventListener('focus', () => {
+        dropdown.classList.remove('hidden');
+    });
+    
+    document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.classList.add('hidden');
+        }
+    });
+    
+    const items = dropdown.querySelectorAll('.group\\/item');
+    items.forEach(item => {
+        item.addEventListener('click', () => {
+            const name = item.querySelector('.font-bold').innerText;
+            input.value = name;
+            dropdown.classList.add('hidden');
+        });
+    });
+
+    // Calculate Totals
+    function calculateTotal() {
+        const rows = document.querySelectorAll('#ad-rows-body tr');
+        let total = 0;
+        
+        rows.forEach(row => {
+            const input = row.querySelector('.row-price');
+            if (input && input.value) {
+                total += parseFloat(input.value);
+            }
+        });
+        
+        document.getElementById('total-rows-count').innerText = rows.length;
+        
+        // Format as currency string (simple approach for demo)
+        const formatter = new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        });
+        
+        document.getElementById('total-sum').innerText = formatter.format(total);
+    }
+    
+    // Add Row Template
+    function addNewRow() {
+        const tbody = document.getElementById('ad-rows-body');
+        const rowCount = tbody.querySelectorAll('tr').length + 1;
+        
+        const tr = document.createElement('tr');
+        tr.className = "border-b border-outline-variant hover:bg-surface-container-lowest transition-colors group/row";
+        
+        tr.innerHTML = `
+            <td class="py-2 px-4 text-center text-on-surface-variant font-mono text-xs">${rowCount}</td>
+            <td class="py-2 px-4">
+                <select class="w-full bg-transparent border border-transparent group-hover/row:border-outline-variant focus:border-primary rounded px-2 py-1.5 focus:outline-none transition-colors cursor-pointer appearance-none">
+                    <option>הארץ - יומון</option>
+                    <option>גלריה</option>
+                    <option>TheMarker</option>
+                    <option>מוסף שבת</option>
+                </select>
+            </td>
+            <td class="py-2 px-4">
+                <input type="date" class="w-full bg-transparent border border-transparent group-hover/row:border-outline-variant focus:border-primary rounded px-2 py-1 text-sm focus:outline-none transition-colors cursor-text">
+            </td>
+            <td class="py-2 px-4">
+                 <select class="w-full bg-transparent border border-transparent group-hover/row:border-outline-variant focus:border-primary rounded px-2 py-1.5 focus:outline-none transition-colors cursor-pointer appearance-none">
+                    <option>עמוד ימני רגיל</option>
+                    <option>עמוד שמאלי</option>
+                    <option>שער אחורי</option>
+                    <option>כפולת אמצע</option>
+                </select>
+            </td>
+            <td class="py-2 px-4">
+                <select class="w-full bg-transparent border border-transparent group-hover/row:border-outline-variant focus:border-primary rounded px-2 py-1.5 focus:outline-none transition-colors cursor-pointer appearance-none">
+                    <option>עמוד שלם</option>
+                    <option>חצי עמוד</option>
+                    <option>סטריפ תחתון</option>
+                    <option>רבע עמוד</option>
+                </select>
+            </td>
+            <td class="py-2 px-4 text-left">
+                <div class="relative">
+                    <input type="number" step="0.01" value="0.00" class="w-full bg-transparent border border-transparent group-hover/row:border-outline-variant focus:border-primary rounded pl-2 pr-6 py-1 text-left focus:outline-none transition-colors font-mono row-price" onchange="calculateTotal()">
+                    <span class="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-xs">₪</span>
+                </div>
+            </td>
+            <td class="py-2 px-4 text-center">
+                <button type="button" class="text-on-surface-variant hover:text-error opacity-0 group-hover/row:opacity-100 transition-opacity" title="מחק שורה" onclick="this.closest('tr').remove(); calculateTotal();">
+                    <span class="material-symbols-outlined text-sm">delete</span>
+                </button>
+            </td>
+        `;
+        
+        tbody.appendChild(tr);
+        calculateTotal();
+    }
+</script></main></div></body></html>
+<!-- Injection By NetFree -->
+<script src="//netfree.link/injection-script/go-payment.js" type="text/javascript" async ></script>
+<script src="//netfree.link/injection-script/popup-card-init.js" type="text/javascript" async ></script>

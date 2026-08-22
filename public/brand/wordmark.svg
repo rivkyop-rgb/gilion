@@ -1,0 +1,16 @@
+<!-- Wordmark for the login screen: mark + name + tagline.
+     The font stack falls back to a generic serif, because an SVG cannot rely
+     on the app's next/font. On the login screen the HTML <h1> is preferred;
+     this file is for contexts that need a single self-contained asset. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" role="img" aria-label="Gilion">
+  <g transform="translate(4 8) scale(1)">
+    <path d="M 49.98 19.38 A 22 22 0 1 0 54 32"
+          fill="none" stroke="#001f3f" stroke-width="10" stroke-linecap="round" />
+    <path d="M 54 32 L 38 32"
+          fill="none" stroke="#D4AF37" stroke-width="10" stroke-linecap="round" />
+  </g>
+  <text x="80" y="42" font-family="'Frank Ruhl Libre', Georgia, 'Times New Roman', serif"
+        font-size="34" font-weight="700" fill="#000613">Gilion</text>
+  <text x="81" y="62" font-family="'Heebo', system-ui, sans-serif"
+        font-size="13" font-weight="500" fill="#43474e">ניהול פרסום בעיתון</text>
+</svg>

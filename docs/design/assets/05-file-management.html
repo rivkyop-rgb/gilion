@@ -1,0 +1,328 @@
+<html dir="rtl" lang="he"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={theme:{extend:{"colors":{"error":"#ba1a1a","tertiary-fixed-dim":"#c5c7c8","secondary-fixed-dim":"#e9c349","primary-container":"#001f3f","on-primary":"#ffffff","secondary-fixed":"#ffe088","secondary":"#735c00","surface-tint":"#476083","error-container":"#ffdad6","on-tertiary-container":"#848688","surface-variant":"#d8e3fa","on-primary-container":"#6f88ad","on-secondary":"#ffffff","inverse-on-surface":"#ebf1ff","on-error-container":"#93000a","on-primary-fixed-variant":"#2f486a","surface-dim":"#cfdaf1","surface-bright":"#f9f9ff","on-error":"#ffffff","surface-container-highest":"#d8e3fa","on-surface":"#111c2c","on-primary-fixed":"#001c3a","surface-container-high":"#dee8ff","primary-fixed":"#d4e3ff","outline":"#74777f","on-tertiary-fixed-variant":"#454748","on-tertiary":"#ffffff","surface-container-low":"#f0f3ff","secondary-container":"#fed65b","primary":"#000613","on-secondary-container":"#745c00","on-background":"#111c2c","tertiary":"#040607","tertiary-container":"#1c1f20","background":"#f9f9ff","surface-container-lowest":"#ffffff","inverse-surface":"#263142","primary-fixed-dim":"#afc8f0","on-secondary-fixed-variant":"#574500","surface":"#f9f9ff","outline-variant":"#c4c6cf","on-surface-variant":"#43474e","on-tertiary-fixed":"#191c1d","on-secondary-fixed":"#241a00","inverse-primary":"#afc8f0","tertiary-fixed":"#e1e3e4","surface-container":"#e7eeff"},"borderRadius":{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},"spacing":{"gutter":"16px","container-max":"1440px","margin-mobile":"16px","margin-desktop":"32px","unit":"4px"},"fontFamily":{"headline-lg-mobile":["Libre Caslon Text"],"headline-lg":["Libre Caslon Text"],"display-lg":["Libre Caslon Text"],"label-sm":["JetBrains Mono"],"headline-md":["Hanken Grotesk"],"body-lg":["Hanken Grotesk"],"body-md":["Hanken Grotesk"],"caption":["Hanken Grotesk"]},"fontSize":{"headline-lg-mobile":["24px",{"lineHeight":"32px","fontWeight":"600"}],"headline-lg":["32px",{"lineHeight":"40px","fontWeight":"600"}],"display-lg":["48px",{"lineHeight":"56px","fontWeight":"700"}],"label-sm":["12px",{"lineHeight":"16px","letterSpacing":"0.05em","fontWeight":"500"}],"headline-md":["20px",{"lineHeight":"28px","fontWeight":"600"}],"body-lg":["16px",{"lineHeight":"24px","fontWeight":"400"}],"body-md":["14px",{"lineHeight":"20px","fontWeight":"400"}],"caption":["12px",{"lineHeight":"16px","fontWeight":"500"}]}}}}</script><link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;family=Libre+Caslon+Text:wght@400;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/></head><body class="bg-background font-body-md text-on-surface"><aside class="fixed right-0 top-0 h-full w-[280px] bg-surface-container-lowest z-50 flex flex-col border-l border-outline-variant"><div class="p-gutter mb-unit flex items-center gap-3"><div class="w-10 h-10 bg-primary-container rounded-lg flex items-center justify-center"><span class="material-symbols-outlined text-on-primary">newspaper</span></div><span class="font-headline-md text-headline-md text-primary">יומון</span></div><nav class="flex-1 px-unit space-y-1" data-active-classes="bg-secondary-container text-on-secondary-container font-bold border-r-4 border-secondary"><a class="flex items-center gap-3 px-gutter py-3 text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-all rounded-lg" data-path="dashboard" href="#"><span class="material-symbols-outlined">dashboard</span><span class="font-body-md">דשבורד</span></a><a class="flex items-center gap-3 px-gutter py-3 text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-all rounded-lg" data-path="layout-board" href="#"><span class="material-symbols-outlined">grid_view</span><span class="font-body-md">לוח שיבוץ</span></a><a class="flex items-center gap-3 px-gutter py-3 text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-all rounded-lg" data-path="new-orders" href="#"><span class="material-symbols-outlined">add_shopping_cart</span><span class="font-body-md">הזמנות חדשות</span></a><a aria-current="page" class="flex items-center gap-3 px-gutter py-3 transition-all rounded-lg bg-secondary-container text-on-secondary-container font-bold border-r-4 border-secondary" data-path="file-management" href="#"><span class="material-symbols-outlined">folder_open</span><span class="font-body-md">ניהול קבצים</span></a><a class="flex items-center gap-3 px-gutter py-3 text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-all rounded-lg" data-path="billing" href="#"><span class="material-symbols-outlined">receipt_long</span><span class="font-body-md">גבייה וחשבונות</span></a><a class="flex items-center gap-3 px-gutter py-3 text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-all rounded-lg" data-path="customers" href="#"><span class="material-symbols-outlined">group</span><span class="font-body-md">לקוחות</span></a><div class="my-4 border-t border-outline-variant mx-gutter"></div><a class="flex items-center gap-3 px-gutter py-3 text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-all rounded-lg" data-path="settings" href="#"><span class="material-symbols-outlined">settings</span><span class="font-body-md">הגדרות</span></a></nav></aside><div class="pr-[280px]"><header class="fixed top-0 right-[280px] left-0 h-16 bg-surface-container-lowest/80 backdrop-blur-xl border-b border-outline-variant z-40 flex items-center justify-between px-margin-desktop"><div class="flex items-center gap-gutter"><span class="material-symbols-outlined text-on-surface-variant cursor-pointer">menu</span><div class="flex items-center gap-2"><span class="font-label-sm text-label-sm bg-surface-container-high px-2 py-1 rounded uppercase text-on-primary-container">Editorial Portal</span></div></div><div class="flex items-center gap-6"><div class="flex items-center gap-3 text-on-surface-variant"><span class="material-symbols-outlined cursor-pointer">search</span><span class="material-symbols-outlined cursor-pointer">notifications</span></div><div class="flex items-center gap-3 border-r border-outline-variant pr-gutter"><div class="text-left"><p class="font-body-md font-bold text-on-surface leading-none">מנהל מערכת</p><p class="font-caption text-caption text-on-surface-variant">Yomon Admin</p></div><img alt="Profile" class="w-10 h-10 rounded-full object-cover border border-outline-variant" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHCiuzzMEzIY1aoi7B9jA8PErHf0n_WXe67a1SUSNvA-B_fNb-VxJOkpcsdxsp0HvGLSHhDKZWZ53SX5CFt_l536R22lLFLcn4vq3XjjGdMz8W_oZf6-RaUdMgG_UMZ-zlcwkEnQ4PZgs1269r43jByU2oig9gCrT8ppAIAd1TZ-_wPMHa7B2mgQcc4bTb0TjRGyn3su6r7ER-5IZ-O3S6ICyhGpAxYtRdAUroaP0KEVSUzFcadrAVIQ"/></div></div></header><main class="relative pt-16 min-h-screen"><div class="flex flex-col w-full rtl">
+<!-- Top Bar -->
+<div class="px-margin-desktop pb-6 flex items-center justify-between border-b border-outline-variant bg-surface-container-lowest/80 backdrop-blur-md sticky top-0 z-30 pt-6">
+<div class="flex items-center gap-4">
+<h1 class="font-headline-lg text-headline-lg text-on-surface">ניהול קבצים ומודעות</h1>
+<span class="font-label-sm text-label-sm px-3 py-1 bg-surface-container-high text-on-surface-variant rounded-full mt-1">42 קבצים סה"כ</span>
+</div>
+<div class="flex items-center gap-gutter">
+<!-- Search -->
+<div class="relative w-80">
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 pr-10 pl-4 font-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" placeholder="חיפוש לפי שם לקוח, קובץ או תאריך..." type="text"/>
+</div>
+<!-- Filters -->
+<div class="flex items-center gap-2 border-r border-outline-variant pr-gutter mr-gutter">
+<button class="flex items-center gap-2 px-4 py-2 bg-surface-container rounded-lg border border-outline-variant hover:bg-surface-container-high transition-colors text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[18px]">filter_list</span>
+                    סינון
+                </button>
+<button class="flex items-center gap-2 px-4 py-2 bg-surface-container rounded-lg border border-outline-variant hover:bg-surface-container-high transition-colors text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[18px]">sort</span>
+                    מיון
+                </button>
+</div>
+<!-- Upload Button -->
+<button class="flex items-center gap-2 px-6 py-2.5 bg-primary text-on-primary rounded-lg font-label-sm text-label-sm shadow-md hover:shadow-lg transition-all hover:bg-on-primary-fixed" onclick="document.getElementById('upload-drawer').classList.remove('translate-x-full'); document.getElementById('drawer-backdrop').classList.remove('opacity-0', 'pointer-events-none')">
+<span class="material-symbols-outlined">upload_file</span>
+                העלאת קובץ חדש
+            </button>
+</div>
+</div>
+<!-- Main Content Grid -->
+<div class="p-margin-desktop bg-surface min-h-[calc(100vh-140px)]">
+<!-- Section: Recent Errors (Prioritized) -->
+<div class="mb-12">
+<h2 class="font-headline-md text-headline-md text-on-surface mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-error">error</span>
+                דורשים טיפול
+            </h2>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-gutter">
+<!-- Error Card 1 -->
+<div class="bg-surface-container-lowest rounded-xl border border-error shadow-sm hover:shadow-md transition-shadow flex flex-col group relative overflow-hidden">
+<div class="absolute top-0 right-0 w-1.5 h-full bg-error"></div>
+<!-- Thumbnail Area -->
+<div class="h-40 bg-error-container relative flex items-center justify-center p-4">
+<span class="material-symbols-outlined text-[64px] text-on-error-container opacity-50">picture_as_pdf</span>
+<div class="absolute top-3 left-3 flex gap-2">
+<span class="px-2 py-1 bg-error text-on-error font-label-sm text-label-sm rounded flex items-center gap-1 shadow-sm">
+<span class="material-symbols-outlined text-[14px]">warning</span>
+                                שגיאה
+                             </span>
+</div>
+</div>
+<!-- Content -->
+<div class="p-5 flex-1 flex flex-col">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline-md text-headline-md text-on-surface truncate" title="campaign_summer_final_v2.pdf">campaign_summer_final_v2.pdf</h3>
+<button class="text-on-surface-variant hover:text-on-surface"><span class="material-symbols-outlined text-[20px]">more_vert</span></button>
+</div>
+<div class="text-on-surface-variant font-body-md text-body-md mb-4 truncate">לקוח: קוקה קולה ישראל</div>
+<div class="flex gap-4 mb-4 text-on-surface-variant font-caption text-caption">
+<div class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">insert_drive_file</span> PDF</div>
+<div class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">sd_storage</span> 12.4 MB</div>
+</div>
+<div class="bg-error-container/30 p-3 rounded-lg border border-error-container mb-4">
+<p class="font-caption text-caption text-on-error-container flex items-start gap-2">
+<span class="material-symbols-outlined text-[16px] mt-0.5">info</span>
+                                 רזולוציה נמוכה מדי. נדרש מינימום 300dpi להדפסה.
+                             </p>
+</div>
+<div class="mt-auto pt-4 border-t border-outline-variant flex justify-between items-center">
+<div class="flex items-center gap-2">
+<img alt="Ron Levi" class="w-6 h-6 rounded-full" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBP5VKHt8AvmnB2QGHQvk9Fz0YaKDC1OEc3nJv3wtaskWgZFWzWfAxA8ofZ74tbLBn09-Ucc-dG3wPke8BzW2Vr2_wa-jmdM3ebT8szyaQGKbuqcutPNoj3acyA4dV4ndAm83rYPlaNHly5khqLVe4x2vXxb4xtXsMc7evGnnib0xUkhkqfuWbe3t0JV8Yb0Nr09pQnB9tCKMfpIMvaPKAvEmaOMy0i552FxODI4mEwF0i2F-sWkYtbcg"/>
+<span class="font-caption text-caption text-on-surface-variant">רון לוי • לפני שעתיים</span>
+</div>
+<button class="text-error hover:text-on-error-container font-label-sm text-label-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">sync</span> החלף
+                            </button>
+</div>
+</div>
+</div>
+<!-- Error Card 2 (Unassigned) -->
+<div class="bg-surface-container-lowest rounded-xl border border-error shadow-sm hover:shadow-md transition-shadow flex flex-col group relative overflow-hidden">
+<div class="absolute top-0 right-0 w-1.5 h-full bg-error"></div>
+<!-- Thumbnail Area -->
+<div class="h-40 bg-surface-variant relative flex items-center justify-center p-4" data-alt="Abstract colorful gradient background simulating a high quality ad creative, warm sunset colors, sharp details." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBsIGS937UboI-PfcE8LkjGwcOQ_zEzJtgdB_qVz_8s9Z9zKbiSggj1KwPXjNc8SkpG6QpMkdB2LVUn8DEUUz7O2KuR7q8COEF2FY858j5MqK_NXrCPfDl7Xyf0_Fn-YBjmQzW6g56XQsiFSuVSE7bV2Z_I7KUP3J3pCzwsO4yMncxj5LGI9DVQ_jq8mbjE8ePq1R5QpOsr1BWlPh1syipFQdBgNNZnZ5-JQAxnnamdRMNgMdTcn43ZPw'); background-size: cover; background-position: center;">
+<div class="absolute inset-0 bg-surface-variant/60 backdrop-blur-[2px]"></div>
+<span class="material-symbols-outlined text-[64px] text-on-surface-variant relative z-10">image</span>
+<div class="absolute top-3 left-3 flex gap-2 z-10">
+<span class="px-2 py-1 bg-error text-on-error font-label-sm text-label-sm rounded flex items-center gap-1 shadow-sm">
+<span class="material-symbols-outlined text-[14px]">link_off</span>
+                                לא משויך
+                             </span>
+</div>
+</div>
+<!-- Content -->
+<div class="p-5 flex-1 flex flex-col">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline-md text-headline-md text-on-surface truncate" title="ad_half_page_weekend.jpg">ad_half_page_weekend.jpg</h3>
+<button class="text-on-surface-variant hover:text-on-surface"><span class="material-symbols-outlined text-[20px]">more_vert</span></button>
+</div>
+<div class="text-error font-body-md text-body-md mb-4 flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">help_outline</span>
+                             לקוח לא ידוע
+                        </div>
+<div class="flex gap-4 mb-4 text-on-surface-variant font-caption text-caption">
+<div class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">image</span> JPG</div>
+<div class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">sd_storage</span> 4.1 MB</div>
+</div>
+<button class="w-full py-2 border border-outline rounded-lg text-on-surface font-label-sm text-label-sm flex justify-center items-center gap-2 hover:bg-surface-container-low transition-colors mb-4">
+<span class="material-symbols-outlined text-[18px]">link</span>
+                            שיוך ללקוח
+                        </button>
+<div class="mt-auto pt-4 border-t border-outline-variant flex justify-between items-center">
+<div class="flex items-center gap-2">
+<span class="w-6 h-6 rounded-full bg-surface-container-high flex items-center justify-center"><span class="material-symbols-outlined text-[14px] text-on-surface-variant">api</span></span>
+<span class="font-caption text-caption text-on-surface-variant">מערכת • אתמול</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Section: Valid Files -->
+<div>
+<div class="flex items-center justify-between mb-6">
+<h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">folder_open</span>
+                    קבצים אחרונים
+                </h2>
+<div class="flex items-center gap-2 text-on-surface-variant">
+<button class="p-1 hover:bg-surface-container rounded transition-colors bg-surface-container-high"><span class="material-symbols-outlined">grid_view</span></button>
+<button class="p-1 hover:bg-surface-container rounded transition-colors"><span class="material-symbols-outlined">list</span></button>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-gutter">
+<!-- Card 1 -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm hover:shadow-md transition-shadow flex flex-col group relative overflow-hidden">
+<!-- Thumbnail Area -->
+<div class="h-40 bg-surface-variant relative flex items-center justify-center" data-alt="High resolution advertisement preview showing a luxury car in a sleek studio environment, dark and moody lighting." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCmFS76dKBM9RIBzPOHEUElD8ij0uTitus3pJ6M9bIaskvIN5-h3uFzA4PdwergU_JhgFykUw7ukU78psGb51sv2RuQDtfQMvizLTDMlRoGqiRoFNeLAFgqRvLkd6SjV9mitakD9--BJiTM2EVx95HmLCDqbRuo432qKU8fmyHgKbJziqeHn7PisOTzQ0RZ0Bl7YM-Hjhz_U7Nb2zO5vjfWGO2mZWdPNCaxdy5EutRGNpZcIUey5N1kcw'); background-size: cover; background-position: center;">
+<!-- Overlay on hover -->
+<div class="absolute inset-0 bg-surface/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm z-20">
+<button class="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-on-primary shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+<span class="material-symbols-outlined">visibility</span>
+</button>
+</div>
+<div class="absolute top-3 left-3 flex gap-2 z-10">
+<span class="px-2 py-1 bg-surface-container-lowest/90 backdrop-blur border border-outline-variant text-on-surface font-label-sm text-label-sm rounded flex items-center gap-1 shadow-sm">
+<span class="material-symbols-outlined text-[14px] text-green-600">check_circle</span>
+                                תקין
+                             </span>
+</div>
+</div>
+<!-- Content -->
+<div class="p-5 flex-1 flex flex-col">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline-md text-headline-md text-on-surface truncate" title="mercedes_launch_q3.pdf">mercedes_launch_q3.pdf</h3>
+<button class="text-on-surface-variant hover:text-on-surface"><span class="material-symbols-outlined text-[20px]">more_vert</span></button>
+</div>
+<div class="text-on-surface-variant font-body-md text-body-md mb-4 truncate">לקוח: כלמוביל - מרצדס</div>
+<div class="flex gap-4 mb-4 text-on-surface-variant font-caption text-caption">
+<div class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">picture_as_pdf</span> PDF</div>
+<div class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">sd_storage</span> 45.2 MB</div>
+<div class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">aspect_ratio</span> עמוד שלם</div>
+</div>
+<div class="mt-auto pt-4 border-t border-outline-variant flex justify-between items-center">
+<div class="flex items-center gap-2">
+<img alt="Dana Cohen" class="w-6 h-6 rounded-full" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCMpMI2KUviD7SUjECc6Shn5ND-E46tAxulob2J5nWFJukVWOKdIskrdTYyAdHd5PlZLZpZwxNgKKTLs-rivhVPsg_PWrpBO1U7a3eKrH_Endk4D_iys2c0b1oK3-BHHe5E7bl2iuUJeTaAEzG3OatDhC_FwpV5bHM9iI7p5BFvm4UC6jnS0CF70vlOKiWaYocu-t2kKULye5AL8OdXEVKa_HKOfXcRT9vlT0jndGMNy26VMTMHbediCw"/>
+<span class="font-caption text-caption text-on-surface-variant">דנה כהן • היום, 09:30</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm hover:shadow-md transition-shadow flex flex-col group relative overflow-hidden">
+<!-- Thumbnail Area -->
+<div class="h-40 bg-surface-variant relative flex items-center justify-center" data-alt="Advertisement preview showing a clean typography-based real estate layout, minimal white and blue aesthetic." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBIyvnsnGfDUdmOgteWsoJt_5RgXB5cSwlviEhaX_4qY5v6iPwM-LcOJNkiY0IbwFAfh-962fXwhgjXCKDUYgJ3aBKcK0M0rj1SY2L6ZMt71oqkj7x4IvP6Iq0aWUMjzeYWbtX1FLnijE4LxYUvajJAWhkw7RbWtKAYUamlmXE5DxDTVpemeDPaSXpAVf2mZmrjoP6IWlmx6TZE9t1WCEVueoPRiyjSdnBXsfSL34nNJkinQfOnIp3cow'); background-size: cover; background-position: center;">
+<!-- Overlay on hover -->
+<div class="absolute inset-0 bg-surface/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm z-20">
+<button class="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-on-primary shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+<span class="material-symbols-outlined">visibility</span>
+</button>
+</div>
+<div class="absolute top-3 left-3 flex gap-2 z-10">
+<span class="px-2 py-1 bg-surface-container-lowest/90 backdrop-blur border border-outline-variant text-on-surface font-label-sm text-label-sm rounded flex items-center gap-1 shadow-sm">
+<span class="material-symbols-outlined text-[14px] text-green-600">check_circle</span>
+                                תקין
+                             </span>
+</div>
+</div>
+<!-- Content -->
+<div class="p-5 flex-1 flex flex-col">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline-md text-headline-md text-on-surface truncate" title="tlv_towers_strip.jpg">tlv_towers_strip.jpg</h3>
+<button class="text-on-surface-variant hover:text-on-surface"><span class="material-symbols-outlined text-[20px]">more_vert</span></button>
+</div>
+<div class="text-on-surface-variant font-body-md text-body-md mb-4 truncate">לקוח: גינדי השקעות</div>
+<div class="flex gap-4 mb-4 text-on-surface-variant font-caption text-caption">
+<div class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">image</span> JPG</div>
+<div class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">sd_storage</span> 8.5 MB</div>
+<div class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">aspect_ratio</span> סטריפ תחתון</div>
+</div>
+<div class="mt-auto pt-4 border-t border-outline-variant flex justify-between items-center">
+<div class="flex items-center gap-2">
+<img alt="Dana Cohen" class="w-6 h-6 rounded-full" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBmZUJQBFKTaBbmeO7oJHeG3oEx-turfH8jxaLkrM5dRGFlZyEb0f9zFQAnEX5cQDsvcVjbwL2rVZz7OvuWrLsoume0R_vx6gucC0X3t2QGewmdtWU2ey-z6quV0k8lzgssaa8OVYWV8nEnZWZlQuWdU2wlwz9Q8kvQXYeakK4Zbb6Wv3AuJ4Lz5adlLRWL7_ct16UJWy9JswJi4lyYX2X3sCVi1PATkRzOlf9p2z-FFMo7DmBoXwuK2w"/>
+<span class="font-caption text-caption text-on-surface-variant">דנה כהן • אתמול, 16:45</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Card 3 (Processing) -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm hover:shadow-md transition-shadow flex flex-col group relative overflow-hidden">
+<!-- Thumbnail Area -->
+<div class="h-40 bg-surface-container relative flex items-center justify-center p-4">
+<span class="material-symbols-outlined text-[64px] text-on-surface-variant opacity-30 animate-pulse">description</span>
+<div class="absolute inset-0 flex items-center justify-center">
+<div class="w-12 h-12 border-4 border-surface-variant border-t-primary rounded-full animate-spin"></div>
+</div>
+<div class="absolute top-3 left-3 flex gap-2 z-10">
+<span class="px-2 py-1 bg-surface-container-lowest/90 backdrop-blur border border-outline-variant text-on-surface-variant font-label-sm text-label-sm rounded flex items-center gap-1 shadow-sm">
+<span class="material-symbols-outlined text-[14px]">hourglass_empty</span>
+                                בבדיקה...
+                             </span>
+</div>
+</div>
+<!-- Content -->
+<div class="p-5 flex-1 flex flex-col opacity-75">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline-md text-headline-md text-on-surface truncate" title="bank_leumi_print_v1.pdf">bank_leumi_print_v1.pdf</h3>
+<button class="text-on-surface-variant hover:text-on-surface" disabled=""><span class="material-symbols-outlined text-[20px]">more_vert</span></button>
+</div>
+<div class="text-on-surface-variant font-body-md text-body-md mb-4 truncate">לקוח: בנק לאומי</div>
+<div class="flex gap-4 mb-4 text-on-surface-variant font-caption text-caption">
+<div class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">insert_drive_file</span> PDF</div>
+<div class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">sd_storage</span> -- MB</div>
+</div>
+<div class="h-2 w-full bg-surface-variant rounded-full overflow-hidden mb-4">
+<div class="h-full bg-primary w-2/3 animate-pulse"></div>
+</div>
+<div class="mt-auto pt-4 border-t border-outline-variant flex justify-between items-center">
+<div class="flex items-center gap-2">
+<img alt="Avi Y" class="w-6 h-6 rounded-full" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDB4qA8Th-Fm2cSb45XDwx_wgjYwOdTxdiCHoyZ1ZKi6XilrDpWmzWkoJh8Fj-vymAwnZaCgKChkRPiVMzalb_DM5zkiZfUCl9D-Qxe_oFUy-gISq9ENj4-gLNmNAQy5Vv5b7b6RtiIz5x67BU3N6q76WWGzZ_nHOofmSvgIlqKG1RkXGW8xADZdmNmdgGGZ-x1KjFEm2UMgYCTm89RlC03j0PTDCXMQBeDKGgT4BMUXeq0u_GQh9oU6g"/>
+<span class="font-caption text-caption text-on-surface-variant">אבי י. • ממש עכשיו</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Overlay Backdrop -->
+<div class="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-40 opacity-0 pointer-events-none transition-opacity duration-300" id="drawer-backdrop" onclick="document.getElementById('upload-drawer').classList.add('translate-x-full'); this.classList.add('opacity-0', 'pointer-events-none')"></div>
+<!-- Upload Drawer (RTL - slides from left) -->
+<div class="fixed top-0 left-0 h-full w-[400px] max-w-[90vw] bg-surface-container-lowest shadow-2xl z-50 transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col border-r border-outline-variant" id="upload-drawer">
+<!-- Drawer Header -->
+<div class="px-6 py-4 border-b border-outline-variant flex items-center justify-between bg-surface-container-lowest sticky top-0">
+<h2 class="font-headline-lg text-headline-lg text-on-surface">העלאת קובץ חדש</h2>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors" onclick="document.getElementById('upload-drawer').classList.add('translate-x-full'); document.getElementById('drawer-backdrop').classList.add('opacity-0', 'pointer-events-none')">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<!-- Drawer Content -->
+<div class="p-6 flex-1 overflow-y-auto">
+<!-- Drag & Drop Zone -->
+<div class="border-2 border-dashed border-outline-variant rounded-xl p-8 flex flex-col items-center justify-center bg-surface-container-low/50 hover:bg-surface-container-low hover:border-primary transition-all cursor-pointer group mb-8">
+<div class="w-16 h-16 bg-surface-container rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-[32px] text-primary">cloud_upload</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-2">גרירת קבצים לכאן</h3>
+<p class="font-body-md text-body-md text-on-surface-variant text-center mb-4">או לחץ לבחירת קבצים מהמחשב</p>
+<button class="px-4 py-2 border border-outline rounded-lg font-label-sm text-label-sm text-on-surface hover:bg-surface-container transition-colors">בחירת קובץ</button>
+</div>
+<!-- Constraints Info -->
+<div class="bg-surface-container rounded-lg p-4 mb-8">
+<h4 class="font-label-sm text-label-sm text-on-surface mb-3 flex items-center gap-2 uppercase tracking-wider">
+<span class="material-symbols-outlined text-[16px]">info</span>
+                    דרישות קובץ
+                </h4>
+<ul class="space-y-2 font-caption text-caption text-on-surface-variant list-inside list-disc">
+<li>פורמטים נתמכים: PDF (מועדף), JPG, PNG.</li>
+<li>רזולוציה מינימלית: 300dpi.</li>
+<li>מודל צבע: CMYK בלבד.</li>
+<li>גודל מקסימלי: 100MB.</li>
+<li>יש להקפיד על בליד (Bleed) של 5 מ"מ.</li>
+</ul>
+</div>
+<!-- Context Form -->
+<div class="space-y-6">
+<!-- Newspaper Dropdown -->
+<div>
+<label class="block font-label-sm text-label-sm text-on-surface mb-2">יעד פרסום (עיתון/מוסף)</label>
+<div class="relative">
+<select class="w-full appearance-none bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-4 pr-10 font-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+<option value="">בחר עיתון...</option>
+<option value="daily">היומון המרכזי</option>
+<option value="weekend">מוסף סוף שבוע</option>
+<option value="economy">מוסף כלכלה</option>
+<option value="sports">מוסף ספורט</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">expand_more</span>
+</div>
+</div>
+<!-- Customer Search (Optional) -->
+<div>
+<label class="block font-label-sm text-label-sm text-on-surface mb-2">שיוך לקוח מראש <span class="text-on-surface-variant font-normal">(אופציונלי)</span></label>
+<div class="relative">
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 pr-10 pl-4 font-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" placeholder="חיפוש לקוח..." type="text"/>
+</div>
+</div>
+<!-- Note -->
+<div>
+<label class="block font-label-sm text-label-sm text-on-surface mb-2">הערות לגרפיקה <span class="text-on-surface-variant font-normal">(אופציונלי)</span></label>
+<textarea class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2.5 px-4 font-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none" placeholder="הוראות מיוחדות, בקשות חיתוך..." rows="3"></textarea>
+</div>
+</div>
+</div>
+<!-- Drawer Footer -->
+<div class="p-6 border-t border-outline-variant bg-surface-container-lowest flex gap-4">
+<button class="flex-1 py-3 bg-primary text-on-primary rounded-lg font-label-sm text-label-sm hover:bg-on-primary-fixed transition-colors shadow-sm">העלאה ובדיקה (1)</button>
+<button class="px-6 py-3 border border-outline rounded-lg text-on-surface font-label-sm text-label-sm hover:bg-surface-container-low transition-colors" onclick="document.getElementById('upload-drawer').classList.add('translate-x-full'); document.getElementById('drawer-backdrop').classList.add('opacity-0', 'pointer-events-none')">ביטול</button>
+</div>
+</div>
+</div></main></div></body></html>
+<!-- Injection By NetFree -->
+<script src="//netfree.link/injection-script/go-payment.js" type="text/javascript" async ></script>
+<script src="//netfree.link/injection-script/popup-card-init.js" type="text/javascript" async ></script>

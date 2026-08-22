@@ -1,0 +1,7 @@
+node_modules
+.next
+prisma/migrations
+playwright-report
+test-results
+# The spec is authored by hand — Prettier should not reflow its tables.
+docs

@@ -1,0 +1,20 @@
+// Gilion — Prisma schema
+// Stage 00 holds no business models on purpose: the empty initial migration
+// exists only to prove the pipeline works end to end (docs/plan/00-foundation.md).
+//
+// Conventions fixed here and binding for every model added later:
+//   - id is String @id @default(cuid())
+//   - every model carries created_at / updated_at
+//   - @@map gives the table the PascalCase name used in docs/erd.md
+//   - every ERD enum becomes a Prisma enum
+//
+// The connection URL lives in prisma.config.ts, not here: Prisma 7 removed
+// `url` from the datasource block in favour of a driver adapter.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}

@@ -1,0 +1,11 @@
+<!-- Gilion mark — vector redraw of docs/design/assets/logo.png, simplified for
+     small sizes: the G ring plus its terminal bar, without the newspaper lines
+     (which turn to mush below ~64px). Transparent background.
+     Colors: primary-container #001f3f + brand-gold #D4AF37.
+     Replaceable from the admin panel (docs/plan/11-admin-panel.md). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Gilion">
+  <path d="M 49.98 19.38 A 22 22 0 1 0 54 32"
+        fill="none" stroke="#001f3f" stroke-width="10" stroke-linecap="round" />
+  <path d="M 54 32 L 38 32"
+        fill="none" stroke="#D4AF37" stroke-width="10" stroke-linecap="round" />
+</svg>

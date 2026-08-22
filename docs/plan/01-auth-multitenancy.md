@@ -1,0 +1,136 @@
+# שלב 01 — Auth, Multi-tenancy ולוג ביקורת
+
+## מטרה
+
+בסוף השלב משתמש מתחבר, בוחר עסק פעיל, ורואה מעטפת מערכת שהניווט בה משתנה לפי תפקידו — וכל שאילתה במערכת מוגבלת אוטומטית לעסק הפעיל.
+
+## תלויות
+
+0.
+
+## מקורות באפיון
+
+FR-1 · FR-2 · FR-8 · FR-9 · FR-10 · US-004, US-008, US-010 (מקורות ה־AuditLog) · ישויות: `Business`, `User`, `UserMembership`, `AuditLog`
+
+## Scope
+
+**נכנס:** Auth.js עם סשן · מסך התחברות · בחירת עסק פעיל · Prisma extension לאכיפת tenancy · מטריצת RBAC ל־5 תפקידים · `withAudit()` · מעטפת פנימית (סיידבר + סרגל עליון) עם הסתרת פריטים לפי תפקיד.
+
+**לא נכנס:** רישום עצמי · שחזור סיסמה · הזמנת משתמשים · ניהול משתמשים ב־UI (Admin מוסיף חברויות דרך seed ב־MVP) · SSO · התחברות לקוח לפורטל (שלב 09).
+
+## מודל נתונים
+
+`Business` — `id`, `name`, timestamps.
+
+`User` — `id`, `name`, `email` (unique), `user_type: [internal, customer]`, timestamps. פלוס `password_hash` שאינו ב־ERD אבל נדרש למימוש credentials-based auth.
+
+`UserMembership` — `id`, `user_id`, `business_id`, `customer_id?`, `role: [admin, sales, designer, accounting, customer]`, `status: [active, inactive]`, timestamps.
+
+`AuditLog` — `id`, `business_id`, `user_id`, `action` (7 ערכים), `target_type`, `target_id`, `old_value: Json?`, `new_value: Json?`, `created_at`.
+
+**אינדקסים:**
+
+```prisma
+@@unique([user_id, business_id])           // UserMembership — חברות אחת לעסק
+@@index([business_id, status])             // UserMembership
+@@index([business_id, created_at(sort: Desc)])  // AuditLog — עמוד הביקורת
+@@index([target_type, target_id])          // AuditLog — היסטוריה של רשומה
+```
+
+**Constraints:** `UserMembership.customer_id` חובה כאשר `role = 'customer'`, ואסור אחרת — נאכף ב־CHECK constraint ובדומיין. `Business` ו־`AuditLog` הם `onDelete: Restrict`.
+
+## מסלולים ופעולות
+
+| מסלול                                                  | תיאור                                                     |
+| ------------------------------------------------------ | --------------------------------------------------------- |
+| `GET /login`                                           | מסך התחברות                                               |
+| `POST` (Server Action) `signIn`                        | אימות credentials, יצירת סשן                              |
+| `GET /select-business`                                 | בחירת עסק פעיל — **רק** כשיש יותר מחברות פעילה אחת (FR-2) |
+| `POST` (Server Action) `setActiveBusiness(businessId)` | מאמת שקיימת חברות פעילה, כותב לסשן                        |
+| `GET /dashboard`                                       | יעד ברירת המחדל אחרי התחברות                              |
+| `POST` (Server Action) `signOut`                       |                                                           |
+
+**מודולי ליבה:**
+
+- `lib/auth/session.ts` — הגדרת Auth.js, callbacks שמכניסים `businessId` ו־`role` ל־JWT.
+- `lib/auth/tenant.ts` — `getTenantContext()`. זורק `NoActiveBusinessError` כשאין עסק פעיל, וה־middleware מתרגם לניתוב ל־`/select-business`.
+- `lib/auth/rbac.ts` — `can(role, action)` + `requireRole(...roles)`.
+- `lib/data/db.ts` — ה־Prisma client המורחב (`conventions.md` §2).
+- `lib/data/audit.ts` — `withAudit()` (`conventions.md` §6).
+- `middleware.ts` — משתמש בלי סשן → `/login`; משתמש בלי עסק פעיל → `/select-business`; `user_type = 'customer'` שמנסה להיכנס ל־`(internal)` → 403 (FR-9).
+
+## מסכים
+
+**חדשים — אין להם עיצוב קיים, מעוצבים לפי אותו קו:**
+
+1. **התחברות** — מעטפת ייעודית, ללא סיידבר. הרנדר של הלוגו על רקע `primary` כהה בחצי המסך, כרטיס לבן ברדיוס `xl` עם המותג `Gilion` והטופס בחצי השני. שדות מייל וסיסמה לפי דפוס שדות הקלט מ־`components.md`, כפתור primary שחור מלא־רוחב, הודעת שגיאה ב־`status-error`.
+2. **בחירת עסק פעיל** — אותה מעטפת. כותרת `headline-lg` בסריף, ורשימת כרטיסי עסק: כל כרטיס לבן, רדיוס `xl`, שם העסק ב־`headline-md`, התפקיד של המשתמש בו כ־badge ניטרלי, ואייקון `chevron`. hover מרים ל־Elevation 1 ומוסיף גבול `brand-gold`. **מוצג רק כשיש יותר מעסק אחד** — עסק יחיד נבחר אוטומטית ומדלגים.
+
+**מעטפת המערכת** לפי [`../design/app-shell.md`](../design/app-shell.md), עם שלושת התיקונים שהמסמך דורש:
+
+- הלוגו האמיתי (`mark.svg`) במקום ה־placeholder.
+- **בורר העסק הפעיל** במקום צ'יפ `EDITORIAL PORTAL` הדקורטיבי בסרגל העליון — אותו מיקום, אותה צורה, תוכן אמיתי. לחיצה פותחת dropdown להחלפת עסק.
+- הניווט המורחב: דשבורד · לקוחות · הזמנות · מודעות · גיליונות · לוח שיבוץ · גבייה · הגדרות. פריטים לשלבים שטרם נבנו מוצגים מושבתים.
+
+**מצבים שחסרים בעיצוב הקיים** ונקבעים כאן כדפוס לכל המערכת: skeleton לטעינה, מצב ריק (אייקון + כותרת + משפט הסבר + פעולה ראשית), מצב שגיאת שרת, מצב "אין הרשאה" (403), מצב "לא נמצא" (404).
+
+**סיידבר מתחת ל־1024px** — קורס ל־`Sheet` שנפתח מימין, עם כפתור המבורגר בסרגל העליון.
+
+## הרשאות
+
+מטריצת ה־RBAC המלאה (FR-8, FR-9). כל השלבים הבאים מרחיבים אותה:
+
+| אזור                | admin | sales | designer | accounting | customer |
+| ------------------- | :---: | :---: | :------: | :--------: | :------: |
+| דשבורד              |  ✅   |  ✅   |    ✅    |     ✅     |    ❌    |
+| לקוחות              |  ✅   |  ✅   |    👁     |     👁      |    ❌    |
+| הזמנות              |  ✅   |  ✅   |    ❌    |     👁      |    ❌    |
+| מודעות וקבצים       |  ✅   |  ✅   |    ✅    |     ❌     |    ❌    |
+| גיליונות ושיבוץ     |  ✅   |   👁   |    ✅    |     ❌     |    ❌    |
+| הפקת PDF            |  ✅   |  ❌   |    ✅    |     ❌     |    ❌    |
+| גבייה ותשלומים      |  ✅   |  ❌   |  **❌**  |     ✅     |    ❌    |
+| דוחות               |  ✅   |   👁   |    ❌    |     ✅     |    ❌    |
+| הגדרות עסק ועיתונים |  ✅   |  ❌   |    ❌    |     ❌     |    ❌    |
+| לוג ביקורת          |  ✅   |  ❌   |    ❌    |     ❌     |    ❌    |
+| פורטל לקוח          |  ❌   |  ❌   |    ❌    |     ❌     |    ✅    |
+
+✅ קריאה+כתיבה · 👁 קריאה בלבד · ❌ אין גישה
+
+**שתי הדגשות מהאפיון:** `designer` **לא רואה נתוני תשלום** כברירת מחדל (FR-8) — לא בתפריט, לא בעמודות טבלה, לא ב־API response. `customer` לא ניגש לשום מסך פנימי (FR-9).
+
+## כללי ולידציה
+
+- מייל תקין; סיסמה 8+ תווים.
+- כישלון התחברות מחזיר הודעה גנרית אחת ("שם משתמש או סיסמה שגויים") — לא מגלה אם המייל קיים.
+- `setActiveBusiness` מאמת שקיימת `UserMembership` **פעילה** של המשתמש לעסק. אחרת 403 + רישום.
+- משתמש בלי אף חברות פעילה מקבל מסך ייעודי "אין לך גישה לאף עסק", לא לולאת ניתוב.
+- `getTenantContext()` **חובה** בתחילת כל Server Action. אין יוצא מן הכלל.
+- `AuditLog` — כתיבה בלבד. אין Server Action לעדכון או מחיקה, ו־`lib/data/audit.ts` לא חושף כאלה.
+
+## בדיקות
+
+**Vitest:**
+
+- `rbac.test.ts` — כל 5 התפקידים × כל אזור מהמטריצה. הבדיקה נגזרת מהטבלה, כך שהוספת אזור מחייבת עדכון.
+- `tenant.test.ts` — `getTenantContext()` זורק כשאין סשן, כשאין עסק פעיל, וכשהחברות `inactive`.
+- `audit.test.ts` — כישלון בפעולה מבטל את רשומת הלוג.
+
+**Playwright:**
+
+- `auth-flow.spec.ts` — התחברות → בחירת עסק → דשבורד. משתמש עם עסק יחיד מדלג על מסך הבחירה.
+- `tenant-isolation.spec.ts` — **הבדיקה החשובה בשלב.** משתמש בעסק א' מנסה לגשת ישירות ל־URL של רשומה מעסק ב' → 404 (לא 403, כדי לא לאשר קיום). נחזור על הבדיקה בכל שלב שמוסיף ישות.
+- `role-nav.spec.ts` — `designer` מחובר: "גבייה וחשבונות" לא בתפריט, וגישה ישירה ל־`/billing` נותנת 403.
+- `customer-blocked.spec.ts` — `user_type = 'customer'` נחסם מכל מסך פנימי.
+
+## Definition of Done
+
+- [ ] משתמש מתחבר, בוחר עסק ומגיע לדשבורד; משתמש עם עסק יחיד מדלג על הבחירה.
+- [ ] הסיידבר מציג את הלוגו האמיתי ואת בורר העסק הפעיל בסרגל העליון.
+- [ ] הניווט מוסתר לפי תפקיד, וגישה ישירה ב־URL נחסמת בשרת — לא רק בתפריט.
+- [ ] `designer` לא רואה שום נתון תשלום בשום מקום.
+- [ ] `tenant-isolation.spec.ts` עובר.
+- [ ] כתיבת רשומה בלי `business_id` נכשלת ברמת ה־extension, לא ברמת ה־DB.
+- [ ] `withAudit()` כותב `old_value`/`new_value` באותה טרנזקציה, ופעולה שנכשלת לא משאירה לוג.
+- [ ] חמשת מצבי המעטפת (טעינה, ריק, שגיאה, 403, 404) קיימים כרכיבים משותפים.
+- [ ] הסיידבר קורס ל־Sheet מתחת ל־1024px.
+- [ ] עמוד `/` הזמני משלב 00 נמחק.

@@ -1,0 +1,54 @@
+# Development services only. Production runs behind Nginx/aaPanel (stack.md).
+#
+# The project name is set explicitly because Compose derives it from the
+# directory name, and this project lives in a Hebrew-named directory that
+# sanitizes to an empty string.
+name: gilion
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: gilion-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gilion
+      POSTGRES_PASSWORD: gilion_dev
+      POSTGRES_DB: gilion
+    ports:
+      # Host port shifted off the default: another project on this machine
+      # already binds 5432/9000/9001. Container-side ports are unchanged.
+      - "5433:5432"
+    volumes:
+      # Postgres 18 wants a single mount at /var/lib/postgresql (it places the
+      # data dir in a subdirectory), not the pre-18 /var/lib/postgresql/data.
+      - gilion-postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gilion -d gilion"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Single private bucket. No public URL is ever handed out — access goes
+  # through a presigned URL minted server-side (conventions.md §5).
+  minio:
+    image: minio/minio:latest
+    container_name: gilion-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: gilion
+      MINIO_ROOT_PASSWORD: gilion_dev_secret
+    ports:
+      - "9100:9000"
+      - "9101:9001"
+    volumes:
+      - gilion-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  gilion-postgres-data:
+  gilion-minio-data:
