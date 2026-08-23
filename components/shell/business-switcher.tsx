@@ -1,5 +1,6 @@
 "use client";
 
+import { useTransition } from "react";
 import { Building2, Check, ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
@@ -26,8 +27,9 @@ export function BusinessSwitcher({
 }: {
   current: SwitcherBusiness;
   options: SwitcherBusiness[];
-  onSelect: (formData: FormData) => void;
+  onSelect: (businessId: string) => Promise<void>;
 }) {
+  const [pending, startTransition] = useTransition();
   const single = options.length <= 1;
 
   if (single) {
@@ -41,7 +43,11 @@ export function BusinessSwitcher({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex items-center gap-2 rounded-full bg-surface-container px-3 py-1.5 text-xs font-medium text-on-surface-variant hover:bg-surface-container-high">
+      <DropdownMenuTrigger
+        data-testid="business-switcher"
+        disabled={pending}
+        className="flex items-center gap-2 rounded-full bg-surface-container px-3 py-1.5 text-xs font-medium text-on-surface-variant hover:bg-surface-container-high disabled:opacity-60"
+      >
         <Building2 className="size-3.5" />
         {current.businessName}
         <ChevronDown className="size-3.5" />
@@ -51,22 +57,26 @@ export function BusinessSwitcher({
         <DropdownMenuLabel>החלפת עסק פעיל</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {options.map((o) => (
-          <form key={o.businessId} action={onSelect}>
-            <input type="hidden" name="businessId" value={o.businessId} />
-            <DropdownMenuItem asChild>
-              <button type="submit" className="w-full">
-                <Check
-                  className={
-                    o.businessId === current.businessId
-                      ? "size-4 text-secondary"
-                      : "size-4 opacity-0"
-                  }
-                />
-                <span className="flex-1 text-start">{o.businessName}</span>
-                <span className="text-xs text-on-surface-variant">{ROLE_LABELS[o.role]}</span>
-              </button>
-            </DropdownMenuItem>
-          </form>
+          <DropdownMenuItem
+            key={o.businessId}
+            data-testid={`business-option-${o.businessId}`}
+            // preventDefault keeps Radix from closing the menu before the
+            // action is dispatched; the transition then runs it.
+            onSelect={(e) => {
+              e.preventDefault();
+              startTransition(async () => {
+                await onSelect(o.businessId);
+              });
+            }}
+          >
+            <Check
+              className={
+                o.businessId === current.businessId ? "size-4 text-secondary" : "size-4 opacity-0"
+              }
+            />
+            <span className="flex-1 text-start">{o.businessName}</span>
+            <span className="text-xs text-on-surface-variant">{ROLE_LABELS[o.role]}</span>
+          </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>

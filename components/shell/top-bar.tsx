@@ -20,7 +20,7 @@ export function TopBar({
   role: Role;
   current: SwitcherBusiness;
   options: SwitcherBusiness[];
-  onSelectBusiness: (formData: FormData) => void;
+  onSelectBusiness: (businessId: string) => Promise<void>;
   onSignOut: () => void;
 }) {
   const [open, setOpen] = useState(false);
