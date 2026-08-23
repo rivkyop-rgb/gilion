@@ -21,6 +21,11 @@ datasource db {
 // Stage 01 — auth, tenancy, audit
 // ---------------------------------------------------------------------------
 
+enum CustomerType {
+  regular
+  casual
+}
+
 enum UserType {
   internal
   customer
@@ -60,6 +65,7 @@ model Business {
 
   memberships UserMembership[]
   audit_logs  AuditLog[]
+  customers   Customer[]
 
   @@map("Business")
 }
@@ -122,4 +128,33 @@ model AuditLog {
   @@index([business_id, created_at(sort: Desc)])
   @@index([target_type, target_id])
   @@map("AuditLog")
+}
+
+// ---------------------------------------------------------------------------
+// Stage 02 — customers
+// ---------------------------------------------------------------------------
+
+/// A regular or one-off advertiser (US-002).
+///
+/// Deliberately has no company registration number: that field appeared in the
+/// Stitch mockups but is not in the ERD (docs/design/gaps.md §א).
+model Customer {
+  id            String       @id @default(cuid())
+  business_id   String
+  customer_type CustomerType
+  /// Required for `regular`, optional for `casual` — enforced in the domain layer.
+  business_name String?
+  contact_name  String
+  /// At least one of phone/email is required, enforced by a CHECK constraint.
+  phone         String?
+  email         String?
+  created_at    DateTime     @default(now())
+  updated_at    DateTime     @updatedAt
+
+  business Business @relation(fields: [business_id], references: [id], onDelete: Restrict)
+
+  @@index([business_id, contact_name])
+  @@index([business_id, business_name])
+  @@index([business_id, customer_type])
+  @@map("Customer")
 }

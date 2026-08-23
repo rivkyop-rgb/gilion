@@ -110,7 +110,51 @@ async function main() {
     },
   });
 
-  console.log("seeded 2 businesses, 6 users. password for all:", PASSWORD);
+  // Customers in BOTH businesses — tenant isolation cannot be tested with one.
+  const customers = [
+    {
+      id: "cust_alpha_1",
+      business_id: alpha.id,
+      customer_type: "regular" as const,
+      business_name: "מרכז הרפואה",
+      contact_name: "יעל אבידן",
+      phone: "0521234567",
+      email: "yael@refua.test",
+    },
+    {
+      id: "cust_alpha_2",
+      business_id: alpha.id,
+      customer_type: "casual" as const,
+      business_name: null,
+      contact_name: "משה לוי",
+      phone: "0539876543",
+      email: null,
+    },
+    {
+      id: "cust_alpha_3",
+      business_id: alpha.id,
+      customer_type: "regular" as const,
+      business_name: "אולמי הדר",
+      contact_name: "דוד הדר",
+      phone: null,
+      email: "david@hadar.test",
+    },
+    {
+      id: "cust_beta_1",
+      business_id: beta.id,
+      customer_type: "regular" as const,
+      business_name: "צפון תיירות",
+      contact_name: "רונית שפירא",
+      phone: "0501112222",
+      email: "ronit@tzafon.test",
+    },
+  ];
+
+  for (const c of customers) {
+    await prisma.customer.upsert({ where: { id: c.id }, update: c, create: c });
+  }
+
+  console.log("seeded 2 businesses, 6 users,", customers.length, "customers. password:", PASSWORD);
 }
 
 main()

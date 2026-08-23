@@ -16,6 +16,13 @@ export const USERS = {
 
 export const BUSINESS = { alpha: "biz_alpha", beta: "biz_beta" } as const;
 
+/** Seeded customers. cust_beta_1 lives in the other tenant on purpose. */
+export const CUSTOMERS = {
+  alphaRegular: "cust_alpha_1",
+  alphaCasual: "cust_alpha_2",
+  betaRegular: "cust_beta_1",
+} as const;
+
 /** Signs in and waits for the server-decided landing route. */
 export async function login(page: Page, email: string) {
   await page.goto("/login");
