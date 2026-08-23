@@ -124,6 +124,7 @@ export function InlineError({ children }: { children: React.ReactNode }) {
   return (
     <p
       role="alert"
+      data-testid="form-error"
       className="flex items-center gap-2 rounded-sm bg-status-error-bg px-3 py-2 text-sm text-status-error-fg"
     >
       <AlertTriangle className="size-4 shrink-0" />

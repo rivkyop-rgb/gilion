@@ -47,9 +47,11 @@ const eslintConfig = defineConfig([
     },
   },
 
-  // lib/data/ is the one layer allowed to import Prisma.
+  // lib/data/ is the one layer allowed to import Prisma in application code.
+  // Seeds and E2E fixtures are exempt on purpose: their whole job is to set up
+  // data across tenants, which the scoped client is designed to make impossible.
   {
-    files: ["lib/data/**/*.ts", "lib/db.ts", "prisma/**/*.ts"],
+    files: ["lib/data/**/*.ts", "prisma/**/*.ts", "e2e/**/*.ts"],
     rules: { "no-restricted-imports": "off" },
   },
 

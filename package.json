@@ -20,7 +20,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
-    "db:reset": "prisma migrate reset --force && npm run db:seed"
+    "db:reset": "prisma migrate reset --force && npm run db:seed",
+    "verify": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run e2e"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
