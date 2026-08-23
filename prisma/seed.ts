@@ -154,7 +154,83 @@ async function main() {
     await prisma.customer.upsert({ where: { id: c.id }, update: c, create: c });
   }
 
-  console.log("seeded 2 businesses, 6 users,", customers.length, "customers. password:", PASSWORD);
+  // Ad shapes are GLOBAL — shared by every business (conventions.md §2).
+  const shapes = [
+    { id: "shape_full", name: "עמוד מלא", size_group: "full" as const },
+    { id: "shape_half_h", name: "חצי עמוד אופקי", size_group: "half" as const },
+    { id: "shape_half_v", name: "חצי עמוד אנכי", size_group: "half" as const },
+    { id: "shape_quarter", name: "רבע עמוד", size_group: "quarter" as const },
+    { id: "shape_eighth", name: "שמינית עמוד", size_group: "eighth" as const },
+    { id: "shape_strip", name: "רצועה תחתונה", size_group: "strip" as const },
+  ];
+  for (const s of shapes) {
+    await prisma.adShape.upsert({ where: { id: s.id }, update: s, create: s });
+  }
+
+  // One configured newspaper per business, so stage 03 screens have something
+  // real to show and tenant isolation stays testable.
+  const papers = [
+    { id: "paper_alpha", business_id: alpha.id, name: "עיתון השבוע" },
+    { id: "paper_beta", business_id: beta.id, name: "מקומון הצפון" },
+  ];
+  for (const p of papers) {
+    await prisma.newspaper.upsert({
+      where: { id: p.id },
+      update: { name: p.name },
+      create: {
+        ...p,
+        page_size: "Tabloid",
+        margin: 10,
+        print_quality: "דפוס אופסט רגיל",
+        max_ad_file_size: 10 * 1024 * 1024,
+      },
+    });
+  }
+
+  // Page types for the alpha newspaper, with allowed shapes.
+  const pageTypes = [
+    {
+      id: "pt_cover",
+      newspaper_id: "paper_alpha",
+      name: "שער",
+      shapes: ["shape_strip", "shape_quarter"],
+    },
+    {
+      id: "pt_inner",
+      newspaper_id: "paper_alpha",
+      name: "פנימי",
+      shapes: ["shape_full", "shape_half_h", "shape_half_v", "shape_quarter", "shape_eighth"],
+    },
+    {
+      id: "pt_back",
+      newspaper_id: "paper_alpha",
+      name: "אחורי",
+      shapes: ["shape_full", "shape_half_h"],
+    },
+  ];
+  for (const pt of pageTypes) {
+    await prisma.pageType.upsert({
+      where: { id: pt.id },
+      update: { name: pt.name },
+      create: { id: pt.id, newspaper_id: pt.newspaper_id, name: pt.name },
+    });
+    for (const shapeId of pt.shapes) {
+      await prisma.allowedAdShape.upsert({
+        where: { page_type_id_ad_shape_id: { page_type_id: pt.id, ad_shape_id: shapeId } },
+        update: {},
+        create: { page_type_id: pt.id, ad_shape_id: shapeId },
+      });
+    }
+  }
+
+  console.log(
+    "seeded 2 businesses, 6 users,",
+    customers.length,
+    "customers,",
+    shapes.length,
+    "ad shapes, 2 newspapers. password:",
+    PASSWORD,
+  );
 }
 
 main()

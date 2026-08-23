@@ -16,6 +16,12 @@ export const USERS = {
 
 export const BUSINESS = { alpha: "biz_alpha", beta: "biz_beta" } as const;
 
+/** Seeded newspapers, one per tenant. */
+export const NEWSPAPERS = { alpha: "paper_alpha", beta: "paper_beta" } as const;
+
+/** Seeded page types on the alpha newspaper. */
+export const PAGE_TYPES = { cover: "pt_cover", inner: "pt_inner", back: "pt_back" } as const;
+
 /** Seeded customers. cust_beta_1 lives in the other tenant on purpose. */
 export const CUSTOMERS = {
   alphaRegular: "cust_alpha_1",
@@ -47,4 +53,19 @@ export async function sessionOf(page: Page) {
 /** The business name shown in the top bar — the user-visible source of truth. */
 export function activeBusinessLabel(page: Page) {
   return page.getByTestId("business-switcher");
+}
+
+/**
+ * The admin belongs to two businesses, so signing in lands on the picker
+ * rather than the dashboard. Anything that needs an active tenant must choose
+ * one first — forgetting this leaves every later navigation bouncing back to
+ * /select-business.
+ */
+export async function loginAsAdmin(page: Page, business: "alpha" | "beta" = "alpha") {
+  await login(page, USERS.admin);
+  if (page.url().includes("select-business")) {
+    const label = business === "alpha" ? "עיתון השבוע" : "מקומון הצפון";
+    await page.locator("form button", { hasText: label }).first().click();
+    await page.waitForURL(/\/dashboard/, { timeout: 20_000 });
+  }
 }
