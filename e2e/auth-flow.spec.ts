@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { BUSINESS, PASSWORD, USERS, login, sessionOf } from "./helpers";
+import { BUSINESS, PASSWORD, USERS, activeBusinessLabel, login, sessionOf } from "./helpers";
 
 test.describe("sign-in flow (FR-2)", () => {
   test("a user with several businesses must choose one", async ({ page }) => {
@@ -57,9 +57,13 @@ test.describe("sign-in flow (FR-2)", () => {
     const before = (await sessionOf(page)).user?.businessId;
     const target = before === BUSINESS.alpha ? BUSINESS.beta : BUSINESS.alpha;
 
+    const targetName = target === BUSINESS.alpha ? "עיתון השבוע" : "מקומון הצפון";
     await page.getByTestId("business-switcher").click();
     await page.getByTestId(`business-option-${target}`).click();
 
+    // Assert on what the user sees first — that is the actual requirement, and
+    // it also gives the session cookie time to settle before the second check.
+    await expect(activeBusinessLabel(page)).toContainText(targetName);
     await expect
       .poll(async () => (await sessionOf(page)).user?.businessId, { timeout: 15_000 })
       .toBe(target);
