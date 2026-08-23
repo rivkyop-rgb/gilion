@@ -21,6 +21,15 @@ datasource db {
 // Stage 01 — auth, tenancy, audit
 // ---------------------------------------------------------------------------
 
+enum AdSizeGroup {
+  eighth
+  quarter
+  half
+  full
+  strip
+  other
+}
+
 enum CustomerType {
   regular
   casual
@@ -66,6 +75,7 @@ model Business {
   memberships UserMembership[]
   audit_logs  AuditLog[]
   customers   Customer[]
+  newspapers  Newspaper[]
 
   @@map("Business")
 }
@@ -157,4 +167,166 @@ model Customer {
   @@index([business_id, business_name])
   @@index([business_id, customer_type])
   @@map("Customer")
+}
+
+// ---------------------------------------------------------------------------
+// Stage 03 — newspaper configuration, pricing and layout templates
+// ---------------------------------------------------------------------------
+
+/// A newspaper published by a business (US-006, FR-21).
+model Newspaper {
+  id               String   @id @default(cuid())
+  business_id      String
+  name             String
+  /// One of the sizes in lib/domain/page-size.ts, or "custom".
+  page_size        String
+  /// Millimetres. Free-form print quality text, per the ERD — deliberately not
+  /// a dpi picker: dpi/CMYK/bleed were Stitch inventions (design/gaps.md §א).
+  margin           Decimal  @db.Decimal(6, 2)
+  print_quality    String
+  logo_url         String?
+  fixed_banner_url String?
+  /// Bytes. The single source of truth for the upload limit (FR-21) — there is
+  /// no hard-coded size anywhere in the code.
+  max_ad_file_size Int
+  /// Only set when page_size = "custom". Millimetres.
+  custom_width_mm  Decimal? @db.Decimal(7, 2)
+  custom_height_mm Decimal? @db.Decimal(7, 2)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  business    Business         @relation(fields: [business_id], references: [id], onDelete: Restrict)
+  page_types  PageType[]
+  price_rules PriceRule[]
+  templates   LayoutTemplate[]
+
+  @@unique([business_id, name])
+  @@index([business_id])
+  @@map("Newspaper")
+}
+
+/// Cover, back, inner, premium… free text, not an enum (US-006).
+model PageType {
+  id           String   @id @default(cuid())
+  newspaper_id String
+  name         String
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  newspaper      Newspaper        @relation(fields: [newspaper_id], references: [id], onDelete: Cascade)
+  allowed_shapes AllowedAdShape[]
+  price_rules    PriceRule[]
+  template_pages TemplatePage[]
+
+  @@unique([newspaper_id, name])
+  @@index([newspaper_id])
+  @@map("PageType")
+}
+
+/// Ad shapes are shared by every business — the one documented exception to
+/// tenant scoping (conventions.md §2).
+model AdShape {
+  id         String      @id @default(cuid())
+  name       String      @unique
+  size_group AdSizeGroup
+  created_at DateTime    @default(now())
+  updated_at DateTime    @updatedAt
+
+  allowed_on     AllowedAdShape[]
+  price_rules    PriceRule[]
+  template_slots TemplateSlot[]
+
+  @@map("AdShape")
+}
+
+/// Which shapes may be placed on a given page type (FR-14).
+model AllowedAdShape {
+  id           String   @id @default(cuid())
+  page_type_id String
+  ad_shape_id  String
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  page_type PageType @relation(fields: [page_type_id], references: [id], onDelete: Cascade)
+  ad_shape  AdShape  @relation(fields: [ad_shape_id], references: [id], onDelete: Restrict)
+
+  @@unique([page_type_id, ad_shape_id])
+  @@map("AllowedAdShape")
+}
+
+/// Base price per (newspaper, page type, shape). Copied onto the publication at
+/// order approval and never read again — conventions.md §7, FR-17.
+model PriceRule {
+  id           String   @id @default(cuid())
+  newspaper_id String
+  page_type_id String
+  ad_shape_id  String
+  price        Decimal  @db.Decimal(12, 2)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  newspaper Newspaper @relation(fields: [newspaper_id], references: [id], onDelete: Cascade)
+  page_type PageType  @relation(fields: [page_type_id], references: [id], onDelete: Cascade)
+  ad_shape  AdShape   @relation(fields: [ad_shape_id], references: [id], onDelete: Restrict)
+
+  @@unique([newspaper_id, page_type_id, ad_shape_id])
+  @@index([newspaper_id])
+  @@map("PriceRule")
+}
+
+model LayoutTemplate {
+  id           String   @id @default(cuid())
+  newspaper_id String
+  name         String
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  newspaper Newspaper      @relation(fields: [newspaper_id], references: [id], onDelete: Cascade)
+  pages     TemplatePage[]
+
+  @@unique([newspaper_id, name])
+  @@index([newspaper_id])
+  @@map("LayoutTemplate")
+}
+
+model TemplatePage {
+  id                 String   @id @default(cuid())
+  layout_template_id String
+  page_type_id       String
+  page_number        Int
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  layout_template LayoutTemplate @relation(fields: [layout_template_id], references: [id], onDelete: Cascade)
+  page_type       PageType       @relation(fields: [page_type_id], references: [id], onDelete: Restrict)
+  slots           TemplateSlot[]
+
+  @@unique([layout_template_id, page_number])
+  @@index([layout_template_id])
+  @@map("TemplatePage")
+}
+
+/// A placeable rectangle on a template page.
+///
+/// Geometry is stored as PERCENTAGES of the page (0-100), not millimetres: the
+/// ERD leaves units open and the Stitch mockups showed invented mm values
+/// (design/gaps.md §א). Percentages keep a template valid when the newspaper's
+/// page_size changes; the conversion to mm happens once, at PDF generation.
+model TemplateSlot {
+  id               String   @id @default(cuid())
+  template_page_id String
+  ad_shape_id      String
+  /// { x, y } as percentages of page width/height.
+  position         Json
+  width            Decimal  @db.Decimal(5, 2)
+  height           Decimal  @db.Decimal(5, 2)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  template_page TemplatePage @relation(fields: [template_page_id], references: [id], onDelete: Cascade)
+  ad_shape      AdShape      @relation(fields: [ad_shape_id], references: [id], onDelete: Restrict)
+
+  @@index([template_page_id])
+  @@map("TemplateSlot")
 }
