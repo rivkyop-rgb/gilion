@@ -155,6 +155,20 @@ export function LineBuilder({
 
       {removeError ? <InlineError>{removeError}</InlineError> : null}
 
+      {editable && paper && paper.pageTypes.length === 0 ? (
+        <p className="rounded-lg border border-outline-variant bg-status-warning-bg p-4 text-sm text-status-warning-fg">
+          לעיתון &quot;{paper.name}&quot; עדיין לא הוגדרו סוגי עמודים, ולכן אין מה לבחור. יש להגדיר
+          אותם בהגדרות העיתון — ואז גם לקבוע אילו צורות פרסום מותרות בכל סוג עמוד.
+        </p>
+      ) : null}
+
+      {editable && pageType && pageType.shapes.length === 0 ? (
+        <p className="rounded-lg border border-outline-variant bg-status-warning-bg p-4 text-sm text-status-warning-fg">
+          לסוג העמוד &quot;{pageType.name}&quot; לא הוגדרו צורות פרסום מותרות, ולכן אי אפשר להוסיף
+          שורה. יש לסמן אותן בהגדרות העיתון.
+        </p>
+      ) : null}
+
       {editable ? (
         <form
           action={action}
@@ -253,7 +267,12 @@ export function LineBuilder({
               ? Object.values(state.errors).map((m) => <InlineError key={m}>{m}</InlineError>)
               : null}
             {state.message ? <InlineError>{state.message}</InlineError> : null}
-            <Button type="submit" variant="secondary" disabled={pending} data-testid="add-line">
+            <Button
+              type="submit"
+              variant="secondary"
+              disabled={pending || !shapeId}
+              data-testid="add-line"
+            >
               <Plus className="size-4" />
               הוספת שורה
             </Button>
