@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,13 +69,24 @@ export function LineBuilder({
   const shapeId = shape?.id ?? "";
 
   // The base price follows the combination; typing over it is allowed.
+  //
+  // The guard is what keeps that promise. Fetching a suggestion is an async
+  // round trip, and without it a price typed while the request was in flight
+  // would be silently replaced when it landed — the user's number quietly
+  // becoming someone else's. A keystroke wins until the combination changes.
+  const typedPrice = useRef(false);
+
   useEffect(() => {
     if (!paperId || !pageTypeId || !shapeId) return;
     let cancelled = false;
+    typedPrice.current = false;
     void priceSuggestionAction(paperId, pageTypeId, shapeId).then((value) => {
       if (cancelled) return;
+      // The base price is always recorded — the guard protects the *field*, not
+      // the knowledge of what the list says. Without this the label could not
+      // tell "typed over the base price" from "no base price at all".
       setSuggested(value);
-      setPrice(value === null ? "" : String(value));
+      if (!typedPrice.current) setPrice(value === null ? "" : String(value));
     });
     return () => {
       cancelled = true;
@@ -226,7 +237,10 @@ export function LineBuilder({
               dir="ltr"
               data-testid="line-price"
               value={price}
-              onChange={(e) => setPrice(e.target.value)}
+              onChange={(e) => {
+                typedPrice.current = true;
+                setPrice(e.target.value);
+              }}
               placeholder={suggested === null ? "אין מחיר בסיסי" : undefined}
             />
             <p className="mt-1 text-[11px] text-on-surface-variant" data-testid="price-origin">

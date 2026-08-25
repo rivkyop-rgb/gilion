@@ -52,6 +52,10 @@ export const CUSTOMERS = {
 
 /** Signs in and waits for the server-decided landing route. */
 export async function login(page: Page, email: string) {
+  // Signing in as a different user in the same context needs the old session
+  // gone first: middleware redirects an authenticated visitor away from /login,
+  // so without this the form is never rendered and the fill times out.
+  await page.context().clearCookies();
   await page.goto("/login");
   await page.fill("#email", email);
   await page.fill("#password", PASSWORD);

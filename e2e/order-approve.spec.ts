@@ -16,9 +16,14 @@ async function newDraft(page: Page): Promise<string> {
   return new URL(page.url()).pathname.split("/").pop()!;
 }
 
-async function addLine(page: Page, date: string, price?: string) {
+/**
+ * A price is always supplied: the default combination in the builder has no
+ * PriceRule behind it, so leaving the field empty is a legitimate rejection
+ * (rule 4) rather than a way to add a line. That path has its own test below.
+ */
+async function addLine(page: Page, date: string, price: string) {
   await page.getByTestId("line-date").fill(date);
-  if (price !== undefined) await page.getByTestId("line-price").fill(price);
+  await page.getByTestId("line-price").fill(price);
   await page.getByTestId("add-line").click();
   await expect(page.getByTestId("order-lines")).toBeVisible();
 }
@@ -26,14 +31,17 @@ async function addLine(page: Page, date: string, price?: string) {
 test.describe("approving an order (US-004)", () => {
   test("a draft creates no publications at all (US-003 AC-5)", async ({ page }) => {
     await login(page, USERS.sales);
-    await newDraft(page);
-    await addLine(page, "2026-12-01");
+    const id = await newDraft(page);
+    await addLine(page, "2026-12-01", "1200");
 
     // The preview names what *would* be created, in the future tense.
     await expect(page.getByTestId("preview-caption")).toContainText("ייווצרו לאחר אישור");
 
+    // Assert on *this* draft rather than on an empty table: other specs leave
+    // approved orders behind, and a global count would only measure them.
+    const orderRef = `ORD-${id.slice(-6).toUpperCase()}`;
     await page.goto("/publications");
-    await expect(page.getByTestId("publications-table")).toHaveCount(0);
+    await expect(page.getByText(orderRef)).toHaveCount(0);
   });
 
   test("approval creates one publication per line and copies the price", async ({ page }) => {
@@ -89,6 +97,57 @@ test.describe("approving an order (US-004)", () => {
     await expect(page.getByTestId("add-line")).toHaveCount(0);
     await expect(page.getByTestId("submit-order")).toHaveCount(0);
     await expect(page.getByTestId("approve-order")).toHaveCount(0);
+  });
+});
+
+test.describe("where the price comes from (rule 4)", () => {
+  test("an empty price falls back to the base price from the list", async ({ page }) => {
+    await login(page, USERS.sales);
+    await newDraft(page);
+
+    // The builder shows which of the two it is before anything is saved.
+    await expect(page.getByTestId("price-origin")).toHaveText("מחיר בסיסי");
+    const suggested = await page.getByTestId("line-price").inputValue();
+    expect(Number(suggested)).toBeGreaterThan(0);
+
+    await page.getByTestId("line-date").fill("2026-12-01");
+    await page.getByTestId("line-price").fill("");
+    await page.getByTestId("add-line").click();
+
+    await expect(page.locator('[data-testid="order-lines"] tbody tr')).toHaveCount(1);
+    await expect(page.getByTestId("order-total")).toContainText(
+      Number(suggested).toLocaleString("he-IL"),
+    );
+  });
+
+  test("typing over the suggestion keeps the typed number", async ({ page }) => {
+    await login(page, USERS.sales);
+    await newDraft(page);
+
+    // Typed immediately, racing the suggestion request. This is the exact
+    // regression that produced two lines of 800 when 1200 and 800 were typed:
+    // the suggestion landed afterwards and overwrote the number.
+    await page.getByTestId("line-price").fill("1234");
+
+    // Once the suggestion has landed the field must still hold what was typed,
+    // and the label must say it differs from the base price.
+    await expect(page.getByTestId("price-origin")).toHaveText("מחיר מותאם");
+    await expect(page.getByTestId("line-price")).toHaveValue("1234");
+
+    await page.getByTestId("line-date").fill("2026-12-01");
+    await page.getByTestId("add-line").click();
+
+    await expect(page.getByTestId("order-total")).toContainText("1,234");
+  });
+
+  test("zero is accepted — a free placement is a decision, not a missing price", async ({
+    page,
+  }) => {
+    await login(page, USERS.sales);
+    await newDraft(page);
+    await addLine(page, "2026-12-01", "0");
+
+    await expect(page.locator('[data-testid="order-lines"] tbody tr')).toHaveCount(1);
   });
 });
 
