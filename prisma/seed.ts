@@ -1,7 +1,10 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+
+import { materializeBaseShapes } from "../lib/domain/base-shapes";
+import { deriveGrid } from "../lib/domain/grid";
 
 /**
  * Development seed. The MVP has no user-management UI (stage 01 scope), so
@@ -154,18 +157,22 @@ async function main() {
     await prisma.customer.upsert({ where: { id: c.id }, update: c, create: c });
   }
 
-  // Ad shapes are GLOBAL — shared by every business (conventions.md §2).
-  const shapes = [
-    { id: "shape_full", name: "עמוד מלא", size_group: "full" as const },
-    { id: "shape_half_h", name: "חצי עמוד אופקי", size_group: "half" as const },
-    { id: "shape_half_v", name: "חצי עמוד אנכי", size_group: "half" as const },
-    { id: "shape_quarter", name: "רבע עמוד", size_group: "quarter" as const },
-    { id: "shape_eighth", name: "שמינית עמוד", size_group: "eighth" as const },
-    { id: "shape_strip", name: "רצועה תחתונה", size_group: "strip" as const },
-  ];
-  for (const s of shapes) {
-    await prisma.adShape.upsert({ where: { id: s.id }, update: s, create: s });
-  }
+  // The page grid. Chosen so the derived numbers come out round:
+  //   Tabloid 279x432, margin 10, 6 columns, 12.5mm rows, 4mm gutter
+  //   -> column width (279 - 20 - 7*4) / 6 = 38.5mm
+  //   -> rows floor((432 - 20 - 4) / 16.5) = 24
+  // A 1 cm module in BOTH directions, so every whole-centimetre size a person
+  // can think of actually exists: 10x13 cm is a shape, not a number that gets
+  // snapped to something else. The 9.5 mm margin is what makes the usable width
+  // land on exactly 260 mm, which divides into 26 columns of 10 mm.
+  // Tabloid 279x432 -> 26 x 41 cells of 1 cm.
+  const GRID_SETTINGS = {
+    page_size: "Tabloid",
+    margin: 9.5,
+    columns: 26,
+    row_height_mm: 10,
+    gutter_mm: 0,
+  };
 
   // One configured newspaper per business, so stage 03 screens have something
   // real to show and tenant isolation stays testable.
@@ -176,15 +183,49 @@ async function main() {
   for (const p of papers) {
     await prisma.newspaper.upsert({
       where: { id: p.id },
-      update: { name: p.name },
+      update: { name: p.name, ...GRID_SETTINGS },
       create: {
         ...p,
-        page_size: "Tabloid",
-        margin: 10,
+        ...GRID_SETTINGS,
         print_quality: "דפוס אופסט רגיל",
         max_ad_file_size: 10 * 1024 * 1024,
       },
     });
+  }
+
+  // The shape catalogue belongs to the newspaper (conventions.md §2). Each
+  // newspaper gets its own copy of the base set, resolved against its grid.
+  //
+  // Alpha keeps the historical ids — the e2e specs address cells by
+  // `cell-{pageTypeId}-{shapeId}`, and preserving them keeps those green.
+  const grid = deriveGrid({
+    pageSize: GRID_SETTINGS.page_size,
+    marginMm: GRID_SETTINGS.margin,
+    columns: GRID_SETTINGS.columns,
+    rowHeightMm: GRID_SETTINGS.row_height_mm,
+    gutterMm: GRID_SETTINGS.gutter_mm,
+  })!;
+
+  const catalogue = materializeBaseShapes(grid);
+  const shapeIdFor = (newspaperId: string, key: string) =>
+    newspaperId === "paper_alpha" ? `shape_${key}` : `shape_beta_${key}`;
+
+  for (const p of papers) {
+    for (const shape of catalogue) {
+      const row = {
+        id: shapeIdFor(p.id, shape.key),
+        newspaper_id: p.id,
+        name: shape.name,
+        cols: shape.cols,
+        rows: shape.rows,
+        position_mode: shape.positionMode,
+        allowed_cells:
+          shape.allowedCells === null
+            ? Prisma.DbNull
+            : { cells: shape.allowedCells.map(([col, r]) => [col, r]) },
+      };
+      await prisma.adShape.upsert({ where: { id: row.id }, update: row, create: row });
+    }
   }
 
   // Page types for the alpha newspaper, with allowed shapes.
@@ -218,7 +259,7 @@ async function main() {
       await prisma.allowedAdShape.upsert({
         where: { page_type_id_ad_shape_id: { page_type_id: pt.id, ad_shape_id: shapeId } },
         update: {},
-        create: { page_type_id: pt.id, ad_shape_id: shapeId },
+        create: { newspaper_id: pt.newspaper_id, page_type_id: pt.id, ad_shape_id: shapeId },
       });
     }
   }
@@ -227,7 +268,7 @@ async function main() {
     "seeded 2 businesses, 6 users,",
     customers.length,
     "customers,",
-    shapes.length,
+    catalogue.length * papers.length,
     "ad shapes, 2 newspapers. password:",
     PASSWORD,
   );

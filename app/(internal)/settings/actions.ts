@@ -9,12 +9,22 @@ import { requireAccess } from "@/lib/auth/rbac";
 import {
   allowedShapeRemovalBlocked,
   pageTypeDeletionBlocked,
+  shapeDeletionBlocked,
   toBytes,
   validateNewspaper,
 } from "@/lib/domain/newspaper";
+import {
+  cmToMm,
+  colsForWidthCm,
+  footprintMm,
+  formatCm,
+  rowsForHeightCm,
+  shapeFitsGrid,
+} from "@/lib/domain/grid";
+import { normalizePositions, validPositionCount, type Cell } from "@/lib/domain/slot-geometry";
 import { validatePrice } from "@/lib/domain/pricing";
 import * as papers from "@/lib/data/newspapers";
-import * as templates from "@/lib/data/templates";
+import * as shapes from "@/lib/data/ad-shapes";
 
 export type FormState = { errors?: Record<string, string>; message?: string };
 
@@ -25,27 +35,52 @@ async function requireAdmin() {
   return ctx;
 }
 
+/**
+ * Every page measurement arrives from the form in CENTIMETRES and is stored in
+ * millimetres. The conversion happens here, once, at the boundary — the domain,
+ * the database and the PDF all speak millimetres and never see a centimetre.
+ */
 const newspaperSchema = z.object({
   name: z.string(),
   pageSize: z.string(),
-  customWidthMm: z.coerce.number().optional().nullable(),
-  customHeightMm: z.coerce.number().optional().nullable(),
-  margin: z.coerce.number(),
+  customWidthCm: z.coerce.number().optional().nullable(),
+  customHeightCm: z.coerce.number().optional().nullable(),
+  marginCm: z.coerce.number(),
   printQuality: z.string(),
   maxAdFileSizeMb: z.coerce.number(),
+  columns: z.coerce.number(),
+  rowHeightCm: z.coerce.number(),
+  gutterCm: z.coerce.number(),
 });
 
 function readNewspaper(formData: FormData) {
   const parsed = newspaperSchema.safeParse({
     name: formData.get("name"),
     pageSize: formData.get("pageSize"),
-    customWidthMm: formData.get("customWidthMm") || null,
-    customHeightMm: formData.get("customHeightMm") || null,
-    margin: formData.get("margin"),
+    customWidthCm: formData.get("customWidthCm") || null,
+    customHeightCm: formData.get("customHeightCm") || null,
+    marginCm: formData.get("marginCm"),
     printQuality: formData.get("printQuality"),
     maxAdFileSizeMb: formData.get("maxAdFileSizeMb"),
+    columns: formData.get("columns"),
+    rowHeightCm: formData.get("rowHeightCm"),
+    gutterCm: formData.get("gutterCm"),
   });
-  return parsed.success ? parsed.data : null;
+  if (!parsed.success) return null;
+
+  const cm = parsed.data;
+  return {
+    name: cm.name,
+    pageSize: cm.pageSize,
+    customWidthMm: cm.customWidthCm == null ? null : cmToMm(cm.customWidthCm),
+    customHeightMm: cm.customHeightCm == null ? null : cmToMm(cm.customHeightCm),
+    margin: cmToMm(cm.marginCm),
+    printQuality: cm.printQuality,
+    maxAdFileSizeMb: cm.maxAdFileSizeMb,
+    columns: cm.columns,
+    rowHeightMm: cmToMm(cm.rowHeightCm),
+    gutterMm: cmToMm(cm.gutterCm),
+  };
 }
 
 const toWrite = (input: NonNullable<ReturnType<typeof readNewspaper>>) => ({
@@ -58,6 +93,9 @@ const toWrite = (input: NonNullable<ReturnType<typeof readNewspaper>>) => ({
   // Typed in MB, stored in bytes — the newspaper is the only source of the
   // upload limit (FR-21).
   max_ad_file_size: toBytes(input.maxAdFileSizeMb),
+  columns: input.columns,
+  row_height_mm: input.rowHeightMm,
+  gutter_mm: input.gutterMm,
 });
 
 export async function createNewspaperAction(
@@ -76,6 +114,7 @@ export async function createNewspaperAction(
     return { errors: { name: "כבר קיים עיתון בשם הזה" } };
   }
 
+  // Also stocks the shape catalogue from the base set — see createNewspaper.
   const created = await papers.createNewspaper(ctx.businessId, toWrite(input));
   revalidatePath("/settings/newspapers");
   redirect(`/settings/newspapers/${created.id}`);
@@ -113,6 +152,13 @@ export async function createPageTypeAction(
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { errors: { name: "שם סוג העמוד הוא שדה חובה" } };
 
+  // Checked here rather than left to the unique index: an unhandled
+  // P2002 crashes the action, and the screen just stops responding with no
+  // message at all — which reads as "the button is broken".
+  if (await papers.pageTypeNameTaken(ctx.businessId, newspaperId, name)) {
+    return { errors: { name: "כבר קיים סוג עמוד בשם הזה בעיתון" } };
+  }
+
   const created = await papers.createPageType(ctx.businessId, newspaperId, name);
   if (!created) return { message: "העיתון לא נמצא" };
 
@@ -126,7 +172,7 @@ export async function deletePageTypeAction(
 ): Promise<FormState> {
   const ctx = await requireAdmin();
 
-  // Rule 5: a page type still referenced by a template page cannot go.
+  // Rule 5: a page type still used by an issue page cannot go.
   const blocked = pageTypeDeletionBlocked(await papers.pageTypeUsage(ctx.businessId, pageTypeId));
   if (blocked) return { message: blocked };
 
@@ -145,14 +191,14 @@ export async function setAllowedShapesAction(
   const pageType = await papers.getPageType(ctx.businessId, pageTypeId);
   if (!pageType) return { message: "סוג העמוד לא נמצא" };
 
-  // Rule 6: removing a shape that template slots still use would orphan them.
+  // Rule 6: removing a shape that placements still use would orphan them.
   const removing = pageType.allowed_shapes
     .map((a) => a.ad_shape_id)
     .filter((id) => !shapeIds.includes(id));
 
   for (const shapeId of removing) {
-    const used = await papers.slotsUsingShape(ctx.businessId, pageTypeId, shapeId);
-    const shape = (await papers.listAdShapes()).find((s) => s.id === shapeId);
+    const used = await shapes.placementsUsingShape(ctx.businessId, pageTypeId, shapeId);
+    const shape = await shapes.getAdShape(ctx.businessId, shapeId);
     const blocked = allowedShapeRemovalBlocked(used, shape?.name ?? "הצורה");
     if (blocked) return { message: blocked };
   }
@@ -192,72 +238,228 @@ export async function upsertPriceRuleAction(
   return {};
 }
 
-/* ------------------------------------------------------------- templates */
+/* ---------------------------------------------------------------- ad shapes */
 
-export async function createTemplateAction(
+/**
+ * A shape is sized in CENTIMETRES, both ways. Each dimension is snapped to the
+ * nearest whole column or row here, against the newspaper's own grid — the
+ * client shows the same conversion live, but the server never trusts the cell
+ * counts it computed.
+ */
+const shapeSchema = z.object({
+  name: z.string(),
+  widthCm: z.coerce.number(),
+  heightCm: z.coerce.number(),
+  positionMode: z.enum(["anywhere", "region"]),
+  /** [[col, row], …] as posted by the region picker. */
+  allowedCells: z.array(z.tuple([z.number().int(), z.number().int()])).optional(),
+});
+
+type ShapeInput = z.infer<typeof shapeSchema>;
+
+/**
+ * What `prepareShape` accepts. The size arrives as centimetres from the form,
+ * and as cells from `setShapeRegionAction`, which re-saves a shape whose size
+ * was already resolved and must not be rounded a second time.
+ */
+type PrepareShapeInput = Omit<ShapeInput, "widthCm" | "heightCm"> &
+  ({ widthCm: number; heightCm: number } | { cols: number; rows: number });
+
+function readShape(formData: FormData) {
+  const raw = String(formData.get("allowedCells") ?? "[]");
+  let cells: unknown = [];
+  try {
+    cells = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+
+  const parsed = shapeSchema.safeParse({
+    name: formData.get("name"),
+    widthCm: formData.get("widthCm"),
+    heightCm: formData.get("heightCm"),
+    positionMode: formData.get("positionMode"),
+    allowedCells: cells,
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+/**
+ * Validates a shape against the grid it will be measured in, and turns the
+ * posted region into its stored form.
+ *
+ * Every rule here needs the newspaper's grid, which is why the actions resolve
+ * it first rather than trusting numbers off the wire.
+ */
+type PreparedShape = { ok: true; data: shapes.AdShapeWrite } | { ok: false; state: FormState };
+
+async function prepareShape(
+  businessId: string,
+  newspaperId: string,
+  input: PrepareShapeInput,
+): Promise<PreparedShape> {
+  const name = input.name.trim();
+  if (!name) return { ok: false, state: { errors: { name: "שם הצורה הוא שדה חובה" } } };
+
+  const resolved = await papers.newspaperGrid(businessId, newspaperId);
+  if (!resolved) return { ok: false, state: { message: "העיתון לא נמצא" } };
+  const { grid } = resolved;
+
+  // Centimetres become whole cells here. Deliberately NOT clamped: a request
+  // bigger than the page has to survive as a too-large number so the check
+  // below can refuse it, instead of being silently trimmed to something the
+  // user never asked for.
+  const cols = "cols" in input ? input.cols : colsForWidthCm(input.widthCm, grid);
+  const rows = "rows" in input ? input.rows : rowsForHeightCm(input.heightCm, grid);
+
+  // Separate message from the one below: with native validation off, an empty
+  // number field posts as 0, and "too large for the page" would be nonsense.
+  if (cols < 1 || rows < 1) {
+    return {
+      ok: false,
+      state: { errors: { size: "רוחב וגובה חייבים להיות גדולים מאפס" } },
+    };
+  }
+
+  if (!shapeFitsGrid({ cols, rows }, grid)) {
+    const max = footprintMm({ cols: grid.columns, rows: grid.rows }, grid);
+    return {
+      ok: false,
+      state: {
+        errors: {
+          size: `הצורה גדולה מהעמוד — לכל היותר ${formatCm(max.widthMm)} × ${formatCm(max.heightMm)} ס״מ`,
+        },
+      },
+    };
+  }
+
+  const footprint = { cols, rows };
+
+  const region =
+    input.positionMode === "anywhere"
+      ? null
+      : normalizePositions((input.allowedCells ?? []) as Cell[], footprint, grid);
+
+  if (region !== null && validPositionCount(footprint, region, grid) === 0) {
+    return {
+      ok: false,
+      state: { message: "האזור המותר לא מכיל אף מיקום חוקי לצורה בגודל הזה" },
+    };
+  }
+
+  return {
+    ok: true,
+    data: {
+      name,
+      cols: footprint.cols,
+      rows: footprint.rows,
+      position_mode: input.positionMode,
+      allowed_cells: region,
+    },
+  };
+}
+
+function revalidateShapes(newspaperId: string) {
+  revalidatePath(`/settings/newspapers/${newspaperId}/shapes`);
+  revalidatePath(`/settings/newspapers/${newspaperId}`);
+  revalidatePath(`/settings/newspapers/${newspaperId}/pricing`);
+}
+
+export async function createAdShapeAction(
   newspaperId: string,
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
   const ctx = await requireAdmin();
 
-  const name = String(formData.get("name") ?? "").trim();
-  if (!name) return { errors: { name: "שם התבנית הוא שדה חובה" } };
+  const input = readShape(formData);
+  if (!input) return { message: "הטופס לא נשלח כראוי" };
 
-  const created = await templates.createTemplate(ctx.businessId, newspaperId, name);
+  const prepared = await prepareShape(ctx.businessId, newspaperId, input);
+  if (!prepared.ok) return prepared.state;
+
+  if (await shapes.adShapeNameTaken(ctx.businessId, newspaperId, prepared.data.name)) {
+    return { errors: { name: "כבר קיימת צורה בשם הזה בעיתון" } };
+  }
+
+  const created = await shapes.createAdShape(ctx.businessId, newspaperId, prepared.data);
   if (!created) return { message: "העיתון לא נמצא" };
 
-  revalidatePath(`/settings/newspapers/${newspaperId}/templates`);
-  redirect(`/settings/newspapers/${newspaperId}/templates/${created.id}`);
-}
-
-export async function addTemplatePageAction(
-  newspaperId: string,
-  templateId: string,
-  pageTypeId: string,
-): Promise<FormState> {
-  const ctx = await requireAdmin();
-  const created = await templates.addTemplatePage(ctx.businessId, templateId, pageTypeId);
-  if (!created) return { message: "התבנית לא נמצאה" };
-
-  revalidatePath(`/settings/newspapers/${newspaperId}/templates/${templateId}`);
+  revalidateShapes(newspaperId);
   return {};
 }
 
-export async function deleteTemplatePageAction(
+export async function updateAdShapeAction(
   newspaperId: string,
-  templateId: string,
-  pageId: string,
+  shapeId: string,
+  _prev: FormState,
+  formData: FormData,
 ): Promise<FormState> {
   const ctx = await requireAdmin();
-  await templates.deleteTemplatePage(ctx.businessId, pageId);
-  revalidatePath(`/settings/newspapers/${newspaperId}/templates/${templateId}`);
+
+  const input = readShape(formData);
+  if (!input) return { message: "הטופס לא נשלח כראוי" };
+
+  const prepared = await prepareShape(ctx.businessId, newspaperId, input);
+  if (!prepared.ok) return prepared.state;
+
+  if (await shapes.adShapeNameTaken(ctx.businessId, newspaperId, prepared.data.name, shapeId)) {
+    return { errors: { name: "כבר קיימת צורה בשם הזה בעיתון" } };
+  }
+
+  const updated = await shapes.updateAdShape(ctx.businessId, shapeId, prepared.data);
+  if (!updated) return { message: "הצורה לא נמצאה" };
+
+  revalidateShapes(newspaperId);
   return {};
 }
 
-export async function upsertSlotAction(
+export async function deleteAdShapeAction(
   newspaperId: string,
-  templateId: string,
-  pageId: string,
-  slot: { adShapeId: string; x: number; y: number; width: number; height: number },
-  slotId?: string,
+  shapeId: string,
 ): Promise<FormState> {
   const ctx = await requireAdmin();
 
-  const result = await templates.upsertTemplateSlot(ctx.businessId, pageId, slot, slotId);
-  if (!result.ok) return { message: result.message };
+  const usage = await shapes.shapeUsage(ctx.businessId, shapeId);
+  const blocked = shapeDeletionBlocked(usage);
+  if (blocked) return { message: blocked };
 
-  revalidatePath(`/settings/newspapers/${newspaperId}/templates/${templateId}`);
+  const deleted = await shapes.deleteAdShape(ctx.businessId, shapeId);
+  if (!deleted) return { message: "הצורה לא נמצאה" };
+
+  revalidateShapes(newspaperId);
   return {};
 }
 
-export async function deleteSlotAction(
+/**
+ * Saves only the allowed region.
+ *
+ * Separate from updateAdShapeAction because the region picker saves on
+ * interaction rather than on submit — the same pattern as the allowed-shape
+ * toggles on the page-types screen.
+ */
+export async function setShapeRegionAction(
   newspaperId: string,
-  templateId: string,
-  slotId: string,
+  shapeId: string,
+  mode: "anywhere" | "region",
+  cells: Array<[number, number]>,
 ): Promise<FormState> {
   const ctx = await requireAdmin();
-  await templates.deleteTemplateSlot(ctx.businessId, slotId);
-  revalidatePath(`/settings/newspapers/${newspaperId}/templates/${templateId}`);
+
+  const shape = await shapes.getAdShape(ctx.businessId, shapeId);
+  if (!shape) return { message: "הצורה לא נמצאה" };
+
+  const prepared = await prepareShape(ctx.businessId, newspaperId, {
+    name: shape.name,
+    // Already-resolved cells, so no rounding happens on this path.
+    cols: shape.cols,
+    rows: shape.rows,
+    positionMode: mode,
+    allowedCells: cells,
+  });
+  if (!prepared.ok) return prepared.state;
+
+  await shapes.updateAdShape(ctx.businessId, shapeId, prepared.data);
+  revalidateShapes(newspaperId);
   return {};
 }

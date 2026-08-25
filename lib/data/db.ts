@@ -56,11 +56,9 @@ function scopeFor(model: string, businessId: string): Record<string, unknown> {
 function parentModelOf(model: string): string {
   const CHAIN: Record<string, string> = {
     PageType: "Newspaper",
+    AdShape: "Newspaper",
     AllowedAdShape: "PageType",
     PriceRule: "Newspaper",
-    LayoutTemplate: "Newspaper",
-    TemplatePage: "LayoutTemplate",
-    TemplateSlot: "TemplatePage",
     AdOrderItem: "AdOrder",
     IssuePage: "Issue",
     Placement: "Issue",

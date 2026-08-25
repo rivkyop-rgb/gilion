@@ -11,7 +11,7 @@ const SECTIONS = [
     href: "/settings/newspapers",
     icon: Newspaper,
     title: "עיתונים",
-    body: "גודל עמוד, שוליים, איכות דפוס, סוגי עמודים, מחירון ותבניות שיבוץ.",
+    body: "גודל עמוד, שוליים, חלוקת העמוד לגריד, סוגי עמודים, צורות פרסום ומחירון.",
   },
   {
     href: "/settings/ad-shapes",

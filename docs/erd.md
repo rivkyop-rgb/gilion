@@ -66,12 +66,17 @@ Field Type Required Notes
 id string yes Primary key
 business_id reference: Business yes
 name string yes
-page_size string yes
-margin decimal yes
+page_size string yes רשימה סגורה או "custom"
+custom_width_mm decimal no נדרש רק כאשר page_size = custom
+custom_height_mm decimal no נדרש רק כאשר page_size = custom
+margin decimal yes מ״מ
 print_quality string yes
 logo_url string no
 fixed_banner_url string no
 max_ad_file_size integer yes מוגדר לכל עיתון בנפרד
+columns integer yes חלוקת העמוד — מספר עמודות הגריד
+row_height_mm decimal yes גובה שורת גריד במ״מ
+gutter_mm decimal yes מרווח בין תא לתא וגם אל המסגרת
 created_at datetime yes
 updated_at datetime yes
 PageType
@@ -87,13 +92,17 @@ created_at datetime yes
 updated_at datetime yes
 AdShape
 
-Purpose: צורת פרסום מוגדרת מראש.
+Purpose: צורת פרסום מלבנית, מדודה בתאי הגריד של העיתון שמחזיק אותה. כל עיתון מגדיר את הקטלוג שלו ומקבל בעת יצירתו העתק של צורות הבסיס.
 Source: US-006, US-007, US-009
 
 Field Type Required Notes
 id string yes Primary key
-name string yes
-size_group enum: [eighth, quarter, half, full, strip, other] yes
+newspaper_id reference: Newspaper yes שייכת לעיתון — עודכן 24/08/2026, קודם הייתה גלובלית
+name string yes ייחודי בתוך העיתון
+cols integer yes רוחב בתאי גריד
+rows integer yes גובה בתאי גריד
+position_mode enum: [anywhere, region] yes האם מותרת בכל מקום בעמוד או רק באזור
+allowed_cells json no רק כאשר position_mode = region: { cells: [[col, row], …] }
 created_at datetime yes
 updated_at datetime yes
 AllowedAdShape
@@ -103,6 +112,7 @@ Source: US-006, US-007
 
 Field Type Required Notes
 id string yes Primary key
+newspaper_id reference: Newspaper yes חלק משני מפתחות זרים מורכבים — מונע הצלבה בין עיתונים
 page_type_id reference: PageType yes
 ad_shape_id reference: AdShape yes
 created_at datetime yes
@@ -118,43 +128,6 @@ newspaper_id reference: Newspaper yes
 page_type_id reference: PageType yes
 ad_shape_id reference: AdShape yes
 price decimal yes
-created_at datetime yes
-updated_at datetime yes
-LayoutTemplate
-
-Purpose: תבנית או גריד שיבוץ לעיתון.
-Source: US-006, US-007, FR-14
-
-Field Type Required Notes
-id string yes Primary key
-newspaper_id reference: Newspaper yes
-name string yes
-created_at datetime yes
-updated_at datetime yes
-TemplatePage
-
-Purpose: עמוד בתוך תבנית שיבוץ.
-Source: US-006, US-007
-
-Field Type Required Notes
-id string yes Primary key
-layout_template_id reference: LayoutTemplate yes
-page_type_id reference: PageType yes
-page_number integer yes
-created_at datetime yes
-updated_at datetime yes
-TemplateSlot
-
-Purpose: אזור שיבוץ מוגדר מראש בתוך עמוד תבנית.
-Source: US-006, US-007, FR-14
-
-Field Type Required Notes
-id string yes Primary key
-template_page_id reference: TemplatePage yes
-ad_shape_id reference: AdShape yes
-position string yes
-width decimal yes
-height decimal yes
 created_at datetime yes
 updated_at datetime yes
 AdOrder
@@ -246,6 +219,13 @@ business_id reference: Business yes
 newspaper_id reference: Newspaper yes
 issue_date date yes
 status enum: [draft, in_layout, ready_for_print, closed] yes
+page_size string yes צילום של חלוקת העמוד בעת פתיחת הגיליון — FR-17
+custom_width_mm decimal no
+custom_height_mm decimal no
+margin decimal yes
+columns integer yes
+row_height_mm decimal yes
+gutter_mm decimal yes
 final_pdf_url string no PDF סופי אחרון בלבד
 closed_at datetime no
 created_at datetime yes
@@ -264,19 +244,20 @@ created_at datetime yes
 updated_at datetime yes
 Placement
 
-Purpose: שיבוץ בפועל של פרסום ומודעה בעמוד ובאזור שיבוץ.
+Purpose: שיבוץ בפועל של פרסום ומודעה במלבן על גריד העמוד.
 Source: US-007, US-008, FR-16
 
 Field Type Required Notes
 id string yes Primary key
 publication_id reference: Publication yes
 issue_page_id reference: IssuePage yes
+issue_id reference: Issue yes denormalized מ־IssuePage כדי לאפשר את אינדקס הכפילות
 advertisement_id reference: Advertisement yes
 ad_shape_id reference: AdShape yes
-template_slot_id reference: TemplateSlot no
-position string yes
-width decimal yes
-height decimal yes
+col integer yes עמודת ההתחלה. 0 = הקצה הימני של העמוד (RTL)
+row integer yes שורת ההתחלה. 0 = הקצה העליון
+cols integer yes רוחב בתאים, מועתק מהצורה בעת השיבוץ
+rows integer yes גובה בתאים, מועתק מהצורה בעת השיבוץ
 status enum: [placed, removed, published] yes
 duplicate_override_approved boolean yes נדרש אם אותו פרסום שובץ יותר מפעם אחת בגיליון היעד
 duplicate_override_approved_by_user_id reference: User no
@@ -417,10 +398,16 @@ Description: סוג עמוד מתיר צורות פרסום מסוימות.
 Cascade: cascade
 Source: US-006
 
+Newspaper → AdShape: one-to-many
+
+Description: עיתון מגדיר את קטלוג צורות הפרסום שלו.
+Cascade: cascade
+Source: US-006
+
 AdShape → AllowedAdShape: one-to-many
 
-Description: צורת פרסום יכולה להיות מותרת בסוגי עמודים שונים.
-Cascade: restrict
+Description: צורת פרסום יכולה להיות מותרת בסוגי עמודים שונים באותו עיתון.
+Cascade: cascade
 Source: US-006
 
 Newspaper → PriceRule: one-to-many
@@ -428,24 +415,6 @@ Newspaper → PriceRule: one-to-many
 Description: עיתון מחזיק מחירי פרסום בסיסיים לפי סוג עמוד וצורת פרסום.
 Cascade: cascade
 Source: US-006, FR-17
-
-Newspaper → LayoutTemplate: one-to-many
-
-Description: עיתון משתמש בתבניות או גרידים לשיבוץ.
-Cascade: cascade
-Source: US-006, US-007
-
-LayoutTemplate → TemplatePage: one-to-many
-
-Description: תבנית כוללת עמודים.
-Cascade: cascade
-Source: US-006, US-007
-
-TemplatePage → TemplateSlot: one-to-many
-
-Description: עמוד תבנית כולל אזורי שיבוץ.
-Cascade: cascade
-Source: US-006, US-007
 
 Newspaper → Issue: one-to-many
 
@@ -468,12 +437,6 @@ Source: US-007
 Publication → Placement: one-to-many
 
 Description: פרסום יכול להיות משובץ פעם אחת בגיליון היעד, או יותר רק באישור חריגה.
-Cascade: restrict
-Source: US-007, FR-16
-
-TemplateSlot → Placement: one-to-many
-
-Description: אזור שיבוץ מארח שיבוץ מודעה.
 Cascade: restrict
 Source: US-007, FR-16
 
@@ -530,8 +493,8 @@ US-002 Customer, AdOrder, Advertisement, Payment
 US-003 AdOrder, AdOrderItem, Customer, Newspaper, AdShape, PriceRule
 US-004 AdOrder, AdOrderItem, Publication, AuditLog
 US-005 Advertisement, Customer, User, Newspaper
-US-006 Newspaper, PageType, AdShape, AllowedAdShape, PriceRule, LayoutTemplate, TemplatePage, TemplateSlot
-US-007 Issue, IssuePage, LayoutTemplate, TemplatePage, TemplateSlot, Placement, Publication, Advertisement
+US-006 Newspaper, PageType, AdShape, AllowedAdShape, PriceRule
+US-007 Issue, IssuePage, Placement, Publication, Advertisement, AdShape, AllowedAdShape
 US-008 Issue, IssuePage, Placement, Publication, Advertisement, PdfGenerationLog, AuditLog
 US-009 User, UserMembership, Customer, AdOrder, AdOrderItem, Advertisement, Newspaper, AdShape
 US-010 Payment, Customer, AdOrder, Publication, Newspaper, AuditLog

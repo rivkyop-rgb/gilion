@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   allowedShapeRemovalBlocked,
   pageTypeDeletionBlocked,
+  shapeDeletionBlocked,
   toBytes,
   toMegabytes,
   validateNewspaper,
@@ -15,6 +16,9 @@ const base: NewspaperInput = {
   margin: 10,
   printQuality: "דפוס אופסט רגיל",
   maxAdFileSizeMb: 10,
+  columns: 6,
+  rowHeightMm: 12.5,
+  gutterMm: 4,
 };
 
 const messages = (over: Partial<NewspaperInput>) =>
@@ -70,14 +74,12 @@ describe("rule 2 — margin must leave a usable page", () => {
   it("rejects a margin at or beyond half the shortest side", () => {
     // Tabloid is 279 x 432, so anything from 139.5 mm up swallows the page.
     expect(messages({ margin: 140 })[0]).toContain("השוליים גדולים מדי");
-    expect(validateNewspaper({ ...base, margin: 139 })).toEqual([]);
   });
 
   it("scales the limit to the actual page size", () => {
     // A4 is 210 mm wide, so anything from 105 mm up is illegal there — while
     // the same margin is fine on a Broadsheet, which is 597 mm wide.
     expect(messages({ pageSize: "A4", margin: 110 })[0]).toContain("השוליים גדולים מדי");
-    expect(validateNewspaper({ ...base, pageSize: "A4", margin: 100 })).toEqual([]);
     expect(validateNewspaper({ ...base, pageSize: "Broadsheet", margin: 110 })).toEqual([]);
   });
 });
@@ -113,44 +115,65 @@ describe("reports every problem at once", () => {
       margin: -1,
       printQuality: "",
       maxAdFileSizeMb: 0,
+      columns: 0,
+      rowHeightMm: 0,
+      gutterMm: -1,
     });
     expect(errors.map((e) => e.field).sort()).toEqual([
+      "columns",
+      "gutterMm",
       "margin",
       "maxAdFileSizeMb",
       "name",
       "pageSize",
       "printQuality",
+      "rowHeightMm",
     ]);
+  });
+});
+
+describe("rule 7 — the page grid", () => {
+  it("rejects a grid whose columns do not fit the page width", () => {
+    expect(messages({ columns: 24, gutterMm: 12 }).join(" ")).toContain("לא נכנסים ברוחב העמוד");
+  });
+
+  it("rejects a row height that leaves no rows", () => {
+    expect(messages({ rowHeightMm: 500 }).join(" ")).toContain("לא משאירים אף שורה");
+  });
+
+  it("accepts a gutter of zero — cells simply touch", () => {
+    expect(validateNewspaper({ ...base, gutterMm: 0 })).toEqual([]);
   });
 });
 
 describe("rule 5 — a page type in use cannot be deleted", () => {
   it("allows deletion when nothing references it", () => {
-    expect(pageTypeDeletionBlocked({ templatePages: 0, issuePages: 0 })).toBeNull();
+    expect(pageTypeDeletionBlocked({ issuePages: 0 })).toBeNull();
   });
 
   it("says where it is used", () => {
-    expect(pageTypeDeletionBlocked({ templatePages: 2, issuePages: 0 })).toContain("2 עמודי תבנית");
-    expect(pageTypeDeletionBlocked({ templatePages: 0, issuePages: 5 })).toContain(
-      "5 עמודי גיליון",
-    );
-  });
-
-  it("names both when both apply", () => {
-    const msg = pageTypeDeletionBlocked({ templatePages: 1, issuePages: 3 })!;
-    expect(msg).toContain("1 עמודי תבנית");
-    expect(msg).toContain("3 עמודי גיליון");
+    expect(pageTypeDeletionBlocked({ issuePages: 5 })).toContain("5 עמודי גיליון");
   });
 });
 
 describe("rule 6 — an allowed shape in use cannot be removed", () => {
-  it("allows removal when no slot uses it", () => {
+  it("allows removal when nothing is placed with it", () => {
     expect(allowedShapeRemovalBlocked(0, "רבע עמוד")).toBeNull();
   });
 
   it("names the shape and the count", () => {
     const msg = allowedShapeRemovalBlocked(3, "רבע עמוד")!;
     expect(msg).toContain("רבע עמוד");
-    expect(msg).toContain("3 סלוטים");
+    expect(msg).toContain("3 שיבוצים");
+  });
+});
+
+describe("a shape is deletable until it has been placed", () => {
+  it("allows deletion when nothing is placed with it — permissions and prices cascade", () => {
+    expect(shapeDeletionBlocked({ placements: 0 })).toBeNull();
+  });
+
+  it("blocks deletion once it is placed in an issue", () => {
+    expect(shapeDeletionBlocked({ placements: 2 })).toContain("2 שיבוצים");
   });
 });

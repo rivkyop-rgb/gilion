@@ -44,8 +44,8 @@ test.describe("who may touch newspaper settings (FR-8)", () => {
     await page.goto(`/settings/newspapers/${NEWSPAPERS.alpha}/pricing`);
     await expect(page.getByTestId("pricing-matrix")).toBeVisible();
 
-    await page.goto(`/settings/newspapers/${NEWSPAPERS.alpha}/templates`);
-    await expect(page.getByTestId("create-template")).toBeVisible();
+    await page.goto(`/settings/newspapers/${NEWSPAPERS.alpha}/shapes`);
+    await expect(page.getByTestId("new-shape")).toBeVisible();
   });
 
   test("a newspaper of another business is not reachable — 404, not 403", async ({ page }) => {
@@ -54,14 +54,12 @@ test.describe("who may touch newspaper settings (FR-8)", () => {
     expect(res?.status()).toBe(404);
   });
 
-  test("its pricing and templates are unreachable too", async ({ page }) => {
+  test("its pricing and shapes are unreachable too", async ({ page }) => {
     await loginAsAdmin(page, "alpha");
     expect((await page.goto(`/settings/newspapers/${NEWSPAPERS.beta}/pricing`))?.status()).toBe(
       404,
     );
-    expect((await page.goto(`/settings/newspapers/${NEWSPAPERS.beta}/templates`))?.status()).toBe(
-      404,
-    );
+    expect((await page.goto(`/settings/newspapers/${NEWSPAPERS.beta}/shapes`))?.status()).toBe(404);
   });
 });
 

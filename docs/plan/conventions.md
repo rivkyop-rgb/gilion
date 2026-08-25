@@ -15,6 +15,8 @@
 - **מספרים, מטבע ומזהים** (`₪45,000`, `24/10/2023`, `INV-2023-081`) נשארים LTR בתוך זרימת RTL. עוטפים ברכיב `<Ltr>` שמוסיף `dir="ltr"` + `unicode-bidi: isolate`.
 - **shadcn/ui דורש התאמות RTL נקודתיות.** אלה הרכיבים שצריך לתקן ידנית והתיקון מתועד ב־`components/ui/`: `Select` ו־`DropdownMenu` (כיוון פתיחה ואייקון `chevron`), `Sheet` (צד ההחלקה), `Calendar` (סדר ימי השבוע וחצי ניווט), `Table` (יישור עמודות), `Toast` (מיקום). כל תיקון מסומן בהערה `// RTL:` בקוד.
 - **אייקוני חצים ו־chevron מתהפכים.** `ArrowRight` בקוד = חץ שמצביע שמאלה על המסך.
+- **יחידה אחת בממשק: סנטימטר.** המסד עובד במ״מ, הדומיין בתאי גריד, והמסך — **רק בס״מ, בשני הכיוונים**. אף מסך לא מציג "תאים", ואף מסך לא מערבב יחידות: רוחב בעמודות לצד גובה בס״מ נוסה ונפסל, כי שתי יחידות בשני שדות סמוכים נקראות כבלבול ולא כדיוק. ההמרה מס״מ למ״מ קורית פעם אחת בכל Server Action, בקצה; `lib/domain/` ו־Prisma לא רואים ס״מ לעולם. `colsForWidthCm()`/`rowsForHeightCm()` מצמידים גודל מוקלד לתאים שלמים — **בשרת**, שלא סומך על מה שהלקוח חישב — ו־`footprintMm()` מחזיר את הגודל המודפס. כשההצמדה משנה את מה שהוקלד, המסך **חייב להגיד זאת לפני השמירה**, אחרת המספר ששונה נראה כמו באג. **מרווח שאינו אפס מקצר כל גודל מודפס בדיוק בגודלו** — ולכן ברירת המחדל היא **מודול של 1 ס״מ בשני הכיוונים בלי מרווח** (26 × 41 ב־Tabloid עם שוליים 0.95 ס״מ). זה מה שהופך כל מספר שלם של ס״מ לגודל אמיתי; מודול גס יותר מצמיד את מה שהוקלד למספר שאיש לא ביקש.
+- **גריד העמוד נספר מימין.** עמודה `0` היא תחילת הזרימה ב־RTL, כלומר **הקצה הימני של העמוד**; שורה `0` היא הקצה העליון. ההמרה מתאים למילימטרים קיימת פעם אחת בלבד ב־`toMillimetres()`, וההמרה ממצביע העכבר לתא פעם אחת בלבד ב־`cellAtPointer()` — שתיהן ב־`lib/domain/slot-geometry.ts`, שתיהן טהורות ונבדקות ב־Vitest. **אסור** לחשב `left`/`x` ידנית ברכיב. רשת תאים מרונדרת בסדר קריאה בתוך `grid-template-columns` תחת `dir="rtl"` — בלי אריתמטיקה של היפוך. ראה את הסטייה המתועדת ב־[`03-newspaper-config.md`](03-newspaper-config.md).
 
 ## 2. אכיפת Multi-tenancy (FR-1)
 
@@ -23,8 +25,9 @@
 - `getTenantContext()` מחזיר `{ userId, businessId, role, customerId? }` מהסשן. זורק אם אין עסק פעיל.
 - **Prisma Client Extension** מזריק `businessId` אוטומטית ל־`where` בכל `find*`/`update*`/`delete*` ול־`data` בכל `create` — עבור כל מודל שמסומן tenant-scoped.
 - **מודלים tenant-scoped ישירות** (יש להם `business_id`): `Customer`, `Newspaper`, `AdOrder`, `Publication`, `Advertisement`, `Issue`, `Payment`, `AuditLog`, `UserMembership`.
-- **מודלים tenant-scoped בעקיפין** (דרך ההורה): `PageType`, `AllowedAdShape`, `PriceRule`, `LayoutTemplate`, `TemplatePage`, `TemplateSlot`, `AdOrderItem`, `IssuePage`, `Placement`, `Reminder`, `PdfGenerationLog`. עבורם ה־extension מוסיף `where` מקונן דרך ה־relation אל ההורה שיש לו `business_id`. **אסור** לשלוף אותם לפי `id` בלבד.
-- **`AdShape` הוא global** — צורות פרסום משותפות לכל העסקים (אין לו `business_id` ב־ERD). זה היוצא מן הכלל היחיד, ומתועד ככזה.
+- **מודלים tenant-scoped בעקיפין** (דרך ההורה): `PageType`, `AdShape`, `AllowedAdShape`, `PriceRule`, `AdOrderItem`, `IssuePage`, `Placement`, `Reminder`, `PdfGenerationLog`. עבורם ה־extension מוסיף `where` מקונן דרך ה־relation אל ההורה שיש לו `business_id`. **אסור** לשלוף אותם לפי `id` בלבד.
+- **אין מודלים global. `AdShape` שייך לעיתון** — היפוך מודע של החלטה קודמת, 24/08/2026: קטלוג הצורות נקבע על ידי כל עיתון בנפרד (US-006 AC-4), ולכן `AdShape.newspaper_id` ו־tenant-scoping בעקיפין דרך `Newspaper`. עיתון חדש נזרע בהעתק של קטלוג הבסיס (`lib/domain/base-shapes.ts`) ולא בהפניה למשהו משותף — כדי שעריכה בעיתון אחד לא תשנה אחר. `GLOBAL_MODELS` נשאר ריק ב־`lib/data/tenant-models.ts`, וכל תוספת אליו היא החלטה שדורשת עדכון של הסעיף הזה.
+- **טבלאות קישור נסגרות ב־FK מורכב, לא בבדיקה בקוד.** ל־`Newspaper`, `PageType` ו־`AdShape` יש `@@unique([id, newspaper_id])`, ו־`AllowedAdShape`/`PriceRule` מפנים אליהם בזוג `(id, newspaper_id)`. כך שורה שמצליבה סוג עמוד של עיתון אחד עם צורה של עיתון אחר אינה ניתנת לייצוג במסד — לא "נדחית בוולידציה".
 - **גישה ישירה ל־`prisma` נאסרת מחוץ ל־`lib/data/`** ונאכפת ב־ESLint (`no-restricted-imports`). כל השאר משתמש ב־`db` המורחב.
 - **Postgres RLS מחוץ ל־MVP**, אבל כל טבלה נשמרת עם `business_id` לא־null (או נתיב ברור אל אחת כזו) כדי שאפשר יהיה להוסיף policies בלי שינוי סכימה.
 
@@ -68,11 +71,18 @@
 
 נאכף **במסד**, לא רק ב־UI — כי UI לא מגן מפני שתי לשוניות פתוחות.
 
+אין יותר "סלוט" שאפשר לסמן כתפוס: מאז היפוך 24/08/2026 לשיבוץ יש גיאומטריה משלו על גריד העמוד (`col`, `row`, `cols`, `rows`), ולכן "תפוס" הוא **חפיפת מלבנים**, לא ערך כפול. Postgres יודע לאכוף בדיוק את זה:
+
 ```sql
--- סלוט תפוס פעם אחת בלבד
-CREATE UNIQUE INDEX placement_slot_unique
-  ON "Placement" ("issue_page_id", "template_slot_id")
-  WHERE status = 'placed';
+CREATE EXTENSION IF NOT EXISTS btree_gist;   -- נדרש כדי לצרף `=` על מזהה לתוך אינדקס GiST
+
+-- שתי מודעות לא חופפות באותו עמוד
+ALTER TABLE "Placement" ADD CONSTRAINT placement_no_overlap
+  EXCLUDE USING gist (
+    "issue_page_id"                    WITH =,
+    int4range("col", "col" + "cols")   WITH &&,
+    int4range("row", "row" + "rows")   WITH &&
+  ) WHERE (status = 'placed');
 
 -- פרסום משובץ פעם אחת בגיליון, אלא אם אושרה חריגה
 CREATE UNIQUE INDEX placement_publication_unique
@@ -80,9 +90,13 @@ CREATE UNIQUE INDEX placement_publication_unique
   WHERE status = 'placed' AND duplicate_override_approved = false;
 ```
 
+טווחים חצי־פתוחים (`[col, col+cols)`) הם מה שגורם לשתי מודעות שנוגעות בקצה **לא** להיחשב חופפות — אותו כלל בדיוק שמימש `overlaps()` ב־`lib/domain/slot-geometry.ts`, כדי שהדומיין והמסד לא יחלקו על מקרה קצה.
+
 `issue_id` נשמר ב־`Placement` כעמודה מיותרת־במכוון (denormalized מ־`IssuePage`) כדי שהאינדקס השני יהיה אפשרי בכלל. עקביותה נאכפת ב־FK מורכב `(issue_id, issue_page_id)`.
 
-הפרת אינדקס נתפסת בקוד (`P2002`) ומתורגמת להודעת שגיאה בעברית, לא ל־500.
+**שני קודי שגיאה שונים.** הפרת ה־unique היא `P2002` של Prisma; הפרת ה־EXCLUDE היא `23P01` של Postgres, ו־Prisma **לא** ממפה אותה ל־`P2002` — צריך לבדוק את קוד השגיאה של הדרייבר. שתיהן מתורגמות להודעה בעברית, לא ל־500.
+
+`btree_gist` נבדק כזמין בסביבת הפיתוח (Postgres 18.6, גרסת ברירת מחדל 1.8); ההתקנה עצמה נכנסת למיגרציה של שלב 06 ודורשת הרשאת superuser על ה־DB.
 
 ## 5. קבצים פרטיים (FR-15)
 
@@ -112,7 +126,7 @@ await withAudit(
 שלושה כללים שנאכפים בקוד ומתועדים בכל שלב רלוונטי:
 
 1. **מחיר** — `Publication.price` נכתב פעם אחת בעת אישור ההזמנה, מועתק מ־`AdOrderItem.price`. שינוי מאוחר ב־`PriceRule` **לא נוגע בו**. `PriceRule` משמש רק כברירת מחדל בזמן יצירת ההזמנה.
-2. **תבנית** — שינוי `LayoutTemplate`/`TemplateSlot` לא משנה גיליון קיים. בעת פתיחת גיליון, מבנה העמודים והסלוטים **מועתק** מהתבנית ל־`IssuePage`, ומיקומי השיבוץ נשמרים ב־`Placement.position/width/height` ולא נקראים מהתבנית בזמן ההפקה.
+2. **גריד** — שינוי הגדרות העמוד של העיתון (`columns`, `row_height_mm`, `gutter_mm`, `margin`, `page_size`) או של קטלוג הצורות **לא משנה גיליון קיים**. בעת פתיחת גיליון, הגריד **מצולם** אל ה־`Issue`, וכל שיבוץ שומר גיאומטריה משלו ב־`Placement.col/row/cols/rows`. ההפקה קוראת את הצילום ואת השיבוץ בלבד — לעולם לא את `Newspaper` או `AdShape` החיים. (עד 24/08/2026 הכלל הזה דיבר על העתקת `LayoutTemplate`; שכבת התבניות בוטלה, הכלל נשאר.)
 3. **גיליון סגור** — `Issue.status = 'closed'` חוסם כל כתיבה ל־`Placement`, `IssuePage` ולסטטוס הפרסומים שבו.
 
 ## 8. הפקת PDF (FR-22)
@@ -145,3 +159,4 @@ components/
 - **Server Actions** הן ברירת המחדל לכתיבה. **Route Handlers** רק לקבצים ול־webhooks.
 - כל Server Action מתחילה ב־`getTenantContext()` + בדיקת הרשאה, וכל קלט עובר `zod` **בשרת** — ולידציית לקוח היא UX בלבד ולעולם לא שכבת אבטחה.
 - `lib/domain/` לא מייבא כלום מ־`lib/data/`. הכיוון תמיד data → domain.
+- **גיאומטריית העמוד יושבת כולה ב־`lib/domain/`:** `grid.ts` (גזירת הגריד מגודל העמוד ומהשוליים), `base-shapes.ts` (קטלוג הבסיס שכל עיתון חדש מקבל העתק שלו), `slot-geometry.ts` (המרות RTL, חפיפה, אזורים מותרים). רכיבים, actions ושכבת הנתונים **צורכים** אותן ואינם מחשבים גיאומטריה בעצמם — זה מה שמאפשר לבדוק את כל הכללים ב־Vitest בלי דפדפן ובלי DB.

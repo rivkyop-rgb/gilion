@@ -27,11 +27,9 @@ export const DIRECT_TENANT_MODELS = [
  */
 export const INDIRECT_TENANT_MODELS: Record<string, string> = {
   PageType: "newspaper",
+  AdShape: "newspaper",
   AllowedAdShape: "page_type",
   PriceRule: "newspaper",
-  LayoutTemplate: "newspaper",
-  TemplatePage: "layout_template",
-  TemplateSlot: "template_page",
   AdOrderItem: "ad_order",
   IssuePage: "issue",
   Placement: "issue",
@@ -40,10 +38,15 @@ export const INDIRECT_TENANT_MODELS: Record<string, string> = {
 };
 
 /**
- * The single documented exception: ad shapes are shared across all businesses
- * and have no business_id in the ERD.
+ * There are no global models.
+ *
+ * Until 24/08/2026 `AdShape` was the one documented exception: ad shapes were
+ * shared by every business. A product change made the shape catalogue something
+ * each newspaper owns and edits, so it became tenant-scoped through its
+ * newspaper like PageType. This list stays here, empty, as the record of that
+ * reversal — see conventions.md §2.
  */
-export const GLOBAL_MODELS = ["AdShape"] as const;
+export const GLOBAL_MODELS = [] as const;
 
 /** Models with no tenant dimension at all — auth-level entities. */
 export const UNSCOPED_MODELS = ["Business", "User"] as const;

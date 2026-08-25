@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 
 import { getTenantContext } from "@/lib/auth/tenant";
 import { canWrite, requireAccess } from "@/lib/auth/rbac";
-import { getNewspaper, listAdShapes } from "@/lib/data/newspapers";
+import { getNewspaper, gridOf } from "@/lib/data/newspapers";
+import { listAdShapes } from "@/lib/data/ad-shapes";
 import { toMegabytes } from "@/lib/domain/newspaper";
+import { mmToCm, type DerivedGrid } from "@/lib/domain/grid";
 import type { PageSizeKey } from "@/lib/domain/page-size";
 import { NewspaperForm } from "../newspaper-form";
 import { updateNewspaperAction } from "../../actions";
@@ -20,8 +22,17 @@ export default async function NewspaperPage({ params }: { params: Promise<{ id: 
   requireAccess(ctx.role, "settings");
 
   const { id } = await params;
-  const [paper, shapes] = await Promise.all([getNewspaper(ctx.businessId, id), listAdShapes()]);
+  const paper = await getNewspaper(ctx.businessId, id);
   if (!paper) notFound();
+
+  const shapes = await listAdShapes(ctx.businessId, paper.id);
+  // A newspaper whose page size cannot be resolved has no grid to draw against;
+  // the form below is where that gets fixed, so fall back to a 1x1 grid rather
+  // than failing the page.
+  // gridOf only fails on a "custom" page size missing its dimensions, which
+  // validation refuses — this fallback keeps the screen rendering instead of
+  // throwing if a row ever slips through.
+  const grid = gridOf(paper) ?? UNRESOLVED_GRID;
 
   const mayEdit = canWrite(ctx.role, "settings");
 
@@ -40,11 +51,15 @@ export default async function NewspaperPage({ params }: { params: Promise<{ id: 
           initial={{
             name: paper.name,
             pageSize: paper.page_size as PageSizeKey,
-            customWidthMm: paper.custom_width_mm?.toString() ?? "",
-            customHeightMm: paper.custom_height_mm?.toString() ?? "",
-            margin: paper.margin.toString(),
+            // Stored in millimetres, shown and edited in centimetres.
+            customWidthCm: cmString(paper.custom_width_mm),
+            customHeightCm: cmString(paper.custom_height_mm),
+            marginCm: cmString(paper.margin),
             printQuality: paper.print_quality,
             maxAdFileSizeMb: String(toMegabytes(paper.max_ad_file_size)),
+            columns: String(paper.columns),
+            rowHeightCm: cmString(paper.row_height_mm),
+            gutterCm: cmString(paper.gutter_mm),
           }}
         />
       </section>
@@ -52,7 +67,8 @@ export default async function NewspaperPage({ params }: { params: Promise<{ id: 
       <PageTypes
         newspaperId={paper.id}
         readOnly={!mayEdit}
-        shapes={shapes.map((s) => ({ id: s.id, name: s.name, sizeGroup: s.size_group }))}
+        grid={grid}
+        shapes={shapes.map((s) => ({ id: s.id, name: s.name, cols: s.cols, rows: s.rows }))}
         pageTypes={paper.page_types.map((pt) => ({
           id: pt.id,
           name: pt.name,
@@ -62,3 +78,20 @@ export default async function NewspaperPage({ params }: { params: Promise<{ id: 
     </>
   );
 }
+
+/** A stored millimetre value as the centimetre string the form edits. */
+function cmString(mm: { toString(): string } | null | undefined): string {
+  if (mm == null) return "";
+  return String(mmToCm(Number(mm.toString())));
+}
+
+const UNRESOLVED_GRID: DerivedGrid = {
+  columns: 1,
+  rows: 1,
+  rowHeightMm: 0,
+  gutterMm: 0,
+  marginMm: 0,
+  columnWidthMm: 0,
+  pageWidthMm: 0,
+  pageHeightMm: 0,
+};

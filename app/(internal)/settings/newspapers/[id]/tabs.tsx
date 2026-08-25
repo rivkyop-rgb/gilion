@@ -11,7 +11,7 @@ export function NewspaperTabs({ id }: { id: string }) {
   const tabs = [
     { href: base, label: "כללי וסוגי עמודים" },
     { href: `${base}/pricing`, label: "מחירון" },
-    { href: `${base}/templates`, label: "תבניות שיבוץ" },
+    { href: `${base}/shapes`, label: "צורות פרסום ומיקומים" },
   ];
 
   return (

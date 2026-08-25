@@ -3,6 +3,7 @@
  * Pure module — no Prisma, no React (conventions.md §9).
  */
 import { isPageSizeKey, pageDimensions, type PageSizeKey } from "./page-size";
+import { validateGridSettings } from "./grid";
 
 export type NewspaperInput = {
   name: string;
@@ -14,6 +15,12 @@ export type NewspaperInput = {
   printQuality: string;
   /** Megabytes as typed by the user; stored as bytes. */
   maxAdFileSizeMb: number;
+  /** Page grid — see lib/domain/grid.ts. */
+  columns: number;
+  /** Millimetres, one grid row. */
+  rowHeightMm: number;
+  /** Millimetres, between cells and against the frame. */
+  gutterMm: number;
 };
 
 export type FieldError = { field: string; message: string };
@@ -64,25 +71,47 @@ export function validateNewspaper(input: NewspaperInput): FieldError[] {
     errors.push({ field: "printQuality", message: "איכות דפוס היא שדה חובה" });
   }
 
+  // rule 7 — the page grid (US-006 AC-4)
+  errors.push(
+    ...validateGridSettings({
+      pageSize: input.pageSize,
+      customWidthMm: input.customWidthMm,
+      customHeightMm: input.customHeightMm,
+      marginMm: input.margin,
+      columns: input.columns,
+      rowHeightMm: input.rowHeightMm,
+      gutterMm: input.gutterMm,
+    }),
+  );
+
   return errors;
 }
 
 /** Blocking message when a page type is still referenced (rule 5). */
-export function pageTypeDeletionBlocked(counts: {
-  templatePages: number;
-  issuePages: number;
-}): string | null {
-  const parts: string[] = [];
-  if (counts.templatePages > 0) parts.push(`${counts.templatePages} עמודי תבנית`);
-  if (counts.issuePages > 0) parts.push(`${counts.issuePages} עמודי גיליון`);
-  if (parts.length === 0) return null;
-  return `לא ניתן למחוק את סוג העמוד — הוא בשימוש ב־${parts.join(" וב־")}.`;
+export function pageTypeDeletionBlocked(counts: { issuePages: number }): string | null {
+  if (counts.issuePages === 0) return null;
+  return `לא ניתן למחוק את סוג העמוד — הוא בשימוש ב־${counts.issuePages} עמודי גיליון.`;
 }
 
-/** Blocking message when an allowed shape is still used by a slot (rule 6). */
-export function allowedShapeRemovalBlocked(slotCount: number, shapeName: string): string | null {
-  if (slotCount === 0) return null;
-  return `לא ניתן להסיר את "${shapeName}" — ${slotCount} סלוטים בתבניות משתמשים בה בסוג העמוד הזה.`;
+/** Blocking message when an allowed shape is still placed somewhere (rule 6). */
+export function allowedShapeRemovalBlocked(
+  placementCount: number,
+  shapeName: string,
+): string | null {
+  if (placementCount === 0) return null;
+  return `לא ניתן להסיר את "${shapeName}" — ${placementCount} שיבוצים בגיליונות משתמשים בה בסוג העמוד הזה.`;
+}
+
+/**
+ * Blocking message when a shape itself is being deleted (US-006 AC-5).
+ *
+ * Only live placements block: permissions and price rules cascade, and that is
+ * safe because Publication.price is a copy taken at approval, never read back
+ * from PriceRule (conventions.md §7 rule 1).
+ */
+export function shapeDeletionBlocked(counts: { placements: number }): string | null {
+  if (counts.placements === 0) return null;
+  return `לא ניתן למחוק את הצורה — ${counts.placements} שיבוצים בגיליונות משתמשים בה.`;
 }
 
 export type { PageSizeKey };

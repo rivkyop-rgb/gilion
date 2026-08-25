@@ -1,10 +1,22 @@
 import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
+
+import { materializeBaseShapes } from "../lib/domain/base-shapes";
+import { deriveGrid } from "../lib/domain/grid";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 /**
- * Seeds one audit row per business so tenant-isolation.spec.ts has a real
- * cross-tenant id to attempt. Ids are fixed so the spec can address them.
+ * Puts the database into the state every spec assumes, before the run starts.
+ *
+ * Two jobs:
+ *  1. One audit row per business, so tenant-isolation.spec.ts has a real
+ *     cross-tenant id to attempt. Ids are fixed so the spec can address them.
+ *  2. Reset the shape catalogue. The catalogue specs create shapes and never
+ *     remove them, so without this every run leaves more rows behind than the
+ *     last — the settings screens get slower each time and the suite starts
+ *     failing on timeouts that have nothing to do with the code. Cleaning up
+ *     here rather than in each spec keeps the specs readable and makes the
+ *     starting state identical whether you run one file or all of them.
  */
 export const ALPHA_AUDIT_ID = "audit_alpha_fixture";
 export const BETA_AUDIT_ID = "audit_beta_fixture";
@@ -34,5 +46,72 @@ export default async function globalSetup() {
     });
   }
 
+  await deleteTestNewspapers(prisma);
+  await resetShapeCatalogue(prisma);
+
   await prisma.$disconnect();
+}
+
+/**
+ * Removes newspapers the specs created.
+ *
+ * `newspaper-setup.spec.ts` creates a newspaper per run and never deletes it,
+ * so the settings list and the cross-newspaper shape overview grow without
+ * bound — every extra newspaper is another six shapes and another six previews
+ * to render. Only the two seeded ids are keepers.
+ */
+async function deleteTestNewspapers(prisma: PrismaClient) {
+  await prisma.newspaper.deleteMany({
+    where: { id: { notIn: ["paper_alpha", "paper_beta"] } },
+  });
+}
+
+/**
+ * Deletes shapes the specs created and restores the seeded six to exactly the
+ * geometry prisma/seed.ts gives them — the region specs edit `shape_strip` in
+ * place, so upserting the ids back is not enough on its own.
+ */
+async function resetShapeCatalogue(prisma: PrismaClient) {
+  const papers = await prisma.newspaper.findMany({
+    where: { id: { in: ["paper_alpha", "paper_beta"] } },
+  });
+
+  for (const paper of papers) {
+    const grid = deriveGrid({
+      pageSize: paper.page_size,
+      customWidthMm: paper.custom_width_mm ? Number(paper.custom_width_mm) : null,
+      customHeightMm: paper.custom_height_mm ? Number(paper.custom_height_mm) : null,
+      marginMm: Number(paper.margin),
+      columns: paper.columns,
+      rowHeightMm: Number(paper.row_height_mm),
+      gutterMm: Number(paper.gutter_mm),
+    });
+    if (!grid) continue;
+
+    const catalogue = materializeBaseShapes(grid);
+    const prefix = paper.id === "paper_alpha" ? "shape_" : "shape_beta_";
+    const seeded = catalogue.map((s) => `${prefix}${s.key}`);
+
+    // Everything a spec added, including its allowed_shapes and price_rules,
+    // which cascade.
+    await prisma.adShape.deleteMany({
+      where: { newspaper_id: paper.id, id: { notIn: seeded } },
+    });
+
+    for (const shape of catalogue) {
+      const row = {
+        id: `${prefix}${shape.key}`,
+        newspaper_id: paper.id,
+        name: shape.name,
+        cols: shape.cols,
+        rows: shape.rows,
+        position_mode: shape.positionMode,
+        allowed_cells:
+          shape.allowedCells === null
+            ? Prisma.DbNull
+            : { cells: shape.allowedCells.map(([col, r]) => [col, r]) },
+      };
+      await prisma.adShape.upsert({ where: { id: row.id }, update: row, create: row });
+    }
+  }
 }

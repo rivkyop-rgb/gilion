@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InlineError } from "@/components/states";
 import { ShapePreview } from "../../shape-preview";
+import { shapeSize } from "../../shape-size";
+import type { DerivedGrid } from "@/lib/domain/grid";
 import {
   createPageTypeAction,
   deletePageTypeAction,
@@ -13,7 +15,7 @@ import {
   type FormState,
 } from "../../actions";
 
-export type ShapeOption = { id: string; name: string; sizeGroup: string };
+export type ShapeOption = { id: string; name: string; cols: number; rows: number };
 export type PageTypeRow = { id: string; name: string; allowedShapeIds: string[] };
 
 /**
@@ -27,11 +29,14 @@ export function PageTypes({
   newspaperId,
   pageTypes,
   shapes,
+  grid,
   readOnly,
 }: {
   newspaperId: string;
   pageTypes: PageTypeRow[];
   shapes: ShapeOption[];
+  /** The newspaper's grid — what makes each shape's proportion and size real. */
+  grid: DerivedGrid;
   readOnly: boolean;
 }) {
   const bound = createPageTypeAction.bind(null, newspaperId);
@@ -86,7 +91,7 @@ export function PageTypes({
                     disabled={readOnly || busy}
                     aria-pressed={selected}
                     data-testid={`shape-${pt.id}-${s.id}`}
-                    title={s.name}
+                    title={`${s.name} — ${shapeSize(s, grid)}`}
                     onClick={() =>
                       startTransition(async () => {
                         const next = selected
@@ -98,7 +103,7 @@ export function PageTypes({
                     }
                     className="flex flex-col items-center gap-1 disabled:opacity-60"
                   >
-                    <ShapePreview sizeGroup={s.sizeGroup} selected={selected} />
+                    <ShapePreview cols={s.cols} rows={s.rows} grid={grid} selected={selected} />
                     <span className="max-w-16 text-center text-[10px] leading-tight text-on-surface-variant">
                       {s.name}
                     </span>

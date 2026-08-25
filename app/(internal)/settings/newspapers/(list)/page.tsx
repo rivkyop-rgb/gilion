@@ -4,7 +4,8 @@ import { Plus } from "lucide-react";
 
 import { getTenantContext } from "@/lib/auth/tenant";
 import { canWrite, requireAccess } from "@/lib/auth/rbac";
-import { listNewspapers } from "@/lib/data/newspapers";
+import { formatCm } from "@/lib/domain/grid";
+import { gridOf, listNewspapers } from "@/lib/data/newspapers";
 import { toMegabytes } from "@/lib/domain/newspaper";
 import { PAGE_SIZE_LABELS, type PageSizeKey } from "@/lib/domain/page-size";
 import { Ltr } from "@/components/ui/ltr";
@@ -32,7 +33,7 @@ export default async function NewspapersPage() {
         <div>
           <h1 className="mb-1 font-serif text-3xl font-semibold">עיתונים</h1>
           <p className="text-sm text-on-surface-variant">
-            לכל עיתון גודל עמוד, סוגי עמודים, מחירון ותבניות שיבוץ משלו.
+            לכל עיתון גודל עמוד, חלוקת עמוד לגריד, סוגי עמודים, צורות פרסום ומחירון משלו.
           </p>
         </div>
         {mayEdit ? (
@@ -48,7 +49,7 @@ export default async function NewspapersPage() {
       {papers.length === 0 ? (
         <EmptyState
           title="עדיין אין עיתונים"
-          body="עיתון הוא נקודת ההתחלה — בלעדיו אין סוגי עמודים, אין מחירון ואין תבנית לשבץ לתוכה."
+          body="עיתון הוא נקודת ההתחלה — בלעדיו אין חלוקת עמוד, אין צורות פרסום ואין מחירון."
           action={
             mayEdit ? (
               <Button asChild>
@@ -77,9 +78,9 @@ export default async function NewspapersPage() {
                   </dd>
                 </div>
                 <div>
-                  <dt>תבניות</dt>
+                  <dt>גריד</dt>
                   <dd className="font-mono text-base text-on-surface">
-                    <Ltr>{p._count.templates}</Ltr>
+                    <Ltr>{gridLabel(p)}</Ltr>
                   </dd>
                 </div>
                 <div>
@@ -95,4 +96,12 @@ export default async function NewspapersPage() {
       )}
     </>
   );
+}
+
+/** The newspaper's page division, or a dash when its page size cannot resolve. */
+/** The column count is the unit ads are sold in; the centimetres make it real. */
+function gridLabel(paper: Parameters<typeof gridOf>[0]) {
+  const grid = gridOf(paper);
+  if (!grid) return "—";
+  return `${grid.columns} עמ׳ · ${formatCm(grid.columnWidthMm)} ס״מ`;
 }
