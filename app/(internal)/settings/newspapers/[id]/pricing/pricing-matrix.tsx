@@ -80,6 +80,12 @@ export function PricingMatrix({
                         onBlur={(e) => {
                           if (readOnly) return;
                           const value = e.target.value;
+                          // Only save a value that actually changed. Blur also
+                          // fires on the way out of the page, and firing a
+                          // Server Action there aborts the navigation that
+                          // caused it — the cell saved nothing and the click
+                          // went nowhere.
+                          if (value === String(cell.price ?? "")) return;
                           startTransition(async () => {
                             const res = await upsertPriceRuleAction(
                               newspaperId,

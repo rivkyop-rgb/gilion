@@ -94,7 +94,9 @@ test.describe("the shape catalogue (US-006 AC-4)", () => {
     await page.getByTestId("mode-region").check();
     // Place the shape rather than shade an area — one click, whole footprint.
     await page.getByTestId("region-bottom").click();
-    await expect(page.getByTestId("region-positions")).toContainText("מיקומים חוקיים");
+    // Assert that a positive count is reported, not the exact sentence — the
+    // wording of this line has already changed once.
+    await expect(page.getByTestId("region-positions")).toHaveText(/[1-9]\d* מיקומים/);
     await page.getByTestId("save-shape").click();
 
     await expect(page.getByText(name)).toBeVisible();
