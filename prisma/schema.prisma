@@ -63,10 +63,12 @@ model Business {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  memberships UserMembership[]
-  audit_logs  AuditLog[]
-  customers   Customer[]
-  newspapers  Newspaper[]
+  memberships  UserMembership[]
+  audit_logs   AuditLog[]
+  customers    Customer[]
+  newspapers   Newspaper[]
+  ad_orders    AdOrder[]
+  publications Publication[]
 
   @@map("Business")
 }
@@ -152,7 +154,9 @@ model Customer {
   created_at    DateTime     @default(now())
   updated_at    DateTime     @updatedAt
 
-  business Business @relation(fields: [business_id], references: [id], onDelete: Restrict)
+  business     Business      @relation(fields: [business_id], references: [id], onDelete: Restrict)
+  ad_orders    AdOrder[]
+  publications Publication[]
 
   @@index([business_id, contact_name])
   @@index([business_id, business_name])
@@ -165,6 +169,45 @@ model Customer {
 // ---------------------------------------------------------------------------
 
 /// Where on the page a shape may sit (US-006 AC-4).
+enum OrderSource {
+  internal
+  customer_portal
+}
+
+enum OrderStatus {
+  draft
+  pending_approval
+  approved
+  rejected
+  canceled
+  completed
+}
+
+enum PaymentStatus {
+  unpaid
+  partially_paid
+  paid
+  debt
+}
+
+/// The eight publication states from conventions.md §3.
+enum PublicationStatus {
+  planned
+  missing_ad
+  ad_received
+  ready_for_layout
+  placed
+  published
+  canceled
+  billed
+}
+
+/// Derived field: `placed` exactly while an active Placement exists.
+enum PlacementStatus {
+  not_placed
+  placed
+}
+
 enum ShapePosition {
   anywhere
   region
@@ -195,20 +238,22 @@ model Newspaper {
   /// `row_height_mm`. The ROW COUNT AND COLUMN WIDTH ARE NEVER STORED: they are
   /// derived from the page size in lib/domain/grid.ts, so changing page_size or
   /// margin can never leave a stale, contradictory number in the database.
-  columns          Int
+  columns       Int
   /// Millimetres, one grid row.
-  row_height_mm    Decimal  @db.Decimal(6, 2)
+  row_height_mm Decimal @db.Decimal(6, 2)
   /// Millimetres. Applied between adjacent cells AND between the outermost
   /// cells and the frame, so it appears (columns + 1) times across the width.
-  gutter_mm        Decimal  @default(0) @db.Decimal(6, 2)
+  gutter_mm     Decimal @default(0) @db.Decimal(6, 2)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  business    Business    @relation(fields: [business_id], references: [id], onDelete: Restrict)
-  page_types  PageType[]
-  ad_shapes   AdShape[]
-  price_rules PriceRule[]
+  business     Business      @relation(fields: [business_id], references: [id], onDelete: Restrict)
+  page_types   PageType[]
+  ad_shapes    AdShape[]
+  price_rules  PriceRule[]
+  order_items  AdOrderItem[]
+  publications Publication[]
 
   @@unique([business_id, name])
   @@index([business_id])
@@ -226,6 +271,7 @@ model PageType {
   newspaper      Newspaper        @relation(fields: [newspaper_id], references: [id], onDelete: Cascade)
   allowed_shapes AllowedAdShape[]
   price_rules    PriceRule[]
+  order_items    AdOrderItem[]
 
   @@unique([newspaper_id, name])
   /// Target for the composite foreign keys below. `id` alone is already unique;
@@ -258,9 +304,11 @@ model AdShape {
   created_at    DateTime      @default(now())
   updated_at    DateTime      @updatedAt
 
-  newspaper   Newspaper        @relation(fields: [newspaper_id], references: [id], onDelete: Cascade)
-  allowed_on  AllowedAdShape[]
-  price_rules PriceRule[]
+  newspaper    Newspaper        @relation(fields: [newspaper_id], references: [id], onDelete: Cascade)
+  allowed_on   AllowedAdShape[]
+  price_rules  PriceRule[]
+  order_items  AdOrderItem[]
+  publications Publication[]
 
   @@unique([newspaper_id, name])
   /// Target for the composite foreign keys below — see PageType.
@@ -316,4 +364,109 @@ model PriceRule {
   @@unique([newspaper_id, page_type_id, ad_shape_id])
   @@index([newspaper_id])
   @@map("PriceRule")
+}
+
+// ---------------------------------------------------------------------------
+// Stage 04 — orders and publications
+// ---------------------------------------------------------------------------
+
+/// A sales order. Nothing binding exists until it is approved: a draft creates
+/// no publications at all (US-003 AC-5).
+model AdOrder {
+  id                      String        @id @default(cuid())
+  business_id             String
+  customer_id             String
+  source                  OrderSource   @default(internal)
+  status                  OrderStatus   @default(draft)
+  /// Optional (FR-19). When present it is shown to the customer in the portal.
+  rejection_reason        String?
+  /// Sum of the line prices. Computed on the server only, never trusted from
+  /// the client. A single total — no VAT and no commissions, which were Stitch
+  /// inventions (docs/design/gaps.md §א).
+  total_price             Decimal       @default(0) @db.Decimal(12, 2)
+  payment_status          PaymentStatus @default(unpaid)
+  external_invoice_number String?
+  approved_at             DateTime?
+  completed_at            DateTime?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  business     Business      @relation(fields: [business_id], references: [id], onDelete: Restrict)
+  customer     Customer      @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+  items        AdOrderItem[]
+  publications Publication[]
+
+  @@index([business_id, status])
+  @@index([business_id, customer_id, created_at])
+  @@map("AdOrder")
+}
+
+/// One planned publication inside an order.
+///
+/// `page_type_id` is not in the ERD but is required: PriceRule is keyed by
+/// (newspaper, page_type, ad_shape), so without it no price can be derived.
+/// Documented as an implementation addition in docs/plan/04-orders-publications.md.
+model AdOrderItem {
+  id               String   @id @default(cuid())
+  order_id         String
+  newspaper_id     String
+  page_type_id     String
+  ad_shape_id      String
+  publication_date DateTime @db.Date
+  /// Taken from PriceRule as a default, overridable by hand. Once the order is
+  /// approved this value is copied onto the Publication and frozen (FR-17).
+  price            Decimal  @db.Decimal(12, 2)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  order       AdOrder      @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  newspaper   Newspaper    @relation(fields: [newspaper_id], references: [id], onDelete: Restrict)
+  /// Composite keys, per conventions.md §2: a row that crosses one newspaper's
+  /// page type with another newspaper's shape is not representable.
+  page_type   PageType     @relation(fields: [page_type_id, newspaper_id], references: [id, newspaper_id], onDelete: Restrict)
+  ad_shape    AdShape      @relation(fields: [ad_shape_id, newspaper_id], references: [id, newspaper_id], onDelete: Restrict)
+  publication Publication?
+
+  @@index([order_id])
+  @@map("AdOrderItem")
+}
+
+/// A binding publication. Created only on order approval, one per order item.
+model Publication {
+  id               String            @id @default(cuid())
+  business_id      String
+  order_id         String
+  /// Unique: this is what makes approval idempotent — a double click cannot
+  /// produce duplicate publications.
+  order_item_id    String?           @unique
+  customer_id      String
+  newspaper_id     String
+  ad_shape_id      String
+  advertisement_id String?
+  publication_date DateTime          @db.Date
+  /// Copied from AdOrderItem at approval and never read from PriceRule again
+  /// (FR-17, conventions.md §7).
+  price            Decimal           @db.Decimal(12, 2)
+  source           OrderSource
+  status           PublicationStatus @default(planned)
+  placement_status PlacementStatus   @default(not_placed)
+  payment_status   PaymentStatus     @default(unpaid)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  business   Business     @relation(fields: [business_id], references: [id], onDelete: Restrict)
+  order      AdOrder      @relation(fields: [order_id], references: [id], onDelete: Restrict)
+  order_item AdOrderItem? @relation(fields: [order_item_id], references: [id], onDelete: SetNull)
+  customer   Customer     @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+  newspaper  Newspaper    @relation(fields: [newspaper_id], references: [id], onDelete: Restrict)
+  ad_shape   AdShape      @relation(fields: [ad_shape_id, newspaper_id], references: [id, newspaper_id], onDelete: Restrict)
+
+  @@index([business_id, publication_date, status])
+  @@index([business_id, newspaper_id, publication_date])
+  @@index([business_id, customer_id])
+  @@index([advertisement_id])
+  @@map("Publication")
 }

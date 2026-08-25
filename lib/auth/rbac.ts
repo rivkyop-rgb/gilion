@@ -17,6 +17,7 @@ export const AREAS = [
   "dashboard",
   "customers",
   "orders",
+  "publications",
   "advertisements",
   "issues",
   "pdf",
@@ -50,6 +51,15 @@ const MATRIX: Record<Area, Record<Role, Access>> = {
     admin: "write",
     sales: "write",
     designer: "none",
+    accounting: "read",
+    customer: "none",
+  },
+  // A designer places publications, so they must see them — but the orders that
+  // created them, and the money on them, stay out of reach (stage 04 §הרשאות).
+  publications: {
+    admin: "write",
+    sales: "write",
+    designer: "read",
     accounting: "read",
     customer: "none",
   },

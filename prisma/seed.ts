@@ -264,6 +264,29 @@ async function main() {
     }
   }
 
+  // Prices for the alpha newspaper, so the order builder has base prices to
+  // suggest and pricing-immutability has something to change.
+  const shapesAlpha = await prisma.adShape.findMany({ where: { newspaper_id: "paper_alpha" } });
+  const inner = shapesAlpha.find((s) => s.name.includes("רבע")) ?? shapesAlpha[0];
+  if (inner) {
+    await prisma.priceRule.upsert({
+      where: {
+        newspaper_id_page_type_id_ad_shape_id: {
+          newspaper_id: "paper_alpha",
+          page_type_id: "pt_inner",
+          ad_shape_id: inner.id,
+        },
+      },
+      update: { price: 1200 },
+      create: {
+        newspaper_id: "paper_alpha",
+        page_type_id: "pt_inner",
+        ad_shape_id: inner.id,
+        price: 1200,
+      },
+    });
+  }
+
   console.log(
     "seeded 2 businesses, 6 users,",
     customers.length,

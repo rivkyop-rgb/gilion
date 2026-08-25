@@ -16,6 +16,7 @@ export const NAV_ITEMS: NavItem[] = [
   { area: "dashboard", href: "/dashboard", icon: "LayoutDashboard", stage: 1 },
   { area: "customers", href: "/customers", icon: "Users", stage: 2 },
   { area: "orders", href: "/orders", icon: "ClipboardList", stage: 4 },
+  { area: "publications", href: "/publications", icon: "Megaphone", stage: 4 },
   { area: "advertisements", href: "/advertisements", icon: "ImageIcon", stage: 5 },
   { area: "issues", href: "/issues", icon: "Newspaper", stage: 6 },
   { area: "billing", href: "/billing", icon: "Wallet", stage: 8 },
@@ -25,4 +26,4 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 /** Stages that exist today. Everything above this renders disabled. */
-export const BUILT_THROUGH_STAGE = 3;
+export const BUILT_THROUGH_STAGE = 4;

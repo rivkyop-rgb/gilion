@@ -38,6 +38,13 @@ const EXPECTED: Record<Area, Record<Role, Access>> = {
     accounting: "read",
     customer: "none",
   },
+  publications: {
+    admin: "write",
+    sales: "write",
+    designer: "read",
+    accounting: "read",
+    customer: "none",
+  },
   advertisements: {
     admin: "write",
     sales: "write",

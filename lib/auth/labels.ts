@@ -12,6 +12,7 @@ export const AREA_LABELS: Record<Area, string> = {
   dashboard: "לוח בקרה",
   customers: "לקוחות",
   orders: "הזמנות",
+  publications: "פרסומים",
   advertisements: "מודעות וקבצים",
   issues: "גיליונות ושיבוץ",
   pdf: "הפקת PDF",
