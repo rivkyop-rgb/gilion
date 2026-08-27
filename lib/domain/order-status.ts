@@ -79,6 +79,33 @@ export function completionBlockedMessage(publicationStatuses: readonly string[])
   return `לא ניתן לסמן את ההזמנה כהושלמה — ${outstanding.length} מהפרסומים שלה עדיין פעילים.`;
 }
 
+/**
+ * Whether an order may be deleted outright, and why not when it may not.
+ *
+ * Deletion is a different act from cancelling. Cancelling records that an
+ * order existed and was called off; deleting says it never happened. The
+ * second is only honest while nothing binding has come out of it, so the test
+ * is not the status alone but the publication count: an order that was
+ * approved and later cancelled still has real publications behind it, and
+ * those may already be placed in an issue. Such an order is cancelled, never
+ * deleted.
+ */
+const DELETABLE_STATUSES: readonly OrderStatus[] = ["draft", "rejected", "canceled"];
+
+export function orderDeletionBlocked(status: OrderStatus, publicationCount: number): string | null {
+  if (publicationCount > 0) {
+    return `לא ניתן למחוק את ההזמנה — ${publicationCount} פרסומים מחייבים כבר נוצרו ממנה. אפשר לבטל אותה.`;
+  }
+  if (!DELETABLE_STATUSES.includes(status)) {
+    return `לא ניתן למחוק הזמנה במצב "${ORDER_STATUS_LABELS[status]}". אפשר לבטל אותה, וכך היא נשמרת בהיסטוריה.`;
+  }
+  return null;
+}
+
+export function canDeleteOrder(status: OrderStatus, publicationCount: number): boolean {
+  return orderDeletionBlocked(status, publicationCount) === null;
+}
+
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   draft: "טיוטה",
   pending_approval: "ממתינה לאישור",

@@ -9,7 +9,9 @@ import { ORDER_STATUS_LABELS, ORDER_STATUSES, type OrderStatus } from "@/lib/dom
 import { Button } from "@/components/ui/button";
 import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
-import { OrderStatusBadge, SourceBadge } from "../order-badges";
+import { ORDER_TONE, TONE_ROW } from "@/components/status-tone";
+import { cn } from "@/lib/utils";
+import { OrderStatusBadge, SourceBadge, StatusChip } from "../order-badges";
 import { formatDate, formatMoney, orderNumber } from "../format";
 
 export const metadata: Metadata = { title: "הזמנות · Gilion" };
@@ -50,17 +52,34 @@ export default async function OrdersPage({
         ) : null}
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <Button asChild size="sm" variant={status === "all" ? "primary" : "secondary"}>
-          <Link href="/orders">הכל</Link>
-        </Button>
+      {/* The chip row doubles as the colour legend for the table below it. */}
+      <div className="mb-4 flex flex-wrap gap-2" data-testid="status-filters">
+        <Link href="/orders" aria-current={status === "all" ? "page" : undefined}>
+          <span
+            className={cn(
+              "inline-flex h-8 items-center gap-2 rounded-full px-3 text-sm font-medium transition-colors",
+              status === "all"
+                ? "bg-primary text-on-primary"
+                : "bg-surface-container-lowest text-on-surface-variant ring-1 ring-outline-variant hover:bg-surface-container",
+            )}
+          >
+            הכל
+          </span>
+        </Link>
         {ORDER_STATUSES.map((s) => (
-          <Button key={s} asChild size="sm" variant={status === s ? "primary" : "secondary"}>
-            <Link href={`/orders?status=${s}`}>
-              {ORDER_STATUS_LABELS[s]}
-              {counts[s] ? ` (${counts[s]})` : ""}
-            </Link>
-          </Button>
+          <Link
+            key={s}
+            href={`/orders?status=${s}`}
+            data-testid={`status-filter-${s}`}
+            aria-current={status === s ? "page" : undefined}
+          >
+            <StatusChip
+              tone={ORDER_TONE[s]}
+              label={ORDER_STATUS_LABELS[s]}
+              count={counts[s]}
+              active={status === s}
+            />
+          </Link>
         ))}
       </div>
 
@@ -95,11 +114,11 @@ export default async function OrdersPage({
                 <tr
                   key={o.id}
                   data-testid={`order-row-${o.id}`}
-                  className={
-                    o.status === "pending_approval"
-                      ? "border-t border-outline-variant bg-status-warning-bg/40"
-                      : "border-t border-outline-variant hover:bg-surface-container-low"
-                  }
+                  className={cn(
+                    "border-t border-outline-variant",
+                    TONE_ROW[ORDER_TONE[o.status as OrderStatus]] ||
+                      "hover:bg-surface-container-low",
+                  )}
                 >
                   <td className="p-3">
                     <Link href={`/orders/${o.id}`} className="font-mono text-xs underline">

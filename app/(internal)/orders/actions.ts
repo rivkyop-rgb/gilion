@@ -13,10 +13,13 @@ import * as pubs from "@/lib/data/publications";
 import {
   completionBlockedMessage,
   itemsEditable,
+  orderDeletionBlocked,
   transition,
   InvalidTransitionError,
   type OrderStatus,
 } from "@/lib/domain/order-status";
+import { isPublicationDay } from "@/lib/domain/publication-days";
+import { noPaperReason } from "@/lib/domain/jewish-calendar";
 import {
   transition as publicationTransition,
   InvalidPublicationTransitionError,
@@ -32,31 +35,51 @@ async function requireOrderWrite() {
   return ctx;
 }
 
+/**
+ * One combination, many dates: the picker submits `dates` once per ticked day.
+ * `publicationDate` is still accepted for a single date so that a plain form
+ * post (no JavaScript) keeps working.
+ */
 const lineSchema = z.object({
-  newspaperId: z.string(),
-  pageTypeId: z.string(),
-  adShapeId: z.string(),
-  publicationDate: z.string(),
+  newspaperId: z.string().min(1),
+  pageTypeId: z.string().min(1),
+  adShapeId: z.string().min(1),
+  dates: z.array(z.string()).min(1, "יש לבחור לפחות תאריך אחד"),
   price: z.string(),
+  offSchedule: z.boolean(),
 });
 
-function readLine(formData: FormData): OrderLineInput | null {
+type LineBatch = {
+  base: Omit<OrderLineInput, "publicationDate">;
+  dates: string[];
+  offSchedule: boolean;
+};
+
+function readLines(formData: FormData): LineBatch | null {
+  const submitted = formData.getAll("dates").map(String).filter(Boolean);
+  const single = String(formData.get("publicationDate") ?? "").trim();
+  const dates = [...new Set(submitted.length > 0 ? submitted : single ? [single] : [])].sort();
+
   const parsed = lineSchema.safeParse({
     newspaperId: formData.get("newspaperId"),
     pageTypeId: formData.get("pageTypeId"),
     adShapeId: formData.get("adShapeId"),
-    publicationDate: formData.get("publicationDate"),
+    dates,
     price: formData.get("price") ?? "",
+    offSchedule: Boolean(formData.get("offSchedule")),
   });
   if (!parsed.success) return null;
 
   const raw = parsed.data.price.trim();
   return {
-    newspaperId: parsed.data.newspaperId,
-    pageTypeId: parsed.data.pageTypeId,
-    adShapeId: parsed.data.adShapeId,
-    publicationDate: parsed.data.publicationDate,
-    price: raw === "" ? null : Number(raw),
+    base: {
+      newspaperId: parsed.data.newspaperId,
+      pageTypeId: parsed.data.pageTypeId,
+      adShapeId: parsed.data.adShapeId,
+      price: raw === "" ? null : Number(raw),
+    },
+    dates: parsed.data.dates,
+    offSchedule: parsed.data.offSchedule,
   };
 }
 
@@ -87,36 +110,118 @@ export async function addOrderItemAction(
     return { message: "לא ניתן לערוך שורות בהזמנה במצב הזה" };
   }
 
-  const line = readLine(formData);
-  if (!line) return { message: "הטופס לא נשלח כראוי" };
+  const batch = readLines(formData);
+  // "No dates" is the one failure a user can actually cause here, so it gets
+  // its own message instead of the generic "the form was not submitted
+  // properly", which tells them nothing they can act on.
+  if (!batch) {
+    const anyDate =
+      formData.getAll("dates").some(Boolean) ||
+      String(formData.get("publicationDate") ?? "").trim();
+    return { message: anyDate ? "הטופס לא נשלח כראוי" : "יש לבחור לפחות תאריך פרסום אחד" };
+  }
 
   // An empty price falls back to the price list before it is called an error —
   // rule 4. Only when the matrix cell is empty too does the user have to type.
-  if (line.price === null) {
-    line.price = await data.priceSuggestion(
+  let price = batch.base.price;
+  if (price === null) {
+    price = await data.priceSuggestion(
       ctx.businessId,
-      line.newspaperId,
-      line.pageTypeId,
-      line.adShapeId,
+      batch.base.newspaperId,
+      batch.base.pageTypeId,
+      batch.base.adShapeId,
     );
   }
 
-  const errors = validateLine(line, 0);
-  if (errors.length) {
-    return { errors: Object.fromEntries(errors.map((e) => [e.field, e.message])) };
+  // Every date is validated before ANY row is written: a batch that half
+  // succeeds would leave the user reading a total that includes lines they
+  // were also being told are invalid.
+  for (const [i, publicationDate] of batch.dates.entries()) {
+    const errors = validateLine({ ...batch.base, price, publicationDate }, i);
+    if (errors.length) {
+      return { errors: Object.fromEntries(errors.map((e) => [e.field, e.message])) };
+    }
   }
 
-  const created = await data.addOrderItem(ctx.businessId, orderId, {
-    newspaper_id: line.newspaperId,
-    page_type_id: line.pageTypeId,
-    ad_shape_id: line.adShapeId,
-    publication_date: new Date(line.publicationDate),
-    price: line.price!,
-  });
+  // A chag is refused outright, before the print schedule is even consulted.
+  // Unlike a weekday the paper skips, this is not a business decision that a
+  // "special edition" tick can override — no issue is printed that day at all,
+  // so an order for it could never be fulfilled.
+  const onChag = batch.dates
+    .map((d) => ({ date: d, reason: noPaperReason(d) }))
+    .filter((x) => x.reason !== null);
+  if (onChag.length > 0) {
+    return { message: `${onChag[0]!.date}: ${onChag[0]!.reason}` };
+  }
+
+  // The print schedule is checked on the server too. The client disables the
+  // button until the box is ticked, but the box is a client-side claim, and
+  // "not a print day" must not become true just because the form was replayed.
+  const schedule = await data.newspaperPublicationDays(ctx.businessId, batch.base.newspaperId);
+  if (schedule === null) return { message: "העיתון לא נמצא" };
+
+  const offSchedule = batch.dates.filter((d) => !isPublicationDay(schedule, d));
+  if (offSchedule.length > 0 && !batch.offSchedule) {
+    return {
+      message: `${offSchedule.join(", ")} אינם ימי הדפסה של העיתון. יש לאשר שמדובר במהדורה מיוחדת.`,
+    };
+  }
+
+  const created = await data.addOrderItems(
+    ctx.businessId,
+    orderId,
+    batch.dates.map((publicationDate) => ({
+      newspaper_id: batch.base.newspaperId,
+      page_type_id: batch.base.pageTypeId,
+      ad_shape_id: batch.base.adShapeId,
+      publication_date: new Date(publicationDate),
+      price: price!,
+      off_schedule: !isPublicationDay(schedule, publicationDate),
+    })),
+  );
   if (!created) return { message: "ההזמנה לא נמצאה" };
 
   revalidatePath(`/orders/${orderId}`);
   return { ok: true };
+}
+
+/**
+ * Deletes an order outright (as opposed to cancelling it).
+ *
+ * Guarded by `orderDeletionBlocked`, which refuses anything that has already
+ * produced publications — see the note there. The check is re-read from the
+ * database inside this action rather than trusted from the page that rendered
+ * the button, because the order may have been approved in another tab since.
+ */
+export async function deleteOrderAction(orderId: string): Promise<FormState> {
+  const ctx = await requireOrderWrite();
+
+  const order = await data.getOrder(ctx.businessId, orderId);
+  if (!order) return { message: "ההזמנה לא נמצאה" };
+
+  const blocked = orderDeletionBlocked(order.status as OrderStatus, order._count.publications);
+  if (blocked) return { message: blocked };
+
+  await withAudit(
+    { businessId: ctx.businessId, userId: ctx.userId },
+    { action: "delete_order", targetType: "AdOrder", targetId: orderId },
+    async (tx) => {
+      // The audit row is the only thing that survives, so it carries enough to
+      // answer "what was deleted" without the order itself.
+      const snapshot = {
+        status: order.status,
+        customer_id: order.customer_id,
+        total_price: Number(order.total_price),
+        items: order.items.length,
+      };
+      // Items cascade from the order — see the relation in schema.prisma.
+      await tx.adOrder.delete({ where: { id: orderId } });
+      return { old: snapshot, new: null };
+    },
+  );
+
+  revalidatePath("/orders");
+  redirect("/orders");
 }
 
 export async function removeOrderItemAction(orderId: string, itemId: string): Promise<FormState> {

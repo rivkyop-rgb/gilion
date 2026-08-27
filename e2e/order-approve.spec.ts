@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { USERS, login } from "./helpers";
+import { NEWSPAPERS, PAGE_TYPES, SHAPES, USERS, login } from "./helpers";
 
 /**
  * US-004 and FR-17: approval is the moment an order stops being a proposal.
@@ -10,7 +10,10 @@ import { USERS, login } from "./helpers";
 /** Opens a fresh draft and returns its id. */
 async function newDraft(page: Page): Promise<string> {
   await page.goto("/orders/new");
-  await page.getByTestId("order-customer").selectOption({ index: 1 });
+  // The customer picker filters as you type — there is no <select> to choose
+  // an index from. Focusing opens the full list; the first option is taken.
+  await page.getByTestId("order-customer").click();
+  await page.getByTestId("order-customer-list").getByRole("option").first().click();
   await page.getByTestId("create-order").click();
   await page.waitForURL(/\/orders\/c[a-z0-9]{20,}$/);
   return new URL(page.url()).pathname.split("/").pop()!;
@@ -24,6 +27,10 @@ async function newDraft(page: Page): Promise<string> {
 async function addLine(page: Page, date: string, price: string) {
   await page.getByTestId("line-date").fill(date);
   await page.getByTestId("line-price").fill(price);
+  // Every date in these specs is a Tuesday or not — the seeded newspaper prints
+  // on Tuesdays, so anything else needs the special-edition acknowledgement.
+  const warning = page.getByTestId("off-schedule-warning");
+  if (await warning.isVisible()) await page.getByTestId("confirm-special-edition").check();
   await page.getByTestId("add-line").click();
   await expect(page.getByTestId("order-lines")).toBeVisible();
 }
@@ -100,10 +107,26 @@ test.describe("approving an order (US-004)", () => {
   });
 });
 
+/**
+ * These two assert on the BASE PRICE, so they must stand on a combination that
+ * actually has one. Relying on whatever the builder selects by default made
+ * them depend on sort order across the whole tenant: another spec adds a page
+ * type to the seeded newspaper, it sorts first, and the default combination
+ * silently becomes one with no PriceRule behind it. Selecting explicitly is
+ * both what the test means and what makes it immune to that.
+ */
+async function selectPricedCombination(page: Page) {
+  await page.getByTestId("line-newspaper").selectOption(NEWSPAPERS.alpha);
+  await page.getByTestId("line-page-type").selectOption(PAGE_TYPES.inner);
+  // The quarter page is the combination prisma/seed.ts gives a PriceRule.
+  await page.getByTestId("line-shape").selectOption(SHAPES.quarter);
+}
+
 test.describe("where the price comes from (rule 4)", () => {
   test("an empty price falls back to the base price from the list", async ({ page }) => {
     await login(page, USERS.sales);
     await newDraft(page);
+    await selectPricedCombination(page);
 
     // The builder shows which of the two it is before anything is saved.
     await expect(page.getByTestId("price-origin")).toHaveText("מחיר בסיסי");
@@ -123,6 +146,7 @@ test.describe("where the price comes from (rule 4)", () => {
   test("typing over the suggestion keeps the typed number", async ({ page }) => {
     await login(page, USERS.sales);
     await newDraft(page);
+    await selectPricedCombination(page);
 
     // Typed immediately, racing the suggestion request. This is the exact
     // regression that produced two lines of 800 when 1200 and 800 were typed:

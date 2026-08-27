@@ -1,15 +1,18 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { Check, Ban, X } from "lucide-react";
+import { Check, Ban, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { InlineError } from "@/components/states";
-import type { OrderStatus } from "@/lib/domain/order-status";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Ltr } from "@/components/ui/ltr";
+import { canDeleteOrder, type OrderStatus } from "@/lib/domain/order-status";
 import {
   approveOrderAction,
   cancelOrderAction,
   completeOrderAction,
+  deleteOrderAction,
   rejectOrderAction,
   submitOrderAction,
   type FormState,
@@ -21,14 +24,22 @@ import {
  */
 export function OrderActions({
   orderId,
+  orderRef,
   status,
   canApprove,
   canComplete,
+  publicationCount,
+  lineCount,
+  total,
 }: {
   orderId: string;
+  orderRef: string;
   status: OrderStatus;
   canApprove: boolean;
   canComplete: boolean;
+  publicationCount: number;
+  lineCount: number;
+  total: string;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
@@ -98,6 +109,41 @@ export function OrderActions({
               <Ban className="size-4" />
               ביטול ההזמנה
             </Button>
+          ) : null}
+
+          {/*
+            Deletion is offered only where it is honest — nothing binding has
+            come out of the order yet. Everywhere else the button is absent
+            rather than disabled, because a disabled delete invites a hunt for
+            the way to enable it; cancelling is the answer, and it is right
+            there next to it.
+          */}
+          {canDeleteOrder(status, publicationCount) ? (
+            <ConfirmDialog
+              testId="delete-order-dialog"
+              trigger={
+                <Button variant="ghost" disabled={busy} data-testid="delete-order">
+                  <Trash2 className="size-4" />
+                  מחיקת ההזמנה
+                </Button>
+              }
+              title="למחוק את ההזמנה?"
+              body={
+                <>
+                  <p className="mb-2">
+                    הזמנה <Ltr>{orderRef}</Ltr> תימחק לצמיתות, יחד עם {lineCount} השורות שלה בסכום{" "}
+                    <Ltr>{total}</Ltr>. אי אפשר לשחזר.
+                  </p>
+                  <p>
+                    אם ההזמנה רק לא יצאה לפועל — <strong>ביטול</strong> עדיף: הוא משאיר אותה
+                    בהיסטוריה ובדוחות.
+                  </p>
+                </>
+              }
+              confirmLabel="מחיקה לצמיתות"
+              pendingLabel="מוחקת…"
+              onConfirm={() => deleteOrderAction(orderId)}
+            />
           ) : null}
         </div>
       )}

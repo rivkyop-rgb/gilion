@@ -83,6 +83,8 @@ export type NewspaperWrite = {
   columns: number;
   row_height_mm: number;
   gutter_mm: number;
+  /** Weekday numbers 0..6; empty means no schedule declared. */
+  publication_days: number[];
 };
 
 /**

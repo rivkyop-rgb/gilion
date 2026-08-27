@@ -27,6 +27,23 @@ export type CustomerRow = {
  * across both name columns — the pg_trgm indexes added in the migration are
  * what keep it from becoming a sequential scan.
  */
+/**
+ * Every customer, as the bare fields a picker needs.
+ *
+ * Deliberately separate from `listCustomers`, which is paginated and caps at
+ * 100 rows: a type-to-filter picker that only received the first page would
+ * quietly fail to find customer 101, which is exactly the customer the search
+ * exists for. The trade is one unpaginated query per form load, of three short
+ * columns — cheap enough that filtering can happen in the browser with no
+ * round trip per keystroke.
+ */
+export async function listCustomerOptions(businessId: string) {
+  return tenantDb(businessId).customer.findMany({
+    orderBy: [{ contact_name: "asc" }],
+    select: { id: true, contact_name: true, business_name: true, phone: true },
+  });
+}
+
 export async function listCustomers(businessId: string, filters: CustomerListFilters = {}) {
   const db = tenantDb(businessId);
   const page = Math.max(1, filters.page ?? 1);

@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   availableEvents,
+  canDeleteOrder,
   canTransition,
   completionBlockedMessage,
   InvalidTransitionError,
   itemsEditable,
   ORDER_EVENTS,
   ORDER_STATUSES,
+  orderDeletionBlocked,
   transition,
   type OrderEvent,
   type OrderStatus,
@@ -113,4 +115,26 @@ describe("completion is blocked while publications are still live (rule 9)", () 
       expect(completionBlockedMessage([s])).not.toBeNull();
     },
   );
+});
+
+describe("orderDeletionBlocked", () => {
+  it("allows deleting an order that never produced anything binding", () => {
+    for (const status of ["draft", "rejected", "canceled"] as const) {
+      expect(orderDeletionBlocked(status, 0)).toBeNull();
+      expect(canDeleteOrder(status, 0)).toBe(true);
+    }
+  });
+
+  it("refuses to delete an order that has publications, whatever its status", () => {
+    // The cancelled-after-approval case: status says "cancelled" but real
+    // publications exist behind it, possibly already placed in an issue.
+    expect(canDeleteOrder("canceled", 3)).toBe(false);
+    expect(orderDeletionBlocked("canceled", 3)).toContain("3");
+  });
+
+  it("refuses to delete a live order even with no publications yet", () => {
+    expect(canDeleteOrder("pending_approval", 0)).toBe(false);
+    expect(canDeleteOrder("approved", 0)).toBe(false);
+    expect(canDeleteOrder("completed", 0)).toBe(false);
+  });
 });

@@ -14,6 +14,7 @@ import { basePrisma } from "./db";
 export type AuditAction =
   | "approve_order"
   | "reject_order"
+  | "delete_order"
   | "cancel_publication"
   | "close_issue"
   | "generate_pdf"

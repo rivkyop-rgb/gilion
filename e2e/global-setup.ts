@@ -60,9 +60,12 @@ export default async function globalSetup() {
  * bound — every extra newspaper is another six shapes and another six previews
  * to render. Only the two seeded ids are keepers.
  */
+/** Every id prisma/seed.ts creates. Anything else was made by a spec. */
+const SEEDED_NEWSPAPER_IDS = ["paper_alpha", "paper_catalog", "paper_beta"];
+
 async function deleteTestNewspapers(prisma: PrismaClient) {
   await prisma.newspaper.deleteMany({
-    where: { id: { notIn: ["paper_alpha", "paper_beta"] } },
+    where: { id: { notIn: SEEDED_NEWSPAPER_IDS } },
   });
 }
 

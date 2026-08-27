@@ -16,6 +16,13 @@ export const USERS = {
 
 export const BUSINESS = { alpha: "biz_alpha", beta: "biz_beta" } as const;
 
+/**
+ * The publisher names shown in the business switcher — deliberately different
+ * from the newspaper names below them, so a spec asserting on one cannot pass
+ * by accidentally matching the other.
+ */
+export const BUSINESS_NAMES = { alpha: "הוצאת המרכז", beta: "הוצאת הצפון" } as const;
+
 /** Seeded newspapers, one per tenant. */
 export const NEWSPAPERS = { alpha: "paper_alpha", beta: "paper_beta" } as const;
 
@@ -89,7 +96,7 @@ export function activeBusinessLabel(page: Page) {
 export async function loginAsAdmin(page: Page, business: "alpha" | "beta" = "alpha") {
   await login(page, USERS.admin);
   if (page.url().includes("select-business")) {
-    const label = business === "alpha" ? "עיתון השבוע" : "מקומון הצפון";
+    const label = BUSINESS_NAMES[business];
     await page.locator("form button", { hasText: label }).first().click();
     await page.waitForURL(/\/dashboard/, { timeout: 20_000 });
   }

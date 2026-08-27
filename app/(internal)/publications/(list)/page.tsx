@@ -16,7 +16,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
-import { PublicationStatusBadge, SourceBadge } from "../../orders/order-badges";
+import { PUBLICATION_TONE, TONE_ROW } from "@/components/status-tone";
+import { cn } from "@/lib/utils";
+import { PublicationStatusBadge, SourceBadge, StatusChip } from "../../orders/order-badges";
 import { formatDate, formatMoney, orderNumber } from "../../orders/format";
 
 export const metadata: Metadata = { title: "פרסומים · Gilion" };
@@ -34,6 +36,17 @@ export default async function PublicationsPage({
   // FR-8: a designer places ads but never sees money.
   const maySeeMoney = ctx.role !== "designer";
 
+  /** Clicking a status chip must not silently drop the other filters. */
+  const hrefFor = (next: string) => {
+    const q = new URLSearchParams();
+    if (newspaper !== "all") q.set("newspaper", newspaper);
+    if (next !== "all") q.set("status", next);
+    if (from) q.set("from", from);
+    if (to) q.set("to", to);
+    const query = q.toString();
+    return query ? `/publications?${query}` : "/publications";
+  };
+
   const [rows, papers] = await Promise.all([
     listPublications(ctx.businessId, { newspaperId: newspaper, status, from, to }),
     listNewspapers(ctx.businessId),
@@ -45,6 +58,36 @@ export default async function PublicationsPage({
       <p className="mb-6 text-sm text-on-surface-variant">
         כל פרסום מחייב שנוצר מאישור הזמנה. פרסום בלי מודעה או בלי שיבוץ מסומן ברקע אדמדם.
       </p>
+
+      {/* Eight statuses, eight colours — the row is the legend for the table. */}
+      <div className="mb-4 flex flex-wrap gap-2" data-testid="status-filters">
+        <Link href={hrefFor("all")} aria-current={status === "all" ? "page" : undefined}>
+          <span
+            className={cn(
+              "inline-flex h-8 items-center rounded-full px-3 text-sm font-medium transition-colors",
+              status === "all"
+                ? "bg-primary text-on-primary"
+                : "bg-surface-container-lowest text-on-surface-variant ring-1 ring-outline-variant hover:bg-surface-container",
+            )}
+          >
+            כל הסטטוסים
+          </span>
+        </Link>
+        {PUBLICATION_STATUSES.map((s) => (
+          <Link
+            key={s}
+            href={hrefFor(s)}
+            data-testid={`status-filter-${s}`}
+            aria-current={status === s ? "page" : undefined}
+          >
+            <StatusChip
+              tone={PUBLICATION_TONE[s]}
+              label={PUBLICATION_STATUS_LABELS[s]}
+              active={status === s}
+            />
+          </Link>
+        ))}
+      </div>
 
       <form className="mb-4 flex flex-wrap items-end gap-3">
         <div>
@@ -67,25 +110,9 @@ export default async function PublicationsPage({
           </select>
         </div>
 
-        <div>
-          <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="status">
-            סטטוס
-          </label>
-          <select
-            id="status"
-            name="status"
-            defaultValue={status}
-            data-testid="filter-status"
-            className="h-10 rounded-sm border border-outline-variant bg-surface-container px-3 text-start text-sm"
-          >
-            <option value="all">כל הסטטוסים</option>
-            {PUBLICATION_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {PUBLICATION_STATUS_LABELS[s]}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* The status filter lives in the chip row above, in colour. It rides
+            along here as a hidden field so submitting the other filters keeps it. */}
+        <input type="hidden" name="status" value={status} />
 
         <div>
           <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="from">
@@ -144,11 +171,13 @@ export default async function PublicationsPage({
                   <tr
                     key={p.id}
                     data-testid={`publication-row-${p.id}`}
-                    className={
+                    className={cn(
+                      "border-t border-outline-variant",
                       attention
-                        ? "border-t border-outline-variant bg-status-error-bg/30"
-                        : "border-t border-outline-variant hover:bg-surface-container-low"
-                    }
+                        ? "bg-status-error-bg/30"
+                        : TONE_ROW[PUBLICATION_TONE[p.status as PublicationStatus]] ||
+                            "hover:bg-surface-container-low",
+                    )}
                   >
                     <td className="p-3">{p.customer.business_name ?? p.customer.contact_name}</td>
                     <td className="p-3">{p.newspaper.name}</td>

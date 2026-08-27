@@ -86,10 +86,15 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         editable={mayEdit}
         lines={order.items.map((i) => ({
           id: i.id,
+          newspaperId: i.newspaper_id,
           newspaperName: i.newspaper.name,
           pageTypeName: i.page_type.name,
           shapeName: i.ad_shape.name,
           publicationDate: formatDate(i.publication_date),
+          // The calendar compares ISO strings, so it gets one that has not been
+          // through a locale formatter.
+          isoDate: i.publication_date.toISOString().slice(0, 10),
+          offSchedule: i.off_schedule,
           price: Number(i.price),
         }))}
       />
@@ -169,9 +174,13 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       {canWrite(ctx.role, "orders") || ctx.role === "accounting" ? (
         <OrderActions
           orderId={order.id}
+          orderRef={orderNumber(order.id)}
           status={status}
           canApprove={canWrite(ctx.role, "orders")}
           canComplete={ctx.role === "admin" || ctx.role === "accounting"}
+          publicationCount={order.publications.length}
+          lineCount={order.items.length}
+          total={formatMoney(Number(order.total_price))}
         />
       ) : null}
     </>

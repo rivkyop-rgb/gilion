@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { BUSINESS, USERS, activeBusinessLabel, login, sessionOf } from "./helpers";
+import { BUSINESS, BUSINESS_NAMES, USERS, activeBusinessLabel, login, sessionOf } from "./helpers";
 import { ALPHA_AUDIT_ID, BETA_AUDIT_ID } from "./global-setup";
 
 /**
@@ -63,7 +63,7 @@ test.describe("tenant isolation (FR-1)", () => {
     await page.goto("/dashboard");
     await expect(page.getByRole("heading", { name: "לוח בקרה" })).toBeVisible();
     const other = first === BUSINESS.alpha ? BUSINESS.beta : BUSINESS.alpha;
-    const otherName = other === BUSINESS.alpha ? "עיתון השבוע" : "מקומון הצפון";
+    const otherName = other === BUSINESS.alpha ? BUSINESS_NAMES.alpha : BUSINESS_NAMES.beta;
     await page.getByTestId("business-switcher").click();
     await page.getByTestId(`business-option-${other}`).click();
     // Assert on what the user actually sees. The session endpoint is only a

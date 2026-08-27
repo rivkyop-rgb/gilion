@@ -19,7 +19,8 @@ test("completing an order is blocked while a publication is still live", async (
   await login(page, USERS.sales);
 
   await page.goto("/orders/new");
-  await page.getByTestId("order-customer").selectOption({ index: 1 });
+  await page.getByTestId("order-customer").click();
+  await page.getByTestId("order-customer-list").getByRole("option").first().click();
   await page.getByTestId("create-order").click();
   await page.waitForURL(/\/orders\/c[a-z0-9]{20,}$/);
   const orderPath = new URL(page.url()).pathname;

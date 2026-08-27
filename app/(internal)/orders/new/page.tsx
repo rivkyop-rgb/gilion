@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getTenantContext } from "@/lib/auth/tenant";
 import { requireAccess } from "@/lib/auth/rbac";
-import { listCustomers } from "@/lib/data/customers";
+import { listCustomerOptions } from "@/lib/data/customers";
 import { NewOrderForm } from "./new-order-form";
 
 export const metadata: Metadata = { title: "הזמנה חדשה · Gilion" };
@@ -10,7 +10,8 @@ export default async function NewOrderPage() {
   const ctx = await getTenantContext();
   requireAccess(ctx.role, "orders", "write");
 
-  const { rows } = await listCustomers(ctx.businessId, { perPage: 100 });
+  // Every customer, not the first page of them — see listCustomerOptions.
+  const rows = await listCustomerOptions(ctx.businessId);
 
   return (
     <div className="max-w-[560px]">
@@ -21,8 +22,10 @@ export default async function NewOrderPage() {
       </p>
       <NewOrderForm
         customers={rows.map((c) => ({
-          id: c.id,
+          value: c.id,
           label: c.business_name ? `${c.business_name} — ${c.contact_name}` : c.contact_name,
+          // Searchable too: a customer is often remembered by phone, not name.
+          hint: c.phone ?? undefined,
         }))}
       />
     </div>

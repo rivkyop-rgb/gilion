@@ -49,6 +49,7 @@ enum MembershipStatus {
 enum AuditAction {
   approve_order
   reject_order
+  delete_order
   cancel_publication
   close_issue
   generate_pdf
@@ -245,6 +246,16 @@ model Newspaper {
   /// cells and the frame, so it appears (columns + 1) times across the width.
   gutter_mm     Decimal @default(0) @db.Decimal(6, 2)
 
+  /// --- Print schedule -------------------------------------------------------
+  /// Which weekdays this newspaper is printed on, as JS `getDay()` numbers
+  /// (0 = Sunday … 6 = Saturday). An EMPTY ARRAY means "no schedule declared",
+  /// which is not the same as "never prints": with no schedule the order
+  /// builder simply has nothing to check a date against and stays quiet.
+  /// Deliberately a weekday list and not a rule engine — an irregular run
+  /// (every other week, holiday eves only) is expressed by the dates the user
+  /// ticks on the order, not by a recurrence stored here.
+  publication_days Int[] @default([])
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
@@ -417,6 +428,11 @@ model AdOrderItem {
   /// Taken from PriceRule as a default, overridable by hand. Once the order is
   /// approved this value is copied onto the Publication and frozen (FR-17).
   price            Decimal  @db.Decimal(12, 2)
+  /// Set when the user knowingly ordered a date that is not one of the
+  /// newspaper's `publication_days` — a special edition. Stored rather than
+  /// re-derived so that later changing the newspaper's schedule cannot
+  /// retroactively turn a deliberate choice into a warning.
+  off_schedule     Boolean  @default(false)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt

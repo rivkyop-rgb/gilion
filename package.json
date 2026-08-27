@@ -24,6 +24,7 @@
     "verify": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run e2e"
   },
   "dependencies": {
+    "@hebcal/core": "^6.9.2",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "@radix-ui/react-dialog": "^1.1.23",

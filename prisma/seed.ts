@@ -21,15 +21,20 @@ const PASSWORD = "gilion1234";
 async function main() {
   const hash = await bcrypt.hash(PASSWORD, 10);
 
+  // The BUSINESS is the publisher; the NEWSPAPERS are what it publishes. They
+  // were previously given the same names ("עיתון השבוע" was both), which put
+  // the same label in the business switcher and in the newspaper list one
+  // level below it — reading as though the paper contained itself. The model
+  // was never wrong, only the seed data made it look duplicated.
   const alpha = await prisma.business.upsert({
     where: { id: "biz_alpha" },
-    update: { name: "עיתון השבוע" },
-    create: { id: "biz_alpha", name: "עיתון השבוע" },
+    update: { name: "הוצאת המרכז" },
+    create: { id: "biz_alpha", name: "הוצאת המרכז" },
   });
   const beta = await prisma.business.upsert({
     where: { id: "biz_beta" },
-    update: { name: "מקומון הצפון" },
-    create: { id: "biz_beta", name: "מקומון הצפון" },
+    update: { name: "הוצאת הצפון" },
+    create: { id: "biz_beta", name: "הוצאת הצפון" },
   });
 
   const people = [
@@ -174,16 +179,28 @@ async function main() {
     gutter_mm: 0,
   };
 
-  // One configured newspaper per business, so stage 03 screens have something
-  // real to show and tenant isolation stays testable.
+  // The publisher owns SEVERAL newspapers, and its customers are shared across
+  // all of them — a customer is created once and then simply picked a place to
+  // advertise in each time. That is the shape the business actually has, and
+  // seeding only one paper per business hid it.
+  //
+  // beta stays a second PUBLISHER on purpose and is not redundant: it is what
+  // proves one publisher cannot reach another's data (FR-1), and the tenant
+  // isolation specs are written against it. Nobody working in the alpha
+  // publisher ever sees it.
+  //
+  // publication_days are JS getDay() numbers (0 = Sunday). Three different
+  // schedules on purpose, so the order builder's warning is demonstrable
+  // without editing settings first.
   const papers = [
-    { id: "paper_alpha", business_id: alpha.id, name: "עיתון השבוע" },
-    { id: "paper_beta", business_id: beta.id, name: "מקומון הצפון" },
+    { id: "paper_alpha", business_id: alpha.id, name: "עיתון השבוע", publication_days: [2] },
+    { id: "paper_catalog", business_id: alpha.id, name: "קטלוג המרכז", publication_days: [4] },
+    { id: "paper_beta", business_id: beta.id, name: "מקומון הצפון", publication_days: [4] },
   ];
   for (const p of papers) {
     await prisma.newspaper.upsert({
       where: { id: p.id },
-      update: { name: p.name, ...GRID_SETTINGS },
+      update: { name: p.name, publication_days: p.publication_days, ...GRID_SETTINGS },
       create: {
         ...p,
         ...GRID_SETTINGS,
@@ -207,8 +224,16 @@ async function main() {
   })!;
 
   const catalogue = materializeBaseShapes(grid);
+  // alpha keeps the unprefixed ids because the e2e specs address cells by
+  // `cell-{pageTypeId}-{shapeId}`; every other newspaper gets its own prefix.
+  // A shared prefix would have handed two newspapers the same shape ids.
+  const SHAPE_PREFIX: Record<string, string> = {
+    paper_alpha: "shape_",
+    paper_catalog: "shape_catalog_",
+    paper_beta: "shape_beta_",
+  };
   const shapeIdFor = (newspaperId: string, key: string) =>
-    newspaperId === "paper_alpha" ? `shape_${key}` : `shape_beta_${key}`;
+    `${SHAPE_PREFIX[newspaperId] ?? `shape_${newspaperId}_`}${key}`;
 
   for (const p of papers) {
     for (const shape of catalogue) {
@@ -228,8 +253,27 @@ async function main() {
     }
   }
 
-  // Page types for the alpha newspaper, with allowed shapes.
+  // Page types, with their allowed shapes. Both of the publisher's newspapers
+  // get them: a newspaper with no page type cannot be ordered in at all, and
+  // one that only half exists is worse demo data than one that does not.
   const pageTypes = [
+    {
+      id: "pt_cat_front",
+      newspaper_id: "paper_catalog",
+      name: "שער קטלוג",
+      shapes: ["shape_catalog_quarter", "shape_catalog_eighth"],
+    },
+    {
+      id: "pt_cat_inner",
+      newspaper_id: "paper_catalog",
+      name: "פנימי קטלוג",
+      shapes: [
+        "shape_catalog_full",
+        "shape_catalog_half_h",
+        "shape_catalog_quarter",
+        "shape_catalog_eighth",
+      ],
+    },
     {
       id: "pt_cover",
       newspaper_id: "paper_alpha",
@@ -292,7 +336,9 @@ async function main() {
     customers.length,
     "customers,",
     catalogue.length * papers.length,
-    "ad shapes, 2 newspapers. password:",
+    "ad shapes,",
+    papers.length,
+    "newspapers. password:",
     PASSWORD,
   );
 }

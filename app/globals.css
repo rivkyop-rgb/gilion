@@ -62,6 +62,22 @@
   --color-status-neutral-bg: #d8e3fa;
   --color-status-neutral-fg: #43474e;
 
+  /* Four more tones, so that no two states share a colour.
+     A status colour whose only job is to be TOLD APART from the next status
+     is worth nothing if two states repaint the same swatch: "approved" and
+     "completed" both green made the badge decorative rather than readable.
+     Every state below has exactly one owner — see components/status-tone.ts. */
+  --color-status-info-bg: #dbeafe;
+  --color-status-info-fg: #1e40af;
+  --color-status-accent-bg: #ede4ff;
+  --color-status-accent-fg: #5b21b6;
+  --color-status-done-bg: #d5f2ec;
+  --color-status-done-fg: #0f5f52;
+  /* Muted is the only tone with no hue: a cancelled row should recede, and it
+     is the one state the eye is meant to skip over. */
+  --color-status-muted-bg: #eceef2;
+  --color-status-muted-fg: #6b7280;
+
   /* --- typography — conventions.md §1 ---
      Frank Ruhl Libre (headings) + Google Sans (UI) replace Libre Caslon /
      Hanken Grotesk, which have no Hebrew glyphs. Google Sans is self-hosted and

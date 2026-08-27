@@ -23,6 +23,7 @@ import {
 } from "@/lib/domain/grid";
 import { normalizePositions, validPositionCount, type Cell } from "@/lib/domain/slot-geometry";
 import { validatePrice } from "@/lib/domain/pricing";
+import { normalizeDays } from "@/lib/domain/publication-days";
 import * as papers from "@/lib/data/newspapers";
 import * as shapes from "@/lib/data/ad-shapes";
 
@@ -51,6 +52,8 @@ const newspaperSchema = z.object({
   columns: z.coerce.number(),
   rowHeightCm: z.coerce.number(),
   gutterCm: z.coerce.number(),
+  /** Checkbox group: absent when nothing is ticked, one entry per ticked day. */
+  publicationDays: z.array(z.coerce.number()),
 });
 
 function readNewspaper(formData: FormData) {
@@ -65,6 +68,7 @@ function readNewspaper(formData: FormData) {
     columns: formData.get("columns"),
     rowHeightCm: formData.get("rowHeightCm"),
     gutterCm: formData.get("gutterCm"),
+    publicationDays: formData.getAll("publicationDays"),
   });
   if (!parsed.success) return null;
 
@@ -80,6 +84,7 @@ function readNewspaper(formData: FormData) {
     columns: cm.columns,
     rowHeightMm: cmToMm(cm.rowHeightCm),
     gutterMm: cmToMm(cm.gutterCm),
+    publicationDays: normalizeDays(cm.publicationDays),
   };
 }
 
@@ -96,6 +101,9 @@ const toWrite = (input: NonNullable<ReturnType<typeof readNewspaper>>) => ({
   columns: input.columns,
   row_height_mm: input.rowHeightMm,
   gutter_mm: input.gutterMm,
+  // Empty stays empty: "no schedule declared" is a real state, and the order
+  // builder reads it as "don't warn about any date".
+  publication_days: input.publicationDays,
 });
 
 export async function createNewspaperAction(

@@ -10,6 +10,7 @@ import { Ltr } from "@/components/ui/ltr";
 import { DEFAULT_MAX_AD_FILE_SIZE_MB } from "@/lib/domain/newspaper";
 import { cmToMm, deriveGrid, formatCm } from "@/lib/domain/grid";
 import { PAGE_SIZE_KEYS, PAGE_SIZE_LABELS, type PageSizeKey } from "@/lib/domain/page-size";
+import { formatDays, WEEKDAYS, WEEKDAY_LABELS } from "@/lib/domain/publication-days";
 import type { FormState } from "../actions";
 
 /** Every measurement here is in CENTIMETRES — see the note in actions.ts. */
@@ -24,6 +25,8 @@ export type NewspaperFormValues = {
   columns: string;
   rowHeightCm: string;
   gutterCm: string;
+  /** Weekday numbers 0..6. Empty = no schedule declared. */
+  publicationDays: number[];
 };
 
 const EMPTY: NewspaperFormValues = {
@@ -41,6 +44,10 @@ const EMPTY: NewspaperFormValues = {
   columns: "26",
   rowHeightCm: "1",
   gutterCm: "0",
+  // Empty by default rather than guessing a weekday: a wrong default would
+  // start warning about correct dates, which trains the user to ignore the
+  // warning — worse than having no schedule at all.
+  publicationDays: [],
 };
 
 export function NewspaperForm({
@@ -56,6 +63,9 @@ export function NewspaperForm({
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, {});
   const [pageSize, setPageSize] = useState<PageSizeKey>(initial.pageSize);
+  const [days, setDays] = useState<number[]>(initial.publicationDays);
+  const toggleDay = (d: number) =>
+    setDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort()));
   const [marginCm, setMarginCm] = useState(initial.marginCm);
   const err = (f: string) => state.errors?.[f];
 
@@ -228,6 +238,45 @@ export function NewspaperForm({
         {err("columns") ? <InlineError>{err("columns")}</InlineError> : null}
         {err("rowHeightMm") ? <InlineError>{err("rowHeightMm")}</InlineError> : null}
         {err("gutterMm") ? <InlineError>{err("gutterMm")}</InlineError> : null}
+      </fieldset>
+
+      <fieldset className="rounded-lg border border-outline-variant p-4">
+        <legend className="px-1 font-serif text-base font-semibold">ימי הדפסה</legend>
+        <p className="mb-3 text-sm text-on-surface-variant">
+          באילו ימים בשבוע העיתון יוצא. בהזמנת פרסום המערכת תסמן את הימים האלה בלוח התאריכים ותתריע
+          אם נבחר תאריך אחר. אפשר להשאיר ריק — אז לא תהיה שום התרעה.
+        </p>
+
+        <div className="flex flex-wrap gap-2" data-testid="publication-days">
+          {WEEKDAYS.map((d) => {
+            const on = days.includes(d);
+            return (
+              <label
+                key={d}
+                className={`cursor-pointer rounded-full px-3 py-1.5 text-sm font-medium ring-1 transition-colors ${
+                  on
+                    ? "bg-primary text-on-primary ring-primary"
+                    : "bg-surface-container-lowest text-on-surface-variant ring-outline-variant hover:bg-surface-container"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  name="publicationDays"
+                  value={d}
+                  checked={on}
+                  onChange={() => toggleDay(d)}
+                  data-testid={`publication-day-${d}`}
+                  className="sr-only"
+                />
+                {WEEKDAY_LABELS[d]}
+              </label>
+            );
+          })}
+        </div>
+
+        <p className="mt-3 text-xs text-on-surface-variant" data-testid="publication-days-summary">
+          {formatDays(days)}
+        </p>
       </fieldset>
 
       <div>

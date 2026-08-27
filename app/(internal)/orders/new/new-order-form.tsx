@@ -1,14 +1,16 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { InlineError, EmptyState } from "@/components/states";
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { createOrderDraftAction, type FormState } from "../actions";
 
-export function NewOrderForm({ customers }: { customers: Array<{ id: string; label: string }> }) {
+export function NewOrderForm({ customers }: { customers: ComboboxOption[] }) {
   const [state, action, pending] = useActionState<FormState, FormData>(createOrderDraftAction, {});
+  const [customerId, setCustomerId] = useState("");
 
   if (customers.length === 0) {
     return (
@@ -28,30 +30,26 @@ export function NewOrderForm({ customers }: { customers: Array<{ id: string; lab
     <form action={action} className="space-y-5">
       <div>
         <Label htmlFor="customerId">לקוח</Label>
-        <select
+        {/* Type to filter: the list is every customer in the business, which
+            scrolls badly long before it loads slowly. */}
+        <Combobox
           id="customerId"
           name="customerId"
-          data-testid="order-customer"
+          testId="order-customer"
+          options={customers}
           required
-          defaultValue=""
-          className="h-10 w-full rounded-sm border border-outline-variant bg-surface-container px-3 text-start text-sm"
-        >
-          <option value="" disabled>
-            בחרי לקוח…
-          </option>
-          {customers.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.label}
-            </option>
-          ))}
-        </select>
+          placeholder="הקלידי שם לקוח, שם עסק או טלפון…"
+          emptyText="אין לקוח שמתאים לחיפוש"
+          onChange={setCustomerId}
+        />
+        <p className="mt-1 text-xs text-on-surface-variant">{customers.length} לקוחות ברשימה.</p>
         {state.errors?.customerId ? <InlineError>{state.errors.customerId}</InlineError> : null}
       </div>
 
       {state.message ? <InlineError>{state.message}</InlineError> : null}
 
       <div className="flex gap-3 border-t border-outline-variant pt-4">
-        <Button type="submit" disabled={pending} data-testid="create-order">
+        <Button type="submit" disabled={pending || !customerId} data-testid="create-order">
           {pending ? "פותחת…" : "פתיחת טיוטה"}
         </Button>
         <Button type="button" variant="ghost" asChild>

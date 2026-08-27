@@ -60,6 +60,7 @@ export default async function NewspaperPage({ params }: { params: Promise<{ id: 
             columns: String(paper.columns),
             rowHeightCm: cmString(paper.row_height_mm),
             gutterCm: cmString(paper.gutter_mm),
+            publicationDays: paper.publication_days,
           }}
         />
       </section>

@@ -75,6 +75,8 @@ export type LineWrite = {
   ad_shape_id: string;
   publication_date: Date;
   price: number;
+  /** The user knowingly picked a date the newspaper does not print on. */
+  off_schedule?: boolean;
 };
 
 /** Recomputes the total from the stored lines — never from anything a client sent. */
@@ -92,13 +94,29 @@ export async function refreshTotal(businessId: string, orderId: string) {
 }
 
 export async function addOrderItem(businessId: string, orderId: string, line: LineWrite) {
+  const created = await addOrderItems(businessId, orderId, [line]);
+  return created === null ? null : (created[0] ?? null);
+}
+
+/**
+ * Adds several lines in one commit.
+ *
+ * The multi-date picker exists because a customer buys eight publications at
+ * once, and eight sequential inserts would mean eight chances to leave the
+ * order half-entered with a total that matches neither what was asked for nor
+ * what was billed. One transaction, one total.
+ */
+export async function addOrderItems(businessId: string, orderId: string, lines: LineWrite[]) {
   const order = await tenantDb(businessId).adOrder.findUnique({
     where: { id: orderId },
     select: { id: true },
   });
   if (!order) return null;
+  if (lines.length === 0) return [];
 
-  const created = await basePrisma.adOrderItem.create({ data: { order_id: orderId, ...line } });
+  const created = await basePrisma.$transaction(
+    lines.map((line) => basePrisma.adOrderItem.create({ data: { order_id: orderId, ...line } })),
+  );
   await refreshTotal(businessId, orderId);
   return created;
 }
@@ -129,6 +147,23 @@ export async function removeOrderItem(businessId: string, itemId: string) {
   await basePrisma.adOrderItem.delete({ where: { id: itemId } });
   await refreshTotal(businessId, item.order_id);
   return { orderId: item.order_id };
+}
+
+/**
+ * A newspaper's print schedule, or null when the id is not in this tenant.
+ *
+ * Separate from `orderFormOptions` because the server re-checks the schedule
+ * on submit and must not have to load every newspaper's page types to do it.
+ */
+export async function newspaperPublicationDays(
+  businessId: string,
+  newspaperId: string,
+): Promise<number[] | null> {
+  const paper = await tenantDb(businessId).newspaper.findUnique({
+    where: { id: newspaperId },
+    select: { publication_days: true },
+  });
+  return paper ? paper.publication_days : null;
 }
 
 /** The base price for a combination, or null when the matrix cell is empty. */
@@ -167,6 +202,7 @@ export async function orderFormOptions(businessId: string) {
   return papers.map((p) => ({
     id: p.id,
     name: p.name,
+    publicationDays: p.publication_days,
     pageTypes: p.page_types.map((pt) => ({
       id: pt.id,
       name: pt.name,
