@@ -124,7 +124,24 @@ export function readableAreas(role: Role): Area[] {
   return AREAS.filter((a) => canRead(role, a));
 }
 
+/**
+ * The marker the error boundary matches on.
+ *
+ * A production build does NOT send `name` or `message` across the server/client
+ * boundary — Next replaces both with a generic string so a server error cannot
+ * leak internals to a browser. `digest` is the one field it forwards verbatim,
+ * which is how `notFound()` and `redirect()` survive the same trip.
+ *
+ * Setting it here rather than letting Next hash the message is what makes the
+ * match stable: Next's own digest is derived from the text, so it differs per
+ * role and area, and would change the moment the wording did.
+ */
+export const FORBIDDEN_DIGEST = "GILION_FORBIDDEN";
+
 export class ForbiddenError extends Error {
+  /** Read by app/(internal)/error.tsx — see FORBIDDEN_DIGEST. */
+  readonly digest = FORBIDDEN_DIGEST;
+
   constructor(
     readonly role: Role,
     readonly area: Area,
