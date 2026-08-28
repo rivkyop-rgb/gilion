@@ -7,7 +7,8 @@ import { z } from "zod";
 import { getTenantContext } from "@/lib/auth/tenant";
 import { requireSuperAdmin } from "@/lib/auth/rbac";
 import * as data from "@/lib/data/platform";
-import { normalizeEmail, validateNewBusiness } from "@/lib/domain/platform";
+import { deactivationBlocked, normalizeEmail, validateNewBusiness } from "@/lib/domain/platform";
+import { withAudit } from "@/lib/data/audit";
 
 /**
  * `values` echoes what was submitted.
@@ -66,4 +67,44 @@ export async function createBusinessAction(
 
   revalidatePath("/platform");
   redirect("/platform");
+}
+
+/**
+ * Closes or reopens a business.
+ *
+ * Audited against the AFFECTED business rather than the one the super admin
+ * happens to be working in — the trail belongs to the business the act was
+ * done to, which is also the only place anyone would think to look for it.
+ */
+export async function setBusinessStatusAction(
+  businessId: string,
+  status: "active" | "inactive",
+): Promise<FormState> {
+  const ctx = await getTenantContext();
+  requireSuperAdmin(ctx.isSuperAdmin);
+
+  const business = await data.getBusiness(businessId);
+  if (!business) return { message: "העסק לא נמצא" };
+  if (business.status === status) return { message: "העסק כבר במצב הזה" };
+
+  if (status === "inactive") {
+    const blocked = deactivationBlocked(businessId, ctx.businessId);
+    if (blocked) return { message: blocked };
+  }
+
+  await withAudit(
+    { businessId, userId: ctx.userId },
+    {
+      action: status === "inactive" ? "deactivate_business" : "activate_business",
+      targetType: "Business",
+      targetId: businessId,
+    },
+    async (tx) => {
+      await tx.business.update({ where: { id: businessId }, data: { status } });
+      return { old: { status: business.status }, new: { status } };
+    },
+  );
+
+  revalidatePath("/platform");
+  return {};
 }

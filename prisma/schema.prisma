@@ -44,12 +44,21 @@ enum MembershipStatus {
   inactive
 }
 
+/// Whether a business may be worked in at all. Deactivation is reversible and
+/// destroys nothing — it closes the door, it does not empty the room.
+enum BusinessStatus {
+  active
+  inactive
+}
+
 /// The seven auditable actions from docs/erd.md. The enum is closed on
 /// purpose: adding an action is a deliberate schema change, not a string typo.
 enum AuditAction {
   approve_order
   reject_order
   delete_order
+  deactivate_business
+  activate_business
   cancel_publication
   close_issue
   generate_pdf
@@ -59,8 +68,14 @@ enum AuditAction {
 
 /// An independent business in the multi-tenant system (FR-1, FR-2).
 model Business {
-  id         String   @id @default(cuid())
-  name       String
+  id     String         @id @default(cuid())
+  name   String
+  /// An inactive business cannot be entered by anyone, its own admin and a
+  /// super admin included. Every row it owns stays exactly where it is, so
+  /// reactivating restores the business whole — that is the difference between
+  /// this and deleting, and the reason deletion is not offered at all.
+  status BusinessStatus @default(active)
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 

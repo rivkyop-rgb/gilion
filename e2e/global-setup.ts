@@ -90,6 +90,11 @@ async function deleteTestBusinesses(prisma: PrismaClient) {
   const businessIds = strays.map((b) => b.id);
   const userIds = [...new Set(strays.flatMap((b) => b.memberships.map((m) => m.user_id)))];
 
+  // AuditLog.business_id is onDelete: Restrict, and the deactivation specs
+  // leave rows behind, so the trail has to go before the business it points
+  // at. Only ever here, in test cleanup: production never deletes a business —
+  // that is precisely what deactivation exists for.
+  await prisma.auditLog.deleteMany({ where: { business_id: { in: businessIds } } });
   await prisma.userMembership.deleteMany({ where: { business_id: { in: businessIds } } });
   // Only users left with no membership at all — never one of the seeded people.
   for (const id of userIds) {

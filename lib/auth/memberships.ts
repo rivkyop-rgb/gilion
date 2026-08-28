@@ -15,7 +15,10 @@ export type ActiveMembership = {
 
 export async function activeMembershipsFor(userId: string): Promise<ActiveMembership[]> {
   const rows = await basePrisma.userMembership.findMany({
-    where: { user_id: userId, status: "active" },
+    // An inactive business is not offered at all: a membership in a closed
+    // business is not a way in, and listing it would only produce a row that
+    // fails when clicked.
+    where: { user_id: userId, status: "active", business: { status: "active" } },
     include: { business: { select: { id: true, name: true } } },
     orderBy: { business: { name: "asc" } },
   });
@@ -37,6 +40,7 @@ export async function activeMembershipsFor(userId: string): Promise<ActiveMember
  */
 export async function allBusinessesForSuperAdmin(): Promise<ActiveMembership[]> {
   const rows = await basePrisma.business.findMany({
+    where: { status: "active" },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
@@ -54,7 +58,15 @@ export async function activeMembership(
   businessId: string,
 ): Promise<ActiveMembership | null> {
   const row = await basePrisma.userMembership.findFirst({
-    where: { user_id: userId, business_id: businessId, status: "active" },
+    // Both have to be active: a live membership in a closed business is not a
+    // way in. This is the check setActiveBusiness relies on, so it is where a
+    // deactivation actually takes effect.
+    where: {
+      user_id: userId,
+      business_id: businessId,
+      status: "active",
+      business: { status: "active" },
+    },
     include: { business: { select: { id: true, name: true } } },
   });
   if (!row) return null;

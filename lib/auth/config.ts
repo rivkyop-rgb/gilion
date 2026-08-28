@@ -104,11 +104,16 @@ export async function assertMembership(userId: string, businessId: string) {
   });
 
   if (user?.is_super_admin) {
+    // A closed business is closed to a super admin too. They can reopen it
+    // from /platform; what they cannot do is work inside it while it is shut,
+    // which would make "inactive" mean something different depending on who
+    // is asking.
     const business = await basePrisma.business.findUnique({
       where: { id: businessId },
-      select: { id: true },
+      select: { id: true, status: true },
     });
     if (!business) throw new Error("no such business");
+    if (business.status !== "active") throw new Error("business is inactive");
     return { businessId: business.id, role: "admin" as Role, customerId: undefined };
   }
 

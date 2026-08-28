@@ -153,3 +153,135 @@ test.describe("creating a business", () => {
     await expect(page.getByText("כתובת המייל הזאת כבר רשומה במערכת")).toBeVisible();
   });
 });
+
+test.describe("deactivating a business", () => {
+  /** Creates a throwaway business so no other spec's tenant is ever closed. */
+  async function createBusiness(page: import("@playwright/test").Page) {
+    const stamp = Date.now();
+    const name = `הוצאה להשבתה ${stamp}`;
+    const email = `shut${stamp}@gilion.test`;
+
+    await page.goto("/platform/new");
+    await page.getByTestId("business-name").fill(name);
+    await page.getByTestId("admin-name").fill("מנהל זמני");
+    await page.getByTestId("admin-email").fill(email);
+    await page.getByTestId("admin-password").fill("sup3rsecret");
+    await page.getByTestId("create-business").click();
+    await page.waitForURL(/\/platform$/);
+
+    const id = await page
+      .locator(`[data-testid^="business-row-"]`, { hasText: name })
+      .first()
+      .getAttribute("data-testid");
+    return { name, email, id: id!.replace("business-row-", "") };
+  }
+
+  test("closes a business, and its admin can no longer get in", async ({ page }) => {
+    // Deliberately NOT the first button: the throwaway business sorts before
+    // the seeded ones, and standing inside it is exactly what the guard
+    // refuses to let you close. Enter a known, unrelated business instead.
+    await login(page, USERS.superAdmin);
+    await page.locator("form button", { hasText: BUSINESS_NAMES.alpha }).first().click();
+    await page.waitForURL(/\/dashboard/);
+    const biz = await createBusiness(page);
+
+    // The new admin can work before the business is closed.
+    await page.context().clearCookies();
+    await page.goto("/login");
+    await page.fill("#email", biz.email);
+    await page.fill("#password", "sup3rsecret");
+    await page.click('button[type="submit"]');
+    await page.waitForURL(/\/dashboard/, { timeout: 20_000 });
+
+    // Close it.
+    // Deliberately NOT the first button: the throwaway business sorts before
+    // the seeded ones, and standing inside it is exactly what the guard
+    // refuses to let you close. Enter a known, unrelated business instead.
+    await login(page, USERS.superAdmin);
+    await page.locator("form button", { hasText: BUSINESS_NAMES.alpha }).first().click();
+    await page.waitForURL(/\/dashboard/);
+    await page.goto("/platform");
+    await page.getByTestId(`deactivate-business-${biz.id}`).click();
+    await page.getByTestId(`deactivate-${biz.id}-confirm`).click();
+    await expect(
+      page.locator(`[data-testid="business-row-${biz.id}"]`).getByText("מושבת"),
+    ).toBeVisible();
+
+    // Its admin is now shut out — no business to enter at all.
+    await page.context().clearCookies();
+    await page.goto("/login");
+    await page.fill("#email", biz.email);
+    await page.fill("#password", "sup3rsecret");
+    await page.click('button[type="submit"]');
+    await expect(page.getByRole("heading", { name: "אין לך גישה לאף עסק" })).toBeVisible();
+  });
+
+  test("a closed business is not offered to the super admin either", async ({ page }) => {
+    // Deliberately NOT the first button: the throwaway business sorts before
+    // the seeded ones, and standing inside it is exactly what the guard
+    // refuses to let you close. Enter a known, unrelated business instead.
+    await login(page, USERS.superAdmin);
+    await page.locator("form button", { hasText: BUSINESS_NAMES.alpha }).first().click();
+    await page.waitForURL(/\/dashboard/);
+    const biz = await createBusiness(page);
+
+    await page.goto("/platform");
+    await page.getByTestId(`deactivate-business-${biz.id}`).click();
+    await page.getByTestId(`deactivate-${biz.id}-confirm`).click();
+    await expect(
+      page.locator(`[data-testid="business-row-${biz.id}"]`).getByText("מושבת"),
+    ).toBeVisible();
+
+    // "Inactive" must mean the same thing regardless of who is asking.
+    await login(page, USERS.superAdmin);
+    await expect(page).toHaveURL(/\/select-business/);
+    await expect(page.locator("form button", { hasText: biz.name })).toHaveCount(0);
+  });
+
+  test("refuses to close the business the super admin is standing in", async ({ page }) => {
+    await login(page, USERS.superAdmin);
+    await page.locator("form button", { hasText: BUSINESS_NAMES.alpha }).first().click();
+    await page.waitForURL(/\/dashboard/);
+
+    await page.goto("/platform");
+    await page.getByTestId(`deactivate-business-${BUSINESS.alpha}`).click();
+    await page.getByTestId(`deactivate-${BUSINESS.alpha}-confirm`).click();
+
+    await expect(page.getByText("לא ניתן להשבית את העסק שאת עובדת בו כרגע")).toBeVisible();
+    // And it really is still open.
+    await expect(
+      page.locator(`[data-testid="business-row-${BUSINESS.alpha}"]`).getByText("פעיל"),
+    ).toBeVisible();
+  });
+
+  test("reopening restores the business whole", async ({ page }) => {
+    // Deliberately NOT the first button: the throwaway business sorts before
+    // the seeded ones, and standing inside it is exactly what the guard
+    // refuses to let you close. Enter a known, unrelated business instead.
+    await login(page, USERS.superAdmin);
+    await page.locator("form button", { hasText: BUSINESS_NAMES.alpha }).first().click();
+    await page.waitForURL(/\/dashboard/);
+    const biz = await createBusiness(page);
+
+    await page.goto("/platform");
+    await page.getByTestId(`deactivate-business-${biz.id}`).click();
+    await page.getByTestId(`deactivate-${biz.id}-confirm`).click();
+    await expect(
+      page.locator(`[data-testid="business-row-${biz.id}"]`).getByText("מושבת"),
+    ).toBeVisible();
+
+    await page.getByTestId(`activate-business-${biz.id}`).click();
+    await page.getByTestId(`activate-${biz.id}-confirm`).click();
+    await expect(
+      page.locator(`[data-testid="business-row-${biz.id}"]`).getByText("פעיל"),
+    ).toBeVisible();
+
+    // The admin who was shut out can work again, with the same password.
+    await page.context().clearCookies();
+    await page.goto("/login");
+    await page.fill("#email", biz.email);
+    await page.fill("#password", "sup3rsecret");
+    await page.click('button[type="submit"]');
+    await page.waitForURL(/\/dashboard/, { timeout: 20_000 });
+  });
+});

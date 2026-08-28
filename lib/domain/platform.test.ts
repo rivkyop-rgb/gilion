@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { MIN_PASSWORD_LENGTH, normalizeEmail, validateNewBusiness } from "./platform";
+import {
+  deactivationBlocked,
+  deactivationConsequence,
+  MIN_PASSWORD_LENGTH,
+  normalizeEmail,
+  validateNewBusiness,
+} from "./platform";
 
 const valid = {
   businessName: "הוצאת הדרום",
@@ -42,5 +48,24 @@ describe("validateNewBusiness", () => {
 describe("normalizeEmail", () => {
   it("lowercases and trims, so a login cannot miss by case", () => {
     expect(normalizeEmail("  Sara@Example.COM ")).toBe("sara@example.com");
+  });
+});
+
+describe("deactivationBlocked", () => {
+  it("refuses to close the business you are standing in", () => {
+    expect(deactivationBlocked("biz_a", "biz_a")).toContain("שאת עובדת בו כרגע");
+  });
+
+  it("allows closing any other business", () => {
+    expect(deactivationBlocked("biz_a", "biz_b")).toBeNull();
+  });
+});
+
+describe("deactivationConsequence", () => {
+  it("says what is lost and what is kept, in that order", () => {
+    const msg = deactivationConsequence({ users: 3, newspapers: 2, customers: 40 });
+    expect(msg).toContain("3 משתמשים לא יוכלו להיכנס");
+    expect(msg).toContain("יישמרו במלואם");
+    expect(msg.indexOf("לא יוכלו")).toBeLessThan(msg.indexOf("יישמרו"));
   });
 });

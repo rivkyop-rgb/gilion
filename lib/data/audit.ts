@@ -15,6 +15,8 @@ export type AuditAction =
   | "approve_order"
   | "reject_order"
   | "delete_order"
+  | "deactivate_business"
+  | "activate_business"
   | "cancel_publication"
   | "close_issue"
   | "generate_pdf"

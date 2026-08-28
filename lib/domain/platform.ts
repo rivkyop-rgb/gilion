@@ -54,3 +54,42 @@ export function validateNewBusiness(input: NewBusinessInput): FieldError[] {
 }
 
 export const normalizeEmail = (email: string) => email.trim().toLowerCase();
+
+export type BusinessStatus = "active" | "inactive";
+
+export const BUSINESS_STATUS_LABELS: Record<BusinessStatus, string> = {
+  active: "פעיל",
+  inactive: "מושבת",
+};
+
+/**
+ * Why a business may not be deactivated right now, or null when it may.
+ *
+ * The one rule is that you cannot close the business you are standing in. It
+ * would take effect on the next navigation and leave the person who did it
+ * bounced back to the picker with no explanation — the system doing something
+ * drastic and then acting as though nothing happened. Switching first costs
+ * one click and makes the act deliberate.
+ */
+export function deactivationBlocked(
+  targetBusinessId: string,
+  activeBusinessId: string,
+): string | null {
+  if (targetBusinessId === activeBusinessId) {
+    return "לא ניתן להשבית את העסק שאת עובדת בו כרגע. החליפי לעסק אחר ונסי שוב.";
+  }
+  return null;
+}
+
+/** What a deactivation actually costs, in the words the dialog needs. */
+export function deactivationConsequence(counts: {
+  users: number;
+  newspapers: number;
+  customers: number;
+}): string {
+  return (
+    `${counts.users} משתמשים לא יוכלו להיכנס. ` +
+    `${counts.newspapers} עיתונים ו־${counts.customers} לקוחות יישמרו במלואם ` +
+    `ויחזרו ברגע שהעסק יופעל מחדש.`
+  );
+}

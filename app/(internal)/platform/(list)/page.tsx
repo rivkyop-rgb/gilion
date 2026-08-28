@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
 import { formatDate } from "../../orders/format";
+import { BusinessStatusBadge, BusinessStatusButton } from "./business-status";
+import type { BusinessStatus } from "@/lib/domain/platform";
 
 export const metadata: Metadata = { title: "ניהול עסקים · Gilion" };
 
@@ -47,7 +49,9 @@ export default async function PlatformPage() {
                 <th className="p-3 text-start font-semibold">משתמשים</th>
                 <th className="p-3 text-start font-semibold">עיתונים</th>
                 <th className="p-3 text-start font-semibold">לקוחות</th>
+                <th className="p-3 text-start font-semibold">מצב</th>
                 <th className="p-3 text-start font-semibold">נוצר</th>
+                <th className="p-3" />
               </tr>
             </thead>
             <tbody>
@@ -55,7 +59,11 @@ export default async function PlatformPage() {
                 <tr
                   key={b.id}
                   data-testid={`business-row-${b.id}`}
-                  className="border-t border-outline-variant hover:bg-surface-container-low"
+                  className={
+                    b.status === "inactive"
+                      ? "border-t border-outline-variant opacity-60"
+                      : "border-t border-outline-variant hover:bg-surface-container-low"
+                  }
                 >
                   <td className="p-3">
                     <span className="inline-flex items-center gap-2 font-medium">
@@ -73,7 +81,22 @@ export default async function PlatformPage() {
                     <Ltr>{b._count.customers}</Ltr>
                   </td>
                   <td className="p-3">
+                    <BusinessStatusBadge status={b.status as BusinessStatus} />
+                  </td>
+                  <td className="p-3">
                     <Ltr>{formatDate(b.created_at)}</Ltr>
+                  </td>
+                  <td className="p-3 text-end">
+                    <BusinessStatusButton
+                      id={b.id}
+                      name={b.name}
+                      status={b.status as BusinessStatus}
+                      counts={{
+                        users: b._count.memberships,
+                        newspapers: b._count.newspapers,
+                        customers: b._count.customers,
+                      }}
+                    />
                   </td>
                 </tr>
               ))}

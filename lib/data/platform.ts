@@ -15,6 +15,7 @@ export async function listBusinesses() {
     select: {
       id: true,
       name: true,
+      status: true,
       created_at: true,
       _count: { select: { memberships: true, newspapers: true, customers: true } },
     },
@@ -75,4 +76,20 @@ export async function createBusinessWithAdmin(data: NewBusiness) {
 
     return { business, user };
   });
+}
+
+export async function getBusiness(id: string) {
+  return basePrisma.business.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      _count: { select: { memberships: true, newspapers: true, customers: true } },
+    },
+  });
+}
+
+export async function setBusinessStatus(id: string, status: "active" | "inactive") {
+  return basePrisma.business.update({ where: { id }, data: { status } });
 }
