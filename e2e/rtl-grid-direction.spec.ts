@@ -56,7 +56,21 @@ test.describe("RTL: column 0 is the right edge of the page", () => {
     );
   });
 
-  test("reads a click on the left-most pixel as the last column", async ({ page }) => {
+  /**
+   * PENDING A PRODUCT DECISION — see docs/plan/03-newspaper-config.md §פתוח.
+   *
+   * `shape_strip` is 8 columns wide on a 26-column grid, so the last column
+   * that can host it is 18, not 25. Clicking the far-left pixel targets column
+   * 25, the app correctly refuses ("הצורה לא נכנסת בעמודה 26"), and this
+   * expectation cannot be met as written.
+   *
+   * Either the test is wrong and should expect column 18, or the app should
+   * CLAMP a near-edge click to the last column that fits. The second is a
+   * change in behaviour and is the user's call, so the test is marked rather
+   * than quietly rewritten to match whatever the code happens to do — which
+   * would destroy the only record that the question was ever asked.
+   */
+  test.fixme("reads a click on the left-most pixel as the last column", async ({ page }) => {
     await page.getByTestId("region-clear").click();
 
     const grid = (await page.getByTestId("region-grid").boundingBox())!;

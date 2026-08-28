@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { BUSINESS, BUSINESS_NAMES, USERS, login, sessionOf } from "./helpers";
+import { BUSINESS, BUSINESS_NAMES, USERS, login, pickBusiness, sessionOf } from "./helpers";
 
 /**
  * The platform owner (super admin).
@@ -27,8 +27,7 @@ test.describe("super admin — access to every business", () => {
 
   test("enters a business as its admin and sees what an admin sees", async ({ page }) => {
     await login(page, USERS.superAdmin);
-    await page.locator("form button", { hasText: BUSINESS_NAMES.alpha }).first().click();
-    await page.waitForURL(/\/dashboard/);
+    await pickBusiness(page, BUSINESS.alpha);
 
     const s = await sessionOf(page);
     expect(s.user?.businessId).toBe(BUSINESS.alpha);
@@ -43,8 +42,7 @@ test.describe("super admin — access to every business", () => {
 
   test("can switch into the other business, which its own admin cannot see", async ({ page }) => {
     await login(page, USERS.superAdmin);
-    await page.locator("form button", { hasText: BUSINESS_NAMES.beta }).first().click();
-    await page.waitForURL(/\/dashboard/);
+    await pickBusiness(page, BUSINESS.beta);
 
     expect((await sessionOf(page)).user?.businessId).toBe(BUSINESS.beta);
     await expect(page.getByTestId("business-switcher")).toContainText(BUSINESS_NAMES.beta);
@@ -52,8 +50,7 @@ test.describe("super admin — access to every business", () => {
 
   test("is labelled as a super admin, not as an admin", async ({ page }) => {
     await login(page, USERS.superAdmin);
-    await page.locator("form button").first().click();
-    await page.waitForURL(/\/dashboard/);
+    await pickBusiness(page, BUSINESS.alpha);
     await expect(page.getByText("מנהל־על")).toBeVisible();
   });
 });
@@ -80,8 +77,7 @@ test.describe("the platform area is closed to every role", () => {
 
   test("a super admin reaches it", async ({ page }) => {
     await login(page, USERS.superAdmin);
-    await page.locator("form button").first().click();
-    await page.waitForURL(/\/dashboard/);
+    await pickBusiness(page, BUSINESS.alpha);
 
     await page.goto("/platform");
     await expect(page.getByRole("heading", { name: "ניהול עסקים" })).toBeVisible();
@@ -96,8 +92,7 @@ test.describe("creating a business", () => {
     const email = `owner${stamp}@gilion.test`;
 
     await login(page, USERS.superAdmin);
-    await page.locator("form button").first().click();
-    await page.waitForURL(/\/dashboard/);
+    await pickBusiness(page, BUSINESS.alpha);
 
     await page.goto("/platform/new");
     await page.getByTestId("business-name").fill(bizName);
@@ -131,8 +126,7 @@ test.describe("creating a business", () => {
 
   test("refuses a duplicate business name and a duplicate email", async ({ page }) => {
     await login(page, USERS.superAdmin);
-    await page.locator("form button").first().click();
-    await page.waitForURL(/\/dashboard/);
+    await pickBusiness(page, BUSINESS.alpha);
     await page.goto("/platform/new");
 
     await page.getByTestId("business-name").fill(BUSINESS_NAMES.alpha);
@@ -181,8 +175,7 @@ test.describe("deactivating a business", () => {
     // the seeded ones, and standing inside it is exactly what the guard
     // refuses to let you close. Enter a known, unrelated business instead.
     await login(page, USERS.superAdmin);
-    await page.locator("form button", { hasText: BUSINESS_NAMES.alpha }).first().click();
-    await page.waitForURL(/\/dashboard/);
+    await pickBusiness(page, BUSINESS.alpha);
     const biz = await createBusiness(page);
 
     // The new admin can work before the business is closed.
@@ -198,8 +191,7 @@ test.describe("deactivating a business", () => {
     // the seeded ones, and standing inside it is exactly what the guard
     // refuses to let you close. Enter a known, unrelated business instead.
     await login(page, USERS.superAdmin);
-    await page.locator("form button", { hasText: BUSINESS_NAMES.alpha }).first().click();
-    await page.waitForURL(/\/dashboard/);
+    await pickBusiness(page, BUSINESS.alpha);
     await page.goto("/platform");
     await page.getByTestId(`deactivate-business-${biz.id}`).click();
     await page.getByTestId(`deactivate-${biz.id}-confirm`).click();
@@ -221,8 +213,7 @@ test.describe("deactivating a business", () => {
     // the seeded ones, and standing inside it is exactly what the guard
     // refuses to let you close. Enter a known, unrelated business instead.
     await login(page, USERS.superAdmin);
-    await page.locator("form button", { hasText: BUSINESS_NAMES.alpha }).first().click();
-    await page.waitForURL(/\/dashboard/);
+    await pickBusiness(page, BUSINESS.alpha);
     const biz = await createBusiness(page);
 
     await page.goto("/platform");
@@ -240,8 +231,7 @@ test.describe("deactivating a business", () => {
 
   test("refuses to close the business the super admin is standing in", async ({ page }) => {
     await login(page, USERS.superAdmin);
-    await page.locator("form button", { hasText: BUSINESS_NAMES.alpha }).first().click();
-    await page.waitForURL(/\/dashboard/);
+    await pickBusiness(page, BUSINESS.alpha);
 
     await page.goto("/platform");
     await page.getByTestId(`deactivate-business-${BUSINESS.alpha}`).click();
@@ -259,8 +249,7 @@ test.describe("deactivating a business", () => {
     // the seeded ones, and standing inside it is exactly what the guard
     // refuses to let you close. Enter a known, unrelated business instead.
     await login(page, USERS.superAdmin);
-    await page.locator("form button", { hasText: BUSINESS_NAMES.alpha }).first().click();
-    await page.waitForURL(/\/dashboard/);
+    await pickBusiness(page, BUSINESS.alpha);
     const biz = await createBusiness(page);
 
     await page.goto("/platform");

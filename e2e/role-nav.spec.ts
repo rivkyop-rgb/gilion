@@ -30,9 +30,10 @@ test.describe("navigation and route guards by role (FR-8)", () => {
   });
 
   test("an admin sees every area, including the audit log", async ({ page }) => {
+    // Single-business admin: straight to the dashboard, no picker. The old
+    // "click the first form button" landed on sign out and logged the test out.
     await login(page, USERS.admin);
-    await page.locator("form button").first().click();
-    await page.waitForURL(/\/dashboard/);
+    await expect(page).toHaveURL(/\/dashboard/);
 
     const nav = page.getByRole("navigation", { name: "ניווט ראשי" });
     for (const label of [

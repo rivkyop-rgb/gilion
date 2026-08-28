@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
-import { BUSINESS, BUSINESS_NAMES, USERS, activeBusinessLabel, login, sessionOf } from "./helpers";
+import {
+  BUSINESS,
+  BUSINESS_NAMES,
+  USERS,
+  activeBusinessLabel,
+  login,
+  pickBusiness,
+  sessionOf,
+} from "./helpers";
 import { ALPHA_AUDIT_ID, BETA_AUDIT_ID } from "./global-setup";
 
 /**
@@ -44,8 +52,7 @@ test.describe("tenant isolation (FR-1)", () => {
 
   test("switching business changes which records are reachable", async ({ page }) => {
     await login(page, USERS.multiBusiness);
-    await page.locator("form button").first().click();
-    await page.waitForURL(/\/dashboard/);
+    await pickBusiness(page, BUSINESS.alpha);
     await expect(page.getByRole("heading", { name: "לוח בקרה" })).toBeVisible();
 
     const first = (await sessionOf(page)).user?.businessId;

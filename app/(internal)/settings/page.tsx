@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Newspaper, Shapes } from "lucide-react";
+import { Newspaper, Shapes, Users } from "lucide-react";
 import { getTenantContext } from "@/lib/auth/tenant";
 import { requireAccess } from "@/lib/auth/rbac";
 
 export const metadata: Metadata = { title: "הגדרות · Gilion" };
 
 const SECTIONS = [
+  {
+    href: "/settings/users",
+    icon: Users,
+    title: "משתמשים",
+    body: "מי יכול להיכנס לעסק, באיזה תפקיד, ומי כבר לא.",
+  },
   {
     href: "/settings/newspapers",
     icon: Newspaper,

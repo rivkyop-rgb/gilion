@@ -6,6 +6,7 @@ import {
   USERS,
   activeBusinessLabel,
   login,
+  pickBusiness,
   sessionOf,
 } from "./helpers";
 
@@ -15,8 +16,7 @@ test.describe("sign-in flow (FR-2)", () => {
     await expect(page).toHaveURL(/\/select-business/);
     await expect(page.getByRole("heading", { name: "בחירת עסק" })).toBeVisible();
 
-    await page.locator("form button").first().click();
-    await page.waitForURL(/\/dashboard/);
+    await pickBusiness(page, BUSINESS.alpha);
 
     const session = await sessionOf(page);
     expect(session.user?.businessId).toBeTruthy();
@@ -56,8 +56,7 @@ test.describe("sign-in flow (FR-2)", () => {
     page,
   }) => {
     await login(page, USERS.multiBusiness);
-    await page.locator("form button").first().click();
-    await page.waitForURL(/\/dashboard/);
+    await pickBusiness(page, BUSINESS.alpha);
     // The shell must be interactive before the menu is driven, otherwise the
     // click lands on server-rendered markup and is silently dropped.
     await expect(page.getByRole("heading", { name: "לוח בקרה" })).toBeVisible();

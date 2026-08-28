@@ -70,8 +70,20 @@ export async function login(page: Page, email: string) {
   // Signing in as a different user in the same context needs the old session
   // gone first: middleware redirects an authenticated visitor away from /login,
   // so without this the form is never rendered and the fill times out.
+  // Clearing cookies and navigating is not enough on its own. The page being
+  // left behind may still have a request in flight, and a session cookie that
+  // lands after the clear resurrects the session — middleware then redirects
+  // /login to /dashboard, the form never renders, and the failure surfaces as
+  // "waiting for #email" with no hint of why. Landing on /login is therefore
+  // checked rather than assumed, and the clear is repeated once if it did not
+  // take. This was intermittent across several specs, not one.
   await page.context().clearCookies();
   await page.goto("/login");
+  if (!page.url().includes("/login")) {
+    await page.context().clearCookies();
+    await page.goto("/login");
+  }
+  await page.waitForSelector("#email", { timeout: 20_000 });
   await page.fill("#email", email);
   await page.fill("#password", PASSWORD);
   await page.click('button[type="submit"]');
@@ -103,9 +115,19 @@ export function activeBusinessLabel(page: Page) {
  */
 export async function loginAsAdmin(page: Page, business: "alpha" | "beta" = "alpha") {
   await login(page, USERS.admin);
-  if (page.url().includes("select-business")) {
-    const label = BUSINESS_NAMES[business];
-    await page.locator("form button", { hasText: label }).first().click();
-    await page.waitForURL(/\/dashboard/, { timeout: 20_000 });
-  }
+  if (page.url().includes("select-business")) await pickBusiness(page, BUSINESS[business]);
+}
+
+/**
+ * Chooses a business on /select-business, by id.
+ *
+ * Specs used to click `form button` first(), which was fine while the picker
+ * was the only form on screen. It stopped being safe the moment a user landed
+ * straight on the dashboard instead — the first form button THERE is sign out,
+ * so the "click the first button" habit quietly logged the test out and the
+ * failure surfaced somewhere else entirely.
+ */
+export async function pickBusiness(page: Page, businessId: string) {
+  await page.getByTestId(`pick-business-${businessId}`).click();
+  await page.waitForURL(/\/dashboard/, { timeout: 20_000 });
 }

@@ -48,6 +48,7 @@ export default async function globalSetup() {
 
   await deleteTestNewspapers(prisma);
   await deleteTestBusinesses(prisma);
+  await deleteTestUsers(prisma);
   await resetShapeCatalogue(prisma);
 
   await prisma.$disconnect();
@@ -69,6 +70,32 @@ async function deleteTestNewspapers(prisma: PrismaClient) {
   await prisma.newspaper.deleteMany({
     where: { id: { notIn: SEEDED_NEWSPAPER_IDS } },
   });
+}
+
+/**
+ * Removes users the specs created.
+ *
+ * `team.spec.ts` adds a designer and a deputy admin per run and never removes
+ * them, so the seeded business grows a person every time — four active admins
+ * after four runs. Any future test that counts them, or any screen that
+ * behaves differently with one admin versus several, then depends on how many
+ * times the suite happened to have been run.
+ *
+ * The rule is the id shape: prisma/seed.ts gives every person it creates an
+ * explicit `usr_` id, and anything created through the UI gets a cuid. Audit
+ * rows go first — AuditLog.user_id is onDelete: Restrict.
+ */
+async function deleteTestUsers(prisma: PrismaClient) {
+  const strays = await prisma.user.findMany({
+    where: { id: { not: { startsWith: "usr_" } }, is_super_admin: false },
+    select: { id: true },
+  });
+  if (strays.length === 0) return;
+
+  const ids = strays.map((u) => u.id);
+  await prisma.auditLog.deleteMany({ where: { user_id: { in: ids } } });
+  await prisma.userMembership.deleteMany({ where: { user_id: { in: ids } } });
+  await prisma.user.deleteMany({ where: { id: { in: ids } } });
 }
 
 /**
