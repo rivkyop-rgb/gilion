@@ -5,16 +5,24 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as Icons from "lucide-react";
 import { AREA_LABELS } from "@/lib/auth/labels";
-import { canRead, type Role } from "@/lib/auth/rbac";
+import { canAccessPlatform, canRead, type Role } from "@/lib/auth/rbac";
 import { cn } from "@/lib/utils";
 import { BUILT_THROUGH_STAGE, NAV_ITEMS } from "./nav-items";
 
-export function SidebarContent({ role }: { role: Role }) {
+export function SidebarContent({
+  role,
+  isSuperAdmin = false,
+}: {
+  role: Role;
+  isSuperAdmin?: boolean;
+}) {
   const pathname = usePathname();
 
   // The menu is filtered from the same matrix the server guards with, so an
   // item can never appear here while the route rejects it (or vice versa).
-  const items = NAV_ITEMS.filter((i) => canRead(role, i.area));
+  const items = NAV_ITEMS.filter((i) =>
+    i.area === "platform" ? canAccessPlatform(isSuperAdmin) : canRead(role, i.area),
+  );
 
   return (
     <nav className="flex h-full flex-col gap-1" aria-label="ניווט ראשי">

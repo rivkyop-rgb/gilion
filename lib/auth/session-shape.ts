@@ -19,6 +19,7 @@ export const sessionCallbacks = {
     session.user.role = token.role as Role | undefined;
     session.user.customerId = token.customerId;
     session.user.membershipCount = token.membershipCount ?? 0;
+    session.user.isSuperAdmin = token.isSuperAdmin === true;
     return session;
   },
 };

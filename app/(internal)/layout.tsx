@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth/config";
-import { activeMembershipsFor } from "@/lib/auth/memberships";
+import { activeMembershipsFor, allBusinessesForSuperAdmin } from "@/lib/auth/memberships";
 import { SidebarContent } from "@/components/shell/sidebar";
 import { TopBar } from "@/components/shell/top-bar";
 import { switchBusinessAction, signOutAction } from "./actions";
@@ -18,7 +18,13 @@ export default async function InternalLayout({ children }: { children: React.Rea
   if (session.user.userType === "customer") redirect("/portal-only");
   if (!session.user.businessId || !session.user.role) redirect("/select-business");
 
-  const memberships = await activeMembershipsFor(session.user.id);
+  // A super admin holds no membership rows, so the usual lookup would find no
+  // "current" business and bounce them straight back to the picker they just
+  // came from — an infinite redirect. Their list is every business instead.
+  const isSuperAdmin = session.user.isSuperAdmin === true;
+  const memberships = isSuperAdmin
+    ? await allBusinessesForSuperAdmin()
+    : await activeMembershipsFor(session.user.id);
   const current = memberships.find((m) => m.businessId === session.user.businessId);
   if (!current) redirect("/select-business");
 
@@ -26,13 +32,14 @@ export default async function InternalLayout({ children }: { children: React.Rea
     <div className="flex min-h-screen bg-surface">
       {/* RTL: border-e is the logical end edge — the sidebar's left in Hebrew. */}
       <aside className="hidden w-70 shrink-0 border-e border-outline-variant bg-surface-container-lowest p-4 lg:block">
-        <SidebarContent role={current.role} />
+        <SidebarContent role={current.role} isSuperAdmin={isSuperAdmin} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar
           userName={session.user.name ?? ""}
           role={current.role}
+          isSuperAdmin={isSuperAdmin}
           current={current}
           options={memberships}
           onSelectBusiness={switchBusinessAction}

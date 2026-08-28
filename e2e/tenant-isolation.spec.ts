@@ -43,7 +43,7 @@ test.describe("tenant isolation (FR-1)", () => {
   });
 
   test("switching business changes which records are reachable", async ({ page }) => {
-    await login(page, USERS.admin);
+    await login(page, USERS.multiBusiness);
     await page.locator("form button").first().click();
     await page.waitForURL(/\/dashboard/);
     await expect(page.getByRole("heading", { name: "לוח בקרה" })).toBeVisible();

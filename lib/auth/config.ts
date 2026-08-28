@@ -40,7 +40,13 @@ export const {
         const ok = await bcrypt.compare(password, hash);
         if (!user || !ok) return null;
 
-        return { id: user.id, name: user.name, email: user.email, userType: user.user_type };
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          userType: user.user_type,
+          isSuperAdmin: user.is_super_admin,
+        };
       },
     }),
   ],
@@ -49,9 +55,14 @@ export const {
       if (user?.id) {
         token.sub = user.id;
         token.userType = (user as { userType?: "internal" | "customer" }).userType ?? "internal";
+        token.isSuperAdmin = (user as { isSuperAdmin?: boolean }).isSuperAdmin === true;
 
         // A user with exactly one active business skips the picker (FR-2).
-        const memberships = await activeMembershipsFor(user.id);
+        //
+        // A super admin never skips it: every business is theirs to enter, so
+        // there is no "only one" to fall into, and landing in an arbitrary
+        // tenant would be worse than being asked which.
+        const memberships = token.isSuperAdmin ? [] : await activeMembershipsFor(user.id);
         token.membershipCount = memberships.length;
         const only = memberships.length === 1 ? memberships[0] : undefined;
         if (only) {
@@ -79,8 +90,28 @@ export const {
   },
 });
 
-/** Re-validates a membership before it is written to the session. */
+/**
+ * Re-validates a membership before it is written to the session.
+ *
+ * A super admin has no membership rows and needs none — the business itself
+ * only has to exist. They enter as `admin`, which is what makes every screen
+ * behave for them exactly as it does for the business's own admin.
+ */
 export async function assertMembership(userId: string, businessId: string) {
+  const user = await basePrisma.user.findUnique({
+    where: { id: userId },
+    select: { is_super_admin: true },
+  });
+
+  if (user?.is_super_admin) {
+    const business = await basePrisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true },
+    });
+    if (!business) throw new Error("no such business");
+    return { businessId: business.id, role: "admin" as Role, customerId: undefined };
+  }
+
   const m = await activeMembership(userId, businessId);
   if (!m) throw new Error("no active membership for that business");
   return m;

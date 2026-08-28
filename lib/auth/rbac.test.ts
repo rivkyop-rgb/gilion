@@ -7,7 +7,11 @@ import {
   canWrite,
   readableAreas,
   requireAccess,
+  canAccessPlatform,
+  FORBIDDEN_DIGEST,
   ForbiddenError,
+  NotSuperAdminError,
+  requireSuperAdmin,
 } from "./rbac";
 import type { Access, Area, Role } from "./rbac";
 
@@ -83,6 +87,15 @@ const EXPECTED: Record<Area, Record<Role, Access>> = {
   },
   audit: { admin: "write", sales: "none", designer: "none", accounting: "none", customer: "none" },
   portal: { admin: "none", sales: "none", designer: "none", accounting: "none", customer: "write" },
+  // No role reaches the platform area. It is guarded by canAccessPlatform,
+  // which asks about the person and not about their role in a business.
+  platform: {
+    admin: "none",
+    sales: "none",
+    designer: "none",
+    accounting: "none",
+    customer: "none",
+  },
 };
 
 describe("RBAC matrix (FR-8, FR-9)", () => {
@@ -139,5 +152,54 @@ describe("requireAccess", () => {
   it("throws when read is allowed but write is asked for", () => {
     expect(() => requireAccess("sales", "issues", "read")).not.toThrow();
     expect(() => requireAccess("sales", "issues", "write")).toThrow(ForbiddenError);
+  });
+});
+
+describe("super admin — above the matrix, not inside it", () => {
+  it("is not a role: the five roles are unchanged", () => {
+    expect(ROLES).toEqual(["admin", "sales", "designer", "accounting", "customer"]);
+  });
+
+  it("no role reaches the platform area, admin included", () => {
+    for (const role of ROLES) {
+      expect(canRead(role, "platform")).toBe(false);
+      expect(() => requireAccess(role, "platform")).toThrow();
+    }
+  });
+
+  it("opens the platform area to a super admin and to nobody else", () => {
+    expect(canAccessPlatform(true)).toBe(true);
+    expect(canAccessPlatform(false)).toBe(false);
+    expect(() => requireAccess("admin", "platform", "write", true)).not.toThrow();
+    expect(() => requireAccess("admin", "platform", "write", false)).toThrow(NotSuperAdminError);
+  });
+
+  it("passes a super admin through every area a role would be refused", () => {
+    // designer has no access to billing; a super admin does.
+    expect(() => requireAccess("designer", "billing")).toThrow(ForbiddenError);
+    expect(() => requireAccess("designer", "billing", "read", true)).not.toThrow();
+    // and write where the role only reads.
+    expect(() => requireAccess("accounting", "orders", "write")).toThrow(ForbiddenError);
+    expect(() => requireAccess("accounting", "orders", "write", true)).not.toThrow();
+  });
+
+  it("adds the platform area to the sidebar, without removing anything", () => {
+    const asAdmin = readableAreas("admin");
+    const asSuper = readableAreas("admin", true);
+    expect(asAdmin).not.toContain("platform");
+    expect(asSuper).toContain("platform");
+    for (const a of asAdmin) expect(asSuper).toContain(a);
+  });
+
+  it("refuses the platform area with a ForbiddenError the boundary recognises", () => {
+    // Same digest as ForbiddenError, so the production error boundary renders
+    // the permission screen rather than the generic one.
+    try {
+      requireSuperAdmin(false);
+      throw new Error("should have thrown");
+    } catch (e) {
+      expect((e as { name: string }).name).toBe("ForbiddenError");
+      expect((e as { digest: string }).digest).toBe(FORBIDDEN_DIGEST);
+    }
   });
 });

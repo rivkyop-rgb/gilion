@@ -3,8 +3,16 @@ import type { Page } from "@playwright/test";
 export const PASSWORD = "gilion1234";
 
 export const USERS = {
-  /** Belongs to both businesses — exercises the picker and the switcher. */
+  /** Platform owner — no memberships, reaches every business (see rbac.ts). */
+  superAdmin: "super@gilion.test",
+  /** Admin of ONE business — what a real customer's admin looks like. */
   admin: "admin@gilion.test",
+  /**
+   * Belongs to both businesses — exercises the picker and the switcher (FR-2).
+   * Deliberately not the everyday admin: seed data in which the admin can
+   * reach two tenants reads as though any admin could reach any tenant.
+   */
+  multiBusiness: "multi@gilion.test",
   sales: "sales@gilion.test",
   designer: "designer@gilion.test",
   accounting: "accounting@gilion.test",
@@ -77,7 +85,7 @@ export async function sessionOf(page: Page) {
     // switched tenant look unchanged even though the app already switched.
     const res = await fetch(`/api/auth/session?t=${Date.now()}`, { cache: "no-store" });
     return (await res.json()) as {
-      user?: { businessId?: string; role?: string; userType?: string };
+      user?: { businessId?: string; role?: string; userType?: string; isSuperAdmin?: boolean };
     };
   });
 }

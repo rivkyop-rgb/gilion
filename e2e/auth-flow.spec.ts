@@ -11,7 +11,7 @@ import {
 
 test.describe("sign-in flow (FR-2)", () => {
   test("a user with several businesses must choose one", async ({ page }) => {
-    await login(page, USERS.admin);
+    await login(page, USERS.multiBusiness);
     await expect(page).toHaveURL(/\/select-business/);
     await expect(page.getByRole("heading", { name: "בחירת עסק" })).toBeVisible();
 
@@ -55,7 +55,7 @@ test.describe("sign-in flow (FR-2)", () => {
   test("the active business can be switched from the top bar and it really changes", async ({
     page,
   }) => {
-    await login(page, USERS.admin);
+    await login(page, USERS.multiBusiness);
     await page.locator("form button").first().click();
     await page.waitForURL(/\/dashboard/);
     // The shell must be interactive before the menu is driven, otherwise the

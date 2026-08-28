@@ -47,6 +47,7 @@ export default async function globalSetup() {
   }
 
   await deleteTestNewspapers(prisma);
+  await deleteTestBusinesses(prisma);
   await resetShapeCatalogue(prisma);
 
   await prisma.$disconnect();
@@ -62,11 +63,40 @@ export default async function globalSetup() {
  */
 /** Every id prisma/seed.ts creates. Anything else was made by a spec. */
 const SEEDED_NEWSPAPER_IDS = ["paper_alpha", "paper_catalog", "paper_beta"];
+const SEEDED_BUSINESS_IDS = ["biz_alpha", "biz_beta"];
 
 async function deleteTestNewspapers(prisma: PrismaClient) {
   await prisma.newspaper.deleteMany({
     where: { id: { notIn: SEEDED_NEWSPAPER_IDS } },
   });
+}
+
+/**
+ * Removes businesses the super-admin spec created, and the admins that came
+ * with them.
+ *
+ * Same reason as the newspapers above: the spec creates one per run and never
+ * cleans up, so /platform grows a row per run forever. The users go first —
+ * Business is onDelete: Restrict, so a membership still pointing at it would
+ * block the delete.
+ */
+async function deleteTestBusinesses(prisma: PrismaClient) {
+  const strays = await prisma.business.findMany({
+    where: { id: { notIn: SEEDED_BUSINESS_IDS } },
+    select: { id: true, memberships: { select: { user_id: true } } },
+  });
+  if (strays.length === 0) return;
+
+  const businessIds = strays.map((b) => b.id);
+  const userIds = [...new Set(strays.flatMap((b) => b.memberships.map((m) => m.user_id)))];
+
+  await prisma.userMembership.deleteMany({ where: { business_id: { in: businessIds } } });
+  // Only users left with no membership at all — never one of the seeded people.
+  for (const id of userIds) {
+    const remaining = await prisma.userMembership.count({ where: { user_id: id } });
+    if (remaining === 0) await prisma.user.deleteMany({ where: { id, is_super_admin: false } });
+  }
+  await prisma.business.deleteMany({ where: { id: { in: businessIds } } });
 }
 
 /**

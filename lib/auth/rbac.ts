@@ -26,6 +26,13 @@ export const AREAS = [
   "settings",
   "audit",
   "portal",
+  /**
+   * Creating businesses and appointing their admins. Closed to all five roles
+   * without exception — it is not a thing one does inside a business, it is
+   * what brings a business into being. Only a super admin reaches it, and the
+   * gate is `canAccessPlatform`, never the matrix.
+   */
+  "platform",
 ] as const;
 export type Area = (typeof AREAS)[number];
 
@@ -105,6 +112,15 @@ const MATRIX: Record<Area, Record<Role, Access>> = {
   // FR-9: the customer portal is the only place a customer may reach, and no
   // internal role may reach it.
   portal: { admin: "none", sales: "none", designer: "none", accounting: "none", customer: "write" },
+  // Every entry is "none" on purpose, and that is the whole point: no role,
+  // admin included, gets here by being a role.
+  platform: {
+    admin: "none",
+    sales: "none",
+    designer: "none",
+    accounting: "none",
+    customer: "none",
+  },
 };
 
 export function access(role: Role, area: Area): Access {
@@ -119,9 +135,35 @@ export function canWrite(role: Role, area: Area): boolean {
   return access(role, area) === "write";
 }
 
-/** Areas a role may see at all — what the sidebar renders. */
-export function readableAreas(role: Role): Area[] {
-  return AREAS.filter((a) => canRead(role, a));
+/**
+ * Areas a role may see at all — what the sidebar renders.
+ *
+ * A super admin sees everything a business admin sees, plus the platform area.
+ * Being a super admin does not change what `role` means inside a business; it
+ * adds one area and the right to be in any business at all.
+ */
+export function readableAreas(role: Role, isSuperAdmin = false): Area[] {
+  const areas = AREAS.filter((a) => canRead(role, a));
+  return isSuperAdmin && !areas.includes("platform") ? [...areas, "platform"] : areas;
+}
+
+/** The platform area has exactly one key, and it is not a role. */
+export function canAccessPlatform(isSuperAdmin: boolean): boolean {
+  return isSuperAdmin === true;
+}
+
+export class NotSuperAdminError extends Error {
+  readonly digest = FORBIDDEN_DIGEST;
+
+  constructor() {
+    super("platform administration requires a super admin");
+    this.name = "ForbiddenError";
+  }
+}
+
+/** Server-side guard for every platform screen and action. */
+export function requireSuperAdmin(isSuperAdmin: boolean): void {
+  if (!canAccessPlatform(isSuperAdmin)) throw new NotSuperAdminError();
 }
 
 /**
@@ -152,8 +194,25 @@ export class ForbiddenError extends Error {
   }
 }
 
-/** Throws unless the role has at least the required access. Server-side guard. */
-export function requireAccess(role: Role, area: Area, needed: "read" | "write" = "read"): void {
+/**
+ * Throws unless the role has at least the required access. Server-side guard.
+ *
+ * A super admin passes everywhere, because inside a business they act as its
+ * admin — the flag is checked here rather than by rewriting `role` at the
+ * session layer, so the audit log keeps recording the role the person actually
+ * holds instead of a role they were silently granted.
+ */
+export function requireAccess(
+  role: Role,
+  area: Area,
+  needed: "read" | "write" = "read",
+  isSuperAdmin = false,
+): void {
+  if (area === "platform") {
+    requireSuperAdmin(isSuperAdmin);
+    return;
+  }
+  if (isSuperAdmin) return;
   const has = access(role, area);
   if (has === "none" || (needed === "write" && has === "read")) {
     throw new ForbiddenError(role, area, needed);

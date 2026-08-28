@@ -28,6 +28,26 @@ export async function activeMembershipsFor(userId: string): Promise<ActiveMember
   }));
 }
 
+/**
+ * Every business, shaped like a membership, for a super admin.
+ *
+ * They hold no membership rows — the flag replaces them — so the picker needs
+ * a list built from the businesses themselves. The role is reported as `admin`
+ * because that is how they act once inside one.
+ */
+export async function allBusinessesForSuperAdmin(): Promise<ActiveMembership[]> {
+  const rows = await basePrisma.business.findMany({
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+
+  return rows.map((b) => ({
+    businessId: b.id,
+    businessName: b.name,
+    role: "admin" as Role,
+  }));
+}
+
 /** Returns the membership only when it is active — the check setActiveBusiness relies on. */
 export async function activeMembership(
   userId: string,

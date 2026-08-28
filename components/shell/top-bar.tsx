@@ -3,7 +3,7 @@
 import { LogOut, Menu } from "lucide-react";
 import { useState } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { ROLE_LABELS } from "@/lib/auth/labels";
+import { ROLE_LABELS, SUPER_ADMIN_LABEL } from "@/lib/auth/labels";
 import type { Role } from "@/lib/auth/rbac";
 import { BusinessSwitcher, type SwitcherBusiness } from "./business-switcher";
 import { SidebarContent } from "./sidebar";
@@ -11,6 +11,7 @@ import { SidebarContent } from "./sidebar";
 export function TopBar({
   userName,
   role,
+  isSuperAdmin = false,
   current,
   options,
   onSelectBusiness,
@@ -18,6 +19,7 @@ export function TopBar({
 }: {
   userName: string;
   role: Role;
+  isSuperAdmin?: boolean;
   current: SwitcherBusiness;
   options: SwitcherBusiness[];
   onSelectBusiness: (businessId: string) => Promise<void>;
@@ -36,7 +38,7 @@ export function TopBar({
           </SheetTrigger>
           <SheetContent title="ניווט ראשי">
             <div onClick={() => setOpen(false)}>
-              <SidebarContent role={role} />
+              <SidebarContent role={role} isSuperAdmin={isSuperAdmin} />
             </div>
           </SheetContent>
         </Sheet>
@@ -46,7 +48,7 @@ export function TopBar({
 
       <div className="flex items-center gap-3">
         <span className="hidden text-sm text-on-surface-variant sm:inline">
-          {userName} · {ROLE_LABELS[role]}
+          {userName} · {isSuperAdmin ? SUPER_ADMIN_LABEL : ROLE_LABELS[role]}
         </span>
         <form action={onSignOut}>
           <button

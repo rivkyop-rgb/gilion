@@ -26,6 +26,12 @@ export type TenantContext = {
   role: Role;
   /** Set only for role = customer (FR-9). */
   customerId?: string;
+  /**
+   * Platform owner. Inside a business they act as its admin, so `role` is
+   * "admin" here too — this flag is what additionally opens the platform area
+   * and what let them enter this business without a membership.
+   */
+  isSuperAdmin: boolean;
 };
 
 export async function getTenantContext(): Promise<TenantContext> {
@@ -37,6 +43,7 @@ export async function getTenantContext(): Promise<TenantContext> {
     userId: session.user.id,
     businessId: session.user.businessId,
     role: session.user.role,
+    isSuperAdmin: session.user.isSuperAdmin === true,
     ...(session.user.customerId ? { customerId: session.user.customerId } : {}),
   };
 }

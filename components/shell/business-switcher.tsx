@@ -34,7 +34,12 @@ export function BusinessSwitcher({
 
   if (single) {
     return (
-      <span className="flex items-center gap-2 rounded-full bg-surface-container px-3 py-1.5 text-xs font-medium text-on-surface-variant">
+      /* Same testid as the dropdown below carries, so "which business am I in"
+         is answerable without first knowing how many the user has. */
+      <span
+        data-testid="active-business"
+        className="flex items-center gap-2 rounded-full bg-surface-container px-3 py-1.5 text-xs font-medium text-on-surface-variant"
+      >
         <Building2 className="size-3.5" />
         {current.businessName}
       </span>
@@ -45,6 +50,7 @@ export function BusinessSwitcher({
     <DropdownMenu>
       <DropdownMenuTrigger
         data-testid="business-switcher"
+        data-active-business=""
         disabled={pending}
         className="flex items-center gap-2 rounded-full bg-surface-container px-3 py-1.5 text-xs font-medium text-on-surface-variant hover:bg-surface-container-high disabled:opacity-60"
       >

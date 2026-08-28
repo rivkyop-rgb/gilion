@@ -23,6 +23,9 @@ export const NAV_ITEMS: NavItem[] = [
   { area: "reports", href: "/reports", icon: "BarChart3", stage: 8 },
   { area: "settings", href: "/settings", icon: "Settings", stage: 3 },
   { area: "audit", href: "/audit", icon: "ScrollText", stage: 1 },
+  // Super admin only — canRead() returns false for every role, so it reaches
+  // the sidebar through the isSuperAdmin branch and no other way.
+  { area: "platform", href: "/platform", icon: "Building2", stage: 4 },
 ];
 
 /** Stages that exist today. Everything above this renders disabled. */

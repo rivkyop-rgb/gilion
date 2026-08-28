@@ -82,6 +82,17 @@ model User {
   email         String   @unique
   password_hash String
   user_type     UserType
+  /// Platform owner. Deliberately a property of the PERSON and not a sixth
+  /// MembershipRole: the five roles describe what someone may do INSIDE one
+  /// business, and this describes someone who stands above all of them. As a
+  /// membership it would have needed a business to belong to, which is exactly
+  /// what it does not have.
+  ///
+  /// Inside an active business a super admin acts as `admin`, so the whole
+  /// permission matrix keeps working untouched. What the flag adds is the
+  /// right to enter ANY business without a membership, and to reach the
+  /// platform area where businesses themselves are created.
+  is_super_admin Boolean @default(false)
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 

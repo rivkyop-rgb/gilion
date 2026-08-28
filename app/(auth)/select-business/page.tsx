@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { auth } from "@/lib/auth/config";
 import { activeMembershipsFor } from "@/lib/auth/memberships";
+import { allBusinessesForSuperAdmin } from "@/lib/auth/memberships";
 import { Badge } from "@/components/ui/badge";
 import { ROLE_LABELS } from "@/lib/auth/labels";
 import { setActiveBusinessAction } from "./actions";
@@ -13,7 +14,12 @@ export default async function SelectBusinessPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const memberships = await activeMembershipsFor(session.user.id);
+  // A super admin has no membership rows: every business is theirs to enter,
+  // so the picker lists all of them rather than the empty set.
+  const isSuperAdmin = session.user.isSuperAdmin === true;
+  const memberships = isSuperAdmin
+    ? await allBusinessesForSuperAdmin()
+    : await activeMembershipsFor(session.user.id);
 
   // A user with no active membership gets a dead end with an explanation,
   // never a redirect loop between /login and /select-business.
@@ -22,7 +28,9 @@ export default async function SelectBusinessPage() {
       <>
         <h1 className="mb-2 font-serif text-2xl font-semibold">אין לך גישה לאף עסק</h1>
         <p className="text-sm text-on-surface-variant">
-          החשבון שלך קיים, אבל הוא לא משויך לאף עסק פעיל. פנו למנהל המערכת כדי שישייך אותך.
+          {isSuperAdmin
+            ? "עדיין לא נוצר אף עסק במערכת."
+            : "החשבון שלך קיים, אבל הוא לא משויך לאף עסק פעיל. פנו למנהל המערכת כדי שישייך אותך."}
         </p>
       </>
     );
@@ -32,7 +40,9 @@ export default async function SelectBusinessPage() {
     <>
       <h1 className="mb-1 font-serif text-2xl font-semibold">בחירת עסק</h1>
       <p className="mb-6 text-sm text-on-surface-variant">
-        יש לך גישה ליותר מעסק אחד. בחרי עם איזה מהם לעבוד עכשיו.
+        {isSuperAdmin
+          ? "כמנהל־על יש לך גישה לכל העסקים במערכת. בחרי עם איזה מהם לעבוד עכשיו."
+          : "יש לך גישה ליותר מעסק אחד. בחרי עם איזה מהם לעבוד עכשיו."}
       </p>
 
       <ul className="space-y-3">

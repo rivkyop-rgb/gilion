@@ -38,11 +38,29 @@ async function main() {
   });
 
   const people = [
-    // admin belongs to BOTH businesses -> exercises the business picker (FR-2)
+    // The admin of ONE business, which is what a real customer's admin is.
+    //
+    // This user used to belong to both businesses so that the picker had
+    // something to pick, and the effect was to make the system look as though
+    // any admin could reach any tenant. It cannot: the picker lists only
+    // businesses the user has a membership in, and setActiveBusiness
+    // re-validates that membership server-side. But demo data that contradicts
+    // the security model is worth fixing, because nobody should have to read
+    // the source to be reassured.
     {
       id: "usr_admin",
       name: "רבקי מנהלת",
       email: "admin@gilion.test",
+      role: "admin" as const,
+      businesses: [alpha.id],
+    },
+    // FR-2 is a real requirement — one person can legitimately work for two
+    // publishers (an accountant serving both). It gets its own user rather
+    // than being folded into the everyday admin.
+    {
+      id: "usr_multi",
+      name: "יעל רואת חשבון",
+      email: "multi@gilion.test",
       role: "admin" as const,
       businesses: [alpha.id, beta.id],
     },
@@ -76,6 +94,34 @@ async function main() {
       businesses: [beta.id],
     },
   ];
+
+  // The platform owner. No membership rows on purpose — the flag is what lets
+  // them into every business, and giving them memberships too would make the
+  // two mechanisms disagree the moment a business is added.
+  await prisma.user.upsert({
+    where: { id: "usr_super" },
+    update: {
+      name: "מנהל־על",
+      email: "super@gilion.test",
+      password_hash: hash,
+      user_type: "internal",
+      is_super_admin: true,
+    },
+    create: {
+      id: "usr_super",
+      name: "מנהל־על",
+      email: "super@gilion.test",
+      password_hash: hash,
+      user_type: "internal",
+      is_super_admin: true,
+    },
+  });
+
+  // Memberships are declarative: whatever a person is NOT listed with here is
+  // removed. Upsert alone only ever adds, so narrowing someone's access in this
+  // file used to have no effect on a database that had already been seeded —
+  // the old row simply survived and the change looked applied while it was not.
+  const declared = new Set(people.flatMap((p) => p.businesses.map((b) => `${p.id}:${b}`)));
 
   for (const p of people) {
     await prisma.user.upsert({
@@ -160,6 +206,18 @@ async function main() {
 
   for (const c of customers) {
     await prisma.customer.upsert({ where: { id: c.id }, update: c, create: c });
+  }
+
+  // Drop memberships this file no longer declares.
+  const staleFor = people.map((p) => p.id);
+  const existing = await prisma.userMembership.findMany({
+    where: { user_id: { in: staleFor } },
+    select: { id: true, user_id: true, business_id: true },
+  });
+  for (const m of existing) {
+    if (!declared.has(`${m.user_id}:${m.business_id}`)) {
+      await prisma.userMembership.delete({ where: { id: m.id } });
+    }
   }
 
   // The page grid. Chosen so the derived numbers come out round:
@@ -332,7 +390,9 @@ async function main() {
   }
 
   console.log(
-    "seeded 2 businesses, 6 users,",
+    "seeded 2 businesses,",
+    people.length + 1,
+    "users,",
     customers.length,
     "customers,",
     catalogue.length * papers.length,
