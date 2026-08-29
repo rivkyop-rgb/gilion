@@ -3,8 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { getTenantContext } from "@/lib/auth/tenant";
-import { requireAccess } from "@/lib/auth/rbac";
+import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import * as data from "@/lib/data/team";
 import {
   deactivationBlocked,
@@ -24,7 +23,7 @@ export type FormState = {
 /** Managing people is a settings act: admin only (FR-8). */
 async function requireAdmin() {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "settings", "write", ctx.isSuperAdmin);
+  requireArea(ctx, "settings", "write");
   return ctx;
 }
 

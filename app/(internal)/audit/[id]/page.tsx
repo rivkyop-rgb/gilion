@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getTenantContext } from "@/lib/auth/tenant";
-import { requireAccess } from "@/lib/auth/rbac";
+import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { tenantDb } from "@/lib/data/db";
 import { Ltr } from "@/components/ui/ltr";
 
@@ -17,7 +16,7 @@ export const metadata: Metadata = { title: "רשומת ביקורת · Gilion" }
  */
 export default async function AuditRecordPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "audit");
+  requireArea(ctx, "audit");
 
   const { id } = await params;
   const row = await tenantDb(ctx.businessId).auditLog.findUnique({ where: { id } });

@@ -4,8 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import { getTenantContext } from "@/lib/auth/tenant";
-import { requireAccess } from "@/lib/auth/rbac";
+import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import {
   allowedShapeRemovalBlocked,
   pageTypeDeletionBlocked,
@@ -32,7 +31,7 @@ export type FormState = { errors?: Record<string, string>; message?: string };
 /** Newspaper configuration is admin-only (FR-8, stage 03 permission table). */
 async function requireAdmin() {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "settings", "write");
+  requireArea(ctx, "settings", "write");
   return ctx;
 }
 

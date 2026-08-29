@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { getTenantContext } from "@/lib/auth/tenant";
-import { requireAccess } from "@/lib/auth/rbac";
+import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { NewspaperForm } from "../newspaper-form";
 import { createNewspaperAction } from "../../actions";
 
@@ -8,7 +7,7 @@ export const metadata: Metadata = { title: "עיתון חדש · Gilion" };
 
 export default async function NewNewspaperPage() {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "settings", "write");
+  requireArea(ctx, "settings", "write");
 
   return (
     <>

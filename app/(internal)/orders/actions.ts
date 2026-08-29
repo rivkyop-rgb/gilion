@@ -4,8 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import { getTenantContext } from "@/lib/auth/tenant";
-import { canWrite, requireAccess, type Role } from "@/lib/auth/rbac";
+import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { withAudit } from "@/lib/data/audit";
 import { basePrisma } from "@/lib/data/db";
 import * as data from "@/lib/data/orders";
@@ -31,7 +30,7 @@ export type FormState = { errors?: Record<string, string>; message?: string; ok?
 /** Orders are a sales function: admin and sales only (stage 04 permissions). */
 async function requireOrderWrite() {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "orders", "write");
+  requireArea(ctx, "orders", "write");
   return ctx;
 }
 
@@ -419,7 +418,7 @@ export async function completeOrderAction(orderId: string): Promise<FormState> {
  */
 export async function cancelPublicationAction(publicationId: string): Promise<FormState> {
   const ctx = await getTenantContext();
-  if (!canWrite(ctx.role as Role, "orders")) {
+  if (!canWriteArea(ctx, "orders")) {
     return { message: "אין לך הרשאה לבטל פרסום" };
   }
 
@@ -456,6 +455,6 @@ export async function priceSuggestionAction(
   adShapeId: string,
 ): Promise<number | null> {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "orders");
+  requireArea(ctx, "orders");
   return data.priceSuggestion(ctx.businessId, newspaperId, pageTypeId, adShapeId);
 }

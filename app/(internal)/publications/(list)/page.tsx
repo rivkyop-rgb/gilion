@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { getTenantContext } from "@/lib/auth/tenant";
-import { requireAccess } from "@/lib/auth/rbac";
+import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { listPublications } from "@/lib/data/publications";
 import { listNewspapers } from "@/lib/data/newspapers";
 import {
@@ -29,7 +28,7 @@ export default async function PublicationsPage({
   searchParams: Promise<{ newspaper?: string; status?: string; from?: string; to?: string }>;
 }) {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "publications");
+  requireArea(ctx, "publications");
 
   const { newspaper = "all", status = "all", from = "", to = "" } = await searchParams;
 

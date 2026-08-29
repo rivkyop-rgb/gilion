@@ -3,8 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Pencil } from "lucide-react";
 
-import { getTenantContext } from "@/lib/auth/tenant";
-import { canWrite, requireAccess } from "@/lib/auth/rbac";
+import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
+import { customerHistoryCounts } from "@/lib/data/customers";
+import { deletionBlockedMessage } from "@/lib/domain/customer";
+import { DeleteCustomer } from "./delete-customer";
 import { getCustomer } from "@/lib/data/customers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,7 +24,7 @@ export default async function CustomerPage({
   searchParams: Promise<{ converted?: string }>;
 }) {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "customers");
+  requireArea(ctx, "customers");
 
   const { id } = await params;
   const { converted } = await searchParams;
@@ -31,7 +33,13 @@ export default async function CustomerPage({
   const customer = await getCustomer(ctx.businessId, id);
   if (!customer) notFound();
 
-  const mayEdit = canWrite(ctx.role, "customers");
+  const mayEdit = canWriteArea(ctx, "customers");
+  // Deletion is admin-only — stricter than editing, and deliberately not tied
+  // to the customers permission, which an admin may hand to sales.
+  const mayDelete = ctx.role === "admin" || ctx.isSuperAdmin;
+  const blockedReason = mayDelete
+    ? deletionBlockedMessage(await customerHistoryCounts(ctx.businessId, customer.id))
+    : null;
   const maySeeMoney = ctx.role !== "designer"; // FR-8
 
   return (
@@ -76,6 +84,18 @@ export default async function CustomerPage({
           </div>
         ) : null}
       </div>
+
+      {mayDelete ? (
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <DeleteCustomer
+            id={customer.id}
+            name={customer.business_name ?? customer.contact_name}
+            phone={customer.phone}
+            email={customer.email}
+            blocked={blockedReason}
+          />
+        </div>
+      ) : null}
 
       <dl className="mb-8 grid gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-6 sm:grid-cols-3">
         <div>

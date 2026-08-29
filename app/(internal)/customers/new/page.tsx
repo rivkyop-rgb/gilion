@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { getTenantContext } from "@/lib/auth/tenant";
-import { requireAccess } from "@/lib/auth/rbac";
+import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { CustomerForm } from "../customer-form";
 import { createCustomerAction } from "../actions";
 
@@ -8,7 +7,7 @@ export const metadata: Metadata = { title: "לקוח חדש · Gilion" };
 
 export default async function NewCustomerPage() {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "customers", "write");
+  requireArea(ctx, "customers", "write");
 
   return (
     <div className="max-w-[500px]">

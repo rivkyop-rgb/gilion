@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getTenantContext } from "@/lib/auth/tenant";
-import { requireAccess } from "@/lib/auth/rbac";
+import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { getCustomer } from "@/lib/data/customers";
 import { CustomerForm } from "../../customer-form";
 import { updateCustomerAction } from "../../actions";
@@ -18,7 +17,7 @@ export const metadata: Metadata = { title: "עריכת לקוח · Gilion" };
 
 export default async function EditCustomerPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "customers", "write");
+  requireArea(ctx, "customers", "write");
 
   const { id } = await params;
   const customer = await getCustomer(ctx.businessId, id);

@@ -110,20 +110,34 @@ export async function updateCustomer(
 }
 
 /**
- * Counts of everything that would be orphaned by a delete. Stage 02 has no
- * dependent entities yet, so the counts are all zero — the shape is here so
- * that stages 04, 05 and 08 only have to fill it in, and the blocking rule
- * does not have to be rediscovered later.
+ * What stands behind a customer, for the deletion guard.
+ *
+ * This used to return zeros for everything — a stand-in written before the
+ * tables existed, which meant the guard never blocked anything and a delete
+ * on a real customer reached the database and failed there on a foreign key
+ * instead of being refused with an explanation.
+ *
+ * Only tables that exist are counted. Advertisements (stage 05) and payments
+ * (stage 08) are deliberately absent rather than counted as zero: a zero here
+ * is indistinguishable from "checked and found none", and that is exactly the
+ * confusion that produced the stub.
+ *
+ * Portal users are counted by hand because UserMembership.customer_id carries
+ * no foreign key — nothing in the database would stop a customer being deleted
+ * out from under one.
  */
-/* eslint-disable @typescript-eslint/no-unused-vars -- the parameters are the
-   contract stages 04/05/08 will fill in; keeping them documents the signature. */
 export async function customerHistoryCounts(
   businessId: string,
   id: string,
 ): Promise<Record<string, number>> {
-  return { orders: 0, publications: 0, advertisements: 0, payments: 0 };
+  const db = tenantDb(businessId);
+  const [orders, publications, portalUsers] = await Promise.all([
+    db.adOrder.count({ where: { customer_id: id } }),
+    db.publication.count({ where: { customer_id: id } }),
+    db.userMembership.count({ where: { customer_id: id } }),
+  ]);
+  return { orders, publications, portalUsers };
 }
-/* eslint-enable @typescript-eslint/no-unused-vars */
 
 export async function deleteCustomer(businessId: string, id: string) {
   return tenantDb(businessId).customer.delete({ where: { id } });

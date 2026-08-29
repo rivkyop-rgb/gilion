@@ -3,8 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, Info } from "lucide-react";
 
-import { getTenantContext } from "@/lib/auth/tenant";
-import { canWrite, requireAccess } from "@/lib/auth/rbac";
+import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { getOrder, orderFormOptions } from "@/lib/data/orders";
 import { itemsEditable, type OrderStatus } from "@/lib/domain/order-status";
 import type { PublicationStatus } from "@/lib/domain/publication-status";
@@ -20,14 +19,14 @@ export const metadata: Metadata = { title: "הזמנה · Gilion" };
    would stop this route answering 404 to a cross-tenant id (02-customers §סטיות). */
 export default async function OrderPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "orders");
+  requireArea(ctx, "orders");
 
   const { id } = await params;
   const order = await getOrder(ctx.businessId, id);
   if (!order) notFound();
 
   const status = order.status as OrderStatus;
-  const mayEdit = canWrite(ctx.role, "orders") && itemsEditable(status);
+  const mayEdit = canWriteArea(ctx, "orders") && itemsEditable(status);
   const papers = mayEdit ? await orderFormOptions(ctx.businessId) : [];
 
   const approved = order.publications.length > 0;
@@ -171,12 +170,12 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         ) : null}
       </section>
 
-      {canWrite(ctx.role, "orders") || ctx.role === "accounting" ? (
+      {canWriteArea(ctx, "orders") || ctx.role === "accounting" ? (
         <OrderActions
           orderId={order.id}
           orderRef={orderNumber(order.id)}
           status={status}
-          canApprove={canWrite(ctx.role, "orders")}
+          canApprove={canWriteArea(ctx, "orders")}
           canComplete={ctx.role === "admin" || ctx.role === "accounting"}
           publicationCount={order.publications.length}
           lineCount={order.items.length}

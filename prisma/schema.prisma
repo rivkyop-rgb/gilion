@@ -44,6 +44,14 @@ enum MembershipStatus {
   inactive
 }
 
+/// none = no access at all · read = may view · write = may view and change.
+/// Mirrors the Access union in lib/auth/rbac.ts.
+enum PermissionAccess {
+  none
+  read
+  write
+}
+
 /// Whether a business may be worked in at all. Deactivation is reversible and
 /// destroys nothing — it closes the door, it does not empty the room.
 enum BusinessStatus {
@@ -59,6 +67,8 @@ enum AuditAction {
   delete_order
   deactivate_business
   activate_business
+  update_role_permissions
+  delete_customer
   cancel_publication
   close_issue
   generate_pdf
@@ -81,6 +91,7 @@ model Business {
 
   memberships  UserMembership[]
   audit_logs   AuditLog[]
+  permissions  RolePermission[]
   customers    Customer[]
   newspapers   Newspaper[]
   ad_orders    AdOrder[]
@@ -91,6 +102,38 @@ model Business {
 
 /// Internal user or customer-portal user (FR-2, FR-8, FR-9, US-009).
 /// password_hash is not in the ERD but is required for credentials auth.
+/// A business's override of one cell in the permission matrix (FR-8).
+///
+/// ONLY overrides are stored. An absent row means "whatever the built-in
+/// matrix says", so the defaults stay in code where TypeScript can keep every
+/// role and area accounted for, and the database carries just the deltas. That
+/// also means a business created today automatically picks up any future
+/// change to a default it never touched.
+///
+/// FR-8 fixes the five roles themselves; prd.md §181 excludes CREATING or
+/// duplicating roles from the MVP. Adjusting what a fixed role may reach is a
+/// different thing, and FR-8 calls the designer's lack of payment access a
+/// default — which is what this table lets a business change.
+model RolePermission {
+  id          String           @id @default(cuid())
+  business_id String
+  /// One of MembershipRole. `customer` is refused by the domain layer: the
+  /// portal boundary is FR-9 and is not a business's to move.
+  role        MembershipRole
+  /// One of the Area union in lib/auth/rbac.ts.
+  area        String
+  access      PermissionAccess
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  business Business @relation(fields: [business_id], references: [id], onDelete: Cascade)
+
+  @@unique([business_id, role, area])
+  @@index([business_id])
+  @@map("RolePermission")
+}
+
 model User {
   id            String   @id @default(cuid())
   name          String

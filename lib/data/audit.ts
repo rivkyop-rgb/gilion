@@ -17,6 +17,8 @@ export type AuditAction =
   | "delete_order"
   | "deactivate_business"
   | "activate_business"
+  | "update_role_permissions"
+  | "delete_customer"
   | "cancel_publication"
   | "close_issue"
   | "generate_pdf"

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { getTenantContext } from "@/lib/auth/tenant";
-import { requireAccess } from "@/lib/auth/rbac";
+import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { EmptyState } from "@/components/states";
 
 export const metadata: Metadata = { title: "גבייה · Gilion" };
@@ -12,7 +11,7 @@ export const metadata: Metadata = { title: "גבייה · Gilion" };
  */
 export default async function BillingPage() {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "billing");
+  requireArea(ctx, "billing");
 
   return (
     <>

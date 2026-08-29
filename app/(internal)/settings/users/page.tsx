@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { getTenantContext } from "@/lib/auth/tenant";
-import { requireAccess } from "@/lib/auth/rbac";
+import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { listMembers } from "@/lib/data/team";
 import { Badge } from "@/components/ui/badge";
 import { Ltr } from "@/components/ui/ltr";
@@ -14,7 +13,7 @@ export const metadata: Metadata = { title: "משתמשים · Gilion" };
 
 export default async function UsersPage() {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "settings", "write", ctx.isSuperAdmin);
+  requireArea(ctx, "settings", "write");
 
   const members = await listMembers(ctx.businessId);
   const activeAdmins = members.filter((m) => m.status === "active" && m.role === "admin").length;

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { getTenantContext } from "@/lib/auth/tenant";
-import { requireAccess } from "@/lib/auth/rbac";
+import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { EmptyState } from "@/components/states";
 import { ROLE_LABELS } from "@/lib/auth/labels";
 
@@ -9,7 +8,7 @@ export const metadata: Metadata = { title: "לוח בקרה · Gilion" };
 export default async function DashboardPage() {
   // Every server entry point starts here — conventions.md §9, no exceptions.
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "dashboard");
+  requireArea(ctx, "dashboard");
 
   return (
     <>

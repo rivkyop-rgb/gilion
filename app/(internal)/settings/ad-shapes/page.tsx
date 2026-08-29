@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { getTenantContext } from "@/lib/auth/tenant";
-import { requireAccess } from "@/lib/auth/rbac";
+import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { listAdShapes } from "@/lib/data/ad-shapes";
 import { gridOf, listNewspapers } from "@/lib/data/newspapers";
 import { formatCm } from "@/lib/domain/grid";
@@ -22,7 +21,7 @@ export const metadata: Metadata = { title: "צורות פרסום · Gilion" };
  */
 export default async function AdShapesPage() {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "settings");
+  requireArea(ctx, "settings");
 
   const papers = await listNewspapers(ctx.businessId);
   const catalogues = await Promise.all(

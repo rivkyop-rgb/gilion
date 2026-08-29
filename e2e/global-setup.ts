@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient, type MembershipRole } from "@prisma/client";
 
 import { materializeBaseShapes } from "../lib/domain/base-shapes";
 import { deriveGrid } from "../lib/domain/grid";
@@ -49,6 +49,8 @@ export default async function globalSetup() {
   await deleteTestNewspapers(prisma);
   await deleteTestBusinesses(prisma);
   await deleteTestUsers(prisma);
+  await clearPermissionOverrides(prisma);
+  await restoreSeededMemberships(prisma);
   await resetShapeCatalogue(prisma);
 
   await prisma.$disconnect();
@@ -70,6 +72,23 @@ async function deleteTestNewspapers(prisma: PrismaClient) {
   await prisma.newspaper.deleteMany({
     where: { id: { notIn: SEEDED_NEWSPAPER_IDS } },
   });
+}
+
+/**
+ * Clears every permission override.
+ *
+ * The permissions specs change a cell, assert, and change it back — but a run
+ * that fails between those two steps leaves the override behind, and the NEXT
+ * run then starts from a matrix nobody chose. The first symptom is a test
+ * asserting a default refusal that no longer refuses, which reads like a
+ * product regression and is not one.
+ *
+ * Overrides are a business SETTING, so resetting them is the same act as
+ * restoring the seeded shapes: put the tenant back the way prisma/seed.ts
+ * leaves it, which is with no overrides at all.
+ */
+async function clearPermissionOverrides(prisma: PrismaClient) {
+  await prisma.rolePermission.deleteMany({});
 }
 
 /**
@@ -129,6 +148,37 @@ async function deleteTestBusinesses(prisma: PrismaClient) {
     if (remaining === 0) await prisma.user.deleteMany({ where: { id, is_super_admin: false } });
   }
   await prisma.business.deleteMany({ where: { id: { in: businessIds } } });
+}
+
+/**
+ * Restores the seeded people to the roles prisma/seed.ts gives them.
+ *
+ * `usr_multi` was found sitting as `designer` in the second business instead
+ * of `admin`, which broke tenant-isolation in a way that looked like a
+ * permissions regression and was not one. No spec in this suite changes a
+ * role, so WHAT moved it is not established — and that is exactly why this
+ * exists: the suite should not depend on nobody ever having drifted.
+ *
+ * Same idea as resetShapeCatalogue below. The list mirrors the `people` array
+ * in prisma/seed.ts; if a role changes there, it changes here.
+ */
+const SEEDED_MEMBERSHIPS: Array<{ user: string; business: string; role: MembershipRole }> = [
+  { user: "usr_admin", business: "biz_alpha", role: "admin" },
+  { user: "usr_multi", business: "biz_alpha", role: "admin" },
+  { user: "usr_multi", business: "biz_beta", role: "admin" },
+  { user: "usr_sales", business: "biz_alpha", role: "sales" },
+  { user: "usr_designer", business: "biz_alpha", role: "designer" },
+  { user: "usr_accounting", business: "biz_alpha", role: "accounting" },
+  { user: "usr_beta_admin", business: "biz_beta", role: "admin" },
+];
+
+async function restoreSeededMemberships(prisma: PrismaClient) {
+  for (const m of SEEDED_MEMBERSHIPS) {
+    await prisma.userMembership.updateMany({
+      where: { user_id: m.user, business_id: m.business },
+      data: { role: m.role, status: "active" },
+    });
+  }
 }
 
 /**

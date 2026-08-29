@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Newspaper, Shapes, Users } from "lucide-react";
-import { getTenantContext } from "@/lib/auth/tenant";
-import { requireAccess } from "@/lib/auth/rbac";
+import { KeyRound, Newspaper, Shapes, Users } from "lucide-react";
+import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 
 export const metadata: Metadata = { title: "הגדרות · Gilion" };
 
@@ -12,6 +11,12 @@ const SECTIONS = [
     icon: Users,
     title: "משתמשים",
     body: "מי יכול להיכנס לעסק, באיזה תפקיד, ומי כבר לא.",
+  },
+  {
+    href: "/settings/permissions",
+    icon: KeyRound,
+    title: "הרשאות תפקידים",
+    body: "מה כל תפקיד יכול לראות ולערוך. ברירות המחדל ניתנות לשינוי לעסק שלך.",
   },
   {
     href: "/settings/newspapers",
@@ -29,7 +34,7 @@ const SECTIONS = [
 
 export default async function SettingsPage() {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "settings");
+  requireArea(ctx, "settings");
 
   return (
     <>

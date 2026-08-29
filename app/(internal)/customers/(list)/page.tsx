@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Plus, Search } from "lucide-react";
 
-import { getTenantContext } from "@/lib/auth/tenant";
-import { canWrite, requireAccess } from "@/lib/auth/rbac";
+import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { listCustomers } from "@/lib/data/customers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,10 +28,10 @@ export default async function CustomersPage({
   searchParams: Promise<{ q?: string; type?: string }>;
 }) {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "customers");
+  requireArea(ctx, "customers");
 
   const { q = "", type = "all" } = await searchParams;
-  const mayEdit = canWrite(ctx.role, "customers");
+  const mayEdit = canWriteArea(ctx, "customers");
   // FR-8: a designer must not see money anywhere. The debt column is not
   // hidden with CSS — it is never queried or rendered for that role.
   const maySeeMoney = ctx.role !== "designer";

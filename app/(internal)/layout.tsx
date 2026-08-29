@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth/config";
 import { activeMembershipsFor, allBusinessesForSuperAdmin } from "@/lib/auth/memberships";
+import { loadOverrides } from "@/lib/data/permissions";
 import { SidebarContent } from "@/components/shell/sidebar";
 import { TopBar } from "@/components/shell/top-bar";
 import { switchBusinessAction, signOutAction } from "./actions";
@@ -28,11 +29,15 @@ export default async function InternalLayout({ children }: { children: React.Rea
   const current = memberships.find((m) => m.businessId === session.user.businessId);
   if (!current) redirect("/select-business");
 
+  // The menu is filtered with the same overrides the server guards with, so an
+  // item can never appear here while the route rejects it, or the reverse.
+  const permissions = await loadOverrides(current.businessId);
+
   return (
     <div className="flex min-h-screen bg-surface">
       {/* RTL: border-e is the logical end edge — the sidebar's left in Hebrew. */}
       <aside className="hidden w-70 shrink-0 border-e border-outline-variant bg-surface-container-lowest p-4 lg:block">
-        <SidebarContent role={current.role} isSuperAdmin={isSuperAdmin} />
+        <SidebarContent role={current.role} isSuperAdmin={isSuperAdmin} permissions={permissions} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -40,6 +45,7 @@ export default async function InternalLayout({ children }: { children: React.Rea
           userName={session.user.name ?? ""}
           role={current.role}
           isSuperAdmin={isSuperAdmin}
+          permissions={permissions}
           current={current}
           options={memberships}
           onSelectBusiness={switchBusinessAction}

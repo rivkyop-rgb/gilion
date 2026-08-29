@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 
-import { getTenantContext } from "@/lib/auth/tenant";
-import { canWrite, requireAccess } from "@/lib/auth/rbac";
+import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { formatCm } from "@/lib/domain/grid";
 import { gridOf, listNewspapers } from "@/lib/data/newspapers";
 import { toMegabytes } from "@/lib/domain/newspaper";
@@ -22,8 +21,8 @@ export const metadata: Metadata = { title: "עיתונים · Gilion" };
  */
 export default async function NewspapersPage() {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "settings");
-  const mayEdit = canWrite(ctx.role, "settings");
+  requireArea(ctx, "settings");
+  const mayEdit = canWriteArea(ctx, "settings");
 
   const papers = await listNewspapers(ctx.businessId);
 

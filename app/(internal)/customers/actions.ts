@@ -4,8 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import { getTenantContext } from "@/lib/auth/tenant";
-import { requireAccess } from "@/lib/auth/rbac";
+import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import {
   assertConvertible,
   deletionBlockedMessage,
@@ -50,7 +49,7 @@ export async function createCustomerAction(
   formData: FormData,
 ): Promise<FormState> {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "customers", "write");
+  requireArea(ctx, "customers", "write");
 
   const input = readForm(formData);
   if (!input) return { message: "הטופס לא נשלח כראוי" };
@@ -74,7 +73,7 @@ export async function updateCustomerAction(
   formData: FormData,
 ): Promise<FormState> {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "customers", "write");
+  requireArea(ctx, "customers", "write");
 
   const input = readForm(formData);
   if (!input) return { message: "הטופס לא נשלח כראוי" };
@@ -112,7 +111,7 @@ export async function convertToRegularAction(
   formData: FormData,
 ): Promise<FormState> {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "customers", "write");
+  requireArea(ctx, "customers", "write");
 
   const existing = await data.getCustomer(ctx.businessId, id);
   if (!existing) return { message: "הלקוח לא נמצא" };

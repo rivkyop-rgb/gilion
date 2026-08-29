@@ -18,6 +18,7 @@ export const DIRECT_TENANT_MODELS = [
   "Payment",
   "AuditLog",
   "UserMembership",
+  "RolePermission",
 ] as const;
 
 /**

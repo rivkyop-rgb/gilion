@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getTenantContext } from "@/lib/auth/tenant";
-import { canWrite, requireAccess } from "@/lib/auth/rbac";
+import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { listAdShapes, readAllowedCells } from "@/lib/data/ad-shapes";
 import { newspaperGrid } from "@/lib/data/newspapers";
 import { NewspaperTabs } from "../tabs";
@@ -14,7 +13,7 @@ export const metadata: Metadata = { title: "צורות פרסום · Gilion" };
    runs, which would stop this route answering 404 to a cross-tenant id. */
 export default async function ShapesPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "settings");
+  requireArea(ctx, "settings");
 
   const { id } = await params;
   const resolved = await newspaperGrid(ctx.businessId, id);
@@ -32,7 +31,7 @@ export default async function ShapesPage({ params }: { params: Promise<{ id: str
 
       <ShapeCatalog
         newspaperId={paper.id}
-        readOnly={!canWrite(ctx.role, "settings")}
+        readOnly={!canWriteArea(ctx, "settings")}
         grid={{
           columns: grid.columns,
           rows: grid.rows,

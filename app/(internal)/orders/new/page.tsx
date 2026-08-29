@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { getTenantContext } from "@/lib/auth/tenant";
-import { requireAccess } from "@/lib/auth/rbac";
+import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { listCustomerOptions } from "@/lib/data/customers";
 import { NewOrderForm } from "./new-order-form";
 
@@ -8,7 +7,7 @@ export const metadata: Metadata = { title: "הזמנה חדשה · Gilion" };
 
 export default async function NewOrderPage() {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "orders", "write");
+  requireArea(ctx, "orders", "write");
 
   // Every customer, not the first page of them — see listCustomerOptions.
   const rows = await listCustomerOptions(ctx.businessId);

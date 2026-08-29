@@ -129,6 +129,7 @@ export function deletionBlockedMessage(counts: Record<string, number>): string |
     publications: "פרסומים",
     advertisements: "מודעות",
     payments: "תשלומים",
+    portalUsers: "משתמשי פורטל",
   };
 
   const parts = Object.entries(counts)

@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getTenantContext } from "@/lib/auth/tenant";
-import { canWrite, requireAccess } from "@/lib/auth/rbac";
+import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { pricingData } from "@/lib/data/newspapers";
 import { buildMatrix } from "@/lib/domain/pricing";
 import { EmptyState } from "@/components/states";
@@ -14,7 +13,7 @@ export const metadata: Metadata = { title: "מחירון · Gilion" };
 export default async function PricingPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await getTenantContext();
   // sales and accounting read the price list to quote an order; only admin edits.
-  requireAccess(ctx.role, "settings");
+  requireArea(ctx, "settings");
 
   const { id } = await params;
   const data = await pricingData(ctx.businessId, id);
@@ -48,7 +47,7 @@ export default async function PricingPage({ params }: { params: Promise<{ id: st
           newspaperId={id}
           rows={rows}
           shapes={data.shapes.map((s) => ({ id: s.id, name: s.name }))}
-          readOnly={!canWrite(ctx.role, "settings")}
+          readOnly={!canWriteArea(ctx, "settings")}
         />
       )}
     </>

@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getTenantContext } from "@/lib/auth/tenant";
-import { canWrite, requireAccess } from "@/lib/auth/rbac";
+import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { getNewspaper, gridOf } from "@/lib/data/newspapers";
 import { listAdShapes } from "@/lib/data/ad-shapes";
 import { toMegabytes } from "@/lib/domain/newspaper";
@@ -19,7 +18,7 @@ export const metadata: Metadata = { title: "הגדרות עיתון · Gilion" }
    runs, which would stop this route answering 404 to a cross-tenant id. */
 export default async function NewspaperPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "settings");
+  requireArea(ctx, "settings");
 
   const { id } = await params;
   const paper = await getNewspaper(ctx.businessId, id);
@@ -34,7 +33,7 @@ export default async function NewspaperPage({ params }: { params: Promise<{ id: 
   // throwing if a row ever slips through.
   const grid = gridOf(paper) ?? UNRESOLVED_GRID;
 
-  const mayEdit = canWrite(ctx.role, "settings");
+  const mayEdit = canWriteArea(ctx, "settings");
 
   return (
     <>

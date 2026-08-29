@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 
-import { getTenantContext } from "@/lib/auth/tenant";
-import { canWrite, requireAccess } from "@/lib/auth/rbac";
+import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { countOrdersByStatus, listOrders } from "@/lib/data/orders";
 import { ORDER_STATUS_LABELS, ORDER_STATUSES, type OrderStatus } from "@/lib/domain/order-status";
 import { Button } from "@/components/ui/button";
@@ -23,10 +22,10 @@ export default async function OrdersPage({
   searchParams: Promise<{ status?: string }>;
 }) {
   const ctx = await getTenantContext();
-  requireAccess(ctx.role, "orders");
+  requireArea(ctx, "orders");
 
   const { status = "all" } = await searchParams;
-  const mayEdit = canWrite(ctx.role, "orders");
+  const mayEdit = canWriteArea(ctx, "orders");
 
   const [orders, counts] = await Promise.all([
     listOrders(ctx.businessId, { status }),
