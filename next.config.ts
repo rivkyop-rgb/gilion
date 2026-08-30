@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+import { UPLOAD_TRANSPORT_LIMIT_BYTES } from "./lib/domain/ad-file";
+
 const nextConfig: NextConfig = {
   // Next 16 refuses to serve /_next/static and /_next/hmr to a dev request whose
   // origin is not listed here, which leaves the page rendered but with no
@@ -17,6 +19,34 @@ const nextConfig: NextConfig = {
     // The VPS is also reachable by hostname through the panel's proxy.
     "*.local",
   ],
+
+  // Native and worker-based packages must stay OUTSIDE the server bundle.
+  //
+  // sharp ships a platform-specific binary, and pdf-to-img loads pdf.js plus
+  // @napi-rs/canvas at runtime. Bundled, they resolve their own assets against
+  // the bundle rather than node_modules and fail silently — which surfaces as
+  // an upload that works but never produces a preview, with nothing in the log.
+  serverExternalPackages: ["sharp", "pdf-to-img", "@napi-rs/canvas", "pdfjs-dist"],
+
+  experimental: {
+    // Server Actions cap request bodies at 1 MB by default, and an ad file is
+    // routinely larger than that. Without this the upload fails in the
+    // framework BEFORE any of our validation runs, so a 12 MB file gets a
+    // generic error instead of "too large for newspaper X" (FR-21).
+    //
+    // This is a transport ceiling, not a policy: the real limit stays
+    // per-newspaper in max_ad_file_size, and lib/domain/newspaper.ts refuses to
+    // configure one above this number.
+    serverActions: { bodySizeLimit: UPLOAD_TRANSPORT_LIMIT_BYTES },
+
+    // The SECOND cap on the same request, and the one that is easy to miss.
+    // middleware.ts runs on the upload route, so Next buffers the body to let
+    // both the proxy and the action read it — and that buffer has its own 10 MB
+    // default. Exceeding it truncates the body silently and the action fails
+    // with "Unexpected end of form" rather than any of our validation. Both
+    // numbers therefore track UPLOAD_TRANSPORT_LIMIT_BYTES.
+    proxyClientMaxBodySize: UPLOAD_TRANSPORT_LIMIT_BYTES,
+  },
 };
 
 export default nextConfig;

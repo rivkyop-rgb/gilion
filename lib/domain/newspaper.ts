@@ -4,6 +4,7 @@
  */
 import { isPageSizeKey, pageDimensions, type PageSizeKey } from "./page-size";
 import { validateGridSettings } from "./grid";
+import { UPLOAD_TRANSPORT_LIMIT_BYTES } from "./ad-file";
 
 export type NewspaperInput = {
   name: string;
@@ -65,6 +66,13 @@ export function validateNewspaper(input: NewspaperInput): FieldError[] {
   // rule 3 — the newspaper is the only source of the upload limit (FR-21)
   if (!Number.isFinite(input.maxAdFileSizeMb) || input.maxAdFileSizeMb <= 0) {
     errors.push({ field: "maxAdFileSizeMb", message: "גודל קובץ מקסימלי חייב להיות גדול מאפס" });
+  } else if (input.maxAdFileSizeMb * 1024 * 1024 > UPLOAD_TRANSPORT_LIMIT_BYTES) {
+    // A limit the request itself cannot carry is worse than a lower limit: the
+    // upload would fail with a framework error instead of a readable refusal.
+    errors.push({
+      field: "maxAdFileSizeMb",
+      message: `גודל קובץ מקסימלי אינו יכול לעלות על ${UPLOAD_TRANSPORT_LIMIT_BYTES / (1024 * 1024)} MB`,
+    });
   }
 
   if (!input.printQuality?.trim()) {

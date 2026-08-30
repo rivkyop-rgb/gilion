@@ -1,0 +1,324 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
+import { getTenantContext, requireArea } from "@/lib/auth/tenant";
+import * as data from "@/lib/data/advertisements";
+import { smallestLimit, type AdFileType, type SizeLimit } from "@/lib/domain/ad-file";
+import { afterRevert, afterReplace, orphanedByReplace } from "@/lib/domain/ad-version";
+import { refuseLink } from "@/lib/domain/ad-link";
+import { afterAdLinked, transition, type PublicationStatus } from "@/lib/domain/publication-status";
+import { adKey, adRevisionKey, putObject, removeObject } from "@/lib/storage/minio";
+import { inspectAdFile, renderPreview, storeAdFile } from "@/lib/storage/upload";
+
+export type AdFormState = { message?: string; adId?: string; ok?: boolean };
+
+/**
+ * The upload ceiling for THIS upload (FR-21).
+ *
+ * A chosen newspaper decides it. With no newspaper chosen the smallest ceiling
+ * in the business applies, because the alternative — the largest — would let
+ * someone upload a file that no newspaper will actually accept.
+ */
+async function limitFor(businessId: string, newspaperId: string | null): Promise<SizeLimit | null> {
+  if (newspaperId && newspaperId !== "any") {
+    const paper = await data.newspaperLimit(businessId, newspaperId);
+    return paper ? { maxBytes: paper.maxAdFileSize, newspaperName: paper.name } : null;
+  }
+  return smallestLimit(await data.newspaperLimits(businessId));
+}
+
+const uploadSchema = z.object({
+  newspaperId: z.string().nullable(),
+  customerId: z.string().nullable(),
+});
+
+function readFile(formData: FormData): File | null {
+  const file = formData.get("file");
+  return file instanceof File && file.size > 0 ? file : null;
+}
+
+export async function uploadAdvertisementAction(
+  _prev: AdFormState,
+  formData: FormData,
+): Promise<AdFormState> {
+  const ctx = await getTenantContext();
+  requireArea(ctx, "advertisements", "write");
+
+  const parsed = uploadSchema.safeParse({
+    newspaperId: emptyToNull(formData.get("newspaperId")),
+    customerId: emptyToNull(formData.get("customerId")),
+  });
+  if (!parsed.success) return { message: "הטופס לא נשלח כראוי" };
+
+  const file = readFile(formData);
+  if (!file) return { message: "לא נבחר קובץ" };
+
+  const limit = await limitFor(ctx.businessId, parsed.data.newspaperId);
+  if (!limit) {
+    return { message: "אין עדיין עיתון מוגדר בעסק, ולכן אין מגבלת גודל לבדוק מולה" };
+  }
+
+  // Steps 1–4. `file.size` is the declared length, so an oversized file is
+  // refused before its bytes are read into memory.
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const inspected = await inspectAdFile(bytes, file.size, limit);
+
+  // A file the wrong SIZE or the wrong TYPE never becomes a row: there is
+  // nothing useful to show in the library about bytes we refused to keep. A
+  // file that is the right type and simply broken does become one, because
+  // US-005 AC-2 wants it visible and marked.
+  if (!inspected.ok && inspected.code !== "unreadable") {
+    return { message: inspected.message };
+  }
+
+  // Sniffed in both branches — a broken file still has a knowable format, and
+  // the name it was uploaded under is never the answer.
+  const fileType: AdFileType = inspected.ok ? inspected.file.fileType : inspected.fileType!;
+
+  const ad = await data.createPendingAdvertisement(ctx.businessId, {
+    customerId: parsed.data.customerId,
+    uploadedByUserId: ctx.userId,
+    name: file.name,
+    fileType,
+    fileSize: bytes.length,
+  });
+
+  const key = adKey(ctx.businessId, ad.id, "original", fileType);
+
+  try {
+    if (!inspected.ok) {
+      await putObject(key, bytes, "application/octet-stream");
+      await data.finishAdvertisement(ctx.businessId, ad.id, {
+        ok: false,
+        fileUrl: key,
+        originalFileUrl: key,
+        message: inspected.message,
+      });
+      revalidatePath("/advertisements");
+      return { adId: ad.id, ok: true, message: inspected.message };
+    }
+
+    // Step 5 — the original and the live file are the SAME object on a first
+    // upload. They only diverge once someone replaces the file (AC-3).
+    await storeAdFile(key, inspected.file);
+
+    // Step 6 — "where possible": a preview that cannot be rendered is not a
+    // failed upload, it is a card that falls back to a file icon.
+    const preview = await renderPreview(inspected.file);
+    let previewKey: string | null = null;
+    if (preview) {
+      previewKey = adKey(ctx.businessId, ad.id, "preview", "png");
+      await putObject(previewKey, preview, "image/png");
+    }
+
+    // Step 7.
+    await data.finishAdvertisement(ctx.businessId, ad.id, {
+      ok: true,
+      fileUrl: key,
+      originalFileUrl: key,
+      previewUrl: previewKey,
+    });
+  } catch (error) {
+    // The bytes never landed, so the row must not survive to claim they did.
+    await data.deleteAdvertisement(ctx.businessId, ad.id).catch(() => {});
+    throw error;
+  }
+
+  revalidatePath("/advertisements");
+  return { adId: ad.id, ok: true };
+}
+
+function emptyToNull(value: FormDataEntryValue | null): string | null {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text === "" || text === "all" ? null : text;
+}
+
+export async function assignAdToCustomerAction(
+  adId: string,
+  customerId: string | null,
+): Promise<AdFormState> {
+  const ctx = await getTenantContext();
+  requireArea(ctx, "advertisements", "write");
+
+  const ad = await data.getAdvertisement(ctx.businessId, adId);
+  if (!ad) return { message: "המודעה לא נמצאה" };
+
+  // Moving an ad to a different customer while publications of the OLD
+  // customer are using it would leave those publications holding someone
+  // else's artwork — rule 5, enforced here rather than left to the UI.
+  if (ad.publications.length > 0 && customerId !== ad.customer_id) {
+    return { message: "המודעה משויכת לפרסומים קיימים; יש לנתק אותם לפני שינוי הלקוח" };
+  }
+
+  await data.setAdCustomer(ctx.businessId, adId, customerId);
+  revalidatePath("/advertisements");
+  revalidatePath(`/advertisements/${adId}`);
+  return { ok: true };
+}
+
+export async function linkAdToPublicationAction(
+  adId: string,
+  publicationId: string,
+): Promise<AdFormState> {
+  const ctx = await getTenantContext();
+  requireArea(ctx, "advertisements", "write");
+
+  const ad = await data.getAdvertisement(ctx.businessId, adId);
+  const publication = await data.getPublicationForLink(ctx.businessId, publicationId);
+  if (!ad || !publication) return { message: "המודעה או הפרסום לא נמצאו" };
+
+  const refusal = refuseLink(
+    {
+      id: ad.id,
+      customerId: ad.customer_id,
+      validationPassed: ad.validation_status === "passed",
+      archived: ad.status === "archived",
+    },
+    {
+      id: publication.id,
+      customerId: publication.customer_id,
+      status: publication.status as PublicationStatus,
+    },
+  );
+  if (refusal) return { message: refusal.message };
+
+  // FR-5: the status is decided by the machine, never assigned here.
+  const next = afterAdLinked(publication.status as PublicationStatus, {
+    validationPassed: true,
+    belongsToCustomer: true,
+  });
+  await data.attachAdToPublication(ctx.businessId, publicationId, adId, next);
+
+  revalidatePath("/advertisements");
+  revalidatePath(`/advertisements/${adId}`);
+  revalidatePath("/publications");
+  return { ok: true };
+}
+
+export async function unlinkAdFromPublicationAction(publicationId: string): Promise<AdFormState> {
+  const ctx = await getTenantContext();
+  requireArea(ctx, "advertisements", "write");
+
+  const publication = await data.getPublicationForLink(ctx.businessId, publicationId);
+  if (!publication) return { message: "הפרסום לא נמצא" };
+  if (!publication.advertisement_id) return { message: "לפרסום לא משויכת מודעה" };
+
+  const next = transition(publication.status as PublicationStatus, "AD_UNLINKED");
+  await data.detachAdFromPublication(ctx.businessId, publicationId, next);
+
+  revalidatePath("/advertisements");
+  revalidatePath(`/advertisements/${publication.advertisement_id}`);
+  revalidatePath("/publications");
+  return { ok: true };
+}
+
+export async function replaceAdFileAction(
+  adId: string,
+  _prev: AdFormState,
+  formData: FormData,
+): Promise<AdFormState> {
+  const ctx = await getTenantContext();
+  requireArea(ctx, "advertisements", "write");
+
+  const ad = await data.getAdvertisement(ctx.businessId, adId);
+  if (!ad) return { message: "המודעה לא נמצאה" };
+
+  // Rule 11 — a closed issue freezes everything in it. Issues arrive in stage
+  // 06; the guard is wired now so that stage adds a query, not a call site.
+  const lock = await data.issueLockOn(ctx.businessId, adId);
+  if (lock) return { message: lock };
+
+  const file = readFile(formData);
+  if (!file) return { message: "לא נבחר קובץ" };
+
+  const limit = await limitFor(ctx.businessId, emptyToNull(formData.get("newspaperId")));
+  if (!limit) return { message: "אין עדיין עיתון מוגדר בעסק" };
+
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const inspected = await inspectAdFile(bytes, file.size, limit);
+  // A replacement is all-or-nothing: the live file stays exactly as it is
+  // until a good one is ready to take its place.
+  if (!inspected.ok) return { message: inspected.message };
+
+  const newKey = adRevisionKey(ctx.businessId, adId, inspected.file.fileType);
+  await storeAdFile(newKey, inspected.file);
+
+  const keys = {
+    fileUrl: ad.file_url,
+    originalFileUrl: ad.original_file_url,
+    previousFileUrl: ad.previous_file_url,
+  };
+  const orphan = orphanedByReplace(keys);
+  const next = afterReplace(keys, newKey);
+
+  const preview = await renderPreview(inspected.file);
+  let previewKey: string | null = ad.preview_url;
+  if (preview) {
+    previewKey = adKey(ctx.businessId, adId, "preview", "png");
+    await putObject(previewKey, preview, "image/png");
+  }
+
+  await data.setAdFileKeys(ctx.businessId, adId, {
+    ...next,
+    previewUrl: previewKey,
+    fileType: inspected.file.fileType,
+    fileSize: inspected.file.size,
+    name: file.name,
+  });
+
+  // Only ever the version that just fell off the end — never the original
+  // (US-005 AC-3), which orphanedByReplace refuses to return.
+  if (orphan) await removeObject(orphan);
+
+  revalidatePath("/advertisements");
+  revalidatePath(`/advertisements/${adId}`);
+  return { ok: true };
+}
+
+export async function revertToPreviousAction(adId: string): Promise<AdFormState> {
+  const ctx = await getTenantContext();
+  requireArea(ctx, "advertisements", "write");
+
+  const ad = await data.getAdvertisement(ctx.businessId, adId);
+  if (!ad) return { message: "המודעה לא נמצאה" };
+  if (!ad.previous_file_url) return { message: "אין גרסה קודמת לשחזור" };
+
+  const lock = await data.issueLockOn(ctx.businessId, adId);
+  if (lock) return { message: lock };
+
+  const next = afterRevert({
+    fileUrl: ad.file_url,
+    originalFileUrl: ad.original_file_url,
+    previousFileUrl: ad.previous_file_url,
+  });
+
+  await data.setAdFileKeys(ctx.businessId, adId, next);
+  revalidatePath("/advertisements");
+  revalidatePath(`/advertisements/${adId}`);
+  return { ok: true };
+}
+
+export async function archiveAdAction(adId: string): Promise<AdFormState> {
+  const ctx = await getTenantContext();
+  // Archiving is admin/sales only — a designer works with files, they do not
+  // retire them (stage 05 §הרשאות).
+  requireArea(ctx, "advertisements", "write");
+  if (ctx.role === "designer" && !ctx.isSuperAdmin) {
+    return { message: "ארכוב מודעה מותר למנהל ולנציג מכירות בלבד" };
+  }
+
+  const used = await data.publicationsUsingAd(ctx.businessId, adId);
+  if (used.length > 0) {
+    return { message: "המודעה משויכת לפרסומים; יש לנתק אותם לפני ארכוב" };
+  }
+
+  const lock = await data.issueLockOn(ctx.businessId, adId);
+  if (lock) return { message: lock };
+
+  await data.archiveAdvertisement(ctx.businessId, adId);
+  revalidatePath("/advertisements");
+  revalidatePath(`/advertisements/${adId}`);
+  return { ok: true };
+}

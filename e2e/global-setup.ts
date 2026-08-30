@@ -46,6 +46,8 @@ export default async function globalSetup() {
     });
   }
 
+  await deleteTestAdvertisements(prisma);
+  await deleteTestCustomers(prisma);
   await deleteTestNewspapers(prisma);
   await deleteTestBusinesses(prisma);
   await deleteTestUsers(prisma);
@@ -54,6 +56,83 @@ export default async function globalSetup() {
   await resetShapeCatalogue(prisma);
 
   await prisma.$disconnect();
+}
+
+/**
+ * Removes every advertisement, and the objects behind them.
+ *
+ * prisma/seed.ts creates NO advertisements, so anything here was uploaded by a
+ * spec — and the upload specs deliberately re-upload the same file names every
+ * run. Left behind, those turn `getByText("ad.pdf")` into a strict-mode
+ * violation on the second run and the library into a few hundred cards on the
+ * fiftieth. The publications go first: advertisement_id is SET NULL on delete,
+ * but a publication left pointing at a deleted file would still be sitting in
+ * a status that claims it has one.
+ */
+async function deleteTestAdvertisements(prisma: PrismaClient) {
+  const ads = await prisma.advertisement.findMany({ select: { id: true, business_id: true } });
+  if (ads.length === 0) return;
+
+  await prisma.publication.updateMany({
+    where: { advertisement_id: { not: null } },
+    data: { advertisement_id: null, status: "missing_ad" },
+  });
+  await prisma.advertisement.deleteMany({});
+
+  // The bucket has to be emptied too, or every run leaves a few megabytes
+  // behind for a row that no longer exists.
+  await clearAdObjects([...new Set(ads.map((a) => a.business_id))]);
+}
+
+async function clearAdObjects(businessIds: string[]) {
+  const { Client } = await import("minio");
+  const client = new Client({
+    endPoint: process.env.MINIO_ENDPOINT!,
+    port: Number(process.env.MINIO_PORT ?? 9000),
+    useSSL: process.env.MINIO_USE_SSL === "true",
+    accessKey: process.env.MINIO_ACCESS_KEY!,
+    secretKey: process.env.MINIO_SECRET_KEY!,
+  });
+  const bucket = process.env.MINIO_BUCKET!;
+  if (!(await client.bucketExists(bucket))) return;
+
+  for (const businessId of businessIds) {
+    const keys: string[] = [];
+    const stream = client.listObjectsV2(bucket, `${businessId}/ads/`, true);
+    await new Promise<void>((resolve, reject) => {
+      stream.on("data", (o) => o.name && keys.push(o.name));
+      stream.on("end", () => resolve());
+      stream.on("error", reject);
+    });
+    if (keys.length > 0) await client.removeObjects(bucket, keys);
+  }
+}
+
+/**
+ * Removes customers the specs created, and the orders and publications behind
+ * them.
+ *
+ * Same id rule as the users below: prisma/seed.ts gives every customer an
+ * explicit `cust_` id, so a cuid was made through the UI. Left behind they do
+ * not merely clutter — the customers list is paginated at 25, so after a few
+ * dozen strays the SEEDED customer that half the specs assert on falls off
+ * page one and those specs fail with "element not found". That reads exactly
+ * like a broken screen and is not one.
+ *
+ * The order is the foreign keys: Customer is Restrict from both AdOrder and
+ * Publication, so the history goes first. AdOrderItem cascades from AdOrder.
+ */
+async function deleteTestCustomers(prisma: PrismaClient) {
+  const strays = await prisma.customer.findMany({
+    where: { id: { not: { startsWith: "cust_" } } },
+    select: { id: true },
+  });
+  if (strays.length === 0) return;
+
+  const ids = strays.map((c) => c.id);
+  await prisma.publication.deleteMany({ where: { customer_id: { in: ids } } });
+  await prisma.adOrder.deleteMany({ where: { customer_id: { in: ids } } });
+  await prisma.customer.deleteMany({ where: { id: { in: ids } } });
 }
 
 /**

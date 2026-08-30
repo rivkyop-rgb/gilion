@@ -89,13 +89,14 @@ model Business {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  memberships  UserMembership[]
-  audit_logs   AuditLog[]
-  permissions  RolePermission[]
-  customers    Customer[]
-  newspapers   Newspaper[]
-  ad_orders    AdOrder[]
-  publications Publication[]
+  memberships    UserMembership[]
+  audit_logs     AuditLog[]
+  permissions    RolePermission[]
+  customers      Customer[]
+  newspapers     Newspaper[]
+  ad_orders      AdOrder[]
+  publications   Publication[]
+  advertisements Advertisement[]
 
   @@map("Business")
 }
@@ -135,11 +136,11 @@ model RolePermission {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  name          String
-  email         String   @unique
-  password_hash String
-  user_type     UserType
+  id             String   @id @default(cuid())
+  name           String
+  email          String   @unique
+  password_hash  String
+  user_type      UserType
   /// Platform owner. Deliberately a property of the PERSON and not a sixth
   /// MembershipRole: the five roles describe what someone may do INSIDE one
   /// business, and this describes someone who stands above all of them. As a
@@ -150,12 +151,13 @@ model User {
   /// permission matrix keeps working untouched. What the flag adds is the
   /// right to enter ANY business without a membership, and to reach the
   /// platform area where businesses themselves are created.
-  is_super_admin Boolean @default(false)
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+  is_super_admin Boolean  @default(false)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
 
-  memberships UserMembership[]
-  audit_logs  AuditLog[]
+  memberships    UserMembership[]
+  audit_logs     AuditLog[]
+  advertisements Advertisement[]
 
   @@map("User")
 }
@@ -224,9 +226,12 @@ model Customer {
   created_at    DateTime     @default(now())
   updated_at    DateTime     @updatedAt
 
-  business     Business      @relation(fields: [business_id], references: [id], onDelete: Restrict)
-  ad_orders    AdOrder[]
-  publications Publication[]
+  business       Business        @relation(fields: [business_id], references: [id], onDelete: Restrict)
+  ad_orders      AdOrder[]
+  publications   Publication[]
+  /// Restrict: a customer with files on record is not something to delete out
+  /// from under them (stage 05 §מודל נתונים).
+  advertisements Advertisement[]
 
   @@index([business_id, contact_name])
   @@index([business_id, business_name])
@@ -542,16 +547,101 @@ model Publication {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  business   Business     @relation(fields: [business_id], references: [id], onDelete: Restrict)
-  order      AdOrder      @relation(fields: [order_id], references: [id], onDelete: Restrict)
-  order_item AdOrderItem? @relation(fields: [order_item_id], references: [id], onDelete: SetNull)
-  customer   Customer     @relation(fields: [customer_id], references: [id], onDelete: Restrict)
-  newspaper  Newspaper    @relation(fields: [newspaper_id], references: [id], onDelete: Restrict)
-  ad_shape   AdShape      @relation(fields: [ad_shape_id, newspaper_id], references: [id, newspaper_id], onDelete: Restrict)
+  business      Business       @relation(fields: [business_id], references: [id], onDelete: Restrict)
+  order         AdOrder        @relation(fields: [order_id], references: [id], onDelete: Restrict)
+  order_item    AdOrderItem?   @relation(fields: [order_item_id], references: [id], onDelete: SetNull)
+  customer      Customer       @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+  newspaper     Newspaper      @relation(fields: [newspaper_id], references: [id], onDelete: Restrict)
+  ad_shape      AdShape        @relation(fields: [ad_shape_id, newspaper_id], references: [id, newspaper_id], onDelete: Restrict)
+  /// SetNull, not Cascade: losing the file must not lose the publication. The
+  /// publication stands, with no ad, and the state machine walks it back to
+  /// `missing_ad` (stage 05 §מודל נתונים).
+  advertisement Advertisement? @relation(fields: [advertisement_id], references: [id], onDelete: SetNull)
 
   @@index([business_id, publication_date, status])
   @@index([business_id, newspaper_id, publication_date])
   @@index([business_id, customer_id])
   @@index([advertisement_id])
   @@map("Publication")
+}
+
+// ---------------------------------------------------------------------------
+// Stage 05 — advertisement files
+// ---------------------------------------------------------------------------
+
+/// The three formats US-005 allows. Decided by MAGIC BYTES, never by the file
+/// name: an extension is something the uploader typed, not something the file
+/// is.
+enum AdFileType {
+  pdf
+  jpg
+  png
+}
+
+/// `archived` is how an ad leaves the library. There is no delete: an ad that
+/// already ran in an issue is evidence, and the Publication that used it keeps
+/// pointing at it.
+enum AdStatus {
+  valid
+  invalid
+  archived
+}
+
+enum AdValidationStatus {
+  pending
+  passed
+  failed
+}
+
+/// An uploaded advertisement file (US-005, FR-15, FR-21).
+///
+/// Deliberately has no newspaper_id: an ad is a file belonging to a CUSTOMER,
+/// and the same file may run in several newspapers. A newspaper is picked at
+/// upload time only to decide WHICH max_ad_file_size to enforce (FR-21), and
+/// that choice is not worth storing — re-checking it later would re-litigate a
+/// limit that has since changed.
+///
+/// Deliberately has no "notes to the designer" field either: it appears in the
+/// Stitch mockup and in neither prd.md nor erd.md (docs/design/gaps.md §א).
+model Advertisement {
+  id                  String             @id @default(cuid())
+  business_id         String
+  /// Optional in the schema, but an ad without a customer is NOT placeable
+  /// (US-005 AC-4) — enforced in the domain layer and shown as a badge.
+  customer_id         String?
+  uploaded_by_user_id String
+  name                String
+  file_type           AdFileType
+  /// Bytes, as stored. Checked against Newspaper.max_ad_file_size (FR-21);
+  /// there is no hard-coded ceiling anywhere in the code.
+  file_size           Int
+  /// --- Object keys, never public URLs (conventions.md §5) ------------------
+  /// The live file — the one that goes into the PDF.
+  file_url            String
+  /// The first upload. NEVER overwritten, not even by a third replacement
+  /// (US-005 AC-3).
+  original_file_url   String
+  /// Exactly one previous version is kept (US-005 AC-5). A further replacement
+  /// overwrites this, and the one it overwrote is gone.
+  previous_file_url   String?
+  /// PNG, generated on upload "where possible".
+  preview_url         String?
+  status              AdStatus           @default(valid)
+  validation_status   AdValidationStatus @default(pending)
+  /// Hebrew, shown verbatim on the card. Null while the file is valid.
+  validation_error    String?
+  uploaded_at         DateTime           @default(now())
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  business     Business      @relation(fields: [business_id], references: [id], onDelete: Restrict)
+  customer     Customer?     @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+  uploaded_by  User          @relation(fields: [uploaded_by_user_id], references: [id], onDelete: Restrict)
+  publications Publication[]
+
+  @@index([business_id, customer_id])
+  @@index([business_id, status, validation_status])
+  @@index([business_id, uploaded_at(sort: Desc)])
+  @@map("Advertisement")
 }

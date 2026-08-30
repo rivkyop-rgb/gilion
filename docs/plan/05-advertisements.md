@@ -43,8 +43,8 @@ US-005 · FR-15 · FR-21 · FR-5 · ישות: `Advertisement`
 
 | מסלול                     | תיאור                                               |
 | ------------------------- | --------------------------------------------------- |
-| `GET /ads`                | ספריית מודעות — גריד או רשימה                       |
-| `GET /ads/[id]`           | פרטי מודעה                                          |
+| `GET /advertisements`     | ספריית מודעות — גריד או רשימה                       |
+| `GET /advertisements/[id]`| פרטי מודעה                                          |
 | `GET /api/files/[...key]` | Route Handler יחיד לכל הקבצים (`conventions.md` §5) |
 
 **Server Actions:** `uploadAdvertisement(formData)` · `assignAdToCustomer(adId, customerId)` · `linkAdToPublication(adId, publicationId)` · `unlinkAdFromPublication(publicationId)` · `replaceAdFile(adId, file)` · `revertToPrevious(adId)` · `archiveAd(adId)`.
@@ -119,16 +119,28 @@ US-005 · FR-15 · FR-21 · FR-5 · ישות: `Advertisement`
 - `ad-replace.spec.ts` — החלפה שומרת גרסה קודמת אחת ומאפשרת שחזור (US-005 AC-5).
 - `file-access.spec.ts` — **בדיקת אבטחה:** משתמש מעסק אחר מנסה `/api/files/{otherBusinessId}/ads/...` → 404. presigned URL פג אחרי 5 דקות (FR-15).
 
+## סטיות מתועדות מהמימוש
+
+חמישה דברים שהתבררו רק בבנייה. הם מתועדים כאן כדי שלא ייקראו כרשלנות בהמשך.
+
+1. **הנתיב הוא `/advertisements`, לא `/ads`.** האזור ב־RBAC נקרא `advertisements` ופריט הסיידבר כבר הצביע לשם משלב 01. שני שמות לאותו מסך היו חוב שאין לו תמורה.
+2. **תצוגה מקדימה ל־PDF נוצרת דרך `pdf-to-img`** (pdf.js + `@napi-rs/canvas`). `pdf-lib` יודע לאמת PDF אך לא לרסטר אותו. שלושת ה־packages האלה חייבים להישאר מחוץ ל־bundle — `serverExternalPackages` ב־`next.config.ts` — אחרת ההעלאה מצליחה ותצוגה מקדימה פשוט לא נוצרת, **בלי שגיאה בלוג**. הכישלון גם נרשם עכשיו ב־`console.warn`, בדיוק בגלל זה.
+3. **שתי תקרות transport נוספו ל־`next.config.ts`.** ל־Server Action יש cap של 1MB, ול־buffer של ה־middleware יש cap של 10MB; חריגה מהשני מקצצת את הבקשה ומייצרת `Unexpected end of form` במקום הודעה בעברית. שתיהן נגזרות מ־`UPLOAD_TRANSPORT_LIMIT_BYTES` ב־`lib/domain/ad-file.ts`. **זו אינה מגבלת ולידציה** — FR-21 נשאר על `Newspaper.max_ad_file_size`; זו רק תקרה שהבקשה מסוגלת לשאת, ו־`lib/domain/newspaper.ts` מסרב להגדיר עיתון מעליה.
+4. **קובץ שנדחה על סוג או על גודל אינו נשמר כלל**; רק קובץ מהסוג הנכון שאינו נפתח נשמר ומסומן `failed`. אין טעם בכרטיס בספרייה עבור בתים שסירבנו לשמור, ו־US-005 AC-2 מתקיים בשני המסלולים — באחד ההודעה בטופס, בשני הבאנר על הכרטיס.
+5. **כללים 11 ו־12 (גיליון סגור נועל מודעה) מחווטים אך אינם אוכפים עדיין.** `issueLockOn()` ב־`lib/data/advertisements.ts` מוחזר `null` עד ששלב 06 יביא את `Issue` ו־`Placement`. נקודות הקריאה כבר במקום, כך ששלב 06 ממלא פונקציה אחת ולא מחפש היכן היה צריך לשאול.
+
+`max_ad_file_size` של `paper_catalog` ב־seed הוא 5MB מול 10MB של `paper_alpha` — בלי שני ערכים שונים אי אפשר להבחין בין מגבלה פר־עיתון שעובדת לבין קבוע מקושח.
+
 ## Definition of Done
 
-- [ ] העלאת PDF, JPG ו־PNG עובדת, ונוצרת תצוגה מקדימה לכל אחד.
-- [ ] הולידציה בודקת magic bytes ולא סיומת.
-- [ ] המגבלה נלקחת מ־`Newspaper.max_ad_file_size` — **אין שום מספר קשיח בקוד** (FR-21).
-- [ ] קובץ פגום מסומן ואינו זמין לשיבוץ.
-- [ ] מודעה בלי לקוח מסומנת ואינה זמינה לשיבוץ.
-- [ ] `original_file_url` נשמר לנצח; נשמרת גרסה קודמת אחת בלבד; שחזור עובד.
-- [ ] שיוך וניתוק מודעה מזיזים את סטטוס הפרסום דרך מכונת המצבים בלבד.
-- [ ] מודעה אחת משמשת כמה פרסומים.
-- [ ] אף URL של קובץ לא נחשף; הגישה רק דרך `/api/files/` עם presigned קצר־מועד.
-- [ ] בדיקת בידוד הקבצים בין עסקים עוברת.
-- [ ] כרטיס הדרישות מציג רק פורמטים וגודל מקסימלי — **אין dpi, CMYK או bleed**.
+- [x] העלאת PDF, JPG ו־PNG עובדת, ונוצרת תצוגה מקדימה לכל אחד — `ad-upload.spec.ts`.
+- [x] הולידציה בודקת magic bytes ולא סיומת — `file-validation.test.ts`, ו־GIF בשם `.pdf` נדחה ב־`ad-upload-invalid.spec.ts`.
+- [x] המגבלה נלקחת מ־`Newspaper.max_ad_file_size` — `ad-size-per-newspaper.spec.ts` מעלה את אותו קובץ 8MB לשני עיתונים ומקבל שתי תשובות.
+- [x] קובץ פגום מסומן ואינו זמין לשיבוץ.
+- [x] מודעה בלי לקוח מסומנת ואינה זמינה לשיבוץ — `ad-no-customer.spec.ts`.
+- [x] `original_file_url` נשמר לנצח; נשמרת גרסה קודמת אחת בלבד; שחזור עובד — `ad-versioning.test.ts` + `ad-replace.spec.ts`.
+- [x] שיוך וניתוק מודעה מזיזים את סטטוס הפרסום דרך מכונת המצבים בלבד.
+- [x] מודעה אחת משמשת כמה פרסומים — אין `unique` על `advertisement_id`, והמסך סופר אותם.
+- [x] אף URL של קובץ לא נחשף; הגישה רק דרך `/api/files/` עם presigned קצר־מועד — `file-access.spec.ts` מאמת `X-Amz-Expires=300`.
+- [x] בדיקת בידוד הקבצים בין עסקים עוברת.
+- [x] כרטיס הדרישות מציג רק פורמטים וגודל מקסימלי — **אין dpi, CMYK או bleed**.

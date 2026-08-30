@@ -250,20 +250,48 @@ async function main() {
   // publication_days are JS getDay() numbers (0 = Sunday). Three different
   // schedules on purpose, so the order builder's warning is demonstrable
   // without editing settings first.
+  //
+  // max_ad_file_size differs between the two alpha papers ON PURPOSE. FR-21
+  // says the ceiling belongs to the newspaper, and a seed where every paper
+  // allows the same 10 MB cannot tell a working per-newspaper limit apart from
+  // a hard-coded constant — which is exactly the bug the requirement exists to
+  // prevent. The catalogue is the strict one, at 5 MB.
   const papers = [
-    { id: "paper_alpha", business_id: alpha.id, name: "עיתון השבוע", publication_days: [2] },
-    { id: "paper_catalog", business_id: alpha.id, name: "קטלוג המרכז", publication_days: [4] },
-    { id: "paper_beta", business_id: beta.id, name: "מקומון הצפון", publication_days: [4] },
+    {
+      id: "paper_alpha",
+      business_id: alpha.id,
+      name: "עיתון השבוע",
+      publication_days: [2],
+      max_ad_file_size: 10 * 1024 * 1024,
+    },
+    {
+      id: "paper_catalog",
+      business_id: alpha.id,
+      name: "קטלוג המרכז",
+      publication_days: [4],
+      max_ad_file_size: 5 * 1024 * 1024,
+    },
+    {
+      id: "paper_beta",
+      business_id: beta.id,
+      name: "מקומון הצפון",
+      publication_days: [4],
+      max_ad_file_size: 10 * 1024 * 1024,
+    },
   ];
   for (const p of papers) {
     await prisma.newspaper.upsert({
       where: { id: p.id },
-      update: { name: p.name, publication_days: p.publication_days, ...GRID_SETTINGS },
+      update: {
+        name: p.name,
+        publication_days: p.publication_days,
+        max_ad_file_size: p.max_ad_file_size,
+        ...GRID_SETTINGS,
+      },
       create: {
         ...p,
         ...GRID_SETTINGS,
         print_quality: "דפוס אופסט רגיל",
-        max_ad_file_size: 10 * 1024 * 1024,
       },
     });
   }

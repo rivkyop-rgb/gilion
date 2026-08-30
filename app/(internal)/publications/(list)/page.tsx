@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { getTenantContext, requireArea } from "@/lib/auth/tenant";
+import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { listPublications } from "@/lib/data/publications";
+import { placeableAds } from "@/lib/data/advertisements";
 import { listNewspapers } from "@/lib/data/newspapers";
 import {
   NEEDS_ATTENTION,
@@ -17,6 +18,7 @@ import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
 import { PUBLICATION_TONE, TONE_ROW } from "@/components/status-tone";
 import { cn } from "@/lib/utils";
+import { LinkAdCell } from "../link-ad";
 import { PublicationStatusBadge, SourceBadge, StatusChip } from "../../orders/order-badges";
 import { formatDate, formatMoney, orderNumber } from "../../orders/format";
 
@@ -46,10 +48,26 @@ export default async function PublicationsPage({
     return query ? `/publications?${query}` : "/publications";
   };
 
-  const [rows, papers] = await Promise.all([
+  // FR-8 again: accounting reads publications but has no access to artwork,
+  // so it never receives the ad list and never sees the control.
+  const mayLinkAds = canWriteArea(ctx, "advertisements");
+
+  const [rows, papers, ads] = await Promise.all([
     listPublications(ctx.businessId, { newspaperId: newspaper, status, from, to }),
     listNewspapers(ctx.businessId),
+    mayLinkAds ? placeableAds(ctx.businessId) : Promise.resolve([]),
   ]);
+
+  // One query for the whole table, grouped here: an ad may only be offered to
+  // a publication of its own customer (stage 05 rule 5).
+  const adsByCustomer = new Map<string, Array<{ id: string; name: string }>>();
+  for (const ad of ads) {
+    if (!ad.customer_id) continue;
+    const list = adsByCustomer.get(ad.customer_id) ?? [];
+    list.push({ id: ad.id, name: ad.name });
+    adsByCustomer.set(ad.customer_id, list);
+  }
+  const adNameById = new Map(ads.map((a) => [a.id, a.name]));
 
   return (
     <>
@@ -153,6 +171,11 @@ export default async function PublicationsPage({
                   סטטוס פרסום
                 </th>
                 <th className="p-3 text-start font-semibold">שיבוץ</th>
+                {mayLinkAds ? (
+                  <th className="p-3 text-start font-semibold" data-testid="col-ad">
+                    מודעה
+                  </th>
+                ) : null}
                 {maySeeMoney ? (
                   <th className="p-3 text-start font-semibold" data-testid="col-price">
                     מחיר
@@ -195,6 +218,22 @@ export default async function PublicationsPage({
                         {p.placement_status === "placed" ? "שובץ" : "לא שובץ"}
                       </Badge>
                     </td>
+                    {mayLinkAds ? (
+                      <td className="p-3">
+                        <LinkAdCell
+                          publicationId={p.id}
+                          linked={
+                            p.advertisement_id
+                              ? {
+                                  id: p.advertisement_id,
+                                  name: adNameById.get(p.advertisement_id) ?? "מודעה",
+                                }
+                              : null
+                          }
+                          options={adsByCustomer.get(p.customer_id) ?? []}
+                        />
+                      </td>
+                    ) : null}
                     {maySeeMoney ? (
                       <td className="p-3">
                         <Ltr>{formatMoney(Number(p.price))}</Ltr>
