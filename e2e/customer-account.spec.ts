@@ -1,0 +1,112 @@
+import { expect, test, type Page } from "@playwright/test";
+
+import { CUSTOMERS, USERS, login, loginAsAdmin } from "./helpers";
+import { validPng } from "./ad-fixtures";
+import { uploadFile } from "./ad-helpers";
+
+/**
+ * The customer card as a place you can actually answer questions from
+ * (US-002, US-010): what did they order, what is still open, and which files
+ * of theirs do we hold.
+ */
+
+/**
+ * A customer of this test's own, because the balance is a SUM.
+ *
+ * Asserting a total on a seeded customer means asserting on every order every
+ * other spec happened to open for them — the number is correct and the test is
+ * still wrong. global-setup removes customers with generated ids, so one per
+ * run accumulates nothing.
+ */
+async function ownCustomer(page: Page): Promise<{ id: string; name: string }> {
+  const name = `לקוח חשבון ${Date.now()}`;
+  await page.goto("/customers/new");
+  await page.getByTestId("type-casual").click();
+  await page.fill("#contactName", name);
+  await page.fill("#phone", "050-7654321");
+  await page.getByRole("button", { name: "שמירה" }).click();
+  // The id pattern has to exclude "new": /customers/new matches a bare
+  // [a-z0-9]+ too, so a wait that permits it can return before the navigation
+  // and hand back "new" as the customer id.
+  await page.waitForURL(/\/customers\/c[a-z0-9]{20,}$/);
+  return { id: page.url().split("/").pop()!, name };
+}
+
+async function approvedOrderFor(page: Page, customerLabel: string, price: string) {
+  await page.goto("/orders/new");
+  await page.getByTestId("order-customer").click();
+  await page
+    .getByTestId("order-customer-list")
+    .getByRole("option")
+    .filter({ hasText: customerLabel })
+    .first()
+    .click();
+  await page.getByTestId("create-order").click();
+  await page.waitForURL(/\/orders\/c[a-z0-9]{20,}$/);
+
+  await page.getByTestId("line-date").fill("2026-12-01");
+  await page.getByTestId("line-price").fill(price);
+  const warning = page.getByTestId("off-schedule-warning");
+  if (await warning.isVisible()) await page.getByTestId("confirm-special-edition").check();
+  await expect(page.getByTestId("add-line")).toBeEnabled();
+  await page.getByTestId("add-line").click();
+  await expect(page.locator('[data-testid="order-lines"] tbody tr')).toHaveCount(1);
+
+  await page.getByTestId("submit-order").click();
+  await page.getByTestId("approve-order").click();
+  await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
+}
+
+test("כרטיס הלקוח מציג הזמנות, יתרה, פרסומים וקבצים", async ({ page }) => {
+  test.slow();
+  await loginAsAdmin(page);
+
+  const customer = await ownCustomer(page);
+  await approvedOrderFor(page, customer.name, "1500");
+
+  await page.goto("/advertisements");
+  const file = await validPng(`for-customer-${Date.now()}.png`);
+  await uploadFile(page, file, { customerId: customer.id });
+
+  await page.goto(`/customers/${customer.id}`);
+
+  // Orders, with the money on them.
+  const orders = page.getByTestId("customer-orders");
+  await expect(orders).toBeVisible();
+  await expect(orders).toContainText("1,500");
+  await expect(orders).toContainText("לא שולם");
+
+  // The balance, and the caveat that makes it readable.
+  await expect(page.getByTestId("account-billed")).toContainText("1,500");
+  await expect(page.getByTestId("account-settled")).toContainText("0");
+  await expect(page.getByTestId("account-outstanding")).toContainText("1,500");
+  await expect(page.getByTestId("account-caveat")).toContainText("שלב 08");
+
+  // Publications, and which of them are still missing artwork.
+  await expect(page.getByTestId("customer-publications")).toContainText("חסר קובץ");
+
+  // The customer's files.
+  await expect(page.getByTestId("customer-ads")).toContainText(file.name);
+});
+
+test("גרפיקאית רואה את הלקוח ואת הקבצים, ולא רואה כסף (FR-8)", async ({ page }) => {
+  await login(page, USERS.designer);
+  await page.goto(`/customers/${CUSTOMERS.alphaRegular}`);
+
+  await expect(page.getByTestId("customer-name")).toBeVisible();
+  // Files are the designer's job; the balance is not their business.
+  await expect(page.getByTestId("customer-account")).toHaveCount(0);
+  await expect(page.getByTestId("customer-debt")).toHaveCount(0);
+  await expect(page.getByTestId("customer-orders")).toHaveCount(0);
+  await expect(page.getByTestId("customer-publications")).toBeVisible();
+});
+
+test("מנהלת חשבונות רואה את הכסף ולא את הקבצים (FR-8)", async ({ page }) => {
+  await login(page, USERS.accounting);
+  await page.goto(`/customers/${CUSTOMERS.alphaRegular}`);
+
+  await expect(page.getByTestId("customer-account")).toBeVisible();
+  await expect(page.getByTestId("customer-orders")).toBeVisible();
+  // accounting has no access to artwork anywhere, this screen included.
+  await expect(page.getByTestId("customer-ads")).toHaveCount(0);
+});

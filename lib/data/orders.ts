@@ -55,8 +55,12 @@ export async function getOrder(businessId: string, id: string) {
       publications: {
         orderBy: { publication_date: "asc" },
         include: {
-          newspaper: { select: { name: true } },
+          // max_ad_file_size comes along because the order screen offers an
+          // upload per publication, and each row must state the ceiling that
+          // will actually be enforced on it (FR-21).
+          newspaper: { select: { id: true, name: true, max_ad_file_size: true } },
           ad_shape: { select: { name: true, cols: true, rows: true } },
+          advertisement: { select: { id: true, name: true } },
         },
       },
     },

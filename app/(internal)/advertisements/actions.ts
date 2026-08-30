@@ -7,7 +7,7 @@ import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import * as data from "@/lib/data/advertisements";
 import { smallestLimit, type AdFileType, type SizeLimit } from "@/lib/domain/ad-file";
 import { afterRevert, afterReplace, orphanedByReplace } from "@/lib/domain/ad-version";
-import { refuseLink } from "@/lib/domain/ad-link";
+import { LINKABLE_STATUSES, refuseLink } from "@/lib/domain/ad-link";
 import { afterAdLinked, transition, type PublicationStatus } from "@/lib/domain/publication-status";
 import { adKey, adRevisionKey, putObject, removeObject } from "@/lib/storage/minio";
 import { inspectAdFile, renderPreview, storeAdFile } from "@/lib/storage/upload";
@@ -32,6 +32,12 @@ async function limitFor(businessId: string, newspaperId: string | null): Promise
 const uploadSchema = z.object({
   newspaperId: z.string().nullable(),
   customerId: z.string().nullable(),
+  /**
+   * Set when the upload started from a publication rather than from the
+   * library. It decides the customer and the newspaper by itself, and the file
+   * is linked the moment it passes validation.
+   */
+  publicationId: z.string().nullable(),
 });
 
 function readFile(formData: FormData): File | null {
@@ -49,16 +55,39 @@ export async function uploadAdvertisementAction(
   const parsed = uploadSchema.safeParse({
     newspaperId: emptyToNull(formData.get("newspaperId")),
     customerId: emptyToNull(formData.get("customerId")),
+    publicationId: emptyToNull(formData.get("publicationId")),
   });
   if (!parsed.success) return { message: "הטופס לא נשלח כראוי" };
 
   const file = readFile(formData);
   if (!file) return { message: "לא נבחר קובץ" };
 
-  const limit = await limitFor(ctx.businessId, parsed.data.newspaperId);
+  // --- uploading INTO a publication ---------------------------------------
+  //
+  // The publication decides both things the library form has to ask about, so
+  // whatever the browser submitted for customer or newspaper is ignored here:
+  // a file uploaded onto a publication cannot end up on another customer, and
+  // it is measured against the newspaper it will actually be printed in.
+  let target: Awaited<ReturnType<typeof data.getPublicationUploadTarget>> = null;
+  if (parsed.data.publicationId) {
+    target = await data.getPublicationUploadTarget(ctx.businessId, parsed.data.publicationId);
+    if (!target) return { message: "הפרסום לא נמצא" };
+    if (target.advertisementId) {
+      return { message: "לפרסום כבר משויכת מודעה. יש לנתק אותה לפני העלאת קובץ אחר" };
+    }
+    if (!LINKABLE_STATUSES.includes(target.status as PublicationStatus)) {
+      return { message: "הפרסום אינו במצב שמאפשר שיוך מודעה" };
+    }
+  }
+
+  const limit = target
+    ? { maxBytes: target.newspaper.maxAdFileSize, newspaperName: target.newspaper.name }
+    : await limitFor(ctx.businessId, parsed.data.newspaperId);
   if (!limit) {
     return { message: "אין עדיין עיתון מוגדר בעסק, ולכן אין מגבלת גודל לבדוק מולה" };
   }
+
+  const customerId = target ? target.customerId : parsed.data.customerId;
 
   // Steps 1–4. `file.size` is the declared length, so an oversized file is
   // refused before its bytes are read into memory.
@@ -78,7 +107,7 @@ export async function uploadAdvertisementAction(
   const fileType: AdFileType = inspected.ok ? inspected.file.fileType : inspected.fileType!;
 
   const ad = await data.createPendingAdvertisement(ctx.businessId, {
-    customerId: parsed.data.customerId,
+    customerId,
     uploadedByUserId: ctx.userId,
     name: file.name,
     fileType,
@@ -120,6 +149,18 @@ export async function uploadAdvertisementAction(
       originalFileUrl: key,
       previewUrl: previewKey,
     });
+
+    // Uploading onto a publication is one act, not two: the file is linked
+    // here rather than left in the library for someone to remember to attach.
+    // The status still moves through the machine and nowhere else (FR-5).
+    if (target) {
+      const next = afterAdLinked(target.status as PublicationStatus, {
+        validationPassed: true,
+        belongsToCustomer: true,
+      });
+      await data.attachAdToPublication(ctx.businessId, target.id, ad.id, next);
+      revalidatePath("/publications");
+    }
   } catch (error) {
     // The bytes never landed, so the row must not survive to claim they did.
     await data.deleteAdvertisement(ctx.businessId, ad.id).catch(() => {});

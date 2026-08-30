@@ -10,6 +10,7 @@ import type { PublicationStatus } from "@/lib/domain/publication-status";
 import { Ltr } from "@/components/ui/ltr";
 import { OrderStatusBadge, PublicationStatusBadge, SourceBadge } from "../order-badges";
 import { formatDate, formatMoney, orderNumber } from "../format";
+import { LinkAdCell } from "../../publications/link-ad";
 import { LineBuilder } from "./line-builder";
 import { OrderActions } from "./order-actions";
 
@@ -30,6 +31,9 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const papers = mayEdit ? await orderFormOptions(ctx.businessId) : [];
 
   const approved = order.publications.length > 0;
+  // The artwork column belongs to whoever may touch files, which is not the
+  // same set as whoever may read the order (FR-8).
+  const mayAttachAds = canWriteArea(ctx, "advertisements");
 
   return (
     <>
@@ -127,6 +131,11 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                   <th className="p-3 text-start font-semibold">צורה</th>
                   <th className="p-3 text-start font-semibold">מחיר</th>
                   {approved ? <th className="p-3 text-start font-semibold">סטטוס</th> : null}
+                  {approved && mayAttachAds ? (
+                    <th className="p-3 text-start font-semibold" data-testid="col-order-ad">
+                      מודעה
+                    </th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
@@ -147,6 +156,23 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                         <td className="p-3">
                           <PublicationStatusBadge status={p.status as PublicationStatus} />
                         </td>
+                        {mayAttachAds ? (
+                          <td className="p-3">
+                            <LinkAdCell
+                              publicationId={p.id}
+                              linked={p.advertisement}
+                              // Deliberately empty: on the order screen the act
+                              // is "the customer sent me this file for this
+                              // slot". Re-using an existing file is the library's
+                              // job, and it is one click away on the row.
+                              options={[]}
+                              limit={{
+                                newspaperName: p.newspaper.name,
+                                maxBytes: p.newspaper.max_ad_file_size,
+                              }}
+                            />
+                          </td>
+                        ) : null}
                       </tr>
                     ))
                   : order.items.map((i) => (

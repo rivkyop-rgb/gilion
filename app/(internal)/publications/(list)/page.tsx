@@ -69,6 +69,10 @@ export default async function PublicationsPage({
   }
   const adNameById = new Map(ads.map((a) => [a.id, a.name]));
 
+  // Each row states ITS OWN newspaper's ceiling, because that is the one the
+  // upload will actually be measured against (FR-21).
+  const limitByNewspaper = new Map(papers.map((n) => [n.id, n.max_ad_file_size]));
+
   return (
     <>
       <h1 className="mb-1 font-serif text-3xl font-semibold">פרסומים</h1>
@@ -231,6 +235,10 @@ export default async function PublicationsPage({
                               : null
                           }
                           options={adsByCustomer.get(p.customer_id) ?? []}
+                          limit={{
+                            newspaperName: p.newspaper.name,
+                            maxBytes: limitByNewspaper.get(p.newspaper_id) ?? 0,
+                          }}
                         />
                       </td>
                     ) : null}

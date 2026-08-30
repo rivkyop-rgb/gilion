@@ -1,52 +1,77 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useActionState, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Link2, Link2Off } from "lucide-react";
+import { Link2, Link2Off, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Ltr } from "@/components/ui/ltr";
 import { InlineError } from "@/components/states";
+import { AD_ACCEPT_ATTRIBUTE, formatBytes } from "@/lib/domain/ad-file";
 import {
   linkAdToPublicationAction,
   unlinkAdFromPublicationAction,
+  uploadAdvertisementAction,
+  type AdFormState,
 } from "../advertisements/actions";
 
 export type AdOption = { id: string; name: string };
 
 /**
- * Linking from the OTHER direction (stage 05 §מסכים, item 4).
+ * Attaching artwork from the PUBLICATION side.
  *
- * The same two actions the ad-detail screen calls — a designer working down a
- * list of publications should not have to go find the file first, and a
- * salesperson holding a file should not have to go find the publication. Two
- * entry points, one server rule.
+ * Two ways in, because the work arrives both ways: sometimes the file is
+ * already in the library and needs pointing at a publication, and sometimes
+ * the customer just emailed it and the person is looking straight at the
+ * publication it belongs to. Making the second case go "library → upload →
+ * find the customer → come back → link" is four steps for what is one act.
+ *
+ * The upload form carries no customer and no newspaper field on purpose: the
+ * publication already answers both, and the server takes them from it rather
+ * than from anything the browser sent.
  */
 export function LinkAdCell({
   publicationId,
   linked,
   options,
+  limit,
 }: {
   publicationId: string;
   linked: { id: string; name: string } | null;
   options: AdOption[];
+  /** The publication's own newspaper ceiling, shown before a file is chosen. */
+  limit: { newspaperName: string; maxBytes: number };
 }) {
-  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"idle" | "pick" | "upload">("idle");
   const [error, setError] = useState<string | null>(null);
   const [busy, start] = useTransition();
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
 
-  const run = (fn: () => Promise<{ message?: string }>) => {
+  const run = (fn: () => Promise<AdFormState>) => {
     setError(null);
     start(async () => {
       const result = await fn();
       if (result?.message) setError(result.message);
       else {
-        setOpen(false);
+        setMode("idle");
         router.refresh();
       }
     });
   };
+
+  const [uploadState, uploadAction, uploading] = useActionState<AdFormState, FormData>(
+    async (prev, formData) => {
+      const next = await uploadAdvertisementAction(prev, formData);
+      if (next.ok && !next.message) {
+        setMode("idle");
+        router.refresh();
+      }
+      return next;
+    },
+    {},
+  );
 
   if (linked) {
     return (
@@ -73,23 +98,76 @@ export function LinkAdCell({
     );
   }
 
-  if (options.length === 0) {
-    return <span className="text-xs text-on-surface-variant">אין מודעה זמינה</span>;
-  }
-
   return (
     <div className="relative">
-      <Button
-        variant="secondary"
-        size="sm"
-        data-testid={`row-link-${publicationId}`}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <Link2 className="size-4" />
-        שיוך מודעה
-      </Button>
+      <div className="flex gap-1">
+        <Button
+          variant="primary"
+          size="sm"
+          data-testid={`row-upload-${publicationId}`}
+          onClick={() => setMode((m) => (m === "upload" ? "idle" : "upload"))}
+        >
+          <Upload className="size-4" />
+          העלאה
+        </Button>
+        {options.length > 0 ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            data-testid={`row-link-${publicationId}`}
+            onClick={() => setMode((m) => (m === "pick" ? "idle" : "pick"))}
+          >
+            <Link2 className="size-4" />
+            מודעה קיימת
+          </Button>
+        ) : null}
+      </div>
 
-      {open ? (
+      {mode === "upload" ? (
+        <form
+          ref={formRef}
+          action={uploadAction}
+          data-testid={`row-upload-form-${publicationId}`}
+          className="absolute z-20 mt-1 w-72 rounded-sm border border-outline-variant bg-surface-container-lowest p-3 shadow-lg"
+        >
+          {/* The only field the server reads besides the file itself. */}
+          <input type="hidden" name="publicationId" value={publicationId} />
+          <p className="mb-2 text-xs text-on-surface-variant">
+            הקובץ ישויך ללקוח של הפרסום ויחובר אליו מיד.
+          </p>
+          <input
+            type="file"
+            name="file"
+            data-testid={`row-upload-file-${publicationId}`}
+            accept={AD_ACCEPT_ATTRIBUTE}
+            className="w-full text-xs file:me-3 file:rounded-sm file:border-0 file:bg-surface-container file:px-2 file:py-1.5 file:text-xs"
+          />
+          <p className="mt-2 text-xs text-on-surface-variant">
+            PDF, JPG, PNG · עד <Ltr className="font-mono">{formatBytes(limit.maxBytes)}</Ltr> (
+            {limit.newspaperName})
+          </p>
+          {uploadState.message ? (
+            <div className="mt-2">
+              <InlineError>{uploadState.message}</InlineError>
+            </div>
+          ) : null}
+          <div className="mt-3 flex gap-2">
+            <Button
+              type="submit"
+              size="sm"
+              disabled={uploading}
+              data-testid={`row-upload-submit-${publicationId}`}
+            >
+              {uploading ? "מעלה…" : "העלאה ושיוך"}
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setMode("idle")}>
+              ביטול
+            </Button>
+          </div>
+        </form>
+      ) : null}
+
+      {mode === "pick" ? (
         <ul
           data-testid={`row-link-list-${publicationId}`}
           className="absolute z-20 mt-1 max-h-56 w-64 overflow-y-auto rounded-sm border border-outline-variant bg-surface-container-lowest py-1 shadow-lg"
@@ -110,6 +188,7 @@ export function LinkAdCell({
           ))}
         </ul>
       ) : null}
+
       {error ? <InlineError>{error}</InlineError> : null}
     </div>
   );

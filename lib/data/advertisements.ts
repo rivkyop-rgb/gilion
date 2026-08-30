@@ -249,6 +249,40 @@ export async function getPublicationForLink(businessId: string, publicationId: s
 }
 
 /**
+ * A publication as an UPLOAD TARGET.
+ *
+ * Uploading into a publication answers both questions the standalone upload
+ * form has to ask: the customer is the publication's customer, and the size
+ * limit is its newspaper's (FR-21). Neither is a choice at that point, so
+ * neither is offered — an upload started from here cannot land on the wrong
+ * customer or be measured against the wrong newspaper.
+ */
+export async function getPublicationUploadTarget(businessId: string, publicationId: string) {
+  const row = await tenantDb(businessId).publication.findUnique({
+    where: { id: publicationId },
+    select: {
+      id: true,
+      customer_id: true,
+      status: true,
+      advertisement_id: true,
+      newspaper: { select: { id: true, name: true, max_ad_file_size: true } },
+    },
+  });
+  if (!row) return null;
+  return {
+    id: row.id,
+    customerId: row.customer_id,
+    status: row.status,
+    advertisementId: row.advertisement_id,
+    newspaper: {
+      id: row.newspaper.id,
+      name: row.newspaper.name,
+      maxAdFileSize: row.newspaper.max_ad_file_size,
+    },
+  };
+}
+
+/**
  * Attaching and detaching, as ONE write each.
  *
  * `status` is passed in already computed by lib/domain/publication-status.ts —

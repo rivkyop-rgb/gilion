@@ -42,6 +42,20 @@ export const PUBLICATION_TONE: Record<PublicationStatus, Tone> = {
   billed: "debt",
 };
 
+/**
+ * Four payment states, four colours — and `paid` is the only green one.
+ *
+ * `partially_paid` sits with the warnings rather than with the successes on
+ * purpose: money that is half in is money still owed, and painting it green
+ * is how a balance stops being read.
+ */
+export const PAYMENT_TONE: Record<"unpaid" | "partially_paid" | "paid" | "debt", Tone> = {
+  unpaid: "neutral",
+  partially_paid: "warning",
+  paid: "success",
+  debt: "debt",
+};
+
 /** The filled swatch — badges, and the selected filter chip. */
 export const TONE_SOLID: Record<Tone, string> = {
   success: "bg-status-success-bg text-status-success-fg",

@@ -1,0 +1,113 @@
+import { expect, test, type Page } from "@playwright/test";
+
+import { loginAsAdmin } from "./helpers";
+import { validPdf } from "./ad-fixtures";
+import { pngOfRoughly } from "./ad-fixtures";
+
+/**
+ * Uploading INTO a publication — the direction the library flow does not
+ * cover.
+ *
+ * Going "library → upload → pick the customer → find the publication → link"
+ * is four steps for one act, and every one of them is a chance to attach the
+ * file to the wrong customer. Started from the publication, neither the
+ * customer nor the newspaper is a choice at all.
+ */
+async function approvedOrder(page: Page, dates: string[]): Promise<string> {
+  await page.goto("/orders/new");
+  await page.getByTestId("order-customer").click();
+  await page.getByTestId("order-customer-list").getByRole("option").first().click();
+  await page.getByTestId("create-order").click();
+  await page.waitForURL(/\/orders\/c[a-z0-9]{20,}$/);
+  const id = new URL(page.url()).pathname.split("/").pop()!;
+
+  for (const [index, date] of dates.entries()) {
+    await page.getByTestId("line-date").fill(date);
+    await page.getByTestId("line-price").fill("1000");
+    const warning = page.getByTestId("off-schedule-warning");
+    if (await warning.isVisible()) await page.getByTestId("confirm-special-edition").check();
+    await expect(page.getByTestId("add-line")).toBeEnabled();
+    await page.getByTestId("add-line").click();
+    await expect(page.locator('[data-testid="order-lines"] tbody tr')).toHaveCount(index + 1);
+  }
+
+  await page.getByTestId("submit-order").click();
+  await page.getByTestId("approve-order").click();
+  await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
+  return `ORD-${id.slice(-6).toUpperCase()}`;
+}
+
+test("העלאת קובץ ישירות מהפרסום משייכת ללקוח ומחברת בצעד אחד", async ({ page }) => {
+  test.slow();
+  await loginAsAdmin(page);
+
+  const stamp = Date.now();
+  const orderRef = await approvedOrder(page, ["2026-12-01"]);
+
+  await page.goto("/publications");
+  const row = page.locator("tbody tr").filter({ hasText: orderRef }).first();
+  const id = (await row.getAttribute("data-testid"))!.replace("publication-row-", "");
+
+  // The row states the ceiling of ITS OWN newspaper before a file is picked.
+  await page.getByTestId(`row-upload-${id}`).click();
+  await expect(page.getByTestId(`row-upload-form-${id}`)).toContainText("10 MB");
+  await expect(page.getByTestId(`row-upload-form-${id}`)).toContainText("עיתון השבוע");
+
+  const file = await validPdf(`from-publication-${stamp}.pdf`);
+  await page.getByTestId(`row-upload-file-${id}`).setInputFiles(file);
+  await page.getByTestId(`row-upload-submit-${id}`).click();
+
+  // One act: uploaded, assigned to the publication's customer, and linked —
+  // so the state machine takes it straight to ready_for_layout.
+  await expect(page.locator(`[data-testid="publication-row-${id}"]`)).toContainText("מוכן לשיבוץ");
+  await expect(page.locator(`[data-testid="publication-row-${id}"]`)).toContainText(file.name);
+
+  // And it is a normal library file, with a customer — never an orphan.
+  await page.goto("/advertisements");
+  const card = page.locator('[data-testid^="ad-card-"]').filter({ hasText: file.name }).first();
+  await expect(card).toBeVisible();
+  await expect(card).not.toContainText("ללא לקוח");
+});
+
+test("העלאה מהפרסום נמדדת מול העיתון של אותו פרסום", async ({ page }) => {
+  test.slow();
+  await loginAsAdmin(page);
+
+  // The catalogue newspaper allows 5 MB where the weekly allows 10 (FR-21).
+  await page.goto("/orders/new");
+  await page.getByTestId("order-customer").click();
+  await page.getByTestId("order-customer-list").getByRole("option").first().click();
+  await page.getByTestId("create-order").click();
+  await page.waitForURL(/\/orders\/c[a-z0-9]{20,}$/);
+  const id = new URL(page.url()).pathname.split("/").pop()!;
+
+  await page.getByTestId("line-newspaper").selectOption({ label: "קטלוג המרכז" });
+  await page.getByTestId("line-date").fill("2026-12-03");
+  await page.getByTestId("line-price").fill("1000");
+  const warning = page.getByTestId("off-schedule-warning");
+  if (await warning.isVisible()) await page.getByTestId("confirm-special-edition").check();
+  await expect(page.getByTestId("add-line")).toBeEnabled();
+  await page.getByTestId("add-line").click();
+  await expect(page.locator('[data-testid="order-lines"] tbody tr')).toHaveCount(1);
+
+  await page.getByTestId("submit-order").click();
+  await page.getByTestId("approve-order").click();
+  await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
+
+  const orderRef = `ORD-${id.slice(-6).toUpperCase()}`;
+  await page.goto("/publications");
+  const row = page.locator("tbody tr").filter({ hasText: orderRef }).first();
+  const pubId = (await row.getAttribute("data-testid"))!.replace("publication-row-", "");
+
+  await page.getByTestId(`row-upload-${pubId}`).click();
+  await expect(page.getByTestId(`row-upload-form-${pubId}`)).toContainText("5 MB");
+
+  // 8 MB passes on the weekly and must be refused here, with that newspaper named.
+  const tooBig = await pngOfRoughly(8, `eight-for-catalogue-${Date.now()}.png`);
+  await page.getByTestId(`row-upload-file-${pubId}`).setInputFiles(tooBig);
+  await page.getByTestId(`row-upload-submit-${pubId}`).click();
+
+  const error = page.getByTestId("form-error");
+  await expect(error).toContainText("קטלוג המרכז");
+  await expect(error).toContainText("5 MB");
+});
