@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { KeyRound, Newspaper, Shapes, Users } from "lucide-react";
+import { BellRing, KeyRound, Newspaper, Shapes, Users } from "lucide-react";
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 
 export const metadata: Metadata = { title: "הגדרות · Gilion" };
@@ -23,6 +23,12 @@ const SECTIONS = [
     icon: Newspaper,
     title: "עיתונים",
     body: "גודל עמוד, שוליים, חלוקת העמוד לגריד, סוגי עמודים, צורות פרסום ומחירון.",
+  },
+  {
+    href: "/settings/reminders",
+    icon: BellRing,
+    title: "תזכורות",
+    body: "כמה ימים לפני הפרסום להתחיל להזכיר ללקוח שחסרה מודעה.",
   },
   {
     href: "/settings/ad-shapes",

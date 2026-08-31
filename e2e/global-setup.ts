@@ -47,6 +47,7 @@ export default async function globalSetup() {
   }
 
   await deleteTestAdvertisements(prisma);
+  await deleteTestOrders(prisma);
   await deleteTestCustomers(prisma);
   await deleteTestNewspapers(prisma);
   await deleteTestBusinesses(prisma);
@@ -54,6 +55,7 @@ export default async function globalSetup() {
   await clearPermissionOverrides(prisma);
   await restoreSeededMemberships(prisma);
   await resetShapeCatalogue(prisma);
+  await resetReminderWindow(prisma);
 
   await prisma.$disconnect();
 }
@@ -73,6 +75,11 @@ async function deleteTestAdvertisements(prisma: PrismaClient) {
   const ads = await prisma.advertisement.findMany({ select: { id: true, business_id: true } });
   if (ads.length === 0) return;
 
+  // The order-level artwork points at the same rows.
+  await prisma.adOrder.updateMany({
+    where: { advertisement_id: { not: null } },
+    data: { advertisement_id: null },
+  });
   await prisma.publication.updateMany({
     where: { advertisement_id: { not: null } },
     data: { advertisement_id: null, status: "missing_ad" },
@@ -109,6 +116,38 @@ async function clearAdObjects(businessIds: string[]) {
 }
 
 /**
+ * Puts the reminder window back to the seeded default.
+ *
+ * reminders-flow.spec.ts widens it to 30 days to prove the setting works and
+ * sets it back — but a run that fails in between leaves every business
+ * chasing customers a month out, and the next run then measures a window
+ * nobody chose. Same reasoning as the permission overrides below.
+ */
+async function resetReminderWindow(prisma: PrismaClient) {
+  await prisma.business.updateMany({ data: { reminder_days_before: 7 } });
+  await prisma.reminder.deleteMany({});
+}
+
+/**
+ * Removes every order and publication.
+ *
+ * prisma/seed.ts creates NONE of either — every one of them was made by a
+ * spec — so the honest starting state is empty. Left behind they accumulate
+ * without bound, and the symptom is subtle rather than slow: the reminder list
+ * is sorted by publication date, so a leftover row from an earlier run sits
+ * ABOVE the one the current spec just created, and "the first row" stops
+ * meaning what the spec thinks it means.
+ *
+ * Reminders and payments cascade or are cleared alongside; AdOrderItem
+ * cascades from AdOrder.
+ */
+async function deleteTestOrders(prisma: PrismaClient) {
+  await prisma.reminder.deleteMany({});
+  await prisma.publication.deleteMany({});
+  await prisma.adOrder.deleteMany({});
+}
+
+/**
  * Removes customers the specs created, and the orders and publications behind
  * them.
  *
@@ -119,8 +158,8 @@ async function clearAdObjects(businessIds: string[]) {
  * page one and those specs fail with "element not found". That reads exactly
  * like a broken screen and is not one.
  *
- * The order is the foreign keys: Customer is Restrict from both AdOrder and
- * Publication, so the history goes first. AdOrderItem cascades from AdOrder.
+ * Customer is Restrict from both AdOrder and Publication, which is why
+ * deleteTestOrders runs before this one.
  */
 async function deleteTestCustomers(prisma: PrismaClient) {
   const strays = await prisma.customer.findMany({
@@ -129,10 +168,9 @@ async function deleteTestCustomers(prisma: PrismaClient) {
   });
   if (strays.length === 0) return;
 
-  const ids = strays.map((c) => c.id);
-  await prisma.publication.deleteMany({ where: { customer_id: { in: ids } } });
-  await prisma.adOrder.deleteMany({ where: { customer_id: { in: ids } } });
-  await prisma.customer.deleteMany({ where: { id: { in: ids } } });
+  // Orders and publications are already gone — deleteTestOrders clears every
+  // one of them, for every customer, just above.
+  await prisma.customer.deleteMany({ where: { id: { in: strays.map((c) => c.id) } } });
 }
 
 /**

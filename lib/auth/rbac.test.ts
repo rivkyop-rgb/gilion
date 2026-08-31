@@ -56,6 +56,15 @@ const EXPECTED: Record<Area, Record<Role, Access>> = {
     accounting: "none",
     customer: "none",
   },
+  // Chasing customers for artwork: the designer must SEE the list, because
+  // their day depends on it, but making the call is not their job.
+  reminders: {
+    admin: "write",
+    sales: "write",
+    designer: "read",
+    accounting: "none",
+    customer: "none",
+  },
   issues: {
     admin: "write",
     sales: "read",

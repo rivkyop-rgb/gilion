@@ -313,6 +313,77 @@ export async function detachAdFromPublication(
 }
 
 /**
+ * An order as an UPLOAD TARGET, for artwork that arrived with the order.
+ *
+ * The order fixes the customer. It does NOT fix one newspaper — a single order
+ * may run in several — so the ceiling is the strictest among the newspapers it
+ * actually uses (FR-21). Accepting anything looser would take a file that one
+ * of the order's own lines could never print.
+ */
+export async function getOrderUploadTarget(businessId: string, orderId: string) {
+  const row = await tenantDb(businessId).adOrder.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      customer_id: true,
+      status: true,
+      advertisement_id: true,
+      items: {
+        select: { newspaper: { select: { name: true, max_ad_file_size: true } } },
+      },
+    },
+  });
+  if (!row) return null;
+
+  const papers = row.items.map((i) => i.newspaper);
+  const strictest =
+    papers.length > 0
+      ? papers.reduce((a, b) => (b.max_ad_file_size < a.max_ad_file_size ? b : a))
+      : null;
+
+  return {
+    id: row.id,
+    customerId: row.customer_id,
+    status: row.status as string,
+    advertisementId: row.advertisement_id,
+    /** Only while nothing binding has come out of it yet. */
+    editable: row.status === "draft" || row.status === "pending_approval",
+    limit: strictest
+      ? { maxBytes: strictest.max_ad_file_size, newspaperName: strictest.name }
+      : null,
+  };
+}
+
+export async function setOrderAdvertisement(
+  businessId: string,
+  orderId: string,
+  adId: string | null,
+) {
+  return tenantDb(businessId).adOrder.update({
+    where: { id: orderId },
+    data: { advertisement_id: adId },
+  });
+}
+
+/**
+ * Every publication of this ad's customer that could still take it.
+ *
+ * Powers "attach to all open publications", which is the answer to the most
+ * common real request: one file, several dates. Doing it one row at a time is
+ * the same act repeated, and repetition is where a row gets missed.
+ */
+export async function openPublicationsForAd(businessId: string, customerId: string) {
+  return tenantDb(businessId).publication.findMany({
+    where: {
+      customer_id: customerId,
+      status: { in: ["planned", "missing_ad"] },
+      advertisement_id: null,
+    },
+    select: { id: true, status: true },
+  });
+}
+
+/**
  * Whether an issue currently locks this ad (rules 11 and 12).
  *
  * Placement and Issue arrive in stage 06; until then nothing can lock an ad,

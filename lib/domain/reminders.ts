@@ -1,0 +1,117 @@
+/**
+ * Which publications need the customer chased for artwork (FR-11).
+ *
+ * Pure — no Prisma, no dates from the environment beyond the one passed in.
+ * That is what lets "does a publication three days out with no file need a
+ * reminder?" be a test rather than a thing to try in the UI.
+ *
+ * The rule the MVP fixes, and the screen states out loud: NOTHING IS SENT
+ * AUTOMATICALLY. This module decides who belongs on a list; a person decides
+ * what to do about it.
+ */
+
+export const REMINDER_STATUSES = ["needed", "approved_to_send", "sent", "failed"] as const;
+export type ReminderStatus = (typeof REMINDER_STATUSES)[number];
+
+export const REMINDER_STATUS_LABELS: Record<ReminderStatus, string> = {
+  needed: "נדרשת",
+  approved_to_send: "אושרה לשליחה",
+  sent: "נשלחה",
+  failed: "נכשלה",
+};
+
+/** Validation rule 4: a window outside this is a typo, not a policy. */
+export const MIN_REMINDER_DAYS = 1;
+export const MAX_REMINDER_DAYS = 60;
+
+export function validateReminderDays(days: number): string | null {
+  if (!Number.isInteger(days)) return "מספר הימים חייב להיות מספר שלם";
+  if (days < MIN_REMINDER_DAYS || days > MAX_REMINDER_DAYS) {
+    return `מספר הימים חייב להיות בין ${MIN_REMINDER_DAYS} ל־${MAX_REMINDER_DAYS}`;
+  }
+  return null;
+}
+
+/**
+ * Statuses that mean "this publication is still waiting for artwork".
+ *
+ * `ad_received` is absent on purpose: a file has arrived, even if it is not
+ * yet placeable, and chasing the customer for something they already sent is
+ * the fastest way to make them stop trusting the reminders.
+ */
+const WAITING_FOR_ARTWORK: readonly string[] = ["planned", "missing_ad"];
+
+export type ReminderCandidate = {
+  publicationId: string;
+  customerId: string;
+  publicationDate: Date;
+  status: string;
+  hasAdvertisement: boolean;
+};
+
+/**
+ * Whole days from `today` to the publication date, in the publisher's own
+ * calendar sense: both are flattened to midnight first, so "tomorrow" is 1
+ * whether it is now 09:00 or 23:50.
+ */
+export function daysUntil(publicationDate: Date, today: Date): number {
+  const a = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const b = Date.UTC(
+    publicationDate.getUTCFullYear(),
+    publicationDate.getUTCMonth(),
+    publicationDate.getUTCDate(),
+  );
+  return Math.round((b - a) / 86_400_000);
+}
+
+/**
+ * Rule 5: a reminder is due only when ALL THREE hold — inside the window,
+ * without artwork, and not cancelled.
+ *
+ * A date that has already passed still counts. The deadline being missed is
+ * not a reason to stop asking; it is the reason the row should be shouting.
+ */
+export function needsReminder(
+  candidate: ReminderCandidate,
+  windowDays: number,
+  today: Date,
+): boolean {
+  if (candidate.hasAdvertisement) return false;
+  if (!WAITING_FOR_ARTWORK.includes(candidate.status)) return false;
+  return daysUntil(candidate.publicationDate, today) <= windowDays;
+}
+
+export function dueReminders(
+  candidates: ReminderCandidate[],
+  windowDays: number,
+  today: Date,
+): ReminderCandidate[] {
+  return candidates.filter((c) => needsReminder(c, windowDays, today));
+}
+
+/**
+ * Rule 7: artwork arriving clears the reminder.
+ *
+ * Expressed as a question about one publication rather than as a side effect
+ * somewhere in the link action, so both call sites — linking a file and
+ * refreshing the list — agree without either knowing about the other.
+ */
+export function reminderResolved(candidate: ReminderCandidate): boolean {
+  return candidate.hasAdvertisement || !WAITING_FOR_ARTWORK.includes(candidate.status);
+}
+
+/** How the row reads its urgency. Under three days the list shouts. */
+export const URGENT_DAYS = 3;
+
+export function urgency(days: number): "overdue" | "urgent" | "soon" {
+  if (days < 0) return "overdue";
+  if (days <= URGENT_DAYS) return "urgent";
+  return "soon";
+}
+
+export function daysLabel(days: number): string {
+  if (days < 0) return `עבר לפני ${Math.abs(days)} ימים`;
+  if (days === 0) return "היום";
+  if (days === 1) return "מחר";
+  return `בעוד ${days} ימים`;
+}

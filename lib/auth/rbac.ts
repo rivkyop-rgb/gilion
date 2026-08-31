@@ -19,6 +19,7 @@ export const AREAS = [
   "orders",
   "publications",
   "advertisements",
+  "reminders",
   "issues",
   "pdf",
   "billing",
@@ -74,6 +75,21 @@ const MATRIX: Record<Area, Record<Role, Access>> = {
     admin: "write",
     sales: "write",
     designer: "write",
+    accounting: "none",
+    customer: "none",
+  },
+  /**
+   * Chasing customers for artwork (FR-11).
+   *
+   * Its own area rather than a corner of `publications`, because the audience
+   * differs: a designer needs to SEE who has not sent a file — it is what
+   * their day depends on — but chasing the customer is not their job, and
+   * accounting has no part in it at all.
+   */
+  reminders: {
+    admin: "write",
+    sales: "write",
+    designer: "read",
     accounting: "none",
     customer: "none",
   },

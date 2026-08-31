@@ -2,7 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { History, Link2, Link2Off, Replace, Search, UserPlus } from "lucide-react";
+import { History, Layers, Link2, Link2Off, Replace, Search, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
@@ -13,6 +13,7 @@ import { AD_ACCEPT_ATTRIBUTE } from "@/lib/domain/ad-file";
 import {
   archiveAdAction,
   assignAdToCustomerAction,
+  linkAdToAllPublicationsAction,
   linkAdToPublicationAction,
   replaceAdFileAction,
   revertToPreviousAction,
@@ -246,10 +247,26 @@ export function LinkPublication({
 
   return (
     <div>
-      <Button size="sm" data-testid="open-link" onClick={() => setOpen((v) => !v)}>
-        <Link2 className="size-4" />
-        שיוך לפרסום
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" data-testid="open-link" onClick={() => setOpen((v) => !v)}>
+          <Link2 className="size-4" />
+          שיוך לפרסום
+        </Button>
+
+        {/* One file, every open date — the request this system hears most. */}
+        {options.length > 1 ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={busy}
+            data-testid="link-all-publications"
+            onClick={() => run(() => linkAdToAllPublicationsAction(adId))}
+          >
+            <Layers className="size-4" />
+            שיוך לכל {options.length} הפרסומים הפתוחים
+          </Button>
+        ) : null}
+      </div>
 
       {open ? (
         <div

@@ -307,6 +307,7 @@ export async function approveOrderAction(orderId: string): Promise<FormState> {
           business_id: order.business_id,
           customer_id: order.customer_id,
           source: order.source,
+          advertisement_id: order.advertisement_id,
         },
         order.items,
       );

@@ -9,6 +9,7 @@ import { smallestLimit, type AdFileType, type SizeLimit } from "@/lib/domain/ad-
 import { afterRevert, afterReplace, orphanedByReplace } from "@/lib/domain/ad-version";
 import { LINKABLE_STATUSES, refuseLink } from "@/lib/domain/ad-link";
 import { afterAdLinked, transition, type PublicationStatus } from "@/lib/domain/publication-status";
+import { clearReminderFor } from "@/lib/data/reminders";
 import { adKey, adRevisionKey, putObject, removeObject } from "@/lib/storage/minio";
 import { inspectAdFile, renderPreview, storeAdFile } from "@/lib/storage/upload";
 
@@ -38,6 +39,14 @@ const uploadSchema = z.object({
    * is linked the moment it passes validation.
    */
   publicationId: z.string().nullable(),
+  /**
+   * Set when the upload started from an ORDER that is still a draft.
+   *
+   * There are no publications to attach to yet, so the file is attached to the
+   * order and every publication approval creates inherits it. That is the
+   * common case in practice: one advertisement, several dates.
+   */
+  orderId: z.string().nullable(),
 });
 
 function readFile(formData: FormData): File | null {
@@ -56,6 +65,7 @@ export async function uploadAdvertisementAction(
     newspaperId: emptyToNull(formData.get("newspaperId")),
     customerId: emptyToNull(formData.get("customerId")),
     publicationId: emptyToNull(formData.get("publicationId")),
+    orderId: emptyToNull(formData.get("orderId")),
   });
   if (!parsed.success) return { message: "הטופס לא נשלח כראוי" };
 
@@ -80,14 +90,34 @@ export async function uploadAdvertisementAction(
     }
   }
 
+  // --- uploading onto a DRAFT ORDER ---------------------------------------
+  //
+  // The order names its customer, so that is settled the same way it is for a
+  // publication. The newspaper is not settled — one order may span several —
+  // so the strictest ceiling among the newspapers the order actually uses is
+  // what applies. Anything looser would accept a file that one of its own
+  // lines could never print.
+  let orderTarget: Awaited<ReturnType<typeof data.getOrderUploadTarget>> = null;
+  if (!target && parsed.data.orderId) {
+    orderTarget = await data.getOrderUploadTarget(ctx.businessId, parsed.data.orderId);
+    if (!orderTarget) return { message: "ההזמנה לא נמצאה" };
+    if (!orderTarget.editable) {
+      return { message: "אפשר לצרף מודעה להזמנה רק כל עוד היא טיוטה או ממתינה לאישור" };
+    }
+  }
+
   const limit = target
     ? { maxBytes: target.newspaper.maxAdFileSize, newspaperName: target.newspaper.name }
-    : await limitFor(ctx.businessId, parsed.data.newspaperId);
+    : orderTarget?.limit
+      ? orderTarget.limit
+      : await limitFor(ctx.businessId, parsed.data.newspaperId);
   if (!limit) {
     return { message: "אין עדיין עיתון מוגדר בעסק, ולכן אין מגבלת גודל לבדוק מולה" };
   }
 
-  const customerId = target ? target.customerId : parsed.data.customerId;
+  const customerId = target
+    ? target.customerId
+    : (orderTarget?.customerId ?? parsed.data.customerId);
 
   // Steps 1–4. `file.size` is the declared length, so an oversized file is
   // refused before its bytes are read into memory.
@@ -159,7 +189,16 @@ export async function uploadAdvertisementAction(
         belongsToCustomer: true,
       });
       await data.attachAdToPublication(ctx.businessId, target.id, ad.id, next);
+      await clearReminderFor(ctx.businessId, target.id);
       revalidatePath("/publications");
+      revalidatePath("/reminders");
+    }
+
+    // On a draft order the file waits on the order itself. Approval hands it
+    // to every publication it creates (lib/data/orders.ts).
+    if (orderTarget) {
+      await data.setOrderAdvertisement(ctx.businessId, orderTarget.id, ad.id);
+      revalidatePath(`/orders/${orderTarget.id}`);
     }
   } catch (error) {
     // The bytes never landed, so the row must not survive to claim they did.
@@ -231,11 +270,53 @@ export async function linkAdToPublicationAction(
     belongsToCustomer: true,
   });
   await data.attachAdToPublication(ctx.businessId, publicationId, adId, next);
+  // Rule 7: artwork arriving cancels the chase.
+  await clearReminderFor(ctx.businessId, publicationId);
 
   revalidatePath("/advertisements");
   revalidatePath(`/advertisements/${adId}`);
   revalidatePath("/publications");
   return { ok: true };
+}
+
+/**
+ * One file, every open publication of its customer — in one click.
+ *
+ * The request behind this is the ordinary one: the customer sent a single
+ * advertisement and wants it to run five times. Linking five times by hand is
+ * the same act repeated, and repetition is where the fifth row gets missed.
+ *
+ * Each link still goes through the same guard and the same state machine as a
+ * single one; this only saves the clicks, never the rules.
+ */
+export async function linkAdToAllPublicationsAction(adId: string): Promise<AdFormState> {
+  const ctx = await getTenantContext();
+  requireArea(ctx, "advertisements", "write");
+
+  const ad = await data.getAdvertisement(ctx.businessId, adId);
+  if (!ad) return { message: "המודעה לא נמצאה" };
+  if (!ad.customer_id) return { message: "המודעה אינה משויכת ללקוח" };
+  if (ad.validation_status !== "passed") {
+    return { message: "המודעה לא עברה בדיקת תקינות ואינה זמינה לשיבוץ" };
+  }
+
+  const open = await data.openPublicationsForAd(ctx.businessId, ad.customer_id);
+  if (open.length === 0) return { message: "אין פרסומים פתוחים של הלקוח הזה" };
+
+  for (const publication of open) {
+    const next = afterAdLinked(publication.status as PublicationStatus, {
+      validationPassed: true,
+      belongsToCustomer: true,
+    });
+    await data.attachAdToPublication(ctx.businessId, publication.id, adId, next);
+    await clearReminderFor(ctx.businessId, publication.id);
+  }
+
+  revalidatePath("/advertisements");
+  revalidatePath(`/advertisements/${adId}`);
+  revalidatePath("/publications");
+  revalidatePath("/reminders");
+  return { ok: true, message: `שויכה ל־${open.length} פרסומים` };
 }
 
 export async function unlinkAdFromPublicationAction(publicationId: string): Promise<AdFormState> {

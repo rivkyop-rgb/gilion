@@ -86,6 +86,15 @@ model Business {
   /// this and deleting, and the reason deletion is not offered at all.
   status BusinessStatus @default(active)
 
+  /// How many days before its publication date a publication with no artwork
+  /// starts appearing on the reminder list (FR-11).
+  ///
+  /// A setting and not a constant, because the right number is a property of
+  /// how this particular publisher works — a weekly with a Tuesday deadline
+  /// and a monthly catalogue do not chase customers on the same schedule.
+  /// Admin edits it in settings; the default is a week.
+  reminder_days_before Int @default(7)
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
@@ -232,6 +241,7 @@ model Customer {
   /// Restrict: a customer with files on record is not something to delete out
   /// from under them (stage 05 §מודל נתונים).
   advertisements Advertisement[]
+  reminders      Reminder[]
 
   @@index([business_id, contact_name])
   @@index([business_id, business_name])
@@ -471,16 +481,29 @@ model AdOrder {
   total_price             Decimal       @default(0) @db.Decimal(12, 2)
   payment_status          PaymentStatus @default(unpaid)
   external_invoice_number String?
+  /// The artwork for this whole order, when it arrived WITH the order.
+  ///
+  /// Not in docs/erd.md, and added because the common case in practice is one
+  /// file for every date: the customer sends a single advertisement and asks
+  /// for it to run several times. Without this the file has nowhere to live
+  /// while the order is still a draft — publications do not exist yet — so it
+  /// had to be parked in the library and attached by hand to every publication
+  /// after approval. On approval each publication created is linked to it, and
+  /// each one can still be changed individually afterwards.
+  advertisement_id        String?
   approved_at             DateTime?
   completed_at            DateTime?
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  business     Business      @relation(fields: [business_id], references: [id], onDelete: Restrict)
-  customer     Customer      @relation(fields: [customer_id], references: [id], onDelete: Restrict)
-  items        AdOrderItem[]
-  publications Publication[]
+  business      Business       @relation(fields: [business_id], references: [id], onDelete: Restrict)
+  customer      Customer       @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+  /// SetNull for the same reason as on Publication: losing the file must not
+  /// lose the order.
+  advertisement Advertisement? @relation(fields: [advertisement_id], references: [id], onDelete: SetNull)
+  items         AdOrderItem[]
+  publications  Publication[]
 
   @@index([business_id, status])
   @@index([business_id, customer_id, created_at])
@@ -557,6 +580,7 @@ model Publication {
   /// publication stands, with no ad, and the state machine walks it back to
   /// `missing_ad` (stage 05 §מודל נתונים).
   advertisement Advertisement? @relation(fields: [advertisement_id], references: [id], onDelete: SetNull)
+  reminder      Reminder?
 
   @@index([business_id, publication_date, status])
   @@index([business_id, newspaper_id, publication_date])
@@ -639,9 +663,54 @@ model Advertisement {
   customer     Customer?     @relation(fields: [customer_id], references: [id], onDelete: Restrict)
   uploaded_by  User          @relation(fields: [uploaded_by_user_id], references: [id], onDelete: Restrict)
   publications Publication[]
+  ad_orders    AdOrder[]
 
   @@index([business_id, customer_id])
   @@index([business_id, status, validation_status])
   @@index([business_id, uploaded_at(sort: Desc)])
   @@map("Advertisement")
+}
+
+// ---------------------------------------------------------------------------
+// Stage 10 (brought forward) — reminders
+// ---------------------------------------------------------------------------
+//
+// The reminder half of stage 10 is delivered here rather than at the end,
+// because it depends only on Publication and Advertisement — both of which
+// exist — while the dashboard half also needs Issue and Payment, which do not.
+// Waiting would have meant the most common operational failure in this
+// business, "the customer ordered and never sent artwork", stays invisible
+// until the very last stage.
+
+/// FR-11. `needed` is computed, the rest are marks a person makes.
+///
+/// There is deliberately no state that means "the system sent it": nothing is
+/// sent automatically in the MVP, and a status implying otherwise would be a
+/// lie the screen then has to apologise for.
+enum ReminderStatus {
+  needed
+  approved_to_send
+  sent
+  failed
+}
+
+/// One publication that is close to its date and still has no artwork (FR-11).
+model Reminder {
+  id             String         @id @default(cuid())
+  publication_id String
+  customer_id    String
+  status         ReminderStatus @default(needed)
+  sent_at        DateTime?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  publication Publication @relation(fields: [publication_id], references: [id], onDelete: Cascade)
+  customer    Customer    @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+
+  /// One live reminder per publication — chasing the same customer twice for
+  /// the same slot is how a reminder list stops being trusted.
+  @@unique([publication_id])
+  @@index([customer_id, status])
+  @@map("Reminder")
 }

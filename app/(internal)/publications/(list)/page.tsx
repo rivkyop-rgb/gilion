@@ -18,6 +18,7 @@ import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
 import { PUBLICATION_TONE, TONE_ROW } from "@/components/status-tone";
 import { cn } from "@/lib/utils";
+import { CancelPublication } from "../cancel-publication";
 import { LinkAdCell } from "../link-ad";
 import { PublicationStatusBadge, SourceBadge, StatusChip } from "../../orders/order-badges";
 import { formatDate, formatMoney, orderNumber } from "../../orders/format";
@@ -51,6 +52,9 @@ export default async function PublicationsPage({
   // FR-8 again: accounting reads publications but has no access to artwork,
   // so it never receives the ad list and never sees the control.
   const mayLinkAds = canWriteArea(ctx, "advertisements");
+  // Cancelling one publication is an ORDERS act — it unwinds part of a
+  // commercial agreement — so it follows that permission, not the artwork one.
+  const mayCancel = canWriteArea(ctx, "orders");
 
   const [rows, papers, ads] = await Promise.all([
     listPublications(ctx.businessId, { newspaperId: newspaper, status, from, to }),
@@ -186,6 +190,7 @@ export default async function PublicationsPage({
                   </th>
                 ) : null}
                 <th className="p-3 text-start font-semibold">הזמנה</th>
+                {mayCancel ? <th className="p-3 text-start font-semibold" /> : null}
               </tr>
             </thead>
             <tbody>
@@ -252,6 +257,17 @@ export default async function PublicationsPage({
                         <Ltr>{orderNumber(p.order_id)}</Ltr>
                       </Link>
                     </td>
+                    {mayCancel ? (
+                      <td className="p-3">
+                        {p.status !== "canceled" && p.status !== "published" ? (
+                          <CancelPublication
+                            publicationId={p.id}
+                            label={p.customer.business_name ?? p.customer.contact_name}
+                            date={formatDate(p.publication_date)}
+                          />
+                        ) : null}
+                      </td>
+                    ) : null}
                   </tr>
                 );
               })}

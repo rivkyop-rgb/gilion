@@ -17,6 +17,7 @@ export const AREA_LABELS: Record<Area, string> = {
   orders: "הזמנות",
   publications: "פרסומים",
   advertisements: "מודעות וקבצים",
+  reminders: "תזכורות",
   issues: "גיליונות ושיבוץ",
   pdf: "הפקת PDF",
   billing: "גבייה ותשלומים",

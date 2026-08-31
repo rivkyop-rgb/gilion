@@ -18,6 +18,10 @@ export const NAV_ITEMS: NavItem[] = [
   { area: "orders", href: "/orders", icon: "ClipboardList", stage: 4 },
   { area: "publications", href: "/publications", icon: "Megaphone", stage: 4 },
   { area: "advertisements", href: "/advertisements", icon: "ImageIcon", stage: 5 },
+  // The reminder half of stage 10, brought forward: it needs only Publication
+  // and Advertisement, and "the customer never sent artwork" is too common a
+  // failure to leave until the last stage. The dashboard half stays at 10.
+  { area: "reminders", href: "/reminders", icon: "BellRing", stage: 5 },
   { area: "issues", href: "/issues", icon: "Newspaper", stage: 6 },
   { area: "billing", href: "/billing", icon: "Wallet", stage: 8 },
   { area: "reports", href: "/reports", icon: "BarChart3", stage: 8 },

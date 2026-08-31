@@ -13,10 +13,14 @@ export type OrderFilters = { status?: string; source?: string };
 
 const ORDER_INCLUDE = {
   customer: { select: { id: true, contact_name: true, business_name: true } },
+  /// Artwork attached to the order as a whole — see AdOrder.advertisement_id.
+  advertisement: { select: { id: true, name: true } },
   items: {
     orderBy: { created_at: "asc" as const },
     include: {
-      newspaper: { select: { id: true, name: true } },
+      // max_ad_file_size rides along so the order screen can state the
+      // strictest ceiling among its own lines before a file is chosen (FR-21).
+      newspaper: { select: { id: true, name: true, max_ad_file_size: true } },
       page_type: { select: { id: true, name: true } },
       ad_shape: { select: { id: true, name: true, cols: true, rows: true } },
     },
@@ -234,6 +238,13 @@ export async function createPublicationsForOrder(
     business_id: string;
     customer_id: string;
     source: "internal" | "customer_portal";
+    /**
+     * Artwork attached to the order itself, when the customer sent one file
+     * for every date. Each publication is created already pointing at it, and
+     * already in the state that implies — which is the whole reason the field
+     * exists, since doing it afterwards means N manual links.
+     */
+    advertisement_id?: string | null;
   },
   items: Array<{
     id: string;
@@ -254,7 +265,12 @@ export async function createPublicationsForOrder(
       publication_date: i.publication_date,
       price: roundMoney(Number(i.price)),
       source: order.source,
-      status: "planned" as const,
+      advertisement_id: order.advertisement_id ?? null,
+      // The state machine's answer for AD_LINKED on a valid, customer-owned
+      // file — the ad on an order always belongs to that order's customer, so
+      // there is no case where it would stop at `ad_received`.
+      status: (order.advertisement_id ? "ready_for_layout" : "planned") as
+        "planned" | "ready_for_layout",
       placement_status: "not_placed" as const,
       payment_status: "unpaid" as const,
     })),

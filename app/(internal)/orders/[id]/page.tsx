@@ -12,6 +12,7 @@ import { OrderStatusBadge, PublicationStatusBadge, SourceBadge } from "../order-
 import { formatDate, formatMoney, orderNumber } from "../format";
 import { LinkAdCell } from "../../publications/link-ad";
 import { LineBuilder } from "./line-builder";
+import { OrderArtwork } from "./order-artwork";
 import { OrderActions } from "./order-actions";
 
 export const metadata: Metadata = { title: "הזמנה · Gilion" };
@@ -34,6 +35,16 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   // The artwork column belongs to whoever may touch files, which is not the
   // same set as whoever may read the order (FR-8).
   const mayAttachAds = canWriteArea(ctx, "advertisements");
+
+  // The strictest ceiling among the newspapers this order actually uses: one
+  // file has to be printable by every line it will serve (FR-21).
+  const orderPapers = order.items.map((i) => i.newspaper);
+  const strictest =
+    orderPapers.length > 0
+      ? orderPapers.reduce((a, b) =>
+          Number(b.max_ad_file_size) < Number(a.max_ad_file_size) ? b : a,
+        )
+      : null;
 
   return (
     <>
@@ -101,6 +112,25 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           price: Number(i.price),
         }))}
       />
+
+      {/* Artwork for the whole order, while it is still a proposal. Offered
+          only before approval: afterwards the publications exist and each one
+          takes its own file, which is the finer-grained and truer control. */}
+      {mayAttachAds && !approved && order.items.length > 0 ? (
+        <OrderArtwork
+          orderId={order.id}
+          attached={order.advertisement}
+          lineCount={order.items.length}
+          limit={
+            strictest
+              ? {
+                  newspaperName: strictest.name,
+                  maxBytes: Number(strictest.max_ad_file_size),
+                }
+              : null
+          }
+        />
+      ) : null}
 
       {/*
         The preview US-003 asks for and the Stitch designs missed

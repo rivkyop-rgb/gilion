@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { CUSTOMERS, USERS, login, loginAsAdmin } from "./helpers";
+import { USERS, login, loginAsAdmin } from "./helpers";
 import { validPng } from "./ad-fixtures";
 import { uploadFile } from "./ad-helpers";
 
@@ -90,23 +90,36 @@ test("כרטיס הלקוח מציג הזמנות, יתרה, פרסומים וק
 });
 
 test("גרפיקאית רואה את הלקוח ואת הקבצים, ולא רואה כסף (FR-8)", async ({ page }) => {
+  test.slow();
+  // Real data first, as admin: with an empty customer every table is an empty
+  // state and the test would pass without proving anything about the role.
+  await loginAsAdmin(page);
+  const customer = await ownCustomer(page);
+  await approvedOrderFor(page, customer.name, "700");
+
   await login(page, USERS.designer);
-  await page.goto(`/customers/${CUSTOMERS.alphaRegular}`);
+  await page.goto(`/customers/${customer.id}`);
 
   await expect(page.getByTestId("customer-name")).toBeVisible();
-  // Files are the designer's job; the balance is not their business.
+  // Publications are the designer's job; the balance is not their business.
+  await expect(page.getByTestId("customer-publications")).toBeVisible();
   await expect(page.getByTestId("customer-account")).toHaveCount(0);
   await expect(page.getByTestId("customer-debt")).toHaveCount(0);
   await expect(page.getByTestId("customer-orders")).toHaveCount(0);
-  await expect(page.getByTestId("customer-publications")).toBeVisible();
+  await expect(page.locator("body")).not.toContainText("700");
 });
 
 test("מנהלת חשבונות רואה את הכסף ולא את הקבצים (FR-8)", async ({ page }) => {
+  test.slow();
+  await loginAsAdmin(page);
+  const customer = await ownCustomer(page);
+  await approvedOrderFor(page, customer.name, "700");
+
   await login(page, USERS.accounting);
-  await page.goto(`/customers/${CUSTOMERS.alphaRegular}`);
+  await page.goto(`/customers/${customer.id}`);
 
   await expect(page.getByTestId("customer-account")).toBeVisible();
-  await expect(page.getByTestId("customer-orders")).toBeVisible();
+  await expect(page.getByTestId("customer-orders")).toContainText("700");
   // accounting has no access to artwork anywhere, this screen included.
   await expect(page.getByTestId("customer-ads")).toHaveCount(0);
 });
