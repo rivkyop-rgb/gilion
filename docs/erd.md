@@ -509,3 +509,22 @@ FR-16 Placement
 FR-17 PriceRule, Publication
 FR-20 No persistent entity — dashboard is computed from Publication, Customer, Issue, Reminder, Payment
 FR-22 Issue, PdfGenerationLog
+
+---
+
+## שדות שנוספו במימוש ואינם במסמך הזה
+
+המסמך הזה הוא מקור האמת למודל. השדות הבאים נוספו **אחריו**, כל אחד מהם בעקבות דרישה שהתבררה בבנייה, ומתועדים כאן כדי שהפער בין המסמך לסכימה לא יהיה שקט.
+
+| ישות | שדה | למה | תיעוד מלא |
+| --- | --- | --- | --- |
+| `AdOrder` | `advertisement_id` (reference: Advertisement, no) | המקרה הרגיל הוא קובץ אחד לכל התאריכים. עד שההזמנה מאושרת אין פרסום לחבר אליו, ולקובץ לא היה איפה לשבת. `onDelete: SetNull` — אובדן הקובץ לא יאבד את ההזמנה. | [`plan/04-orders-publications.md`](plan/04-orders-publications.md) §04ג |
+| `AdOrderItem` | `off_schedule` (boolean) | תאריך שאינו יום הדפסה של העיתון, שאושר במודע — "מהדורה מיוחדת". נשמר ולא נגזר, כדי ששינוי לוח ההדפסה לא יהפוך רטרואקטיבית החלטה נכונה לאזהרה. | [`plan/03-newspaper-config.md`](plan/03-newspaper-config.md) §ימי הדפסה |
+| `Newspaper` | `publication_days` (int[]) | ימי השבוע שבהם העיתון יוצא. בסיס ל־`off_schedule`. | שם |
+| `Business` | `reminder_days_before` (int, ברירת מחדל 7) | FR-11 דורש שחלון התזכורות יהיה ניתן להגדרה. הערך הנכון הוא תכונה של המוציא לאור, לא קבוע. | [`plan/10-dashboard-reminders.md`](plan/10-dashboard-reminders.md) §סטטוס |
+| `Business` | `status` (enum) | השבתת עסק על ידי מנהל־על, הפיכה ולא הרסנית. | [`plan/12-platform-admin.md`](plan/12-platform-admin.md) |
+| `User` | `is_super_admin` (boolean) | תכונה של האדם, לא תפקיד שישי בתוך עסק. | שם |
+| `RolePermission` | ישות שלמה | FR-8 מאפשר לעסק לשנות ברירת מחדל של תפקיד. נשמרות **רק חריגות**, כך שברירות המחדל נשארות בקוד. | [`plan/01-auth-multitenancy.md`](plan/01-auth-multitenancy.md) |
+| `Advertisement` | `validation_status`, `validation_error` | US-005 AC-2 דורש שקובץ פגום יסומן ותוצג הסיבה. | [`plan/05-advertisements.md`](plan/05-advertisements.md) |
+
+**אזור RBAC נוסף שאינו במסמך:** `reminders`. לא פינה של `publications`, כי הקהל שונה — גרפיקאית חייבת לראות מי לא שלח קובץ, אבל הרדיפה אחרי הלקוח אינה תפקידה, ולהנהלת חשבונות אין בזה חלק כלל.
