@@ -57,7 +57,7 @@ test.describe("approving an order (US-004)", () => {
 
     await addLine(page, "2026-12-01", "1200");
     await addLine(page, "2026-12-08", "800");
-    await expect(page.locator('[data-testid="order-lines"] tbody tr')).toHaveCount(2);
+    await expect(page.getByTestId("order-line-count")).toContainText(`${2} תאריכים`);
     await expect(page.getByTestId("order-total")).toContainText("2,000");
 
     await page.getByTestId("submit-order").click();
@@ -137,7 +137,7 @@ test.describe("where the price comes from (rule 4)", () => {
     await page.getByTestId("line-price").fill("");
     await page.getByTestId("add-line").click();
 
-    await expect(page.locator('[data-testid="order-lines"] tbody tr')).toHaveCount(1);
+    await expect(page.getByTestId("order-line-count")).toContainText(`${1} תאריכים`);
     await expect(page.getByTestId("order-total")).toContainText(
       Number(suggested).toLocaleString("he-IL"),
     );
@@ -171,7 +171,7 @@ test.describe("where the price comes from (rule 4)", () => {
     await newDraft(page);
     await addLine(page, "2026-12-01", "0");
 
-    await expect(page.locator('[data-testid="order-lines"] tbody tr')).toHaveCount(1);
+    await expect(page.getByTestId("order-line-count")).toContainText(`${1} תאריכים`);
   });
 });
 

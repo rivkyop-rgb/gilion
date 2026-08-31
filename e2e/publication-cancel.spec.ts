@@ -27,7 +27,7 @@ test("ביטול פרסום בודד לא נוגע בשאר ההזמנה", async
     if (await warning.isVisible()) await page.getByTestId("confirm-special-edition").check();
     await expect(page.getByTestId("add-line")).toBeEnabled();
     await page.getByTestId("add-line").click();
-    await expect(page.locator('[data-testid="order-lines"] tbody tr')).toHaveCount(index + 1);
+    await expect(page.getByTestId("order-line-count")).toContainText(`${index + 1} תאריכים`);
   }
 
   await page.getByTestId("submit-order").click();

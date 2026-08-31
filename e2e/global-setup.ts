@@ -55,6 +55,7 @@ export default async function globalSetup() {
   await clearPermissionOverrides(prisma);
   await restoreSeededMemberships(prisma);
   await resetShapeCatalogue(prisma);
+  await resetPriceRules(prisma);
   await resetReminderWindow(prisma);
 
   await prisma.$disconnect();
@@ -113,6 +114,36 @@ async function clearAdObjects(businessIds: string[]) {
     });
     if (keys.length > 0) await client.removeObjects(bucket, keys);
   }
+}
+
+/**
+ * Restores the price list to exactly what prisma/seed.ts leaves behind.
+ *
+ * The seed creates ONE rule — inner page, quarter page, 1200 — and the specs
+ * write over it and over neighbouring cells freely. Left alone, a price typed
+ * by the pricing spec becomes the "base price" the order specs then measure
+ * against, and the failure surfaces two files away as a total that is off by
+ * an amount nobody can explain.
+ *
+ * Same act as resetShapeCatalogue above: put the tenant back the way the seed
+ * leaves it.
+ */
+async function resetPriceRules(prisma: PrismaClient) {
+  await prisma.priceRule.deleteMany({});
+
+  const quarter = await prisma.adShape.findFirst({
+    where: { newspaper_id: "paper_alpha", name: { contains: "רבע" } },
+  });
+  if (!quarter) return;
+
+  await prisma.priceRule.create({
+    data: {
+      newspaper_id: "paper_alpha",
+      page_type_id: "pt_inner",
+      ad_shape_id: quarter.id,
+      price: 1200,
+    },
+  });
 }
 
 /**

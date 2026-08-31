@@ -65,7 +65,7 @@ test("a sales rep builds, previews and approves 10 publications well inside 3 mi
 
   // One click for all ten — the whole reason the criterion is reachable.
   await page.getByTestId("add-line").click();
-  await expect(page.locator('[data-testid="order-lines"] tbody tr')).toHaveCount(10);
+  await expect(page.getByTestId("order-line-count")).toContainText(`${10} תאריכים`);
   await expect(page.getByTestId("order-total")).toContainText("5,000");
 
   // The preview names exactly what approval will create, in the future tense.

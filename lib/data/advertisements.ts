@@ -346,8 +346,15 @@ export async function getOrderUploadTarget(businessId: string, orderId: string) 
     customerId: row.customer_id,
     status: row.status as string,
     advertisementId: row.advertisement_id,
-    /** Only while nothing binding has come out of it yet. */
-    editable: row.status === "draft" || row.status === "pending_approval",
+    /**
+     * Before approval the file waits on the ORDER; after approval it goes
+     * straight to the publications that are still without one. Either way the
+     * order is a legitimate place to drop a file — only a finished or
+     * abandoned order is not.
+     */
+    editable: !["completed", "canceled", "rejected"].includes(row.status),
+    /** True while the file should be parked on the order rather than linked. */
+    beforeApproval: row.status === "draft" || row.status === "pending_approval",
     limit: strictest
       ? { maxBytes: strictest.max_ad_file_size, newspaperName: strictest.name }
       : null,
@@ -362,6 +369,18 @@ export async function setOrderAdvertisement(
   return tenantDb(businessId).adOrder.update({
     where: { id: orderId },
     data: { advertisement_id: adId },
+  });
+}
+
+/** The publications of one order that are still waiting for artwork. */
+export async function publicationsAwaitingArtwork(businessId: string, orderId: string) {
+  return tenantDb(businessId).publication.findMany({
+    where: {
+      order_id: orderId,
+      advertisement_id: null,
+      status: { in: ["planned", "missing_ad"] },
+    },
+    select: { id: true, status: true },
   });
 }
 

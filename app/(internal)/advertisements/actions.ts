@@ -47,6 +47,8 @@ const uploadSchema = z.object({
    * common case in practice: one advertisement, several dates.
    */
   orderId: z.string().nullable(),
+  /** Set by the "replace" control on a publication that already has artwork. */
+  replace: z.boolean(),
 });
 
 function readFile(formData: FormData): File | null {
@@ -66,6 +68,7 @@ export async function uploadAdvertisementAction(
     customerId: emptyToNull(formData.get("customerId")),
     publicationId: emptyToNull(formData.get("publicationId")),
     orderId: emptyToNull(formData.get("orderId")),
+    replace: formData.get("replace") === "1",
   });
   if (!parsed.success) return { message: "הטופס לא נשלח כראוי" };
 
@@ -82,10 +85,16 @@ export async function uploadAdvertisementAction(
   if (parsed.data.publicationId) {
     target = await data.getPublicationUploadTarget(ctx.businessId, parsed.data.publicationId);
     if (!target) return { message: "הפרסום לא נמצא" };
-    if (target.advertisementId) {
-      return { message: "לפרסום כבר משויכת מודעה. יש לנתק אותה לפני העלאת קובץ אחר" };
+    // Replacing is a deliberate act with its own control, so it is allowed to
+    // overwrite; an ordinary upload onto an occupied publication is a mistake
+    // and is refused rather than silently swapping the artwork.
+    if (target.advertisementId && !parsed.data.replace) {
+      return { message: "לפרסום כבר משויכת מודעה. אפשר להחליף אותה בכפתור ההחלפה" };
     }
-    if (!LINKABLE_STATUSES.includes(target.status as PublicationStatus)) {
+    if (
+      !target.advertisementId &&
+      !LINKABLE_STATUSES.includes(target.status as PublicationStatus)
+    ) {
       return { message: "הפרסום אינו במצב שמאפשר שיוך מודעה" };
     }
   }
@@ -102,7 +111,7 @@ export async function uploadAdvertisementAction(
     orderTarget = await data.getOrderUploadTarget(ctx.businessId, parsed.data.orderId);
     if (!orderTarget) return { message: "ההזמנה לא נמצאה" };
     if (!orderTarget.editable) {
-      return { message: "אפשר לצרף מודעה להזמנה רק כל עוד היא טיוטה או ממתינה לאישור" };
+      return { message: "אי אפשר לצרף מודעה להזמנה שהושלמה, בוטלה או נדחתה" };
     }
   }
 
@@ -184,7 +193,12 @@ export async function uploadAdvertisementAction(
     // here rather than left in the library for someone to remember to attach.
     // The status still moves through the machine and nowhere else (FR-5).
     if (target) {
-      const next = afterAdLinked(target.status as PublicationStatus, {
+      // A replacement starts from where an unlink would have left it, so the
+      // machine sees the same transition it would have seen either way.
+      const from = target.advertisementId
+        ? transition(target.status as PublicationStatus, "AD_UNLINKED")
+        : (target.status as PublicationStatus);
+      const next = afterAdLinked(from, {
         validationPassed: true,
         belongsToCustomer: true,
       });
@@ -194,10 +208,27 @@ export async function uploadAdvertisementAction(
       revalidatePath("/reminders");
     }
 
-    // On a draft order the file waits on the order itself. Approval hands it
-    // to every publication it creates (lib/data/orders.ts).
+    // Before approval the file waits on the order itself, and approval hands
+    // it to every publication it creates (lib/data/orders.ts). After approval
+    // there is nothing to wait for — it goes to the publications that are
+    // still without artwork, and leaves the covered ones exactly as they are.
     if (orderTarget) {
       await data.setOrderAdvertisement(ctx.businessId, orderTarget.id, ad.id);
+
+      if (!orderTarget.beforeApproval) {
+        const waiting = await data.publicationsAwaitingArtwork(ctx.businessId, orderTarget.id);
+        for (const publication of waiting) {
+          const next = afterAdLinked(publication.status as PublicationStatus, {
+            validationPassed: true,
+            belongsToCustomer: true,
+          });
+          await data.attachAdToPublication(ctx.businessId, publication.id, ad.id, next);
+          await clearReminderFor(ctx.businessId, publication.id);
+        }
+        revalidatePath("/publications");
+        revalidatePath("/reminders");
+      }
+
       revalidatePath(`/orders/${orderTarget.id}`);
     }
   } catch (error) {

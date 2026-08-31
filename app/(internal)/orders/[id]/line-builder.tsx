@@ -22,6 +22,7 @@ import {
   removeOrderItemAction,
   type FormState,
 } from "../actions";
+import { groupOrderLines, timesLabel } from "@/lib/domain/order-grouping";
 import { formatMoney } from "../format";
 import { MultiDatePicker } from "./date-picker";
 
@@ -152,6 +153,8 @@ export function LineBuilder({
     }
   }
 
+  const groups = groupOrderLines(lines);
+
   const origin = priceOrigin(price.trim() === "" ? null : Number(price), suggested);
   const unitPrice = price.trim() === "" ? suggested : Number(price);
   const previewTotal = unitPrice === null ? null : unitPrice * dates.length;
@@ -165,61 +168,103 @@ export function LineBuilder({
           עוד לא נוספו שורות. כל שורה תהפוך לפרסום אחד באישור ההזמנה.
         </p>
       ) : (
-        <div className="mb-4 overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest">
-          <table className="w-full text-sm" data-testid="order-lines">
-            <thead className="bg-surface-container">
-              <tr>
-                <th className="p-3 text-start font-semibold">עיתון</th>
-                <th className="p-3 text-start font-semibold">סוג עמוד</th>
-                <th className="p-3 text-start font-semibold">צורת פרסום</th>
-                <th className="p-3 text-start font-semibold">תאריך</th>
-                <th className="p-3 text-start font-semibold">מחיר</th>
-                {editable ? <th className="p-3" /> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {lines.map((l) => (
-                <tr key={l.id} className="border-t border-outline-variant">
-                  <td className="p-3">{l.newspaperName}</td>
-                  <td className="p-3">{l.pageTypeName}</td>
-                  <td className="p-3">{l.shapeName}</td>
-                  <td className="p-3">
-                    <Ltr>{l.publicationDate}</Ltr>
-                    {l.offSchedule ? (
-                      <span
-                        className="ms-2 rounded-full bg-status-warning-bg px-2 py-0.5 text-[11px] text-status-warning-fg"
-                        title="תאריך שאינו יום הדפסה של העיתון"
-                      >
-                        מהדורה מיוחדת
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="p-3">
-                    <Ltr>{formatMoney(l.price)}</Ltr>
-                  </td>
-                  {editable ? (
-                    <td className="p-3 text-end">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={busy}
-                        data-testid={`remove-line-${l.id}`}
-                        onClick={() =>
-                          startTransition(async () => {
-                            const res = await removeOrderItemAction(orderId, l.id);
-                            setRemoveError(res.message ?? null);
-                          })
-                        }
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </td>
-                  ) : null}
+        <>
+          <div className="mb-4 overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest">
+            {/*
+            One row per THING ORDERED, not per date. Nobody orders "a full page
+            on the 1st" and then "a full page on the 8th" — they order a full
+            page five times, and fifteen near-identical rows is a table you scan
+            instead of read. The dates are still there, one click away, and the
+            per-date view with its statuses is the publications list.
+          */}
+            <table className="w-full text-sm" data-testid="order-lines">
+              <thead className="bg-surface-container">
+                <tr>
+                  <th className="p-3 text-start font-semibold">עיתון</th>
+                  <th className="p-3 text-start font-semibold">סוג עמוד</th>
+                  <th className="p-3 text-start font-semibold">צורת פרסום</th>
+                  <th className="p-3 text-start font-semibold">כמה פעמים</th>
+                  <th className="p-3 text-start font-semibold">מחיר ליחידה</th>
+                  <th className="p-3 text-start font-semibold">סה״כ</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {groups.map((g) => (
+                  <tr
+                    key={g.key}
+                    data-testid={`order-line-group-${g.key}`}
+                    className="border-t border-outline-variant align-top"
+                  >
+                    <td className="p-3">{g.newspaperName}</td>
+                    <td className="p-3">{g.pageTypeName}</td>
+                    <td className="p-3">{g.shapeName}</td>
+                    <td className="p-3">
+                      {/* Short lists cost nothing to show, and a long one is the
+                        whole reason the row was grouped in the first place. */}
+                      <details open={g.times <= 3}>
+                        <summary className="cursor-pointer select-none">
+                          {timesLabel(g.times)}
+                          {g.hasOffSchedule ? (
+                            <span
+                              className="ms-2 rounded-full bg-status-warning-bg px-2 py-0.5 text-[11px] text-status-warning-fg"
+                              title="לפחות תאריך אחד אינו יום הדפסה של העיתון"
+                            >
+                              מהדורה מיוחדת
+                            </span>
+                          ) : null}
+                        </summary>
+                        <ul className="mt-2 space-y-1">
+                          {g.lines.map((l) => (
+                            <li
+                              key={l.id}
+                              data-testid={`order-line-${l.id}`}
+                              className="flex items-center gap-2 text-xs"
+                            >
+                              <Ltr>{l.publicationDate}</Ltr>
+                              {l.offSchedule ? (
+                                <span className="text-status-warning-fg">מיוחדת</span>
+                              ) : null}
+                              {editable ? (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={busy}
+                                  data-testid={`remove-line-${l.id}`}
+                                  onClick={() =>
+                                    startTransition(async () => {
+                                      const res = await removeOrderItemAction(orderId, l.id);
+                                      setRemoveError(res.message ?? null);
+                                    })
+                                  }
+                                >
+                                  <Trash2 className="size-4" />
+                                  <span className="sr-only">הסרת התאריך</span>
+                                </Button>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    </td>
+                    <td className="p-3">
+                      <Ltr>{formatMoney(g.unitPrice)}</Ltr>
+                    </td>
+                    <td className="p-3 font-medium">
+                      <Ltr>{formatMoney(g.subtotal)}</Ltr>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* A stable count of the DATES behind the groups: the number of
+            publications this order will create, which the grouped rows no
+            longer state directly. */}
+          <p className="mb-4 text-xs text-on-surface-variant" data-testid="order-line-count">
+            {lines.length} תאריכים · {groups.length} שורות הזמנה
+          </p>
+        </>
       )}
 
       {removeError ? <InlineError>{removeError}</InlineError> : null}

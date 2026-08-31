@@ -89,14 +89,25 @@ export function OrderActions({
           ) : null}
 
           {status === "approved" && canComplete ? (
-            <Button
-              variant="secondary"
-              disabled={busy}
-              data-testid="complete-order"
-              onClick={() => run(() => completeOrderAction(orderId))}
-            >
-              סימון כהושלמה
-            </Button>
+            <span className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                disabled={busy}
+                data-testid="complete-order"
+                onClick={() => run(() => completeOrderAction(orderId))}
+              >
+                סימון כהושלמה
+              </Button>
+              {/*
+                "Completed" was a word with no explanation next to it, and the
+                question it raises — does this change anything for the
+                customer? — has a real answer: it closes the order for good.
+              */}
+              <span className="text-xs text-on-surface-variant" data-testid="complete-hint">
+                סגירה סופית: כל הפרסומים כבר רצו או בוטלו, ומכאן ההזמנה היסטוריה — אי אפשר לשנות
+                אותה ואי אפשר לבטל אותה.
+              </span>
+            </span>
           ) : null}
 
           {status !== "completed" && status !== "canceled" ? (

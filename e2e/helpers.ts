@@ -67,23 +67,40 @@ export const CUSTOMERS = {
 
 /** Signs in and waits for the server-decided landing route. */
 export async function login(page: Page, email: string) {
-  // Signing in as a different user in the same context needs the old session
-  // gone first: middleware redirects an authenticated visitor away from /login,
-  // so without this the form is never rendered and the fill times out.
-  // Clearing cookies and navigating is not enough on its own. The page being
-  // left behind may still have a request in flight, and a session cookie that
-  // lands after the clear resurrects the session — middleware then redirects
-  // /login to /dashboard, the form never renders, and the failure surfaces as
-  // "waiting for #email" with no hint of why. Landing on /login is therefore
-  // checked rather than assumed, and the clear is repeated once if it did not
-  // take. This was intermittent across several specs, not one.
+  // Signing in as a different user in the same browser context needs the old
+  // session gone first: middleware redirects an authenticated visitor away
+  // from /login, so otherwise the form never renders and the fill times out.
+  //
+  // Clearing cookies is necessary and NOT sufficient, and the reason took a
+  // while to find. The page being left behind can still have requests in
+  // flight, and Auth.js re-issues the session cookie on the way out of every
+  // one of them — so a response that lands a few milliseconds after the clear
+  // puts the session straight back. The next /login then bounces to
+  // /dashboard, and the failure reads as "waiting for #email" with nothing to
+  // suggest why. Retrying the clear does not help either: the same race is
+  // simply run again.
+  //
+  // Navigating to about:blank first is what fixes it. It tears down the old
+  // document, and with it every request that could still answer, so the clear
+  // has nothing racing it.
+  await page.goto("about:blank");
   await page.context().clearCookies();
-  await page.goto("/login");
-  if (!page.url().includes("/login")) {
-    await page.context().clearCookies();
+
+  let formVisible = false;
+  for (let attempt = 0; attempt < 3 && !formVisible; attempt++) {
+    if (attempt > 0) {
+      await page.goto("about:blank");
+      await page.context().clearCookies();
+    }
     await page.goto("/login");
+    formVisible = await page
+      .waitForSelector("#email", { timeout: 8_000, state: "visible" })
+      .then(() => true)
+      .catch(() => false);
   }
-  await page.waitForSelector("#email", { timeout: 20_000 });
+  if (!formVisible) {
+    throw new Error(`the sign-in form never rendered for ${email}; last url: ${page.url()}`);
+  }
   await page.fill("#email", email);
   await page.fill("#password", PASSWORD);
   await page.click('button[type="submit"]');

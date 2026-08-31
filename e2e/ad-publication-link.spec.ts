@@ -32,7 +32,7 @@ async function approvedOrder(page: Page, dates: string[]): Promise<string> {
     // makes the second line land instead of silently doing nothing.
     await expect(page.getByTestId("add-line")).toBeEnabled();
     await page.getByTestId("add-line").click();
-    await expect(page.locator('[data-testid="order-lines"] tbody tr')).toHaveCount(index + 1);
+    await expect(page.getByTestId("order-line-count")).toContainText(`${index + 1} תאריכים`);
   }
 
   await page.getByTestId("submit-order").click();

@@ -50,7 +50,7 @@ async function approvedOrderFor(page: Page, customerLabel: string, price: string
   if (await warning.isVisible()) await page.getByTestId("confirm-special-edition").check();
   await expect(page.getByTestId("add-line")).toBeEnabled();
   await page.getByTestId("add-line").click();
-  await expect(page.locator('[data-testid="order-lines"] tbody tr')).toHaveCount(1);
+  await expect(page.getByTestId("order-line-count")).toContainText(`${1} תאריכים`);
 
   await page.getByTestId("submit-order").click();
   await page.getByTestId("approve-order").click();

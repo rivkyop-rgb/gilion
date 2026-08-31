@@ -29,11 +29,17 @@ export function OrderArtwork({
   attached,
   limit,
   lineCount,
+  approved,
+  missingCount,
 }: {
   orderId: string;
   attached: { id: string; name: string } | null;
   limit: { newspaperName: string; maxBytes: number } | null;
   lineCount: number;
+  /** After approval the publications exist, so the file goes to them directly. */
+  approved: boolean;
+  /** How many publications still have no artwork. Zero hides the control. */
+  missingCount: number;
 }) {
   const router = useRouter();
 
@@ -46,7 +52,14 @@ export function OrderArtwork({
     {},
   );
 
-  if (attached) {
+  // After approval the only question is whether any date is still uncovered.
+  // A form offering to cover nothing is worse than no form: it invites an
+  // upload that would land on no publication at all. Whether a file happens to
+  // be recorded on the order is irrelevant by then — each publication carries
+  // its own, and that is the finer and truer answer.
+  if (approved) {
+    if (missingCount === 0) return null;
+  } else if (attached) {
     return (
       <div
         data-testid="order-artwork-attached"
@@ -80,11 +93,12 @@ export function OrderArtwork({
 
       <p className="mb-1 flex items-center gap-2 text-sm font-medium">
         <Upload className="size-4" />
-        מודעה להזמנה כולה
+        {approved ? `מודעה ל־${missingCount} הפרסומים שעדיין בלי קובץ` : "מודעה להזמנה כולה"}
       </p>
       <p className="mb-3 text-xs text-on-surface-variant">
-        אם הלקוח שלח מודעה אחת לכל התאריכים — אפשר להעלות אותה כאן, והיא תשויך אוטומטית לכל הפרסומים
-        באישור ההזמנה.
+        {approved
+          ? "הקובץ ישויך לכל פרסום בהזמנה שעדיין אין לו מודעה. פרסום שכבר יש לו קובץ לא ייגע."
+          : "אם הלקוח שלח מודעה אחת לכל התאריכים — אפשר להעלות אותה כאן, והיא תשויך אוטומטית לכל הפרסומים באישור ההזמנה."}
         {limit ? (
           <>
             {" "}

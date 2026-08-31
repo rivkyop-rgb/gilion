@@ -81,14 +81,15 @@ test.describe("the pricing matrix (US-006 AC-3)", () => {
     await expect(allowedCell.locator("input")).toHaveCount(1);
   });
 
+  // Saving is explicit now: the matrix used to write on blur, which told
+  // nobody whether it had worked. The waits these tests needed went with it.
   test("saves a price and it survives a reload", async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto(`/settings/newspapers/${NEWSPAPERS.alpha}/pricing`);
 
-    const cell = page.getByTestId("cell-pt_inner-shape_full").locator("input");
-    await cell.fill("4500");
-    await cell.blur();
-    await page.waitForTimeout(1500);
+    await page.getByTestId("cell-pt_inner-shape_full").locator("input").fill("4500");
+    await page.getByTestId("save-pricing").click();
+    await expect(page.getByTestId("pricing-saved")).toBeVisible();
 
     await page.reload();
     await expect(page.getByTestId("cell-pt_inner-shape_full").locator("input")).toHaveValue("4500");
@@ -100,12 +101,12 @@ test.describe("the pricing matrix (US-006 AC-3)", () => {
 
     const cell = page.getByTestId("cell-pt_back-shape_half_h").locator("input");
     await cell.fill("900");
-    await cell.blur();
-    await page.waitForTimeout(1200);
+    await page.getByTestId("save-pricing").click();
+    await expect(page.getByTestId("pricing-saved")).toBeVisible();
 
     await cell.fill("");
-    await cell.blur();
-    await page.waitForTimeout(1200);
+    await page.getByTestId("save-pricing").click();
+    await expect(page.getByTestId("pricing-saved")).toBeVisible();
 
     await page.reload();
     // Empty, not "0" — an empty cell means "no default price".

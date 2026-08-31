@@ -113,14 +113,18 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         }))}
       />
 
-      {/* Artwork for the whole order, while it is still a proposal. Offered
-          only before approval: afterwards the publications exist and each one
-          takes its own file, which is the finer-grained and truer control. */}
-      {mayAttachAds && !approved && order.items.length > 0 ? (
+      {/* Artwork for the order as a whole.
+          Before approval it waits on the order and every publication created
+          inherits it. After approval it goes to the publications that are
+          still without a file, and leaves the ones already covered alone —
+          which is what "the rest of the dates just came in" actually needs. */}
+      {mayAttachAds && order.items.length > 0 ? (
         <OrderArtwork
           orderId={order.id}
           attached={order.advertisement}
+          approved={approved}
           lineCount={order.items.length}
+          missingCount={order.publications.filter((p) => !p.advertisement_id).length}
           limit={
             strictest
               ? {

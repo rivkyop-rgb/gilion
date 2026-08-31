@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState, useRef, useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Link2, Link2Off, Upload } from "lucide-react";
+import { Link2, Link2Off, Replace, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Ltr } from "@/components/ui/ltr";
 import { InlineError } from "@/components/states";
 import { AD_ACCEPT_ATTRIBUTE, formatBytes } from "@/lib/domain/ad-file";
@@ -19,17 +20,16 @@ import {
 export type AdOption = { id: string; name: string };
 
 /**
- * Attaching artwork from the PUBLICATION side.
+ * Artwork, from the PUBLICATION side.
  *
- * Two ways in, because the work arrives both ways: sometimes the file is
- * already in the library and needs pointing at a publication, and sometimes
- * the customer just emailed it and the person is looking straight at the
- * publication it belongs to. Making the second case go "library → upload →
- * find the customer → come back → link" is four steps for what is one act.
+ * Three ways in, because the work arrives all three ways: the file is already
+ * in the library and needs pointing at a date; the customer just emailed it and
+ * the person is looking straight at the date it belongs to; or a replacement
+ * arrived for something already attached.
  *
- * The upload form carries no customer and no newspaper field on purpose: the
- * publication already answers both, and the server takes them from it rather
- * than from anything the browser sent.
+ * The upload form carries no customer and no newspaper field on purpose — the
+ * publication answers both, and the server takes them from it rather than from
+ * anything the browser sent.
  */
 export function LinkAdCell({
   publicationId,
@@ -47,7 +47,6 @@ export function LinkAdCell({
   const [error, setError] = useState<string | null>(null);
   const [busy, start] = useTransition();
   const router = useRouter();
-  const formRef = useRef<HTMLFormElement>(null);
 
   const run = (fn: () => Promise<AdFormState>) => {
     setError(null);
@@ -73,26 +72,110 @@ export function LinkAdCell({
     {},
   );
 
+  const uploadForm = (
+    <form
+      action={uploadAction}
+      data-testid={`row-upload-form-${publicationId}`}
+      className="absolute z-20 mt-1 w-72 rounded-sm border border-outline-variant bg-surface-container-lowest p-3 shadow-lg"
+    >
+      {/* The only fields the server reads besides the file itself. */}
+      <input type="hidden" name="publicationId" value={publicationId} />
+      {linked ? <input type="hidden" name="replace" value="1" /> : null}
+
+      <p className="mb-2 text-xs text-on-surface-variant">
+        {linked
+          ? "הקובץ החדש יחליף את המודעה המשויכת. הקובץ הקודם נשאר בספרייה."
+          : "הקובץ ישויך ללקוח של הפרסום ויחובר אליו מיד."}
+      </p>
+      <input
+        type="file"
+        name="file"
+        data-testid={`row-upload-file-${publicationId}`}
+        accept={AD_ACCEPT_ATTRIBUTE}
+        className="w-full text-xs file:me-3 file:rounded-sm file:border-0 file:bg-surface-container file:px-2 file:py-1.5 file:text-xs"
+      />
+      <p className="mt-2 text-xs text-on-surface-variant">
+        PDF, JPG, PNG · עד <Ltr className="font-mono">{formatBytes(limit.maxBytes)}</Ltr> (
+        {limit.newspaperName})
+      </p>
+      {uploadState.message ? (
+        <div className="mt-2">
+          <InlineError>{uploadState.message}</InlineError>
+        </div>
+      ) : null}
+      <div className="mt-3 flex gap-2">
+        <Button
+          type="submit"
+          size="sm"
+          disabled={uploading}
+          data-testid={`row-upload-submit-${publicationId}`}
+        >
+          {uploading ? "מעלה…" : linked ? "החלפה" : "העלאה ושיוך"}
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => setMode("idle")}>
+          ביטול
+        </Button>
+      </div>
+    </form>
+  );
+
   if (linked) {
     return (
-      <div className="flex items-center gap-1">
+      <div className="relative flex items-center gap-1">
         <Link
           href={`/advertisements/${linked.id}`}
+          data-testid={`row-linked-${publicationId}`}
           className="max-w-40 truncate text-xs underline"
           title={linked.name}
         >
           {linked.name}
         </Link>
+
+        {/* Replace, because the ordinary correction is "they sent a new
+            version" rather than "remove it and leave the date empty". */}
         <Button
           variant="ghost"
           size="sm"
-          disabled={busy}
-          data-testid={`row-unlink-${publicationId}`}
-          onClick={() => run(() => unlinkAdFromPublicationAction(publicationId))}
+          data-testid={`row-replace-${publicationId}`}
+          onClick={() => setMode((m) => (m === "upload" ? "idle" : "upload"))}
         >
-          <Link2Off className="size-4" />
-          <span className="sr-only">ניתוק המודעה</span>
+          <Replace className="size-4" />
+          <span className="sr-only">החלפת המודעה</span>
         </Button>
+
+        {/*
+          Detaching asks first. It looks like a small tidy-up and is not: the
+          publication goes back to having no artwork, which puts it out of reach
+          of the layout board and back onto the reminder list.
+        */}
+        <ConfirmDialog
+          testId={`unlink-dialog-${publicationId}`}
+          trigger={
+            <Button variant="ghost" size="sm" data-testid={`row-unlink-${publicationId}`}>
+              <Link2Off className="size-4" />
+              <span className="sr-only">ביטול שיוך המודעה</span>
+            </Button>
+          }
+          title="לבטל את שיוך המודעה?"
+          body={
+            <>
+              <p className="mb-2">
+                הקובץ <strong>{linked.name}</strong> יינתק מהפרסום הזה. הקובץ עצמו נשאר בספרייה
+                ואינו נמחק.
+              </p>
+              <p>הפרסום יחזור למצב &quot;חסרה מודעה&quot; ויופיע שוב ברשימת התזכורות.</p>
+            </>
+          }
+          confirmLabel="ביטול השיוך"
+          pendingLabel="מנתקת…"
+          onConfirm={async () => {
+            const result = await unlinkAdFromPublicationAction(publicationId);
+            if (!result.message) router.refresh();
+            return result;
+          }}
+        />
+
+        {mode === "upload" ? uploadForm : null}
         {error ? <InlineError>{error}</InlineError> : null}
       </div>
     );
@@ -123,49 +206,7 @@ export function LinkAdCell({
         ) : null}
       </div>
 
-      {mode === "upload" ? (
-        <form
-          ref={formRef}
-          action={uploadAction}
-          data-testid={`row-upload-form-${publicationId}`}
-          className="absolute z-20 mt-1 w-72 rounded-sm border border-outline-variant bg-surface-container-lowest p-3 shadow-lg"
-        >
-          {/* The only field the server reads besides the file itself. */}
-          <input type="hidden" name="publicationId" value={publicationId} />
-          <p className="mb-2 text-xs text-on-surface-variant">
-            הקובץ ישויך ללקוח של הפרסום ויחובר אליו מיד.
-          </p>
-          <input
-            type="file"
-            name="file"
-            data-testid={`row-upload-file-${publicationId}`}
-            accept={AD_ACCEPT_ATTRIBUTE}
-            className="w-full text-xs file:me-3 file:rounded-sm file:border-0 file:bg-surface-container file:px-2 file:py-1.5 file:text-xs"
-          />
-          <p className="mt-2 text-xs text-on-surface-variant">
-            PDF, JPG, PNG · עד <Ltr className="font-mono">{formatBytes(limit.maxBytes)}</Ltr> (
-            {limit.newspaperName})
-          </p>
-          {uploadState.message ? (
-            <div className="mt-2">
-              <InlineError>{uploadState.message}</InlineError>
-            </div>
-          ) : null}
-          <div className="mt-3 flex gap-2">
-            <Button
-              type="submit"
-              size="sm"
-              disabled={uploading}
-              data-testid={`row-upload-submit-${publicationId}`}
-            >
-              {uploading ? "מעלה…" : "העלאה ושיוך"}
-            </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => setMode("idle")}>
-              ביטול
-            </Button>
-          </div>
-        </form>
-      ) : null}
+      {mode === "upload" ? uploadForm : null}
 
       {mode === "pick" ? (
         <ul
