@@ -4,6 +4,8 @@ import Link from "next/link";
 import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { listPublications } from "@/lib/data/publications";
 import { placeableAds } from "@/lib/data/advertisements";
+import type { AdPreviewModel } from "@/components/ads/ad-preview";
+import type { AdFileType } from "@/lib/domain/ad-file";
 import { listNewspapers } from "@/lib/data/newspapers";
 import {
   NEEDS_ATTENTION,
@@ -64,14 +66,27 @@ export default async function PublicationsPage({
 
   // One query for the whole table, grouped here: an ad may only be offered to
   // a publication of its own customer (stage 05 rule 5).
-  const adsByCustomer = new Map<string, Array<{ id: string; name: string }>>();
+  const toPreview = (ad: (typeof ads)[number]): AdPreviewModel => ({
+    id: ad.id,
+    name: ad.name,
+    fileType: ad.file_type as AdFileType,
+    fileSize: ad.file_size,
+    previewUrl: ad.preview_url,
+    fileUrl: ad.file_url,
+    customerLabel: ad.customer?.business_name ?? ad.customer?.contact_name ?? null,
+    uploadedBy: ad.uploaded_by.name,
+    uploadedAt: ad.uploaded_at,
+    publicationCount: ad._count.publications,
+  });
+
+  const adsByCustomer = new Map<string, AdPreviewModel[]>();
   for (const ad of ads) {
     if (!ad.customer_id) continue;
     const list = adsByCustomer.get(ad.customer_id) ?? [];
-    list.push({ id: ad.id, name: ad.name });
+    list.push(toPreview(ad));
     adsByCustomer.set(ad.customer_id, list);
   }
-  const adNameById = new Map(ads.map((a) => [a.id, a.name]));
+  const adById = new Map(ads.map((a) => [a.id, toPreview(a)]));
 
   // Each row states ITS OWN newspaper's ceiling, because that is the one the
   // upload will actually be measured against (FR-21).
@@ -232,12 +247,7 @@ export default async function PublicationsPage({
                         <LinkAdCell
                           publicationId={p.id}
                           linked={
-                            p.advertisement_id
-                              ? {
-                                  id: p.advertisement_id,
-                                  name: adNameById.get(p.advertisement_id) ?? "מודעה",
-                                }
-                              : null
+                            p.advertisement_id ? (adById.get(p.advertisement_id) ?? null) : null
                           }
                           options={adsByCustomer.get(p.customer_id) ?? []}
                           limit={{

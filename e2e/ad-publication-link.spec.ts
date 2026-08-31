@@ -68,7 +68,13 @@ test("שיוך מודעה לפרסום — משני הכיוונים — מזי�
 
   const publicationId = (await row.getAttribute("data-testid"))!.replace("publication-row-", "");
   await page.getByTestId(`row-link-${publicationId}`).click();
-  await page.getByTestId(`row-link-list-${publicationId}`).getByRole("button").first().click();
+  // Addressed by the option testid, not by position: the picker is a dialog
+  // and its first button is the close X.
+  await page
+    .getByTestId(`row-link-list-${publicationId}`)
+    .locator('[data-testid^="ad-picker-option-"]')
+    .first()
+    .click();
 
   // AD_LINKED on a valid ad that belongs to the customer goes all the way.
   await expect(page.locator(`[data-testid="publication-row-${publicationId}"]`)).toContainText(

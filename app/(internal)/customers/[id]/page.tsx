@@ -20,6 +20,7 @@ import { AD_FILE_TYPE_LABELS, formatBytes, type AdFileType } from "@/lib/domain/
 import { PUBLICATION_STATUS_LABELS, type PublicationStatus } from "@/lib/domain/publication-status";
 import { DeleteCustomer } from "./delete-customer";
 import { getCustomer } from "@/lib/data/customers";
+import { AdQuickLook, AdThumb } from "@/components/ads/ad-preview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Ltr } from "@/components/ui/ltr";
@@ -346,30 +347,35 @@ export default async function CustomerPage({
           ) : (
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="customer-ads">
               {ads.map((ad) => (
-                <li key={ad.id}>
+                <li key={ad.id} className="relative">
+                  <span className="absolute top-2 end-2 z-10">
+                    <AdQuickLook
+                      ad={{
+                        id: ad.id,
+                        name: ad.name,
+                        fileType: ad.file_type as AdFileType,
+                        fileSize: ad.file_size,
+                        previewUrl: ad.preview_url,
+                        customerLabel: customer.business_name ?? customer.contact_name,
+                        uploadedAt: ad.uploaded_at,
+                        publicationCount: ad._count.publications,
+                        invalid: ad.validation_status === "failed",
+                      }}
+                    />
+                  </span>
                   <Link
                     href={`/advertisements/${ad.id}`}
                     data-testid={`customer-ad-${ad.id}`}
                     className="flex gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest p-3 hover:bg-surface-container-low"
                   >
-                    <span className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-surface-container">
-                      {ad.preview_url ? (
-                        /* Same reason as the library card: the src 307s to a
-                           short-lived signed URL that must not be cached by the
-                           image optimiser (conventions.md §5). */
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={`/api/files/${ad.preview_url}`}
-                          alt=""
-                          className="size-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <span className="font-mono text-xs text-on-surface-variant">
-                          {AD_FILE_TYPE_LABELS[ad.file_type as AdFileType]}
-                        </span>
-                      )}
-                    </span>
+                    <AdThumb
+                      ad={{
+                        name: ad.name,
+                        fileType: ad.file_type as AdFileType,
+                        previewUrl: ad.preview_url,
+                      }}
+                      className="size-14 shrink-0"
+                    />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium" title={ad.name}>
                         {ad.name}

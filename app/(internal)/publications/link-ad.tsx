@@ -2,7 +2,6 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Link2, Link2Off, Replace, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -17,7 +16,11 @@ import {
   type AdFormState,
 } from "../advertisements/actions";
 
-export type AdOption = { id: string; name: string };
+import { AdPicker } from "@/components/ads/ad-picker";
+import { AdPreviewDialog, AdThumb, type AdPreviewModel } from "@/components/ads/ad-preview";
+
+/** Everything the picker needs to tell two similar file names apart. */
+export type AdOption = AdPreviewModel;
 
 /**
  * Artwork, from the PUBLICATION side.
@@ -38,12 +41,12 @@ export function LinkAdCell({
   limit,
 }: {
   publicationId: string;
-  linked: { id: string; name: string } | null;
+  linked: AdPreviewModel | null;
   options: AdOption[];
   /** The publication's own newspaper ceiling, shown before a file is chosen. */
   limit: { newspaperName: string; maxBytes: number };
 }) {
-  const [mode, setMode] = useState<"idle" | "pick" | "upload">("idle");
+  const [mode, setMode] = useState<"idle" | "upload">("idle");
   const [error, setError] = useState<string | null>(null);
   const [busy, start] = useTransition();
   const router = useRouter();
@@ -122,14 +125,24 @@ export function LinkAdCell({
   if (linked) {
     return (
       <div className="relative flex items-center gap-1">
-        <Link
-          href={`/advertisements/${linked.id}`}
-          data-testid={`row-linked-${publicationId}`}
-          className="max-w-40 truncate text-xs underline"
-          title={linked.name}
-        >
-          {linked.name}
-        </Link>
+        {/* The thumbnail IS the preview trigger: a file name is not a file,
+            and two versions of the same artwork read identically in a table. */}
+        <AdPreviewDialog
+          ad={linked}
+          trigger={
+            <button
+              type="button"
+              aria-label={`תצוגה מקדימה של ${linked.name}`}
+              data-testid={`row-linked-${publicationId}`}
+              className="flex items-center gap-2 rounded-sm hover:bg-surface-container-low"
+            >
+              <AdThumb ad={linked} className="size-8 shrink-0" />
+              <span className="max-w-32 truncate text-xs underline" title={linked.name}>
+                {linked.name}
+              </span>
+            </button>
+          }
+        />
 
         {/* Replace, because the ordinary correction is "they sent a new
             version" rather than "remove it and leave the date empty". */}
@@ -194,41 +207,23 @@ export function LinkAdCell({
           העלאה
         </Button>
         {options.length > 0 ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            data-testid={`row-link-${publicationId}`}
-            onClick={() => setMode((m) => (m === "pick" ? "idle" : "pick"))}
-          >
-            <Link2 className="size-4" />
-            מודעה קיימת
-          </Button>
+          <AdPicker
+            options={options}
+            busy={busy}
+            error={error}
+            testId={`row-link-list-${publicationId}`}
+            onSelect={(adId) => run(() => linkAdToPublicationAction(adId, publicationId))}
+            trigger={
+              <Button variant="secondary" size="sm" data-testid={`row-link-${publicationId}`}>
+                <Link2 className="size-4" />
+                מודעה קיימת
+              </Button>
+            }
+          />
         ) : null}
       </div>
 
       {mode === "upload" ? uploadForm : null}
-
-      {mode === "pick" ? (
-        <ul
-          data-testid={`row-link-list-${publicationId}`}
-          className="absolute z-20 mt-1 max-h-56 w-64 overflow-y-auto rounded-sm border border-outline-variant bg-surface-container-lowest py-1 shadow-lg"
-        >
-          {options.map((o) => (
-            <li key={o.id}>
-              <button
-                type="button"
-                disabled={busy}
-                data-testid={`row-link-option-${o.id}`}
-                onClick={() => run(() => linkAdToPublicationAction(o.id, publicationId))}
-                className="w-full truncate px-3 py-2 text-start text-sm hover:bg-surface-container"
-                title={o.name}
-              >
-                {o.name}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
 
       {error ? <InlineError>{error}</InlineError> : null}
     </div>

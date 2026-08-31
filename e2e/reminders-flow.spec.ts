@@ -12,11 +12,66 @@ import { uploadFile } from "./ad-helpers";
  * itself (rule 7).
  */
 
-/** A date inside the default 7-day window. */
+/**
+ * A date N days out **in the publisher's calendar**, as the app counts it.
+ *
+ * Not `new Date()` + toISOString(): those read the calendar of whatever
+ * machine runs the tests, and the app counts in Asia/Jerusalem
+ * (conventions.md §1). The two disagree for a few hours every night, and the
+ * test then asks for "3 days out" while handing the app a date that is 2 —
+ * a failure that looks like a product bug and is a fixture bug.
+ */
+const JERUSALEM_DAY = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Jerusalem",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 function inDays(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  const [year, month, day] = JERUSALEM_DAY.format(new Date()).split("-").map(Number);
+  const target = new Date(Date.UTC(year!, month! - 1, day! + days));
+  return target.toISOString().slice(0, 10);
+}
+
+/**
+ * Adds one line at least `minDays` out, on a date the paper actually comes out.
+ *
+ * A fixed offset walks into a holiday sooner or later — 20 days from the 1st of
+ * September 2026 is Yom Kippur — and the SERVER refuses it: the date is
+ * selectable, the button is enabled, and the rejection arrives as a form error
+ * after the click. So the only honest detector is to try, and move on a day
+ * when it is refused. (Reading the Hebrew calendar in the test is not an
+ * option: Playwright's loader cannot resolve @hebcal/core.)
+ *
+ * The page is reloaded between attempts because a refused date stays selected,
+ * and the next attempt would carry it along.
+ *
+ * Must be called with a draft order open; returns the offset that stuck.
+ */
+async function addPrintableLine(page: Page, minDays: number): Promise<number> {
+  for (let days = minDays; days < minDays + 8; days++) {
+    await page.getByTestId("line-date").fill(inDays(days));
+    await page.getByTestId("line-price").fill("1000");
+    await expect
+      .poll(async () => {
+        const box = page.getByTestId("confirm-special-edition");
+        if ((await box.count()) > 0 && !(await box.isChecked())) await box.check();
+        return page.getByTestId("add-line").isEnabled();
+      })
+      .toBe(true);
+    await page.getByTestId("add-line").click();
+
+    const added = await page
+      .getByTestId("order-line-count")
+      .waitFor({ timeout: 5_000, state: "visible" })
+      .then(() => true)
+      .catch(() => false);
+    if (added) return days;
+
+    await page.reload();
+  }
+  throw new Error(`no printable day found near +${minDays} days`);
 }
 
 /** A customer of this test's own, so its row is identifiable in a shared list. */
@@ -31,7 +86,11 @@ async function ownCustomer(page: Page): Promise<string> {
   return name;
 }
 
-async function approvedOrderOn(page: Page, date: string, customer?: string): Promise<string> {
+async function approvedOrderOn(
+  page: Page,
+  minDays: number,
+  customer?: string,
+): Promise<{ ref: string; days: number }> {
   await page.goto("/orders/new");
   await page.getByTestId("order-customer").click();
   const options = page.getByTestId("order-customer-list").getByRole("option");
@@ -40,18 +99,12 @@ async function approvedOrderOn(page: Page, date: string, customer?: string): Pro
   await page.waitForURL(/\/orders\/c[a-z0-9]{20,}$/);
   const id = new URL(page.url()).pathname.split("/").pop()!;
 
-  await page.getByTestId("line-date").fill(date);
-  await page.getByTestId("line-price").fill("1000");
-  const warning = page.getByTestId("off-schedule-warning");
-  if (await warning.isVisible()) await page.getByTestId("confirm-special-edition").check();
-  await expect(page.getByTestId("add-line")).toBeEnabled();
-  await page.getByTestId("add-line").click();
-  await expect(page.getByTestId("order-line-count")).toContainText(`${1} תאריכים`);
+  const days = await addPrintableLine(page, minDays);
 
   await page.getByTestId("submit-order").click();
   await page.getByTestId("approve-order").click();
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
-  return id;
+  return { ref: `ORD-${id.slice(-6).toUpperCase()}`, days };
 }
 
 test("פרסום קרוב בלי מודעה נכנס לרשימה, ושום דבר לא נשלח לבד", async ({ page }) => {
@@ -59,7 +112,7 @@ test("פרסום קרוב בלי מודעה נכנס לרשימה, ושום דב
   await loginAsAdmin(page);
 
   const customer = await ownCustomer(page);
-  await approvedOrderOn(page, inDays(3), customer);
+  const target = await approvedOrderOn(page, 3, customer);
 
   await page.goto("/reminders");
 
@@ -74,7 +127,9 @@ test("פרסום קרוב בלי מודעה נכנס לרשימה, ושום דב
   const id = (await row.getAttribute("data-testid"))!.replace("reminder-row-", "");
 
   // Three days out is inside the default window and reads as urgent.
-  await expect(page.getByTestId(`reminder-days-${id}`)).toContainText("בעוד 3 ימים");
+  // Asserted against the offset the fixture actually landed on, since it steps
+  // past holidays.
+  await expect(page.getByTestId(`reminder-days-${id}`)).toContainText(`בעוד ${target.days} ימים`);
   await expect(row).toContainText("נדרשת");
 
   // Approving marks; it does not send.
@@ -96,7 +151,7 @@ test("פרסום רחוק מהחלון אינו נכנס לרשימה", async ({
   test.slow();
   await loginAsAdmin(page);
 
-  await approvedOrderOn(page, inDays(45));
+  await approvedOrderOn(page, 45);
 
   await page.goto("/reminders");
   // 45 days out, with a 7-day window: not yet anyone's problem. The table
@@ -108,8 +163,7 @@ test("שיוך מודעה מסיר את התזכורת מעצמו (כלל 7)", a
   test.slow();
   await loginAsAdmin(page);
 
-  const orderId = await approvedOrderOn(page, inDays(2));
-  const orderRef = `ORD-${orderId.slice(-6).toUpperCase()}`;
+  const { ref: orderRef } = await approvedOrderOn(page, 2);
 
   await page.goto("/reminders");
   const before = await page.getByTestId("reminders-table").locator("tbody tr").count();
@@ -137,7 +191,7 @@ test("חלון התזכורות ניתן לשינוי ומשפיע על הרשי
   test.slow();
   await loginAsAdmin(page);
 
-  await approvedOrderOn(page, inDays(20));
+  await approvedOrderOn(page, 20);
 
   // Counted rather than matched on text: the seeded customer accumulates
   // publications across specs, so any single countdown string could belong to

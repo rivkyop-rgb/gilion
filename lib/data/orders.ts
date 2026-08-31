@@ -64,7 +64,19 @@ export async function getOrder(businessId: string, id: string) {
           // will actually be enforced on it (FR-21).
           newspaper: { select: { id: true, name: true, max_ad_file_size: true } },
           ad_shape: { select: { name: true, cols: true, rows: true } },
-          advertisement: { select: { id: true, name: true } },
+          // The row shows a thumbnail and opens a full preview, so it needs
+          // more than a name — a name is not a file.
+          advertisement: {
+            select: {
+              id: true,
+              name: true,
+              file_type: true,
+              file_size: true,
+              file_url: true,
+              preview_url: true,
+              uploaded_at: true,
+            },
+          },
         },
       },
     },

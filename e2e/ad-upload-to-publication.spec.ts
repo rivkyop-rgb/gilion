@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { loginAsAdmin } from "./helpers";
+import { loginAsAdmin, addOrderLine } from "./helpers";
 import { validPdf } from "./ad-fixtures";
 import { pngOfRoughly } from "./ad-fixtures";
 
@@ -22,13 +22,7 @@ async function approvedOrder(page: Page, dates: string[]): Promise<string> {
   const id = new URL(page.url()).pathname.split("/").pop()!;
 
   for (const [index, date] of dates.entries()) {
-    await page.getByTestId("line-date").fill(date);
-    await page.getByTestId("line-price").fill("1000");
-    const warning = page.getByTestId("off-schedule-warning");
-    if (await warning.isVisible()) await page.getByTestId("confirm-special-edition").check();
-    await expect(page.getByTestId("add-line")).toBeEnabled();
-    await page.getByTestId("add-line").click();
-    await expect(page.getByTestId("order-line-count")).toContainText(`${index + 1} תאריכים`);
+    await addOrderLine(page, date, "1000", index + 1);
   }
 
   await page.getByTestId("submit-order").click();
@@ -82,13 +76,7 @@ test("העלאה מהפרסום נמדדת מול העיתון של אותו פ�
   const id = new URL(page.url()).pathname.split("/").pop()!;
 
   await page.getByTestId("line-newspaper").selectOption({ label: "קטלוג המרכז" });
-  await page.getByTestId("line-date").fill("2026-12-03");
-  await page.getByTestId("line-price").fill("1000");
-  const warning = page.getByTestId("off-schedule-warning");
-  if (await warning.isVisible()) await page.getByTestId("confirm-special-edition").check();
-  await expect(page.getByTestId("add-line")).toBeEnabled();
-  await page.getByTestId("add-line").click();
-  await expect(page.getByTestId("order-line-count")).toContainText(`${1} תאריכים`);
+  await addOrderLine(page, "2026-12-03", "1000", 1);
 
   await page.getByTestId("submit-order").click();
   await page.getByTestId("approve-order").click();

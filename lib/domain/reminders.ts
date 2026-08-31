@@ -50,18 +50,45 @@ export type ReminderCandidate = {
 };
 
 /**
- * Whole days from `today` to the publication date, in the publisher's own
- * calendar sense: both are flattened to midnight first, so "tomorrow" is 1
- * whether it is now 09:00 or 23:50.
+ * The publisher's calendar. Storage is UTC, display is Asia/Jerusalem
+ * (conventions.md §1), and "how many days left" is a display question.
+ */
+const PUBLISHER_ZONE = "Asia/Jerusalem";
+
+const DAY_PARTS = new Intl.DateTimeFormat("en-CA", {
+  timeZone: PUBLISHER_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/** Midnight-of-that-day, as a UTC timestamp, for a moment read in Jerusalem. */
+function jerusalemDay(moment: Date): number {
+  const [year, month, day] = DAY_PARTS.format(moment).split("-").map(Number);
+  return Date.UTC(year!, month! - 1, day!);
+}
+
+/**
+ * Whole days from `today` to the publication date.
+ *
+ * BOTH SIDES MUST BE READ IN THE SAME CALENDAR, and getting that wrong is not
+ * a rounding detail. `publication_date` is a DATE column, so Prisma hands it
+ * back as UTC midnight — a calendar day with no time in it. `today` is a real
+ * moment. Reading the moment with local getters and the column with UTC ones
+ * agrees for most of the day and disagrees for the hours when Jerusalem has
+ * turned over and UTC has not: every night between midnight and 03:00 the
+ * countdown was short by one. On a list whose whole job is "how long do I have
+ * left", the hours when it lies are exactly the hours someone is working late
+ * to catch up.
  */
 export function daysUntil(publicationDate: Date, today: Date): number {
-  const a = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-  const b = Date.UTC(
+  const from = jerusalemDay(today);
+  const to = Date.UTC(
     publicationDate.getUTCFullYear(),
     publicationDate.getUTCMonth(),
     publicationDate.getUTCDate(),
   );
-  return Math.round((b - a) / 86_400_000);
+  return Math.round((to - from) / 86_400_000);
 }
 
 /**

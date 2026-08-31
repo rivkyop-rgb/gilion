@@ -48,12 +48,24 @@ export function PricingMatrix({
   const [dirty, setDirty] = useState<Map<CellKey, string>>(new Map());
   const [busy, startTransition] = useTransition();
 
-  const original = new Map<CellKey, string>();
-  for (const row of rows) {
-    for (const cell of row.cells) {
-      original.set(keyOf(row.pageType.id, cell.shape.id), String(cell.price ?? ""));
+  /**
+   * What each cell held the last time it was SAVED — not what the props say.
+   *
+   * The two diverge the moment someone saves twice in one visit: the props
+   * only change when the route revalidates, so a baseline read from them keeps
+   * comparing against the value the page loaded with. Clearing a cell that was
+   * just set to 900 then reads as "back to how it was", the change is not
+   * counted, and the save button stays disabled with no way to explain itself.
+   */
+  const [baseline, setBaseline] = useState<Map<CellKey, string>>(() => {
+    const map = new Map<CellKey, string>();
+    for (const row of rows) {
+      for (const cell of row.cells) {
+        map.set(keyOf(row.pageType.id, cell.shape.id), String(cell.price ?? ""));
+      }
     }
-  }
+    return map;
+  });
 
   const edit = (pageTypeId: string, shapeId: string, value: string) => {
     const key = keyOf(pageTypeId, shapeId);
@@ -62,7 +74,7 @@ export function PricingMatrix({
       const next = new Map(prev);
       // Typing a value back to what it was is not a change — the counter has
       // to fall as well as rise, or it stops meaning anything.
-      if (value === (original.get(key) ?? "")) next.delete(key);
+      if (value === (baseline.get(key) ?? "")) next.delete(key);
       else next.set(key, value);
       return next;
     });
@@ -80,6 +92,9 @@ export function PricingMatrix({
           return;
         }
       }
+      // What was just written becomes the new baseline, so the next edit of
+      // the same cell is measured against reality.
+      setBaseline((prev) => new Map([...prev, ...entries]));
       setSaved(entries.length);
       setDirty(new Map());
     });

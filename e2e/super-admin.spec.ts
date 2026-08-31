@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
-import { BUSINESS, BUSINESS_NAMES, USERS, login, pickBusiness, sessionOf } from "./helpers";
+import {
+  BUSINESS,
+  BUSINESS_NAMES,
+  USERS,
+  login,
+  pickBusiness,
+  sessionOf,
+  openSignIn,
+} from "./helpers";
 
 /**
  * The platform owner (super admin).
@@ -105,8 +113,7 @@ test.describe("creating a business", () => {
     await expect(page.getByTestId("businesses-table")).toContainText(bizName);
 
     // The point of creating the pair together: the new admin can actually work.
-    await page.context().clearCookies();
-    await page.goto("/login");
+    await openSignIn(page);
     await page.fill("#email", email);
     await page.fill("#password", "sup3rsecret");
     await page.click('button[type="submit"]');
@@ -179,8 +186,7 @@ test.describe("deactivating a business", () => {
     const biz = await createBusiness(page);
 
     // The new admin can work before the business is closed.
-    await page.context().clearCookies();
-    await page.goto("/login");
+    await openSignIn(page);
     await page.fill("#email", biz.email);
     await page.fill("#password", "sup3rsecret");
     await page.click('button[type="submit"]');
@@ -200,8 +206,7 @@ test.describe("deactivating a business", () => {
     ).toBeVisible();
 
     // Its admin is now shut out — no business to enter at all.
-    await page.context().clearCookies();
-    await page.goto("/login");
+    await openSignIn(page);
     await page.fill("#email", biz.email);
     await page.fill("#password", "sup3rsecret");
     await page.click('button[type="submit"]');
@@ -266,8 +271,7 @@ test.describe("deactivating a business", () => {
     ).toBeVisible();
 
     // The admin who was shut out can work again, with the same password.
-    await page.context().clearCookies();
-    await page.goto("/login");
+    await openSignIn(page);
     await page.fill("#email", biz.email);
     await page.fill("#password", "sup3rsecret");
     await page.click('button[type="submit"]');

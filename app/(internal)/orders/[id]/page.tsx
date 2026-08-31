@@ -7,6 +7,7 @@ import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { getOrder, orderFormOptions } from "@/lib/data/orders";
 import { itemsEditable, type OrderStatus } from "@/lib/domain/order-status";
 import type { PublicationStatus } from "@/lib/domain/publication-status";
+import type { AdFileType } from "@/lib/domain/ad-file";
 import { Ltr } from "@/components/ui/ltr";
 import { OrderStatusBadge, PublicationStatusBadge, SourceBadge } from "../order-badges";
 import { formatDate, formatMoney, orderNumber } from "../format";
@@ -194,7 +195,19 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                           <td className="p-3">
                             <LinkAdCell
                               publicationId={p.id}
-                              linked={p.advertisement}
+                              linked={
+                                p.advertisement
+                                  ? {
+                                      id: p.advertisement.id,
+                                      name: p.advertisement.name,
+                                      fileType: p.advertisement.file_type as AdFileType,
+                                      fileSize: p.advertisement.file_size,
+                                      previewUrl: p.advertisement.preview_url,
+                                      fileUrl: p.advertisement.file_url,
+                                      uploadedAt: p.advertisement.uploaded_at,
+                                    }
+                                  : null
+                              }
                               // Deliberately empty: on the order screen the act
                               // is "the customer sent me this file for this
                               // slot". Re-using an existing file is the library's

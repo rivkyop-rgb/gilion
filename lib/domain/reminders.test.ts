@@ -33,6 +33,25 @@ describe("daysUntil", () => {
   it("goes negative for a date that has passed", () => {
     expect(daysUntil(new Date("2026-08-30T00:00:00Z"), TODAY)).toBe(-2);
   });
+
+  /**
+   * The bug this guards: between midnight and 03:00 Jerusalem time, UTC is
+   * still on the previous day. Reading `today` with local getters and the
+   * stored DATE column with UTC ones made the countdown short by one for
+   * exactly those hours — on a list whose job is "how long do I have left".
+   */
+  it("counts in the publisher's calendar, not in UTC", () => {
+    // 00:30 on 1 September in Jerusalem is still 21:30 on 31 August in UTC.
+    const justAfterMidnightInIsrael = new Date("2026-08-31T21:30:00Z");
+    expect(daysUntil(new Date("2026-09-04T00:00:00Z"), justAfterMidnightInIsrael)).toBe(3);
+    expect(daysUntil(new Date("2026-09-01T00:00:00Z"), justAfterMidnightInIsrael)).toBe(0);
+  });
+
+  it("still counts the same in the middle of the day", () => {
+    // 12:00 UTC is 15:00 in Jerusalem — same calendar day either way.
+    const midday = new Date("2026-09-01T12:00:00Z");
+    expect(daysUntil(new Date("2026-09-04T00:00:00Z"), midday)).toBe(3);
+  });
 });
 
 describe("needsReminder", () => {

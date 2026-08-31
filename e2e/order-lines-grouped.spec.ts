@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { USERS, login } from "./helpers";
+import { USERS, login, addOrderLine } from "./helpers";
 
 /**
  * The order reads by what was ORDERED; the publications list keeps the detail.
@@ -18,13 +18,7 @@ async function draft(page: Page): Promise<string> {
 }
 
 async function addDate(page: Page, date: string, price: string, dates: number) {
-  await page.getByTestId("line-date").fill(date);
-  await page.getByTestId("line-price").fill(price);
-  const warning = page.getByTestId("off-schedule-warning");
-  if (await warning.isVisible()) await page.getByTestId("confirm-special-edition").check();
-  await expect(page.getByTestId("add-line")).toBeEnabled();
-  await page.getByTestId("add-line").click();
-  await expect(page.getByTestId("order-line-count")).toContainText(`${dates} תאריכים`);
+  await addOrderLine(page, date, price, dates);
 }
 
 test("שלושה תאריכים באותו מחיר הם שורת הזמנה אחת עם סה״כ נכון", async ({ page }) => {

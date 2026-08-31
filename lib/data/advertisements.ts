@@ -237,7 +237,22 @@ export async function placeableAds(businessId: string) {
       customer_id: { not: null },
     },
     orderBy: { uploaded_at: "desc" },
-    select: { id: true, name: true, customer_id: true, file_type: true },
+    // Everything the picker needs to tell two similarly-named files apart, in
+    // ONE query for the whole table — a lookup per row would turn a table of
+    // forty publications into forty requests.
+    select: {
+      id: true,
+      name: true,
+      customer_id: true,
+      file_type: true,
+      file_size: true,
+      file_url: true,
+      preview_url: true,
+      uploaded_at: true,
+      uploaded_by: { select: { name: true } },
+      customer: { select: { contact_name: true, business_name: true } },
+      _count: { select: { publications: true } },
+    },
   });
 }
 

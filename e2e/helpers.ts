@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 export const PASSWORD = "gilion1234";
 
@@ -65,42 +65,42 @@ export const CUSTOMERS = {
   betaRegular: "cust_beta_1",
 } as const;
 
-/** Signs in and waits for the server-decided landing route. */
-export async function login(page: Page, email: string) {
-  // Signing in as a different user in the same browser context needs the old
-  // session gone first: middleware redirects an authenticated visitor away
-  // from /login, so otherwise the form never renders and the fill times out.
-  //
-  // Clearing cookies is necessary and NOT sufficient, and the reason took a
-  // while to find. The page being left behind can still have requests in
-  // flight, and Auth.js re-issues the session cookie on the way out of every
-  // one of them — so a response that lands a few milliseconds after the clear
-  // puts the session straight back. The next /login then bounces to
-  // /dashboard, and the failure reads as "waiting for #email" with nothing to
-  // suggest why. Retrying the clear does not help either: the same race is
-  // simply run again.
-  //
-  // Navigating to about:blank first is what fixes it. It tears down the old
-  // document, and with it every request that could still answer, so the clear
-  // has nothing racing it.
+/**
+ * Puts the sign-in form on screen, with any previous session genuinely gone.
+ *
+ * Every spec that signs a second person in during one test must go through
+ * here. Clearing cookies is necessary and NOT sufficient: the page being left
+ * behind can still have requests in flight, and Auth.js re-issues the session
+ * cookie on the way out of every one of them — so a response landing a few
+ * milliseconds after the clear puts the session straight back, /login bounces
+ * to /dashboard, and the failure reads as "waiting for #email" with nothing to
+ * suggest why. Retrying the clear does not help; the same race just runs again.
+ *
+ * Navigating to about:blank first is what fixes it: it tears down the old
+ * document, and with it every request that could still answer.
+ */
+export async function openSignIn(page: Page) {
   await page.goto("about:blank");
   await page.context().clearCookies();
 
-  let formVisible = false;
-  for (let attempt = 0; attempt < 3 && !formVisible; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) {
       await page.goto("about:blank");
       await page.context().clearCookies();
     }
     await page.goto("/login");
-    formVisible = await page
+    const ready = await page
       .waitForSelector("#email", { timeout: 8_000, state: "visible" })
       .then(() => true)
       .catch(() => false);
+    if (ready) return;
   }
-  if (!formVisible) {
-    throw new Error(`the sign-in form never rendered for ${email}; last url: ${page.url()}`);
-  }
+  throw new Error(`the sign-in form never rendered; last url: ${page.url()}`);
+}
+
+/** Signs in and waits for the server-decided landing route. */
+export async function login(page: Page, email: string) {
+  await openSignIn(page);
   await page.fill("#email", email);
   await page.fill("#password", PASSWORD);
   await page.click('button[type="submit"]');
@@ -147,4 +147,30 @@ export async function loginAsAdmin(page: Page, business: "alpha" | "beta" = "alp
 export async function pickBusiness(page: Page, businessId: string) {
   await page.getByTestId(`pick-business-${businessId}`).click();
   await page.waitForURL(/\/dashboard/, { timeout: 20_000 });
+}
+
+/**
+ * Adds one date to the open order draft and waits for it to land.
+ *
+ * The off-schedule warning renders only after the date is parsed, so sampling
+ * `isVisible()` once races it: on the miss the checkbox is never ticked, "add
+ * line" stays disabled, and the failure surfaces later as a table that has no
+ * rows for a reason nothing on screen explains. Polling until the button is
+ * actually enabled — ticking the acknowledgement whenever it appears — is what
+ * makes the step deterministic.
+ */
+export async function addOrderLine(page: Page, date: string, price: string, expectedDates: number) {
+  await page.getByTestId("line-date").fill(date);
+  await page.getByTestId("line-price").fill(price);
+
+  await expect
+    .poll(async () => {
+      const box = page.getByTestId("confirm-special-edition");
+      if ((await box.count()) > 0 && !(await box.isChecked())) await box.check();
+      return page.getByTestId("add-line").isEnabled();
+    })
+    .toBe(true);
+
+  await page.getByTestId("add-line").click();
+  await expect(page.getByTestId("order-line-count")).toContainText(`${expectedDates} תאריכים`);
 }

@@ -78,6 +78,7 @@ export default async function AdvertisementsPage({
     fileType: ad.file_type as AdFileType,
     fileSize: ad.file_size,
     previewUrl: ad.preview_url,
+    fileUrl: ad.file_url,
     status: ad.status as AdCardModel["status"],
     validationStatus: ad.validation_status as AdCardModel["validationStatus"],
     validationError: ad.validation_error,

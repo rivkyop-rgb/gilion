@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { USERS, login, loginAsAdmin } from "./helpers";
+import { USERS, login, loginAsAdmin, addOrderLine } from "./helpers";
 
 /**
  * Cancelling ONE publication out of an order (stage 04 rule 18).
@@ -21,13 +21,7 @@ test("ביטול פרסום בודד לא נוגע בשאר ההזמנה", async
   const id = new URL(page.url()).pathname.split("/").pop()!;
 
   for (const [index, date] of ["2026-10-06", "2026-10-13"].entries()) {
-    await page.getByTestId("line-date").fill(date);
-    await page.getByTestId("line-price").fill("900");
-    const warning = page.getByTestId("off-schedule-warning");
-    if (await warning.isVisible()) await page.getByTestId("confirm-special-edition").check();
-    await expect(page.getByTestId("add-line")).toBeEnabled();
-    await page.getByTestId("add-line").click();
-    await expect(page.getByTestId("order-line-count")).toContainText(`${index + 1} תאריכים`);
+    await addOrderLine(page, date, "900", index + 1);
   }
 
   await page.getByTestId("submit-order").click();

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { USERS, login } from "./helpers";
+import { USERS, login, openSignIn } from "./helpers";
 
 /**
  * Managing the people inside one business (FR-8).
@@ -49,8 +49,7 @@ test.describe("adding a user", () => {
     await expect(page.getByTestId("members-table")).toContainText(email);
 
     // They can actually work, and land straight in the one business they have.
-    await page.context().clearCookies();
-    await page.goto("/login");
+    await openSignIn(page);
     await page.fill("#email", email);
     await page.fill("#password", "sup3rsecret");
     await page.click('button[type="submit"]');
@@ -124,8 +123,7 @@ test.describe("the two refusals that matter", () => {
     await expect(row.getByText("מושבת")).toBeVisible();
 
     // Shut out — but the account still exists.
-    await page.context().clearCookies();
-    await page.goto("/login");
+    await openSignIn(page);
     await page.fill("#email", email);
     await page.fill("#password", "sup3rsecret");
     await page.click('button[type="submit"]');
@@ -141,8 +139,7 @@ test.describe("the two refusals that matter", () => {
     await page.getByTestId(`restore-${userId}`).click();
     await expect(row.getByText("פעיל")).toBeVisible();
 
-    await page.context().clearCookies();
-    await page.goto("/login");
+    await openSignIn(page);
     await page.fill("#email", email);
     await page.fill("#password", "sup3rsecret");
     await page.click('button[type="submit"]');

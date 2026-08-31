@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { USERS, login, loginAsAdmin } from "./helpers";
+import { USERS, login, loginAsAdmin, addOrderLine } from "./helpers";
 import { validPng } from "./ad-fixtures";
 import { uploadFile } from "./ad-helpers";
 
@@ -44,13 +44,7 @@ async function approvedOrderFor(page: Page, customerLabel: string, price: string
   await page.getByTestId("create-order").click();
   await page.waitForURL(/\/orders\/c[a-z0-9]{20,}$/);
 
-  await page.getByTestId("line-date").fill("2026-12-01");
-  await page.getByTestId("line-price").fill(price);
-  const warning = page.getByTestId("off-schedule-warning");
-  if (await warning.isVisible()) await page.getByTestId("confirm-special-edition").check();
-  await expect(page.getByTestId("add-line")).toBeEnabled();
-  await page.getByTestId("add-line").click();
-  await expect(page.getByTestId("order-line-count")).toContainText(`${1} תאריכים`);
+  await addOrderLine(page, "2026-12-01", price, 1);
 
   await page.getByTestId("submit-order").click();
   await page.getByTestId("approve-order").click();
