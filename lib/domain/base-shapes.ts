@@ -37,6 +37,23 @@ export const BASE_SHAPES: readonly BaseShape[] = [
   { key: "strip", name: "רצועה תחתונה", colsRatio: 1, rowsRatio: 1 / 6, region: "bottom" },
 ];
 
+/**
+ * The three page types every newspaper starts with.
+ *
+ * A newspaper with no page types cannot be ordered in at all — the order
+ * builder has nothing to offer and the issue builder has nothing to compose
+ * from. Leaving them to be invented meant the first thing anyone did with a
+ * new newspaper was type the word "שער" into a settings screen, and the second
+ * was discover that the issue board treats page 1 as the cover whatever it is
+ * called.
+ *
+ * `cover` and `back` are named to match `defaultPageTypeIds` in
+ * issue-layout.ts, which guesses the composition of a new issue from these
+ * names. They remain ordinary rows: renameable, deletable, and joinable by any
+ * number of others the newspaper wants.
+ */
+export const BASE_PAGE_TYPES = ["שער", "עמוד פנימי", "גב"] as const;
+
 export type MaterializedShape = {
   key: string;
   name: string;

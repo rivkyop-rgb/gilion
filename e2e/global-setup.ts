@@ -46,6 +46,10 @@ export default async function globalSetup() {
     });
   }
 
+  // Issues come first: Placement is Restrict from both Publication and
+  // Advertisement, so nothing below can be removed while one still points at
+  // it.
+  await deleteTestIssues(prisma);
   await deleteTestAdvertisements(prisma);
   await deleteTestOrders(prisma);
   await deleteTestCustomers(prisma);
@@ -55,8 +59,10 @@ export default async function globalSetup() {
   await clearPermissionOverrides(prisma);
   await restoreSeededMemberships(prisma);
   await resetShapeCatalogue(prisma);
+  await resetPageTypes(prisma);
   await resetPriceRules(prisma);
   await resetReminderWindow(prisma);
+  await seedIssueFixtures(prisma);
 
   await prisma.$disconnect();
 }
@@ -113,6 +119,90 @@ async function clearAdObjects(businessIds: string[]) {
       stream.on("error", reject);
     });
     if (keys.length > 0) await client.removeObjects(bucket, keys);
+  }
+}
+
+/**
+ * The seeded page types, and exactly which shapes each of them allows.
+ *
+ * Mirrors prisma/seed.ts. Kept as data here rather than imported, because the
+ * seed is a script that connects to the database — this file needs the FACTS,
+ * not the act of writing them.
+ */
+const SEEDED_PAGE_TYPES: Record<string, { newspaperId: string; name: string; shapes: string[] }> = {
+  pt_cat_front: {
+    newspaperId: "paper_catalog",
+    name: "שער קטלוג",
+    shapes: ["shape_catalog_quarter", "shape_catalog_eighth"],
+  },
+  pt_cat_inner: {
+    newspaperId: "paper_catalog",
+    name: "פנימי קטלוג",
+    shapes: [
+      "shape_catalog_full",
+      "shape_catalog_half_h",
+      "shape_catalog_quarter",
+      "shape_catalog_eighth",
+    ],
+  },
+  pt_cover: { newspaperId: "paper_alpha", name: "שער", shapes: ["shape_strip", "shape_quarter"] },
+  pt_inner: {
+    newspaperId: "paper_alpha",
+    name: "פנימי",
+    shapes: ["shape_full", "shape_half_h", "shape_half_v", "shape_quarter", "shape_eighth"],
+  },
+  pt_back: {
+    newspaperId: "paper_alpha",
+    name: "אחורי",
+    shapes: ["shape_full", "shape_half_h"],
+  },
+};
+
+/**
+ * Puts the page types and their permitted shapes back the way the seed leaves
+ * them.
+ *
+ * `resetShapeCatalogue` above restores the SHAPES, and stopped there — so every
+ * spec that ticked a box in the allowed-shapes matrix left the tick behind for
+ * good. The seeded cover accepts two shapes; after enough runs it accepted all
+ * six, and the failure landed nowhere near the spec that caused it: a full-page
+ * ad stopped being refused on the cover, and the pricing matrix stopped marking
+ * that combination impossible. Both read as product regressions and were
+ * neither.
+ *
+ * Page types the specs CREATED on a seeded newspaper go too. A stray one is not
+ * merely clutter — it appears in the order builder's pickers and in the issue
+ * composer, and shifts what "the first option" means.
+ */
+async function resetPageTypes(prisma: PrismaClient) {
+  const seededIds = Object.keys(SEEDED_PAGE_TYPES);
+
+  // Only on the seeded newspapers: a newspaper a spec created is removed whole
+  // at the start of the next run, and its page types go with it.
+  await prisma.pageType.deleteMany({
+    where: {
+      newspaper_id: { in: ["paper_alpha", "paper_beta", "paper_catalog"] },
+      id: { notIn: seededIds },
+    },
+  });
+
+  for (const [id, spec] of Object.entries(SEEDED_PAGE_TYPES)) {
+    await prisma.pageType.upsert({
+      where: { id },
+      update: { name: spec.name },
+      create: { id, newspaper_id: spec.newspaperId, name: spec.name },
+    });
+
+    await prisma.allowedAdShape.deleteMany({
+      where: { page_type_id: id, ad_shape_id: { notIn: spec.shapes } },
+    });
+    for (const shapeId of spec.shapes) {
+      await prisma.allowedAdShape.upsert({
+        where: { page_type_id_ad_shape_id: { page_type_id: id, ad_shape_id: shapeId } },
+        update: {},
+        create: { newspaper_id: spec.newspaperId, page_type_id: id, ad_shape_id: shapeId },
+      });
+    }
   }
 }
 
@@ -377,4 +467,229 @@ async function resetShapeCatalogue(prisma: PrismaClient) {
       await prisma.adShape.upsert({ where: { id: row.id }, update: row, create: row });
     }
   }
+}
+
+/* -------------------------------------------------------------- stage 06 */
+
+/**
+ * Two fixed dates, and the reason they are fixed — and the reason they are
+ * these two in particular.
+ *
+ * Fixed, because a relative date ("today plus 30") drifts across a run that
+ * starts at 23:59 and can wander into the reminder window, which would make
+ * the issue fixtures appear as rows the reminder specs then count.
+ *
+ * June 2027, because the order specs already publish on 2026-12-01/08/15/22
+ * and through Jan-Feb 2027. A publication lands on this board whenever it
+ * shares the newspaper AND the date, so an overlap does not fail in the spec
+ * that created it — it fails in `placement-happy-path`, as "expected (6),
+ * received (9)", three files away. **Any new fixture date must be checked
+ * against every date the order specs use.**
+ *
+ * BOARD_DATE carries a ready-made issue that the placement specs mutate and
+ * reset between tests. OPEN_DATE deliberately has publications but NO issue,
+ * so the spec that opens one has something real to open onto.
+ */
+export const BOARD_DATE = "2027-06-15";
+export const OPEN_DATE = "2027-06-22";
+
+/** Ids the placement specs address directly. */
+export const ISSUE_FIXTURES = {
+  order: "ord_issue_fixture",
+  adOk: "ad_issue_ok",
+  adOrphan: "ad_issue_orphan",
+  issue: "iss_fixture",
+  pageCover: "ipage_cover",
+  pageInnerA: "ipage_inner_a",
+  pageInnerB: "ipage_inner_b",
+  pageBack: "ipage_back",
+  quarterA: "pub_issue_quarter_a",
+  quarterB: "pub_issue_quarter_b",
+  strip: "pub_issue_strip",
+  full: "pub_issue_full",
+  noAd: "pub_issue_no_ad",
+  orphanAd: "pub_issue_orphan_ad",
+  openA: "pub_open_a",
+  openB: "pub_open_b",
+} as const;
+
+/**
+ * An approved order whose publications are due on the two fixture dates.
+ *
+ * Built here rather than driven through the order screens: every placement
+ * spec would otherwise start with the same sign-in-and-approve preamble, and a
+ * failure in the ORDER builder would then fail the whole placement suite for a
+ * reason that has nothing to do with placement.
+ *
+ * The publications are deliberately not interchangeable — each exists to make
+ * exactly one rule reachable:
+ *   quarterA/quarterB  two identical shapes: occupied space, moving, duplicates
+ *   strip              position-constrained to the foot of the page (rule 7)
+ *   full               a shape the cover page type does not allow (rule 5)
+ *   noAd / orphanAd    the two artwork refusals (rules 3-4)
+ */
+async function seedIssueFixtures(prisma: PrismaClient) {
+  const file = (name: string) => `biz_alpha/ads/${name}/current.pdf`;
+
+  for (const ad of [
+    { id: ISSUE_FIXTURES.adOk, customer_id: "cust_alpha_1", name: "מודעת שיבוץ.pdf" },
+    { id: ISSUE_FIXTURES.adOrphan, customer_id: null, name: "מודעה ללא לקוח.pdf" },
+  ]) {
+    await prisma.advertisement.upsert({
+      where: { id: ad.id },
+      update: {},
+      create: {
+        id: ad.id,
+        business_id: "biz_alpha",
+        customer_id: ad.customer_id,
+        uploaded_by_user_id: "usr_admin",
+        name: ad.name,
+        file_type: "pdf",
+        file_size: 1024,
+        file_url: file(ad.id),
+        original_file_url: file(ad.id),
+        // No object exists behind these rows and none is needed: the board
+        // renders a placeholder when preview_url is null and never fetches.
+        preview_url: null,
+        status: "valid",
+        validation_status: "passed",
+      },
+    });
+  }
+
+  await prisma.adOrder.upsert({
+    where: { id: ISSUE_FIXTURES.order },
+    update: {},
+    create: {
+      id: ISSUE_FIXTURES.order,
+      business_id: "biz_alpha",
+      customer_id: "cust_alpha_1",
+      source: "internal",
+      status: "approved",
+      total_price: 0,
+      approved_at: new Date(),
+    },
+  });
+
+  const rows = [
+    {
+      id: ISSUE_FIXTURES.quarterA,
+      date: BOARD_DATE,
+      shape: "shape_quarter",
+      ad: ISSUE_FIXTURES.adOk,
+    },
+    {
+      id: ISSUE_FIXTURES.quarterB,
+      date: BOARD_DATE,
+      shape: "shape_quarter",
+      ad: ISSUE_FIXTURES.adOk,
+    },
+    { id: ISSUE_FIXTURES.strip, date: BOARD_DATE, shape: "shape_strip", ad: ISSUE_FIXTURES.adOk },
+    { id: ISSUE_FIXTURES.full, date: BOARD_DATE, shape: "shape_full", ad: ISSUE_FIXTURES.adOk },
+    { id: ISSUE_FIXTURES.noAd, date: BOARD_DATE, shape: "shape_quarter", ad: null },
+    {
+      id: ISSUE_FIXTURES.orphanAd,
+      date: BOARD_DATE,
+      shape: "shape_quarter",
+      ad: ISSUE_FIXTURES.adOrphan,
+    },
+    { id: ISSUE_FIXTURES.openA, date: OPEN_DATE, shape: "shape_quarter", ad: ISSUE_FIXTURES.adOk },
+    { id: ISSUE_FIXTURES.openB, date: OPEN_DATE, shape: "shape_eighth", ad: ISSUE_FIXTURES.adOk },
+  ];
+
+  for (const row of rows) {
+    await prisma.publication.upsert({
+      where: { id: row.id },
+      update: {},
+      create: {
+        id: row.id,
+        business_id: "biz_alpha",
+        order_id: ISSUE_FIXTURES.order,
+        customer_id: "cust_alpha_1",
+        newspaper_id: "paper_alpha",
+        ad_shape_id: row.shape,
+        advertisement_id: row.ad,
+        publication_date: new Date(row.date),
+        price: new Prisma.Decimal(1200),
+        source: "internal",
+        // Only an ad that is valid AND belongs to the publication's customer
+        // reaches ready_for_layout — the rule afterAdLinked applies.
+        status:
+          row.ad === ISSUE_FIXTURES.adOk
+            ? "ready_for_layout"
+            : row.ad
+              ? "ad_received"
+              : "missing_ad",
+        placement_status: "not_placed",
+      },
+    });
+  }
+
+  await seedFixtureIssue(prisma);
+}
+
+/**
+ * The issue the placement specs work on, with its grid already snapshotted.
+ *
+ * Four pages, laid out the way a printed issue actually is: page 1 is the
+ * cover, the last page is the back, and the two between them are the inner
+ * spread. That is not decoration — the board groups pages by POSITION
+ * (lib/domain/issue-layout.ts), so a fixture whose cover sat at page 2 would
+ * exercise a layout no printer produces.
+ *
+ * The page TYPES are chosen so three different rules are reachable: the cover
+ * type accepts only two shapes (rule 5), the inner type accepts nearly
+ * everything (the happy path), and the strip's allowed region is measured
+ * against the same grid on both.
+ */
+async function seedFixtureIssue(prisma: PrismaClient) {
+  const paper = await prisma.newspaper.findUnique({ where: { id: "paper_alpha" } });
+  if (!paper) return;
+
+  await prisma.issue.upsert({
+    where: { id: ISSUE_FIXTURES.issue },
+    update: { status: "in_layout", closed_at: null },
+    create: {
+      id: ISSUE_FIXTURES.issue,
+      business_id: "biz_alpha",
+      newspaper_id: "paper_alpha",
+      issue_date: new Date(BOARD_DATE),
+      status: "in_layout",
+      page_size: paper.page_size,
+      custom_width_mm: paper.custom_width_mm,
+      custom_height_mm: paper.custom_height_mm,
+      margin: paper.margin,
+      columns: paper.columns,
+      row_height_mm: paper.row_height_mm,
+      gutter_mm: paper.gutter_mm,
+    },
+  });
+
+  const pages = [
+    { id: ISSUE_FIXTURES.pageCover, page_type_id: "pt_cover", page_number: 1 },
+    { id: ISSUE_FIXTURES.pageInnerA, page_type_id: "pt_inner", page_number: 2 },
+    { id: ISSUE_FIXTURES.pageInnerB, page_type_id: "pt_inner", page_number: 3 },
+    { id: ISSUE_FIXTURES.pageBack, page_type_id: "pt_back", page_number: 4 },
+  ];
+  for (const page of pages) {
+    await prisma.issuePage.upsert({
+      where: { id: page.id },
+      update: {},
+      create: { ...page, issue_id: ISSUE_FIXTURES.issue },
+    });
+  }
+}
+
+/**
+ * Removes every issue, page and placement.
+ *
+ * prisma/seed.ts creates none, so anything here is left over from a spec — and
+ * leaving one behind is not merely clutter: an issue is unique per (newspaper,
+ * date), so the SECOND run of the open-an-issue spec would be refused by the
+ * database for a reason that looks nothing like the thing being tested.
+ */
+async function deleteTestIssues(prisma: PrismaClient) {
+  await prisma.placement.deleteMany({});
+  await prisma.issuePage.deleteMany({});
+  await prisma.issue.deleteMany({});
 }

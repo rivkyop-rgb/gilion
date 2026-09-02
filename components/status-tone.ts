@@ -9,6 +9,7 @@
  * Class strings are written out in full, never composed: Tailwind v4 scans the
  * source text, so `bg-status-${tone}-bg` produces no CSS at all.
  */
+import type { IssueStatus } from "@/lib/domain/issue-status";
 import type { OrderStatus } from "@/lib/domain/order-status";
 import type { PublicationStatus } from "@/lib/domain/publication-status";
 
@@ -40,6 +41,20 @@ export const PUBLICATION_TONE: Record<PublicationStatus, Tone> = {
   published: "done",
   canceled: "muted",
   billed: "debt",
+};
+
+/**
+ * Four issue states.
+ *
+ * `draft` and `closed` are both neutral-ish on purpose: neither is a state
+ * anyone needs to act on. The two in the middle are the working ones, and they
+ * are the two that get colour.
+ */
+export const ISSUE_TONE: Record<IssueStatus, Tone> = {
+  draft: "neutral",
+  in_layout: "warning",
+  ready_for_print: "success",
+  closed: "done",
 };
 
 /**

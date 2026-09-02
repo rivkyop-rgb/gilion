@@ -159,6 +159,18 @@ export async function pickBusiness(page: Page, businessId: string) {
  * actually enabled — ticking the acknowledgement whenever it appears — is what
  * makes the step deterministic.
  */
+/**
+ * Pins the line to a newspaper by NAME rather than taking whatever is first.
+ *
+ * The order builder lists every newspaper that can be ordered in, and specs
+ * create newspapers — so "the first option" moves as the suite runs. A spec
+ * that asserts on a size ceiling or a print schedule is asserting about ONE
+ * newspaper and has to say which.
+ */
+export async function pickOrderNewspaper(page: Page, newspaperId: string) {
+  await page.getByTestId("line-newspaper").selectOption(newspaperId);
+}
+
 export async function addOrderLine(page: Page, date: string, price: string, expectedDates: number) {
   await page.getByTestId("line-date").fill(date);
   await page.getByTestId("line-price").fill(price);

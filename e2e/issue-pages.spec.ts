@@ -1,0 +1,129 @@
+import { expect, test } from "@playwright/test";
+
+import { loginAsAdmin } from "./helpers";
+import { FIXTURE, ISSUE_FIXTURES, boardUrl, openView, resetFixtureIssue } from "./issue-helpers";
+
+/**
+ * Composing the issue after it is open.
+ *
+ * The removal guard is the part worth testing: `IssuePage` cascades to
+ * `Placement`, so deleting a page that still carries ads would take live
+ * placements — and the publications' statuses with them — out of the database
+ * as a side effect of what looks like a layout tweak. The server refuses and
+ * says why; nothing about the button hints at how much it could destroy.
+ */
+test.describe("the pages of an issue", () => {
+  test.beforeEach(async ({ page }) => {
+    await resetFixtureIssue();
+    await loginAsAdmin(page);
+    await page.goto(boardUrl);
+  });
+
+  test("opens as a cover, an inner spread and a back", async ({ page }) => {
+    await expect(page.getByTestId("pager-label")).toContainText("שער");
+
+    await page.getByTestId("pager-next").click();
+    await expect(page.getByTestId("pager-label")).toContainText("עמודים 2-3");
+    // Both halves of the spread are on screen at once — that is the whole point.
+    await expect(page.getByTestId(`page-canvas-${FIXTURE.innerRightPage}`)).toBeVisible();
+    await expect(page.getByTestId(`page-canvas-${FIXTURE.innerLeftPage}`)).toBeVisible();
+
+    await page.getByTestId("pager-next").click();
+    await expect(page.getByTestId("pager-label")).toContainText("גב");
+    await expect(page.getByTestId("pager-next")).toBeDisabled();
+  });
+
+  test("renders the lower page number on the right of the spread", async ({ page }) => {
+    await openView(page, FIXTURE.spreadView);
+
+    const right = (await page.getByTestId(`page-canvas-${FIXTURE.innerRightPage}`).boundingBox())!;
+    const left = (await page.getByTestId(`page-canvas-${FIXTURE.innerLeftPage}`).boundingBox())!;
+
+    // Hebrew reads rightwards first, so page 2 is the one you meet first.
+    expect(right.x).toBeGreaterThan(left.x);
+  });
+
+  test("the seam adds a whole SHEET — two pages — exactly where it sits", async ({ page }) => {
+    // Inner pages do not exist singly: a sheet folded into the issue carries
+    // two inner sides, and adding one of them is not something a printer can do.
+    await expect(page.getByTestId("page-thumb-4")).toBeVisible();
+    await expect(page.getByTestId("page-thumb-5")).toHaveCount(0);
+
+    await page.getByTestId("seam-1").click();
+
+    await expect(page.getByTestId("page-thumb-6")).toBeVisible();
+    await expect(page.getByTestId("page-thumb-7")).toHaveCount(0);
+    // And the pair reads as one spread, not as two half-empty views.
+    await openView(page, FIXTURE.spreadView);
+    await expect(page.getByTestId("pager-label")).toContainText("עמודים 2-3");
+  });
+
+  test("names the outside pages instead of numbering them", async ({ page }) => {
+    // A seller asked which pages still have room wants to hear "the cover".
+    const alert = page.getByTestId("unfinished-alert");
+    await expect(alert.getByTestId("jump-to-page-1")).toHaveText("שער");
+    await expect(alert.getByTestId("jump-to-page-4")).toHaveText("גב");
+    await expect(alert.getByTestId("jump-to-page-2")).toHaveText("עמוד 2");
+  });
+
+  test("lists the shapes the open page allows, and strikes out what no longer fits", async ({
+    page,
+  }) => {
+    await openView(page, FIXTURE.spreadView);
+    const panel = page.getByTestId(`allowed-shapes-${FIXTURE.innerRightPage}`);
+    await expect(panel).toContainText("רבע עמוד");
+    await expect(panel).toContainText("ס״מ");
+
+    // Fill the page with a full-page ad; everything else stops fitting.
+    await page.getByTestId(`unplaced-item-${ISSUE_FIXTURES.full}`).click();
+    await page.getByTestId(`board-cell-${FIXTURE.innerRightPage}-0-0`).click();
+    await expect(page.locator('[data-testid^="placement-"]')).toHaveCount(1);
+
+    await expect(panel.locator('li[data-fits="true"]')).toHaveCount(0);
+  });
+
+  test("keeps the whole spread on screen, with nothing to scroll to", async ({ page }) => {
+    // A newspaper page is TALL. Sized by the width available to it, it runs off
+    // the bottom — and the more room the board is given, the worse that gets,
+    // so collapsing the sidebar used to make the page overflow further.
+    await openView(page, FIXTURE.spreadView);
+
+    const overflow = async () =>
+      page.evaluate(
+        () => document.documentElement.scrollHeight - document.documentElement.clientHeight,
+      );
+
+    // The board arrives with the rail collapsed, because it needs the room.
+    await expect(page.getByTestId("sidebar-rail")).toHaveAttribute("data-collapsed", "true");
+    await expect.poll(overflow).toBeLessThanOrEqual(1);
+
+    // And opening the menu anyway does not push the page off the bottom: the
+    // spread is sized by the height it has, not by the width it is given.
+    await page.getByTestId("sidebar-toggle").click();
+    await expect(page.getByTestId("sidebar-rail")).toHaveAttribute("data-collapsed", "false");
+    await expect.poll(overflow).toBeLessThanOrEqual(1);
+  });
+
+  test("draws the allowed shapes instead of only naming them", async ({ page }) => {
+    await openView(page, FIXTURE.spreadView);
+    const list = page.getByTestId(`allowed-shapes-list-${FIXTURE.innerRightPage}`);
+
+    // A picture of the footprint, not a line of text: "half a page across" and
+    // "half a page down" are the same words and the same area, and they are not
+    // the same offer to a customer.
+    await expect(list.locator("li[data-shape]").first()).toBeVisible();
+    await expect(list.locator("li[data-shape]")).not.toHaveCount(0);
+  });
+
+  test("refuses to remove a page that still has an ad on it", async ({ page }) => {
+    await openView(page, FIXTURE.spreadView);
+    await page.getByTestId(`unplaced-item-${ISSUE_FIXTURES.quarterA}`).click();
+    await page.getByTestId(`board-cell-${FIXTURE.innerRightPage}-0-0`).click();
+    await expect(page.locator('[data-testid^="placement-"]')).toHaveCount(1);
+
+    await page.getByTestId("remove-page").click();
+
+    await expect(page.getByTestId("board-message")).toContainText("שיבוצים");
+    await expect(page.locator('[data-testid^="placement-"]')).toHaveCount(1);
+  });
+});

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { loginAsAdmin, addOrderLine } from "./helpers";
+import { NEWSPAPERS, addOrderLine, loginAsAdmin, pickOrderNewspaper } from "./helpers";
 import { validPdf } from "./ad-fixtures";
 
 /**
@@ -18,6 +18,10 @@ async function draftWithLines(page: Page, dates: string[]): Promise<string> {
   await page.getByTestId("create-order").click();
   await page.waitForURL(/\/orders\/c[a-z0-9]{20,}$/);
   const id = new URL(page.url()).pathname.split("/").pop()!;
+
+  // The ceiling this spec asserts on belongs to ONE newspaper; the builder's
+  // first option moves as other specs create newspapers.
+  await pickOrderNewspaper(page, NEWSPAPERS.alpha);
 
   for (const [index, date] of dates.entries()) {
     await addOrderLine(page, date, "1000", index + 1);

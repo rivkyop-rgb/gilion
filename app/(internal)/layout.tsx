@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth/config";
 import { activeMembershipsFor, allBusinessesForSuperAdmin } from "@/lib/auth/memberships";
 import { loadOverrides } from "@/lib/data/permissions";
-import { SidebarContent } from "@/components/shell/sidebar";
+import { SidebarRail } from "@/components/shell/sidebar";
 import { TopBar } from "@/components/shell/top-bar";
 import { switchBusinessAction, signOutAction } from "./actions";
 
@@ -35,10 +35,9 @@ export default async function InternalLayout({ children }: { children: React.Rea
 
   return (
     <div className="flex min-h-screen bg-surface">
-      {/* RTL: border-e is the logical end edge — the sidebar's left in Hebrew. */}
-      <aside className="hidden w-70 shrink-0 border-e border-outline-variant bg-surface-container-lowest p-4 lg:block">
-        <SidebarContent role={current.role} isSuperAdmin={isSuperAdmin} permissions={permissions} />
-      </aside>
+      {/* The rail owns its own width: it collapses to icons on demand, and by
+          itself once the screen is too narrow for a full menu beside the page. */}
+      <SidebarRail role={current.role} isSuperAdmin={isSuperAdmin} permissions={permissions} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar

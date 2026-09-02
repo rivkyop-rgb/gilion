@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { GRID, NEWSPAPERS, loginAsAdmin } from "./helpers";
+import { FIXTURE, ISSUE_FIXTURES, boardUrl, openView, resetFixtureIssue } from "./issue-helpers";
 
 /**
  * The RTL regression lock.
@@ -111,5 +112,92 @@ test.describe("RTL: column 0 is the right edge of the page", () => {
       "aria-pressed",
       "false",
     );
+  });
+});
+
+/**
+ * The same three locks, against stage 06's PLACEMENT canvas.
+ *
+ * This is the canvas the original bug actually lived in: a page being laid out,
+ * where an ad rendered on the wrong side of the paper is a mis-print rather
+ * than a cosmetic slip. The shape picker above and this board share
+ * `cellAtPointer` and `toCanvasPercent`, and the point of testing both is that
+ * neither may drift: one of them getting its own copy of the arithmetic is
+ * exactly how the mirror came back last time.
+ */
+test.describe("RTL: the placement canvas counts from the right too", () => {
+  test.beforeEach(async ({ page }) => {
+    await resetFixtureIssue();
+    await loginAsAdmin(page);
+    await page.goto(boardUrl);
+    // The inner spread, whose right-hand page accepts the quarter used below.
+    await openView(page, FIXTURE.spreadView);
+    await expect(page.getByTestId(`page-canvas-${FIXTURE.innerRightPage}`)).toBeVisible();
+  });
+
+  test("renders column 0 on the right and the last column on the left", async ({ page }) => {
+    const canvas = (await page.getByTestId(`page-canvas-${FIXTURE.innerRightPage}`).boundingBox())!;
+    const first = (await page
+      .getByTestId(`board-cell-${FIXTURE.innerRightPage}-0-0`)
+      .boundingBox())!;
+    const last = (await page
+      .getByTestId(`board-cell-${FIXTURE.innerRightPage}-${GRID.columns - 1}-0`)
+      .boundingBox())!;
+
+    expect(first.x + first.width).toBeGreaterThan(canvas.x + canvas.width * 0.8);
+    expect(last.x).toBeLessThan(canvas.x + canvas.width * 0.2);
+    expect(first.x).toBeGreaterThan(last.x);
+  });
+
+  /**
+   * Drag by PIXEL, assert by MODEL — and deliberately by dragging rather than
+   * by clicking a cell, because a click lands on the cell's own element and
+   * would never call `cellAtPointer` at all. The drop path is the only one
+   * that turns a pointer into a column, which is the conversion that broke.
+   */
+  test("reads a drop on the right-most pixel as column 0", async ({ page }) => {
+    const item = page.getByTestId(`unplaced-item-${ISSUE_FIXTURES.quarterA}`);
+    const itemBox = (await item.boundingBox())!;
+    const canvas = (await page.getByTestId(`page-canvas-${FIXTURE.innerRightPage}`).boundingBox())!;
+
+    await page.mouse.move(itemBox.x + itemBox.width / 2, itemBox.y + itemBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(canvas.x + canvas.width - 4, canvas.y + 4, { steps: 8 });
+    await page.mouse.up();
+
+    const placement = page.locator('[data-testid^="placement-"]');
+    await expect(placement).toHaveCount(1);
+
+    // The stored column is 0, which on screen is the RIGHT edge — read back
+    // from the rendered box rather than from the click that produced it.
+    const placed = (await placement.boundingBox())!;
+    expect(placed.x + placed.width).toBeGreaterThan(canvas.x + canvas.width * 0.9);
+    expect(placed.x).toBeGreaterThan(canvas.x + canvas.width * 0.2);
+  });
+
+  test("a saved placement in the right corner comes back in the right corner", async ({ page }) => {
+    // Asymmetric on purpose: a mirror that is wrong on write AND wrong on read
+    // is invisible to any test that only looks in one direction.
+    await page.getByTestId(`unplaced-item-${ISSUE_FIXTURES.quarterA}`).click();
+    await page.getByTestId(`board-cell-${FIXTURE.innerRightPage}-0-0`).click();
+    await expect(page.locator('[data-testid^="placement-"]')).toHaveCount(1);
+
+    await page.reload();
+    await openView(page, FIXTURE.spreadView);
+    // Both elements have to be laid out before either box is read: a reload can
+    // resolve the locator against a document that has not painted yet, and
+    // boundingBox() then answers null rather than waiting.
+    const canvasBox = page.getByTestId(`page-canvas-${FIXTURE.innerRightPage}`);
+    const placedBox = page.locator('[data-testid^="placement-"]');
+    await expect(canvasBox).toBeVisible();
+    await expect(placedBox).toHaveCount(1);
+    await expect(placedBox).toBeVisible();
+
+    const canvas = (await canvasBox.boundingBox())!;
+    const placed = (await placedBox.boundingBox())!;
+
+    expect(placed.x + placed.width).toBeGreaterThan(canvas.x + canvas.width * 0.9);
+    // The mirrored position — flush LEFT — is the failure this locks out.
+    expect(placed.x).toBeGreaterThan(canvas.x + canvas.width * 0.4);
   });
 });

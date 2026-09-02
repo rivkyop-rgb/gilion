@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { USERS, login } from "./helpers";
+import { NEWSPAPERS, USERS, login, pickOrderNewspaper } from "./helpers";
 
 /**
  * The stage 04 follow-ups: a print schedule per newspaper, several dates per
@@ -55,6 +55,10 @@ test.describe("the newspaper's print schedule", () => {
     await login(page, USERS.sales);
     await newDraft(page);
 
+    // Which newspaper is being asserted about matters: the schedule belongs to
+    // one paper, and the builder's first option moves as specs add newspapers.
+    await pickOrderNewspaper(page, NEWSPAPERS.alpha);
+
     // 2026-12-20 is a Sunday; the paper prints on Tuesdays.
     await page.getByTestId("line-date").fill("2026-12-20");
     await expect(page.getByTestId("off-schedule-warning")).toBeVisible();
@@ -73,6 +77,7 @@ test.describe("the newspaper's print schedule", () => {
   test("a date on the schedule raises no warning at all", async ({ page }) => {
     await login(page, USERS.sales);
     await newDraft(page);
+    await pickOrderNewspaper(page, NEWSPAPERS.alpha);
 
     await page.getByTestId("line-date").fill("2026-12-01"); // Tuesday
     await expect(page.getByTestId("off-schedule-warning")).toHaveCount(0);

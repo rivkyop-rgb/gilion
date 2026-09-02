@@ -1,10 +1,12 @@
 /**
  * The private object store (conventions.md §5, FR-15).
  *
- * One bucket, private, and no URL of it ever leaves the server. Everything a
- * browser sees is a five-minute presigned link minted by
- * app/api/files/[...key]/route.ts after it has checked the tenant.
+ * One bucket, private, and no URL of it ever leaves the server. A browser only
+ * ever talks to app/api/files/[...key]/route.ts, which checks the tenant and
+ * then STREAMS the bytes back — see `getObjectStream` for why it streams
+ * rather than redirecting to a presigned link.
  */
+import type { Readable } from "node:stream";
 import { Client } from "minio";
 
 /** Presigned links live five minutes — long enough to fetch, short enough to
@@ -107,6 +109,45 @@ export async function removeObject(key: string): Promise<void> {
   }
 }
 
+/**
+ * The object's bytes, for the route handler to pass straight through.
+ *
+ * ── Why the bytes and not a presigned link ───────────────────────────────────
+ * A presigned URL names the host the SERVER knows MinIO by. With MinIO on the
+ * same machine that is `localhost:9100` — and the browser then resolves
+ * `localhost` to the machine the PERSON is sitting at, which is not running
+ * MinIO. The request fails, and it fails silently: `<img>` has no error to
+ * show, so every preview in the product is an empty box for everyone except
+ * whoever is sitting at the server. Nothing in a log says why.
+ *
+ * Streaming removes the whole class of problem: the browser only ever contacts
+ * an origin it has demonstrably reached already, and the object store does not
+ * have to be routable from outside at all — which is how it should be deployed
+ * anyway. conventions.md §5 describes the redirect; what §5 is actually FOR is
+ * that no object URL is ever exposed, and that is stronger here, not weaker.
+ *
+ * The cost is that file bytes pass through Node. At the size of a newspaper
+ * office — previews are a few KB and the ceiling on an ad is `max_ad_file_size`
+ * — that is not a trade worth a broken image.
+ */
+export async function getObjectStream(key: string): Promise<Readable> {
+  return storage().getObject(bucket(), key);
+}
+
+/** Size and type, so the response can declare them. Null when it is gone. */
+export async function statObject(key: string): Promise<{ size: number } | null> {
+  try {
+    const stat = await storage().statObject(bucket(), key);
+    return { size: stat.size };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Still here, and still five minutes, for anything that must hand a URL to
+ * something that is NOT this browser session — nothing does today.
+ */
 export async function presignedGetUrl(key: string, fileName?: string): Promise<string> {
   return storage().presignedGetObject(
     bucket(),
@@ -124,5 +165,12 @@ export async function presignedGetUrl(key: string, fileName?: string): Promise<s
 export const CONTENT_TYPES: Record<string, string> = {
   pdf: "application/pdf",
   jpg: "image/jpeg",
+  jpeg: "image/jpeg",
   png: "image/png",
 };
+
+/** The type an object key implies, from its extension. */
+export function contentTypeOfKey(key: string): string {
+  const ext = key.split(".").pop()?.toLowerCase() ?? "";
+  return CONTENT_TYPES[ext] ?? "application/octet-stream";
+}

@@ -3,16 +3,26 @@
  *
  * No object URL is ever rendered into HTML or returned in a payload. A browser
  * asks here, this route checks the tenant, the role and the ownership, and only
- * then redirects to a presigned URL that expires in five minutes.
+ * then hands back the bytes.
+ *
+ * ── It streams; §5 says it redirects ─────────────────────────────────────────
+ * A presigned URL names the host the SERVER knows MinIO by — `localhost:9100`
+ * in this deployment — and the browser resolves `localhost` to the machine the
+ * PERSON is at. Every preview in the product was therefore an empty box for
+ * everyone except whoever was sitting at the server, with nothing in any log to
+ * say so, because a failed `<img>` reports nothing. Streaming keeps the browser
+ * on an origin it has already reached. What §5 exists to guarantee — that no
+ * object URL is ever exposed — is stronger this way, not weaker.
  *
  * Everything it refuses, it refuses as 404 and never 403: a "forbidden" would
  * confirm that the file exists in someone else's business.
  */
+import { Readable } from "node:stream";
 import { NextResponse } from "next/server";
 
 import { getTenantContext, canReadArea } from "@/lib/auth/tenant";
 import { getAdvertisement } from "@/lib/data/advertisements";
-import { businessOfKey, presignedGetUrl } from "@/lib/storage/minio";
+import { businessOfKey, contentTypeOfKey, getObjectStream, statObject } from "@/lib/storage/minio";
 
 const NOT_FOUND = new NextResponse("not found", { status: 404 });
 
@@ -47,12 +57,26 @@ export async function GET(_request: Request, { params }: { params: Promise<{ key
   const owned = [ad.file_url, ad.original_file_url, ad.previous_file_url, ad.preview_url];
   if (!owned.includes(key)) return NOT_FOUND;
 
-  const url = await presignedGetUrl(key, ad.name);
-  // The redirect must not be cached: the URL behind it dies in five minutes,
-  // and a cached 307 would keep sending the browser to a dead link.
-  return NextResponse.redirect(url, {
-    status: 307,
-    headers: { "Cache-Control": "no-store, max-age=0" },
+  let stream;
+  try {
+    stream = await getObjectStream(key);
+  } catch {
+    // The row says the object exists and the store disagrees. That is a 404 to
+    // the browser like any other miss — there is nothing here to serve.
+    return NOT_FOUND;
+  }
+  const stat = await statObject(key);
+
+  return new NextResponse(Readable.toWeb(stream) as ReadableStream, {
+    headers: {
+      "Content-Type": contentTypeOfKey(key),
+      // RFC 5987, so a Hebrew file name survives the round trip.
+      "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(ad.name)}`,
+      // Private, because the answer depends on who asked: a shared cache must
+      // never hand one business's artwork to another's browser.
+      "Cache-Control": "private, max-age=300",
+      ...(stat ? { "Content-Length": String(stat.size) } : {}),
+    },
   });
 }
 

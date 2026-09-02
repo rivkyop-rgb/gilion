@@ -42,7 +42,21 @@ test.describe("גישה לקבצים", () => {
     expect(guessed.status()).toBe(404);
   });
 
-  test("הגישה עוברת ב־redirect ל־URL חתום קצר מועד ולא בקישור ישיר", async ({ page }) => {
+  /**
+   * conventions.md §5 describes a redirect to a presigned URL; the route
+   * STREAMS instead, and this spec was rewritten to match.
+   *
+   * The reason is in the route's own comment: a presigned URL names the host
+   * the SERVER knows the object store by. With the store on the same machine
+   * that is `localhost`, and the browser resolves `localhost` to the machine
+   * the PERSON is at — so every preview in the product was an empty box for
+   * everyone except whoever sat at the server, with nothing in any log.
+   *
+   * What §5 exists to guarantee is that no object URL is ever exposed. That is
+   * what is asserted here, and it is stronger now than it was: there is no URL
+   * to leak at all.
+   */
+  test("הקובץ מגיע דרך האפליקציה עצמה, ושום כתובת של האובייקט לא נחשפת", async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto("/advertisements");
 
@@ -52,13 +66,23 @@ test.describe("גישה לקבצים", () => {
     await adCard(page, file.name).click();
 
     const href = await page.getByTestId("download-current").getAttribute("href");
-    const response = await page.request.get(href!, { maxRedirects: 0 });
-    expect(response.status()).toBe(307);
+    // Everything a browser is ever given is a path on this app, never a host.
+    expect(href).toMatch(/^\/api\/files\//);
 
-    const signed = response.headers()["location"]!;
-    // A presigned S3 URL, expiring in the five minutes conventions.md §5 fixes.
-    expect(signed).toContain("X-Amz-Signature");
-    expect(signed).toContain("X-Amz-Expires=300");
+    const response = await page.request.get(href!, { maxRedirects: 0 });
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-type"]).toContain("image/png");
+    // Private, because the answer depends on who asked — a shared cache must
+    // never hand one business's artwork to another's browser.
+    expect(response.headers()["cache-control"]).toContain("private");
+
+    // The bytes really arrived; a 200 with an error page in it is still a 200.
+    expect((await response.body()).length).toBeGreaterThan(0);
+
+    // And nothing anywhere on the page names the object store.
+    const html = await page.content();
+    expect(html).not.toContain("X-Amz-Signature");
+    expect(html).not.toMatch(/localhost:9\d{3}/);
   });
 
   test("מנהלת חשבונות אינה מגיעה לקבצים כלל", async ({ page }) => {

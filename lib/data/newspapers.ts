@@ -9,7 +9,7 @@
  */
 import { basePrisma, tenantDb } from "./db";
 import { copyBaseShapes, listAdShapes } from "./ad-shapes";
-import { materializeBaseShapes } from "@/lib/domain/base-shapes";
+import { BASE_PAGE_TYPES, materializeBaseShapes } from "@/lib/domain/base-shapes";
 import { deriveGrid } from "@/lib/domain/grid";
 
 /* ---------------------------------------------------------------- newspapers */
@@ -88,10 +88,17 @@ export type NewspaperWrite = {
 };
 
 /**
- * Creates a newspaper and stocks its shape catalogue in one transaction.
+ * Creates a newspaper and stocks it so it can actually be sold into.
  *
- * A newspaper with no shapes cannot divide a page at all, so the base
- * catalogue is not an optional extra to add later — it is part of existing.
+ * A newspaper with no shapes cannot divide a page at all, and one with no page
+ * types cannot be ordered in or composed into an issue — so neither the base
+ * catalogue nor the three base page types are optional extras to add later.
+ * They are part of existing.
+ *
+ * Every base shape is allowed on every base page type. That is deliberately
+ * permissive: which shapes a cover accepts is a decision this newspaper makes,
+ * and inventing a restriction here would be the system quietly having an
+ * opinion about somebody else's product.
  */
 export async function createNewspaper(businessId: string, data: NewspaperWrite) {
   // business_id is injected by the tenant extension.
@@ -119,7 +126,32 @@ export async function createNewspaper(businessId: string, data: NewspaperWrite) 
     );
   }
 
+  await seedBasePageTypes(paper.id);
+
   return paper;
+}
+
+/** Cover, inner and back, each accepting every shape the newspaper has. */
+async function seedBasePageTypes(newspaperId: string) {
+  const shapes = await basePrisma.adShape.findMany({
+    where: { newspaper_id: newspaperId },
+    select: { id: true },
+  });
+
+  for (const name of BASE_PAGE_TYPES) {
+    const pageType = await basePrisma.pageType.create({
+      data: { newspaper_id: newspaperId, name },
+    });
+    if (shapes.length === 0) continue;
+    await basePrisma.allowedAdShape.createMany({
+      data: shapes.map((shape) => ({
+        newspaper_id: newspaperId,
+        page_type_id: pageType.id,
+        ad_shape_id: shape.id,
+      })),
+      skipDuplicates: true,
+    });
+  }
 }
 
 export async function updateNewspaper(businessId: string, id: string, data: NewspaperWrite) {

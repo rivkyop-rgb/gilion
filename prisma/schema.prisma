@@ -106,6 +106,7 @@ model Business {
   ad_orders      AdOrder[]
   publications   Publication[]
   advertisements Advertisement[]
+  issues         Issue[]
 
   @@map("Business")
 }
@@ -164,9 +165,10 @@ model User {
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
 
-  memberships    UserMembership[]
-  audit_logs     AuditLog[]
-  advertisements Advertisement[]
+  memberships         UserMembership[]
+  audit_logs          AuditLog[]
+  advertisements      Advertisement[]
+  duplicate_overrides Placement[]
 
   @@map("User")
 }
@@ -349,6 +351,7 @@ model Newspaper {
   price_rules  PriceRule[]
   order_items  AdOrderItem[]
   publications Publication[]
+  issues       Issue[]
 
   @@unique([business_id, name])
   @@index([business_id])
@@ -367,6 +370,7 @@ model PageType {
   allowed_shapes AllowedAdShape[]
   price_rules    PriceRule[]
   order_items    AdOrderItem[]
+  issue_pages    IssuePage[]
 
   @@unique([newspaper_id, name])
   /// Target for the composite foreign keys below. `id` alone is already unique;
@@ -404,6 +408,7 @@ model AdShape {
   price_rules  PriceRule[]
   order_items  AdOrderItem[]
   publications Publication[]
+  placements   Placement[]
 
   @@unique([newspaper_id, name])
   /// Target for the composite foreign keys below — see PageType.
@@ -581,6 +586,7 @@ model Publication {
   /// `missing_ad` (stage 05 §מודל נתונים).
   advertisement Advertisement? @relation(fields: [advertisement_id], references: [id], onDelete: SetNull)
   reminder      Reminder?
+  placements    Placement[]
 
   @@index([business_id, publication_date, status])
   @@index([business_id, newspaper_id, publication_date])
@@ -664,11 +670,155 @@ model Advertisement {
   uploaded_by  User          @relation(fields: [uploaded_by_user_id], references: [id], onDelete: Restrict)
   publications Publication[]
   ad_orders    AdOrder[]
+  placements   Placement[]
 
   @@index([business_id, customer_id])
   @@index([business_id, status, validation_status])
   @@index([business_id, uploaded_at(sort: Desc)])
   @@map("Advertisement")
+}
+
+// ---------------------------------------------------------------------------
+// Stage 06 — issues and the placement board
+// ---------------------------------------------------------------------------
+
+/// FR-6. `closed` blocks every write to the issue, its pages and the
+/// publications on it; walking back out of it is admin-only and audited.
+enum IssueStatus {
+  draft
+  in_layout
+  ready_for_print
+  closed
+}
+
+/// A placement's own lifecycle.
+///
+/// Removing is a status change and never a DELETE: the row is the record of
+/// what a designer did, and — just as importantly — the two constraints that
+/// implement FR-16 are PARTIAL indexes filtered on `placed`. A removed row
+/// leaves the space free without leaving the history empty.
+enum PlacementState {
+  placed
+  removed
+  published
+}
+
+/// One dated issue of one newspaper (US-007, FR-6).
+///
+/// The grid columns below are a SNAPSHOT of the newspaper's page division,
+/// copied once when the issue is opened and never read from `Newspaper` again
+/// (conventions.md §7 rule 2). Editing the newspaper afterwards must not move a
+/// single ad in an issue that has already been laid out. The row count and the
+/// column width stay derived — lib/domain/grid.ts computes them from this
+/// snapshot exactly as it does from the live settings, so there is one formula
+/// and not two.
+model Issue {
+  id            String      @id @default(cuid())
+  business_id   String
+  newspaper_id  String
+  issue_date    DateTime    @db.Date
+  status        IssueStatus @default(draft)
+  /// Written at close (stage 07). Object key, never a public URL.
+  final_pdf_url String?
+  closed_at     DateTime?
+
+  /// --- The grid snapshot ----------------------------------------------------
+  page_size        String
+  custom_width_mm  Decimal? @db.Decimal(7, 2)
+  custom_height_mm Decimal? @db.Decimal(7, 2)
+  margin           Decimal  @db.Decimal(6, 2)
+  columns          Int
+  row_height_mm    Decimal  @db.Decimal(6, 2)
+  gutter_mm        Decimal  @default(0) @db.Decimal(6, 2)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  business   Business    @relation(fields: [business_id], references: [id], onDelete: Restrict)
+  newspaper  Newspaper   @relation(fields: [newspaper_id], references: [id], onDelete: Restrict)
+  pages      IssuePage[]
+  placements Placement[]
+
+  /// One issue per newspaper per day.
+  @@unique([business_id, newspaper_id, issue_date])
+  @@index([business_id, status, issue_date])
+  @@map("Issue")
+}
+
+/// A single numbered page of an issue, of one page type.
+///
+/// Deliberately a single page and not a spread: `page_number` is one integer,
+/// and a double truck ("page 2-3") is out of scope (docs/design/gaps.md §א).
+model IssuePage {
+  id           String   @id @default(cuid())
+  issue_id     String
+  page_type_id String
+  page_number  Int
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  issue      Issue       @relation(fields: [issue_id], references: [id], onDelete: Cascade)
+  /// Restrict: a page type in use by an issue is not something the settings
+  /// screen may delete out from under it.
+  page_type  PageType    @relation(fields: [page_type_id], references: [id], onDelete: Restrict)
+  placements Placement[]
+
+  @@unique([issue_id, page_number])
+  /// Target for Placement's composite foreign key — this is what makes
+  /// Placement.issue_id provably the page's own issue rather than a copy
+  /// someone has to remember to keep in step (conventions.md §4).
+  @@unique([id, issue_id])
+  @@index([issue_id])
+  @@map("IssuePage")
+}
+
+/// One ad placed on one page, as a rectangle of grid cells (FR-14, FR-16).
+///
+/// `col`/`row`/`cols`/`rows` are stored HERE and read from here at print time.
+/// `cols`/`rows` are copied from the shape at placement, so editing the
+/// catalogue later cannot resize an ad that has already been laid out
+/// (conventions.md §7). `col = 0` is the RIGHT edge of the page — the RTL rule
+/// at the top of lib/domain/slot-geometry.ts.
+///
+/// `issue_id` is denormalised from the page on purpose: without it the partial
+/// unique index that stops one publication being placed twice in an issue
+/// cannot be expressed at all (conventions.md §4).
+model Placement {
+  id               String @id @default(cuid())
+  issue_id         String
+  issue_page_id    String
+  publication_id   String
+  advertisement_id String
+  ad_shape_id      String
+
+  col  Int
+  row  Int
+  cols Int
+  rows Int
+
+  status                                 PlacementState @default(placed)
+  /// FR-16. Admin-only, audited, and the exact flag the partial unique index
+  /// filters on — approving the override is what makes the second row legal.
+  duplicate_override_approved            Boolean        @default(false)
+  duplicate_override_approved_by_user_id String?
+  duplicate_override_approved_at         DateTime?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  issue         Issue         @relation(fields: [issue_id], references: [id], onDelete: Cascade)
+  page          IssuePage     @relation(fields: [issue_page_id, issue_id], references: [id, issue_id], onDelete: Cascade)
+  publication   Publication   @relation(fields: [publication_id], references: [id], onDelete: Restrict)
+  advertisement Advertisement @relation(fields: [advertisement_id], references: [id], onDelete: Restrict)
+  /// Restrict: a shape that has been printed is evidence. Deleting it from the
+  /// catalogue would leave a placement describing a size nobody can name.
+  ad_shape      AdShape       @relation(fields: [ad_shape_id], references: [id], onDelete: Restrict)
+  approved_by   User?         @relation(fields: [duplicate_override_approved_by_user_id], references: [id], onDelete: SetNull)
+
+  @@index([issue_page_id, status])
+  @@index([publication_id])
+  @@index([issue_id, status])
+  @@map("Placement")
 }
 
 // ---------------------------------------------------------------------------
