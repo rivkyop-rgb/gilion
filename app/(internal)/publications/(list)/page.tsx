@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
+import { canReadArea, canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { listPublications } from "@/lib/data/publications";
 import { placeableAds } from "@/lib/data/advertisements";
 import type { AdPreviewModel } from "@/components/ads/ad-preview";
 import type { AdFileType } from "@/lib/domain/ad-file";
 import { listNewspapers } from "@/lib/data/newspapers";
+import { issuesForPublications } from "@/lib/data/issues";
 import {
   NEEDS_ATTENTION,
   PUBLICATION_STATUSES,
@@ -57,6 +58,7 @@ export default async function PublicationsPage({
   // Cancelling one publication is an ORDERS act — it unwinds part of a
   // commercial agreement — so it follows that permission, not the artwork one.
   const mayCancel = canWriteArea(ctx, "orders");
+  const mayOpenIssues = canWriteArea(ctx, "issues");
 
   const [rows, papers, ads] = await Promise.all([
     listPublications(ctx.businessId, { newspaperId: newspaper, status, from, to }),
@@ -91,6 +93,23 @@ export default async function PublicationsPage({
   // Each row states ITS OWN newspaper's ceiling, because that is the one the
   // upload will actually be measured against (FR-21).
   const limitByNewspaper = new Map(papers.map((n) => [n.id, n.max_ad_file_size]));
+
+  // Which board each publication belongs to. A publication reaches a board by
+  // (newspaper, date) alone, so this is the board's own lookup from the other
+  // end — one query for the table, not one per row.
+  const issueByDate = canReadArea(ctx, "issues")
+    ? await issuesForPublications(ctx.businessId, rows)
+    : new Map<string, string>();
+  const issueByPublication = new Map(
+    rows
+      .map((p) => {
+        const issueId = issueByDate.get(
+          `${p.newspaper_id}|${p.publication_date.toISOString().slice(0, 10)}`,
+        );
+        return issueId ? ([p.id, issueId] as const) : null;
+      })
+      .filter((entry): entry is readonly [string, string] => entry !== null),
+  );
 
   return (
     <>
@@ -238,9 +257,38 @@ export default async function PublicationsPage({
                       <PublicationStatusBadge status={p.status as PublicationStatus} />
                     </td>
                     <td className="p-3">
-                      <Badge tone={p.placement_status === "placed" ? "success" : "neutral"}>
-                        {p.placement_status === "placed" ? "שובץ" : "לא שובץ"}
-                      </Badge>
+                      {/* The badge said whether it was placed and stopped there.
+                          Somebody reading "לא שובץ" wants to go and place it,
+                          and the only route was knowing that an ISSUE is a
+                          thing you open first, and finding it in the menu. */}
+                      {issueByPublication.get(p.id) ? (
+                        <Link
+                          href={`/issues/${issueByPublication.get(p.id)}/board`}
+                          data-testid={`go-to-board-${p.id}`}
+                          className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
+                        >
+                          <Badge tone={p.placement_status === "placed" ? "success" : "neutral"}>
+                            {p.placement_status === "placed" ? "שובץ" : "לא שובץ"}
+                          </Badge>
+                          <span className="text-xs text-on-surface-variant">ללוח</span>
+                        </Link>
+                      ) : (
+                        <span className="inline-flex items-center gap-1">
+                          <Badge tone={p.placement_status === "placed" ? "success" : "neutral"}>
+                            {p.placement_status === "placed" ? "שובץ" : "לא שובץ"}
+                          </Badge>
+                          {mayOpenIssues ? (
+                            <Link
+                              href="/issues/new"
+                              data-testid={`open-issue-for-${p.id}`}
+                              title="אין עדיין גיליון לתאריך הזה"
+                              className="text-xs text-on-surface-variant underline-offset-2 hover:underline"
+                            >
+                              אין גיליון
+                            </Link>
+                          ) : null}
+                        </span>
+                      )}
                     </td>
                     {mayLinkAds ? (
                       <td className="p-3">

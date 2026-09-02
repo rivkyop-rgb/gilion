@@ -276,6 +276,78 @@ export async function issueDatesTaken(
   return rows.map((r) => isoDate(r.issue_date));
 }
 
+/**
+ * The issues that are open for placing right now — what the dashboard offers.
+ *
+ * `ready_for_print` is left out on purpose: it is open to an admin only, and a
+ * shortcut that lands most people on a locked board is a shortcut that teaches
+ * them not to trust shortcuts.
+ */
+export async function openIssuesForPlacement(businessId: string, take = 5) {
+  const issues = await tenantDb(businessId).issue.findMany({
+    where: { status: { in: ["draft", "in_layout"] } },
+    orderBy: [{ issue_date: "asc" }],
+    include: { newspaper: { select: { name: true } } },
+    take,
+  });
+
+  const placed = await tenantDb(businessId).placement.groupBy({
+    by: ["issue_id"],
+    where: { issue_id: { in: issues.map((i) => i.id) }, status: "placed" },
+    _count: { _all: true },
+  });
+  const placedBy = new Map(placed.map((p) => [p.issue_id, p._count._all]));
+
+  const planned = await tenantDb(businessId).publication.groupBy({
+    by: ["newspaper_id", "publication_date"],
+    where: {
+      newspaper_id: { in: issues.map((i) => i.newspaper_id) },
+      publication_date: { in: issues.map((i) => i.issue_date) },
+      status: { not: "canceled" },
+    },
+    _count: { _all: true },
+  });
+  const key = (newspaperId: string, date: Date) => `${newspaperId}|${isoDate(date)}`;
+  const plannedBy = new Map(
+    planned.map((p) => [key(p.newspaper_id, p.publication_date), p._count._all]),
+  );
+
+  return issues.map((issue) => ({
+    id: issue.id,
+    date: issue.issue_date,
+    newspaperName: issue.newspaper.name,
+    placedCount: placedBy.get(issue.id) ?? 0,
+    plannedCount: plannedBy.get(key(issue.newspaper_id, issue.issue_date)) ?? 0,
+  }));
+}
+
+/**
+ * Which issue a publication would be placed in, if one exists for its date.
+ *
+ * A publication reaches a board by (newspaper, date) alone, so this is the same
+ * lookup the board does — from the other end.
+ */
+export async function issuesForPublications(
+  businessId: string,
+  publications: ReadonlyArray<{ newspaper_id: string; publication_date: Date }>,
+): Promise<Map<string, string>> {
+  if (publications.length === 0) return new Map();
+
+  const rows = await tenantDb(businessId).issue.findMany({
+    where: {
+      newspaper_id: { in: [...new Set(publications.map((p) => p.newspaper_id))] },
+      issue_date: {
+        in: [...new Set(publications.map((p) => p.publication_date.getTime()))].map(
+          (t) => new Date(t),
+        ),
+      },
+    },
+    select: { id: true, newspaper_id: true, issue_date: true },
+  });
+
+  return new Map(rows.map((r) => [`${r.newspaper_id}|${isoDate(r.issue_date)}`, r.id]));
+}
+
 /** Just the newspaper an issue belongs to — for price lookups. */
 export async function getIssueNewspaper(businessId: string, id: string) {
   return tenantDb(businessId).issue.findUnique({
