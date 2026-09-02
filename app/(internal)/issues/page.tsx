@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Newspaper, Plus } from "lucide-react";
+import { ClipboardList, Newspaper, Plus } from "lucide-react";
 
 import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { listIssues } from "@/lib/data/issues";
@@ -40,14 +40,22 @@ export default async function IssuesPage() {
             מודעה שכבר שובצה.
           </p>
         </div>
-        {mayWrite ? (
-          <Button asChild data-testid="new-issue">
-            <Link href="/issues/new">
-              <Plus className="size-4" />
-              פתיחת גיליון חדש
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="secondary" data-testid="issue-report-link">
+            <Link href="/issues/report">
+              <ClipboardList className="size-4" />
+              מעקב גיליונות
             </Link>
           </Button>
-        ) : null}
+          {mayWrite ? (
+            <Button asChild data-testid="new-issue">
+              <Link href="/issues/new">
+                <Plus className="size-4" />
+                פתיחת גיליון חדש
+              </Link>
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {issues.length === 0 ? (

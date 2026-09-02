@@ -363,6 +363,85 @@ export async function findIssueByDate(businessId: string, newspaperId: string, i
   });
 }
 
+/**
+ * Every issue and what was put in it — the tracking screen (backlog item 11).
+ *
+ * ── What it cannot answer, and why that is written down ──────────────────────
+ * The request was "who put which publication in, and what size". It answers
+ * everything except WHO: there is no `placed_by_user_id` on `Placement`, and
+ * adding one was asked about explicitly and declined. `AuditLog` records seven
+ * actions and placing is not one of them, so there is nowhere else to look.
+ *
+ * What is offered instead is who uploaded the ARTWORK, which is a different
+ * fact and is labelled as one. Showing a name under a heading that says "who
+ * placed" would be worse than showing nothing.
+ */
+export async function issueReport(
+  businessId: string,
+  filter: { status?: "all" | "open" | "closed" } = {},
+) {
+  const status = filter.status ?? "all";
+
+  const issues = await tenantDb(businessId).issue.findMany({
+    where:
+      status === "closed"
+        ? { status: "closed" }
+        : status === "open"
+          ? { status: { not: "closed" } }
+          : {},
+    orderBy: [{ issue_date: "desc" }],
+    take: 60,
+    include: {
+      newspaper: { select: { name: true } },
+      pages: { select: { id: true, page_number: true } },
+      placements: {
+        where: { status: "placed" },
+        orderBy: [{ created_at: "asc" }],
+        include: {
+          publication: {
+            select: {
+              id: true,
+              customer: { select: { business_name: true, contact_name: true } },
+            },
+          },
+          ad_shape: { select: { name: true } },
+          advertisement: {
+            select: { name: true, uploaded_by: { select: { name: true } } },
+          },
+        },
+      },
+    },
+  });
+
+  return issues.map((issue) => {
+    const pageNumbers = new Map(issue.pages.map((p) => [p.id, p.page_number]));
+    return {
+      id: issue.id,
+      date: issue.issue_date,
+      status: issue.status as IssueStatus,
+      closedAt: issue.closed_at,
+      newspaperName: issue.newspaper.name,
+      pageCount: issue.pages.length,
+      grid: gridOfIssue(issue),
+      placements: issue.placements.map((placement) => ({
+        id: placement.id,
+        customerName:
+          placement.publication.customer.business_name ??
+          placement.publication.customer.contact_name,
+        shapeName: placement.ad_shape.name,
+        cols: placement.cols,
+        rows: placement.rows,
+        pageNumber: pageNumbers.get(placement.issue_page_id) ?? 0,
+        placedAt: placement.created_at,
+        adName: placement.advertisement.name,
+        // NOT who placed it — see the note above.
+        uploadedBy: placement.advertisement.uploaded_by.name,
+        duplicate: placement.duplicate_override_approved,
+      })),
+    };
+  });
+}
+
 /* ------------------------------------------------------------------ writing */
 
 export class DuplicateIssueError extends Error {
