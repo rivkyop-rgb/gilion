@@ -58,10 +58,12 @@ function parentModelOf(model: string): string {
     PageType: "Newspaper",
     AdShape: "Newspaper",
     AllowedAdShape: "PageType",
+    PageReservation: "PageType",
     PriceRule: "Newspaper",
     AdOrderItem: "AdOrder",
     IssuePage: "Issue",
     Placement: "Issue",
+    IssuePageReservation: "IssuePage",
     Reminder: "Publication",
     PdfGenerationLog: "Issue",
   };

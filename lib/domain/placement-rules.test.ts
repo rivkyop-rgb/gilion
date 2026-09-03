@@ -41,7 +41,7 @@ function ctx(over: Partial<PlacementContext> = {}): PlacementContext {
   return {
     issue: { status: "in_layout", newspaperId: "np1", issueDate: "2026-09-10" },
     isAdmin: false,
-    page: { allowedShapes: [quarter, half] },
+    page: { allowedShapes: [quarter, half], reserved: [] },
     publication: {
       newspaperId: "np1",
       publicationDate: "2026-09-10",
@@ -148,7 +148,7 @@ describe("rules 3-4 — the artwork (US-005 AC-4)", () => {
 
 describe("rule 5 — the shape must be allowed on the page type (US-007 AC-3)", () => {
   it("refuses a shape the page type does not list, and names it", () => {
-    const rejection = checkPlacement(ctx({ page: { allowedShapes: [half] } }));
+    const rejection = checkPlacement(ctx({ page: { allowedShapes: [half], reserved: [] } }));
     expect(rejection?.code).toBe("shape_not_allowed_on_page");
     expect(rejection?.message).toContain("רבע עמוד");
   });
@@ -172,7 +172,7 @@ describe("rule 6 — bounds and footprint", () => {
 
 describe("rule 7 — an explicit allowed region", () => {
   const withStrip = {
-    page: { allowedShapes: [quarter, half, strip] },
+    page: { allowedShapes: [quarter, half, strip], reserved: [] },
     shape: strip,
     publication: {
       newspaperId: "np1",
@@ -223,7 +223,10 @@ describe("rule 7א — no dead remainders (decision of 25/08/2026)", () => {
     // three-column band at cols 5-7. The rejection points at the larger one,
     // which is the one the designer needs to see.
     const rejection = checkPlacement(
-      ctx({ page: { allowedShapes: [quarter] }, rect: { col: 1, row: 0, cols: 4, rows: 4 } }),
+      ctx({
+        page: { allowedShapes: [quarter], reserved: [] },
+        rect: { col: 1, row: 0, cols: 4, rows: 4 },
+      }),
     );
     expect(rejection?.code).toBe("dead_space");
     expect(rejection?.message).toContain("ס״מ");
@@ -233,7 +236,10 @@ describe("rule 7א — no dead remainders (decision of 25/08/2026)", () => {
   it("accepts the same ad once it is moved flush to the edge", () => {
     expect(
       checkPlacement(
-        ctx({ page: { allowedShapes: [quarter] }, rect: { col: 0, row: 0, cols: 4, rows: 4 } }),
+        ctx({
+          page: { allowedShapes: [quarter], reserved: [] },
+          rect: { col: 0, row: 0, cols: 4, rows: 4 },
+        }),
       ),
     ).toBeNull();
   });

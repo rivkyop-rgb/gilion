@@ -5,6 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InlineError } from "@/components/states";
+import { ReservedAreas, type ReservedAreaRow } from "./reserved-areas";
 import { ShapePreview } from "../../shape-preview";
 import { shapeSize } from "../../shape-size";
 import type { DerivedGrid } from "@/lib/domain/grid";
@@ -16,7 +17,13 @@ import {
 } from "../../actions";
 
 export type ShapeOption = { id: string; name: string; cols: number; rows: number };
-export type PageTypeRow = { id: string; name: string; allowedShapeIds: string[] };
+export type PageTypeRow = {
+  id: string;
+  name: string;
+  allowedShapeIds: string[];
+  /** The parts of this page that are not for sale (backlog item 14). */
+  reserved: ReservedAreaRow[];
+};
 
 /**
  * Page types, each expanding to its allowed shapes.
@@ -111,6 +118,14 @@ export function PageTypes({
                 );
               })}
             </div>
+
+            <ReservedAreas
+              newspaperId={newspaperId}
+              pageTypeId={pt.id}
+              grid={grid}
+              areas={pt.reserved}
+              readOnly={readOnly}
+            />
           </li>
         ))}
       </ul>

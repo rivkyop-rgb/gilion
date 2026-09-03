@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ClipboardList, Info } from "lucide-react";
+import { ClipboardList } from "lucide-react";
 
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { issueReport } from "@/lib/data/issues";
@@ -43,12 +43,11 @@ const FILTERS = [
  * each board in turn and reading its pages — which is the kind of check people
  * stop doing, and then an issue goes to print with a page nobody looked at.
  *
- * ── The column that is not here ──────────────────────────────────────────────
- * The request included "who put the publication in". `Placement` does not
- * record it and adding the column was asked about and declined, so the answer
- * does not exist anywhere. What is shown instead is who uploaded the ARTWORK,
- * under a heading that says exactly that. A name under "who placed" would be
- * an invention, and this screen exists to be trusted.
+ * ── Who uploaded, not who placed ─────────────────────────────────────────────
+ * `Placement` carries no user, so "who placed this" is not a question the data
+ * can answer — it was asked for once, then withdrawn. The column names what it
+ * really is: who uploaded the ARTWORK. Keeping the heading honest is what lets
+ * every other column here be trusted.
  */
 export default async function IssueReportPage({
   searchParams,
@@ -196,17 +195,6 @@ export default async function IssueReportPage({
           ))}
         </div>
       )}
-
-      <p
-        className="mt-4 flex items-start gap-2 rounded-md bg-surface-container p-3 text-xs text-on-surface-variant"
-        data-testid="who-placed-note"
-      >
-        <Info className="size-4 shrink-0" />
-        <span>
-          המערכת אינה שומרת מי ביצע את השיבוץ עצמו, ולכן העמודה מציגה מי העלה את המודעה — עובדה
-          אחרת. אם צריך גם &quot;מי שיבץ&quot;, זו תוספת למסד, ושיבוצים שנעשו עד אז יישארו בלי שם.
-        </span>
-      </p>
     </>
   );
 }

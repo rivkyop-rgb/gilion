@@ -21,6 +21,9 @@ import {
   shapeFitsGrid,
 } from "@/lib/domain/grid";
 import { normalizePositions, validPositionCount, type Cell } from "@/lib/domain/slot-geometry";
+import { checkReservation, RESERVATION_IMAGE_TYPES } from "@/lib/domain/reservation";
+import { sniffFileType } from "@/lib/domain/ad-file";
+import { CONTENT_TYPES, putObject } from "@/lib/storage/minio";
 import { validatePrice } from "@/lib/domain/pricing";
 import { normalizeDays } from "@/lib/domain/publication-days";
 import * as papers from "@/lib/data/newspapers";
@@ -469,4 +472,125 @@ export async function setShapeRegionAction(
   await shapes.updateAdShape(ctx.businessId, shapeId, prepared.data);
   revalidateShapes(newspaperId);
   return {};
+}
+
+/* ------------------------------------------------------- reserved areas */
+
+/**
+ * An area of a page type that is not for sale, plus the image that sits in it
+ * (backlog item 14).
+ *
+ * The area is validated against the same grid, the same overlap rule and the
+ * same rule 7א as a placement — see lib/domain/reservation.ts for why the
+ * newspaper is not exempt from its own rules.
+ */
+const reservationSchema = z.object({
+  id: z.string().optional().nullable(),
+  name: z.string(),
+  col: z.coerce.number().int(),
+  row: z.coerce.number().int(),
+  cols: z.coerce.number().int(),
+  rows: z.coerce.number().int(),
+});
+
+export async function saveReservationAction(
+  newspaperId: string,
+  pageTypeId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const ctx = await requireAdmin();
+
+  const parsed = reservationSchema.safeParse({
+    id: formData.get("id"),
+    name: formData.get("name"),
+    col: formData.get("col"),
+    row: formData.get("row"),
+    cols: formData.get("cols"),
+    rows: formData.get("rows"),
+  });
+  if (!parsed.success) return { message: "האזור השמור אינו תקין" };
+
+  const found = await papers.newspaperGrid(ctx.businessId, newspaperId);
+  if (!found) return { message: "העיתון לא נמצא" };
+
+  const pageType = await papers.getPageType(ctx.businessId, pageTypeId);
+  if (!pageType) return { message: "סוג העמוד לא נמצא" };
+
+  const { id, name, ...rect } = parsed.data;
+  const existing = await papers.listReservations(ctx.businessId, pageTypeId);
+  const siblings = existing
+    .filter((area) => area.id !== id)
+    .map(({ col, row, cols, rows }) => ({ col, row, cols, rows }));
+
+  const catalogue = await shapes.listAdShapes(ctx.businessId, newspaperId);
+  const allowed = pageType.allowed_shapes.map((a) => a.ad_shape_id);
+  const allowedShapes = catalogue
+    .filter((shape) => allowed.includes(shape.id))
+    .map((shape) => ({
+      id: shape.id,
+      name: shape.name,
+      cols: shape.cols,
+      rows: shape.rows,
+      positions:
+        shape.position_mode === "region" ? shapes.readAllowedCells(shape.allowed_cells) : null,
+    }));
+
+  const rejection = checkReservation({ name, rect }, found.grid, siblings, allowedShapes);
+  if (rejection) return { errors: { [rejection.field]: rejection.message } };
+
+  const row = { name: name.trim(), ...rect };
+  const saved = id
+    ? await papers.updateReservation(ctx.businessId, id, row)
+    : await papers.createReservation(ctx.businessId, pageTypeId, row);
+  if (!saved) return { message: "לא הצלחנו לשמור את האזור" };
+
+  const file = formData.get("asset");
+  if (file instanceof File && file.size > 0) {
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const type = sniffFileType(bytes);
+    if (!type || !RESERVATION_IMAGE_TYPES.has(type)) {
+      return { errors: { asset: "אפשר להעלות תמונת PNG או JPG בלבד" } };
+    }
+    // The key starts with the business id because the download route checks
+    // that first segment against the session before it serves a byte
+    // (lib/storage/minio.ts).
+    const key = `${ctx.businessId}/reserved/${saved.id}.${type}`;
+    await putObject(key, bytes, CONTENT_TYPES[type]!);
+    await papers.setReservationAsset(ctx.businessId, saved.id, key);
+  }
+
+  revalidatePath(`/settings/newspapers/${newspaperId}`);
+  return { message: id ? "האזור עודכן" : "האזור נוסף" };
+}
+
+export async function clearReservationAssetAction(
+  newspaperId: string,
+  reservationId: string,
+): Promise<FormState> {
+  const ctx = await requireAdmin();
+
+  const area = await papers.getReservation(ctx.businessId, reservationId);
+  if (!area) return { message: "האזור לא נמצא" };
+
+  // The object itself stays: issues opened while it was set carry their own
+  // copy of the key, and deleting the bytes would empty a page that is already
+  // printed. Storage is cheap; a hole in an issue is not.
+  await papers.setReservationAsset(ctx.businessId, reservationId, null);
+  revalidatePath(`/settings/newspapers/${newspaperId}`);
+  return { message: "התמונה הוסרה מהאזור" };
+}
+
+export async function deleteReservationAction(
+  newspaperId: string,
+  reservationId: string,
+): Promise<FormState> {
+  const ctx = await requireAdmin();
+
+  const area = await papers.getReservation(ctx.businessId, reservationId);
+  if (!area) return { message: "האזור לא נמצא" };
+
+  await papers.deleteReservation(ctx.businessId, reservationId);
+  revalidatePath(`/settings/newspapers/${newspaperId}`);
+  return { message: "האזור הוסר" };
 }

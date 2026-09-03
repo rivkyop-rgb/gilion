@@ -30,12 +30,14 @@ export const INDIRECT_TENANT_MODELS: Record<string, string> = {
   PageType: "newspaper",
   AdShape: "newspaper",
   AllowedAdShape: "page_type",
+  PageReservation: "page_type",
   PriceRule: "newspaper",
   // The relation field on AdOrderItem is `order` — the registry names the
   // relation to walk, not the model it points at.
   AdOrderItem: "order",
   IssuePage: "issue",
   Placement: "issue",
+  IssuePageReservation: "issue_page",
   Reminder: "publication",
   PdfGenerationLog: "issue",
 };

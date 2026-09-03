@@ -73,6 +73,15 @@ export default async function NewspaperPage({ params }: { params: Promise<{ id: 
           id: pt.id,
           name: pt.name,
           allowedShapeIds: pt.allowed_shapes.map((a) => a.ad_shape_id),
+          reserved: pt.reservations.map((area) => ({
+            id: area.id,
+            name: area.name,
+            col: area.col,
+            row: area.row,
+            cols: area.cols,
+            rows: area.rows,
+            assetKey: area.asset_key,
+          })),
         }))}
       />
     </>

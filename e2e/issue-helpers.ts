@@ -181,6 +181,25 @@ export async function clearIssuesOn(date: string) {
   }
 }
 
+/**
+ * Removes every reserved area (backlog item 14).
+ *
+ * prisma/seed.ts creates none, so anything here was drawn by a spec — and one
+ * left behind takes a slice of the cover out of the market for every placement
+ * spec that follows, which reads as "the ad will not go where it always goes".
+ * The issue-level COPIES are left alone on purpose: they belong to issues that
+ * were already laid out, and removing them here would be exactly the retroactive
+ * edit the snapshot exists to prevent.
+ */
+export async function clearReservations() {
+  const prisma = client();
+  try {
+    await prisma.pageReservation.deleteMany({});
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 /** Forces the fixture issue into a status the UI has no button for. */
 export async function setFixtureIssueStatus(
   status: "draft" | "in_layout" | "ready_for_print" | "closed",

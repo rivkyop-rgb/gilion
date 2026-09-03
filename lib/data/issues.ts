@@ -16,7 +16,7 @@ import { basePrisma, tenantDb } from "./db";
 import { gridOf, type NewspaperRow } from "./newspapers";
 import { readAllowedCells } from "./ad-shapes";
 import type { DerivedGrid } from "@/lib/domain/grid";
-import type { ShapeSpec } from "@/lib/domain/placement";
+import type { ReservedArea, ShapeSpec } from "@/lib/domain/placement";
 import { isBackward, transition, type IssueStatus } from "@/lib/domain/issue-status";
 import { PAGES_PER_SHEET } from "@/lib/domain/issue-layout";
 import { withAudit } from "./audit";
@@ -87,6 +87,8 @@ const BOARD_INCLUDE = {
   pages: {
     orderBy: { page_number: "asc" as const },
     include: {
+      /** The page's own snapshot of the areas that are not for sale. */
+      reservations: { orderBy: { name: "asc" as const } },
       page_type: {
         select: {
           id: true,
@@ -168,6 +170,24 @@ export function shapeSpecsOf(page: {
     rows: ad_shape.rows,
     positions:
       ad_shape.position_mode === "region" ? readAllowedCells(ad_shape.allowed_cells) : null,
+  }));
+}
+
+/** The reserved areas of a page, in the shape the placement rules want. */
+export function reservedOf(page: {
+  reservations: Array<{
+    name: string;
+    col: number;
+    row: number;
+    cols: number;
+    rows: number;
+    asset_key: string | null;
+  }>;
+}): ReservedArea[] {
+  return page.reservations.map((r) => ({
+    name: r.name,
+    rect: { col: r.col, row: r.row, cols: r.cols, rows: r.rows },
+    assetKey: r.asset_key,
   }));
 }
 
@@ -451,6 +471,44 @@ export class DuplicateIssueError extends Error {
   }
 }
 
+/**
+ * Copies a page type's reserved areas onto pages that were just created.
+ *
+ * The snapshot half of backlog item 14, and the same reasoning as the grid
+ * snapshot above it (conventions.md §7 rule 2): moving the masthead on the page
+ * type changes every issue opened from that moment on, and none of the ones
+ * already laid out. Without this, an ad placed legally six weeks ago could find
+ * itself underneath a reserved area that did not exist when it was sold.
+ */
+async function copyReservations(
+  tx: Prisma.TransactionClient,
+  issueId: string,
+  pages: Array<{ id: string; page_type_id: string }>,
+) {
+  const typeIds = [...new Set(pages.map((p) => p.page_type_id))];
+  if (typeIds.length === 0) return;
+
+  const areas = await tx.pageReservation.findMany({ where: { page_type_id: { in: typeIds } } });
+  if (areas.length === 0) return;
+
+  await tx.issuePageReservation.createMany({
+    data: pages.flatMap((page) =>
+      areas
+        .filter((area) => area.page_type_id === page.page_type_id)
+        .map((area) => ({
+          issue_id: issueId,
+          issue_page_id: page.id,
+          name: area.name,
+          col: area.col,
+          row: area.row,
+          cols: area.cols,
+          rows: area.rows,
+          asset_key: area.asset_key,
+        })),
+    ),
+  });
+}
+
 export type NewIssueInput = {
   newspaperId: string;
   /** yyyy-mm-dd. */
@@ -493,13 +551,15 @@ export async function createIssue(businessId: string, input: NewIssueInput) {
         },
       });
 
-      await tx.issuePage.createMany({
+      const pages = await tx.issuePage.createManyAndReturn({
         data: input.pageTypeIds.map((pageTypeId, index) => ({
           issue_id: issue.id,
           page_type_id: pageTypeId,
           page_number: index + 1,
         })),
+        select: { id: true, page_type_id: true },
       });
+      await copyReservations(tx, issue.id, pages);
 
       return issue;
     })
@@ -531,13 +591,15 @@ export async function addIssuePage(businessId: string, issueId: string, pageType
     orderBy: { page_number: "desc" },
     select: { page_number: true },
   });
-  return tenantDb(businessId).issuePage.create({
+  const page = await tenantDb(businessId).issuePage.create({
     data: {
       issue_id: issueId,
       page_type_id: pageTypeId,
       page_number: (last?.page_number ?? 0) + 1,
     },
   });
+  await copyReservations(basePrisma, issueId, [page]);
+  return page;
 }
 
 /**
@@ -571,13 +633,15 @@ export async function insertIssuePages(
        WHERE "issue_id" = ${issueId}
          AND "page_number" > ${after.page_number}`;
 
-    await tx.issuePage.createMany({
+    const pages = await tx.issuePage.createManyAndReturn({
       data: Array.from({ length: added }, (_, i) => ({
         issue_id: issueId,
         page_type_id: pageTypeId,
         page_number: after.page_number + 1 + i,
       })),
+      select: { id: true, page_type_id: true },
     });
+    await copyReservations(tx, issueId, pages);
 
     await tx.$executeRaw`
       UPDATE "IssuePage"

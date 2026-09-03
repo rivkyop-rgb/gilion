@@ -9,6 +9,7 @@ import {
   isoDate,
   pageTypesOf,
   publicationsForIssue,
+  reservedOf,
   shapeSpecsOf,
 } from "@/lib/data/issues";
 import { readAllowedCells } from "@/lib/data/ad-shapes";
@@ -68,6 +69,7 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
       pageTypeName: page.page_type.name,
       pageTypeId: page.page_type.id,
       allowedShapes: shapeSpecsOf(page),
+      reserved: reservedOf(page),
     })),
     placements: issue.placements.map((placement) => ({
       id: placement.id,

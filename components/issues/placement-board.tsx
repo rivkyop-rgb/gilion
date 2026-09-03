@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ChevronLeft, ChevronRight, Lock, Trash2 } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Lock, Trash2, Wand2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import {
 import {
   checkPlacement,
   sizeLabel,
+  type ReservedArea,
   type PlacementRejection,
   type ShapeSpec,
 } from "@/lib/domain/placement";
@@ -34,6 +35,7 @@ import type { Cell, GridRect } from "@/lib/domain/slot-geometry";
 import { cn } from "@/lib/utils";
 import {
   approveDuplicateOverrideAction,
+  autoPlaceIssueAction,
   insertIssuePageAction,
   movePlacementAction,
   placeAdAction,
@@ -57,6 +59,8 @@ export type BoardPage = {
   pageTypeName: string;
   pageTypeId: string;
   allowedShapes: ShapeSpec[];
+  /** Areas of this page that are not for sale (backlog item 14). */
+  reserved: ReservedArea[];
 };
 
 export type BoardModel = {
@@ -110,11 +114,25 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
   const [viewIndex, setViewIndex] = useState(0);
   const [held, setHeld] = useState<Held>(null);
   const [hover, setHover] = useState<{ pageId: string; cell: Cell } | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  /**
+   * What the board last said, and whether it was bad news.
+   *
+   * A single string was not enough: several actions succeed and still have
+   * something to report — "4 ads placed, 2 pages added" is not an error, and
+   * painting it red taught people to read every notice as a failure.
+   */
+  const [notice, setNotice] = useState<{ text: string; ok: boolean } | null>(null);
+  const fail = (text: string) => setNotice({ text, ok: false });
+  const say = (text: string) => setNotice({ text, ok: true });
   const [duplicateFor, setDuplicateFor] = useState<BoardCandidate | null>(null);
   const [newPageType, setNewPageType] = useState(model.pageTypes[0]?.id ?? "");
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [offerNext, setOfferNext] = useState(false);
+  /**
+   * Which arrangement the auto-placer produced. Bumping it asks for another —
+   * the same number always gives the same layout, so there is a way back.
+   */
+  const [layoutSeed, setLayoutSeed] = useState(1);
 
   /**
    * Pressed vs dragging.
@@ -147,13 +165,23 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
     for (const page of model.pages) {
       map.set(
         page.id,
-        pageFill(page, placementsByPage.get(page.id) ?? [], model.grid, page.allowedShapes),
+        pageFill(
+          page,
+          placementsByPage.get(page.id) ?? [],
+          model.grid,
+          page.allowedShapes,
+          page.reserved.map((area) => area.rect),
+        ),
       );
     }
     return map;
   }, [model.pages, placementsByPage, model.grid]);
 
   const unfinished = useMemo(() => unfinishedPages([...fills.values()]), [fills]);
+  // Only what the packer could actually take: artwork present and usable.
+  const unplacedCount = model.candidates.filter(
+    (c) => !c.alreadyPlaced && c.blockedReason === null,
+  ).length;
   const totalPages = model.pages.length;
 
   // Both halves of a spread, whole, without scrolling — see useFittedSpread.
@@ -194,7 +222,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
     return checkPlacement({
       issue: { status: model.status, newspaperId: "same", issueDate: "same" },
       isAdmin: model.isAdmin,
-      page: { allowedShapes: page.allowedShapes },
+      page: { allowedShapes: page.allowedShapes, reserved: page.reserved },
       publication: {
         newspaperId: "same",
         publicationDate: "same",
@@ -213,7 +241,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
 
   const commit = (pageId: string, cell: Cell) => {
     if (!held || !editable) return;
-    setMessage(null);
+    setNotice(null);
 
     startTransition(async () => {
       const result =
@@ -239,7 +267,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
         router.refresh();
         return;
       }
-      setMessage(result.message ?? "לא הצלחנו לשבץ");
+      fail(result.message ?? "לא הצלחנו לשבץ");
       // A refused duplicate is the one rejection with a way forward, and only
       // an admin has it (FR-16).
       if (model.isAdmin && held.kind === "publication" && result.message?.includes("כבר משובץ")) {
@@ -262,7 +290,10 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
     startTransition(async () => {
       const result = await action();
       if (result.ok) router.refresh();
-      else setMessage(result.message ?? "הפעולה נכשלה");
+      // A message on success is worth showing too — that is where the packer
+      // reports how many ads it placed and how many pages it had to open.
+      else if (!result.ok) fail(result.message ?? "הפעולה נכשלה");
+      if (result.ok && result.message) say(result.message);
     });
 
   const jumpToPage = (pageId: string) => {
@@ -337,13 +368,19 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
             own height — out from under the pointer — so the cell being aimed at
             moves as it is aimed at, and the drop lands somewhere else. */}
         <div className="mb-2 min-h-9 shrink-0">
-          {message ? (
+          {notice ? (
             <p
               role="alert"
               data-testid="board-message"
-              className="rounded-md bg-status-error-bg p-2 text-sm text-status-error-fg"
+              data-ok={notice.ok}
+              className={cn(
+                "rounded-md p-2 text-sm",
+                notice.ok
+                  ? "bg-status-success-bg text-status-success-fg"
+                  : "bg-status-error-bg text-status-error-fg",
+              )}
             >
-              {message}
+              {notice.text}
             </p>
           ) : unfinished.length > 0 ? (
             <p
@@ -450,6 +487,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                   size={pageSize}
                   grid={model.grid}
                   placements={placementsByPage.get(page.id) ?? []}
+                  reserved={full.reserved}
                   fill={fill}
                   editable={editable}
                   holding={held?.kind === "publication"}
@@ -498,6 +536,57 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
             })}
           </div>
         </div>
+
+        {editable && (unplacedCount > 0 || model.placements.length > 0) ? (
+          <div className="mt-2 flex shrink-0 flex-wrap items-center gap-2">
+            {unplacedCount > 0 ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={pending}
+                  data-testid="auto-place"
+                  onClick={() => run(() => autoPlaceIssueAction(model.issueId, layoutSeed))}
+                >
+                  <Wand2 className="size-4" />
+                  שיבוץ אוטומטי (<Ltr>{unplacedCount}</Ltr>)
+                </Button>
+                <span className="text-xs text-on-surface-variant">
+                  עמודים יתווספו לפי הצורך כדי שכל הפרסומים ייכנסו.
+                </span>
+              </>
+            ) : null}
+
+            {/* "Another arrangement" empties the board and packs again, which
+                is the only thing it could honestly mean once everything is
+                already placed. It undoes hand-placed ads as well, so it asks. */}
+            {model.placements.length > 0 ? (
+              <ConfirmDialog
+                testId="reshuffle"
+                trigger={
+                  <Button size="sm" variant="ghost" data-testid="auto-place-reshuffle">
+                    סידור אחר
+                  </Button>
+                }
+                title="לסדר את הגיליון מחדש?"
+                body={`כל ${model.placements.length} השיבוצים בגיליון יוסרו, והמערכת תסדר אותו מחדש בפריסה אחרת — כולל מודעות ששובצו ביד.`}
+                confirmLabel="סדר מחדש"
+                pendingLabel="מסדר…"
+                onConfirm={async () => {
+                  const next = layoutSeed + 1;
+                  setLayoutSeed(next);
+                  const result = await autoPlaceIssueAction(model.issueId, next, true);
+                  if (result.ok) {
+                    if (result.message) say(result.message);
+                    router.refresh();
+                    return;
+                  }
+                  return { message: result.message ?? "לא הצלחנו לסדר מחדש" };
+                }}
+              />
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="shrink-0">
           <PageStrip
@@ -654,7 +743,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
               <ChangeIssueDate
                 issueId={model.issueId}
                 currentDate={model.issueDateIso}
-                onDone={setMessage}
+                onDone={say}
               />
             ) : null}
 
@@ -670,7 +759,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                     startTransition(async () => {
                       const result = await setIssueStatusAction(model.issueId, to);
                       if (!result.ok) {
-                        setMessage(result.message ?? "לא הצלחנו לשנות סטטוס");
+                        fail(result.message ?? "לא הצלחנו לשנות סטטוס");
                         return;
                       }
                       // Closing an issue is the moment the next one starts
@@ -704,7 +793,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                 duplicateFor.publicationId,
               );
               setDuplicateFor(null);
-              setMessage(result.message ?? null);
+              if (result.message) setNotice({ text: result.message, ok: result.ok === true });
               if (result.ok) router.refresh();
             })
           }

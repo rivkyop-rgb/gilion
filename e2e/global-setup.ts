@@ -95,10 +95,10 @@ async function deleteTestAdvertisements(prisma: PrismaClient) {
 
   // The bucket has to be emptied too, or every run leaves a few megabytes
   // behind for a row that no longer exists.
-  await clearAdObjects([...new Set(ads.map((a) => a.business_id))]);
+  await clearObjects([...new Set(ads.map((a) => a.business_id))], "ads");
 }
 
-async function clearAdObjects(businessIds: string[]) {
+async function clearObjects(businessIds: string[], folder: "ads" | "reserved") {
   const { Client } = await import("minio");
   const client = new Client({
     endPoint: process.env.MINIO_ENDPOINT!,
@@ -112,7 +112,7 @@ async function clearAdObjects(businessIds: string[]) {
 
   for (const businessId of businessIds) {
     const keys: string[] = [];
-    const stream = client.listObjectsV2(bucket, `${businessId}/ads/`, true);
+    const stream = client.listObjectsV2(bucket, `${businessId}/${folder}/`, true);
     await new Promise<void>((resolve, reject) => {
       stream.on("data", (o) => o.name && keys.push(o.name));
       stream.on("end", () => resolve());
@@ -176,6 +176,21 @@ const SEEDED_PAGE_TYPES: Record<string, { newspaperId: string; name: string; sha
  */
 async function resetPageTypes(prisma: PrismaClient) {
   const seededIds = Object.keys(SEEDED_PAGE_TYPES);
+
+  // Reserved areas are page-type state too (backlog item 14). prisma/seed.ts
+  // creates none, so every row here was drawn by a spec — and one left behind
+  // takes a slice of the cover out of the market for every placement spec in
+  // the next run, which surfaces as "the ad will not go where it always goes".
+  const reserved = await prisma.pageReservation.findMany({ select: { newspaper_id: true } });
+  await prisma.pageReservation.deleteMany({});
+  if (reserved.length > 0) {
+    // The logo objects go with the rows, for the same reason the ad objects do.
+    const papers = await prisma.newspaper.findMany({
+      where: { id: { in: [...new Set(reserved.map((r) => r.newspaper_id))] } },
+      select: { business_id: true },
+    });
+    await clearObjects([...new Set(papers.map((p) => p.business_id))], "reserved");
+  }
 
   // Only on the seeded newspapers: a newspaper a spec created is removed whole
   // at the start of the next run, and its page types go with it.

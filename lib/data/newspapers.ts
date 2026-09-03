@@ -29,7 +29,10 @@ export async function getNewspaper(businessId: string, id: string) {
     include: {
       page_types: {
         orderBy: { name: "asc" },
-        include: { allowed_shapes: { include: { ad_shape: true } } },
+        include: {
+          allowed_shapes: { include: { ad_shape: true } },
+          reservations: { orderBy: { name: "asc" } },
+        },
       },
     },
   });
@@ -328,4 +331,68 @@ export async function upsertPriceRule(
       price,
     },
   });
+}
+
+/* ------------------------------------------------------- reserved areas */
+
+/**
+ * The areas of a page type that are not for sale (backlog item 14).
+ *
+ * Read live here because this is the SETTINGS side — what the newspaper is
+ * from now on. Issues copy these when a page is created (`copyReservations` in
+ * lib/data/issues.ts) and never read them again, so editing one here changes
+ * every issue opened afterwards and none of the ones already laid out.
+ */
+export async function listReservations(businessId: string, pageTypeId: string) {
+  return tenantDb(businessId).pageReservation.findMany({
+    where: { page_type_id: pageTypeId },
+    orderBy: { name: "asc" },
+  });
+}
+
+export async function getReservation(businessId: string, id: string) {
+  return tenantDb(businessId).pageReservation.findFirst({ where: { id } });
+}
+
+export type ReservationRow = {
+  name: string;
+  col: number;
+  row: number;
+  cols: number;
+  rows: number;
+};
+
+export async function createReservation(
+  businessId: string,
+  pageTypeId: string,
+  input: ReservationRow,
+) {
+  const pageType = await getPageType(businessId, pageTypeId);
+  if (!pageType) return null;
+
+  return tenantDb(businessId).pageReservation.create({
+    data: {
+      page_type_id: pageTypeId,
+      // Carried on the row itself so the composite foreign key can refuse a
+      // page type from another newspaper — the same reason AllowedAdShape does.
+      newspaper_id: pageType.newspaper.id,
+      ...input,
+    },
+  });
+}
+
+export async function updateReservation(businessId: string, id: string, input: ReservationRow) {
+  return tenantDb(businessId).pageReservation.update({ where: { id }, data: input });
+}
+
+/** Attaches (or clears) the image that sits in the area. An object key, never a URL. */
+export async function setReservationAsset(businessId: string, id: string, key: string | null) {
+  return tenantDb(businessId).pageReservation.update({
+    where: { id },
+    data: { asset_key: key },
+  });
+}
+
+export async function deleteReservation(businessId: string, id: string) {
+  return tenantDb(businessId).pageReservation.delete({ where: { id } });
 }

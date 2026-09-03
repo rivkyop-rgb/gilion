@@ -5,7 +5,7 @@ import { useRef } from "react";
 import type { DerivedGrid } from "@/lib/domain/grid";
 import type { PageFill } from "@/lib/domain/issue-layout";
 import { pageLabel } from "@/lib/domain/issue-layout";
-import type { PlacementRejection } from "@/lib/domain/placement";
+import type { PlacementRejection, ReservedArea } from "@/lib/domain/placement";
 import {
   cellAtPointer,
   toCanvasPercent,
@@ -72,6 +72,7 @@ export function PageCanvas({
   grid,
   size,
   placements,
+  reserved,
   fill,
   editable,
   holding,
@@ -91,6 +92,8 @@ export function PageCanvas({
   /** Pixels. Computed by the board so the whole spread fits the screen. */
   size: { width: number; height: number };
   placements: CanvasPlacement[];
+  /** Areas of this page that are not for sale (backlog item 14). */
+  reserved: ReservedArea[];
   fill: PageFill;
   editable: boolean;
   /** Something is in hand, so the page is a drop target rather than a picture. */
@@ -151,6 +154,35 @@ export function PageCanvas({
             />
           )),
         )}
+
+        {/* Reserved areas, under the ads and over the cells. Not buttons: there
+            is nothing to do with one from here, and a button that answers a
+            click with nothing is worse than a picture. `pointer-events-none`
+            keeps the cell underneath reachable, so aiming at a reserved area
+            still produces the sentence that says why it is refused. */}
+        {reserved.map((area) => (
+          <span
+            key={area.name}
+            data-testid={`reserved-${page.number}-${area.name}`}
+            title={`${area.name} — שטח שמור, אינו נמכר`}
+            style={rectStyle(area.rect, grid)}
+            className="pointer-events-none absolute overflow-hidden rounded-[2px] border border-dashed border-outline bg-surface-container"
+          >
+            {area.assetKey ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={fileHref(area.assetKey)}
+                alt={area.name}
+                data-testid={`reserved-art-${page.number}`}
+                className="size-full object-contain"
+              />
+            ) : (
+              <span className="flex size-full items-center justify-center p-1 text-center text-[10px] leading-tight text-on-surface-variant">
+                {area.name}
+              </span>
+            )}
+          </span>
+        ))}
 
         {placements.map((placement) => {
           const pct = toCanvasPercent(placement, grid);

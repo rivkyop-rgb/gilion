@@ -29,6 +29,22 @@ export type ShapeSpec = {
   positions: Cell[] | null;
 };
 
+/**
+ * An area of the page that is not for sale (backlog item 14).
+ *
+ * The masthead, a standing logo strip: part of the page design rather than
+ * something a customer bought. It behaves like a placement nobody owns —
+ * it blocks, it counts against "how much is left to sell", and rule 7א sees
+ * it — but it is never a `Placement`, because there is no order behind it and
+ * nothing to invoice.
+ */
+export type ReservedArea = {
+  name: string;
+  rect: GridRect;
+  /** Object key of the image drawn there, or null for a plain blocked area. */
+  assetKey: string | null;
+};
+
 export type PlacementContext = {
   issue: {
     status: IssueStatus;
@@ -41,6 +57,8 @@ export type PlacementContext = {
   page: {
     /** Shapes this page type allows — AllowedAdShape, resolved (FR-14). */
     allowedShapes: ShapeSpec[];
+    /** Areas of the page that are not for sale. Snapshotted per issue. */
+    reserved: ReservedArea[];
   };
   publication: {
     newspaperId: string;
@@ -81,6 +99,7 @@ export type PlacementRejectionCode =
   | "outside_region"
   | "dead_space"
   | "overlap"
+  | "reserved"
   | "duplicate";
 
 export type PlacementRejection = {
@@ -160,6 +179,19 @@ export function checkPlacement(ctx: PlacementContext): PlacementRejection | null
     return { code: "outside_region", message: "הצורה אינה מותרת במיקום הזה בעמוד" };
   }
 
+  // 8א — a reserved area. Checked BEFORE overlap because the two produce the
+  // same collision and different sentences, and "the space is taken" is the
+  // less useful of the two: nobody can free the masthead by moving an ad.
+  for (const area of ctx.page.reserved) {
+    if (overlaps(ctx.rect, area.rect)) {
+      return {
+        code: "reserved",
+        message: `השטח שמור ל"${area.name}" ואינו נמכר`,
+        rect: area.rect,
+      };
+    }
+  }
+
   // 8 — overlap. Checked here for the sentence, enforced in the database for
   // the truth (conventions.md §4).
   for (const other of ctx.siblings) {
@@ -173,8 +205,11 @@ export function checkPlacement(ctx: PlacementContext): PlacementRejection | null
   }
 
   // 7א — no dead remainders. Runs after overlap so that a straightforward
-  // collision is reported as a collision.
-  const remainder = deadSpaceCreatedBy(ctx.rect, ctx.siblings, ctx.grid, ctx.page.allowedShapes);
+  // collision is reported as a collision. Reserved areas count as occupied
+  // here: a column stranded between an ad and the masthead is just as unsellable
+  // as one stranded between two ads.
+  const blocked = [...ctx.siblings, ...ctx.page.reserved.map((area) => area.rect)];
+  const remainder = deadSpaceCreatedBy(ctx.rect, blocked, ctx.grid, ctx.page.allowedShapes);
   if (remainder) {
     return {
       code: "dead_space",

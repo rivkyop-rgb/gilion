@@ -18,10 +18,16 @@
 import { Prisma } from "@prisma/client";
 
 import { basePrisma, tenantDb } from "./db";
-import { gridOfIssue, isoDate, shapeSpecsOf } from "./issues";
+import { gridOfIssue, insertIssuePages, isoDate, reservedOf, shapeSpecsOf } from "./issues";
 import { readAllowedCells } from "./ad-shapes";
 import { withAudit } from "./audit";
 import { checkPlacement, type PlacementRejection, type ShapeSpec } from "@/lib/domain/placement";
+import {
+  autoPlace,
+  sheetsNeededFor,
+  type AutoPlaceItem,
+  type AutoPlacePage,
+} from "@/lib/domain/auto-place";
 import { requireEditable, type IssueStatus } from "@/lib/domain/issue-status";
 import { transition, type PublicationStatus } from "@/lib/domain/publication-status";
 import type { GridRect } from "@/lib/domain/slot-geometry";
@@ -92,6 +98,7 @@ async function loadContext(ctx: ActorContext, input: PlaceInput, excludePlacemen
       pages: {
         where: { id: input.pageId },
         include: {
+          reservations: { orderBy: { name: "asc" } },
           page_type: {
             select: {
               id: true,
@@ -226,7 +233,7 @@ async function checkLoaded(
       issueDate: isoDate(loaded.issue.issue_date),
     },
     isAdmin: ctx.isAdmin,
-    page: { allowedShapes: shapeSpecsOf(loaded.page) },
+    page: { allowedShapes: shapeSpecsOf(loaded.page), reserved: reservedOf(loaded.page) },
     publication: {
       newspaperId: loaded.publication.newspaper_id,
       publicationDate: isoDate(loaded.publication.publication_date),
@@ -491,4 +498,262 @@ export async function approveDuplicateOverride(
       };
     },
   );
+}
+
+/* ---------------------------------------------------------- auto-placement */
+
+export type AutoPlaceOutcome = {
+  placed: number;
+  /** How many sheets had to be opened to fit everything. */
+  sheetsAdded: number;
+  /** How many placements were cleared first, when rearranging. */
+  cleared: number;
+};
+
+/**
+ * Fills the issue with everything that is waiting, growing it as needed.
+ *
+ * ── Why it loops ─────────────────────────────────────────────────────────────
+ * The decision was "the system adds as many pages as it needs to place all the
+ * publications", so there is no giving up: pack what fits, add a sheet for the
+ * rest, pack again. The loop is bounded anyway — a runaway that adds pages
+ * forever because one ad can never be placed would be worse than a refusal.
+ *
+ * ── Why it writes one at a time ──────────────────────────────────────────────
+ * Every placement goes through `placeAd`, so the twelve rules, the publication
+ * state machine and the two database constraints all apply exactly as they do
+ * to a drag. An auto-placer with its own write path is an auto-placer that
+ * drifts from the rules it is supposed to obey.
+ */
+export async function autoPlaceIssue(
+  ctx: ActorContext,
+  issueId: string,
+  seed = 1,
+  /**
+   * Clear the board first — what "another arrangement" means.
+   *
+   * Without it the packer only ever fills the gaps, so once everything is
+   * placed there is nothing left to rearrange and the button that offers a
+   * different layout can do nothing. With it, the issue is emptied and packed
+   * again from a different seed. It removes HAND-placed ads too, which is why
+   * the screen asks first.
+   */
+  reset = false,
+): Promise<AutoPlaceOutcome> {
+  const db = tenantDb(ctx.businessId);
+
+  const issue = await db.issue.findUnique({
+    where: { id: issueId },
+    select: { id: true, status: true, newspaper_id: true, issue_date: true },
+  });
+  if (!issue) throw new Error("הגיליון לא נמצא");
+  requireEditable(issue.status as IssueStatus, ctx.isAdmin);
+
+  let placed = 0;
+  let sheetsAdded = 0;
+  let cleared = 0;
+
+  if (reset) {
+    const existing = await db.placement.findMany({
+      where: { issue_id: issueId, status: "placed" },
+      select: { id: true },
+    });
+    for (const placement of existing) {
+      // Through removePlacement, so each publication's status walks back
+      // through the state machine exactly as it would by hand (FR-5).
+      await removePlacement(ctx, placement.id);
+      cleared++;
+    }
+  }
+
+  // Each round places what fits and then grows the issue by the smallest
+  // number of sheets the leftovers could possibly need. Bounded so a single
+  // unplaceable ad cannot inflate an issue without end.
+  for (let round = 0; round < MAX_AUTO_ROUNDS; round++) {
+    const plan = await planAutoPlacement(ctx, issueId, seed + round);
+    if (!plan) break;
+
+    for (const placement of plan.placements) {
+      try {
+        await placeAd(ctx, {
+          issueId,
+          pageId: placement.pageId,
+          publicationId: placement.publicationId,
+          col: placement.col,
+          row: placement.row,
+        });
+        placed++;
+      } catch (error) {
+        // A rule refused it after all — another tab, or a shape the plan and
+        // the server disagree about. Skipping is right: the next round replans
+        // against what actually landed.
+        if (!(error instanceof PlacementRejected)) throw error;
+      }
+    }
+
+    if (plan.unplaced.length === 0) break;
+    // Nothing landed AND nothing fits: growing again would not help.
+    if (plan.placements.length === 0 && sheetsAdded > 0 && plan.sheets === 0) break;
+
+    const sheets = Math.max(1, plan.sheets);
+    for (let i = 0; i < sheets; i++) {
+      await addSheetTo(ctx.businessId, issueId, issue.newspaper_id);
+      sheetsAdded++;
+    }
+  }
+
+  return { placed, sheetsAdded, cleared };
+}
+
+/** Above this the issue is growing for a reason no extra page will fix. */
+const MAX_AUTO_ROUNDS = 12;
+
+/** What the packer would do right now, without writing anything. */
+async function planAutoPlacement(ctx: ActorContext, issueId: string, seed: number) {
+  const db = tenantDb(ctx.businessId);
+
+  const issue = await db.issue.findUnique({
+    where: { id: issueId },
+    include: {
+      pages: {
+        orderBy: { page_number: "asc" },
+        include: {
+          reservations: { orderBy: { name: "asc" } },
+          page_type: {
+            select: {
+              allowed_shapes: {
+                include: {
+                  ad_shape: {
+                    select: {
+                      id: true,
+                      name: true,
+                      cols: true,
+                      rows: true,
+                      position_mode: true,
+                      allowed_cells: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      placements: {
+        where: { status: "placed" },
+        select: { issue_page_id: true, col: true, row: true, cols: true, rows: true },
+      },
+    },
+  });
+  if (!issue) return null;
+
+  const grid = gridOfIssue(issue);
+  if (!grid) return null;
+
+  const occupiedByPage = new Map<string, GridRect[]>();
+  for (const p of issue.placements) {
+    const list = occupiedByPage.get(p.issue_page_id) ?? [];
+    list.push({ col: p.col, row: p.row, cols: p.cols, rows: p.rows });
+    occupiedByPage.set(p.issue_page_id, list);
+  }
+
+  const placedPublicationIds = new Set(
+    (
+      await db.placement.findMany({
+        where: { issue_id: issueId, status: "placed" },
+        select: { publication_id: true },
+      })
+    ).map((p) => p.publication_id),
+  );
+
+  // Only what a person would be allowed to drag: artwork present, valid, and
+  // belonging to the publication's own customer (US-005 AC-4).
+  const waiting = (
+    await db.publication.findMany({
+      where: {
+        newspaper_id: issue.newspaper_id,
+        publication_date: issue.issue_date,
+        status: { notIn: ["canceled", "billed"] },
+        id: { notIn: [...placedPublicationIds] },
+      },
+      orderBy: { created_at: "asc" },
+      include: {
+        ad_shape: {
+          select: {
+            id: true,
+            name: true,
+            cols: true,
+            rows: true,
+            position_mode: true,
+            allowed_cells: true,
+          },
+        },
+        advertisement: { select: { customer_id: true, status: true, validation_status: true } },
+      },
+    })
+  ).filter(
+    (p) =>
+      p.advertisement !== null &&
+      p.advertisement.status !== "archived" &&
+      p.advertisement.validation_status === "passed" &&
+      p.advertisement.customer_id === p.customer_id,
+  );
+
+  const items: AutoPlaceItem[] = waiting.map((p) => ({
+    publicationId: p.id,
+    shape: {
+      id: p.ad_shape.id,
+      name: p.ad_shape.name,
+      cols: p.ad_shape.cols,
+      rows: p.ad_shape.rows,
+      positions:
+        p.ad_shape.position_mode === "region" ? readAllowedCells(p.ad_shape.allowed_cells) : null,
+    },
+  }));
+
+  const pages: AutoPlacePage[] = issue.pages.map((page) => ({
+    pageId: page.id,
+    pageNumber: page.page_number,
+    allowedShapes: shapeSpecsOf(page),
+    // A reserved area is not a placement and never will be, but to a packer it
+    // is exactly as unavailable as one (backlog item 14).
+    occupied: [
+      ...(occupiedByPage.get(page.id) ?? []),
+      ...reservedOf(page).map((area) => area.rect),
+    ],
+  }));
+
+  const result = autoPlace(items, pages, grid, seed);
+  return { ...result, sheets: sheetsNeededFor(result.unplaced, grid) };
+}
+
+/**
+ * Adds one sheet — two inner pages — before the back page.
+ *
+ * The type is the one the issue already uses for its inner pages, so a grown
+ * issue is composed the way the person composed it. The back page stays last:
+ * it is the outside of the folded sheet.
+ */
+async function addSheetTo(businessId: string, issueId: string, newspaperId: string) {
+  const pages = await tenantDb(businessId).issuePage.findMany({
+    where: { issue_id: issueId },
+    orderBy: { page_number: "asc" },
+    select: { id: true, page_number: true, page_type_id: true },
+  });
+
+  // The inner type in use, or — on an issue with no inside yet — whatever the
+  // newspaper offers that is not the cover's type.
+  const inner = pages.length > 2 ? pages[1]!.page_type_id : null;
+  const fallback = (
+    await tenantDb(businessId).pageType.findFirst({
+      where: { newspaper_id: newspaperId, id: { not: pages[0]?.page_type_id } },
+      select: { id: true },
+    })
+  )?.id;
+
+  const pageTypeId = inner ?? fallback ?? pages[0]?.page_type_id;
+  if (!pageTypeId) throw new Error("לעיתון אין סוג עמוד להוסיף");
+
+  const before = pages.length >= 2 ? pages[pages.length - 2]! : pages[0]!;
+  await insertIssuePages(businessId, issueId, pageTypeId, before.id);
 }

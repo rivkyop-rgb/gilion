@@ -480,3 +480,47 @@ export async function moveIssueDateAction(issueId: string, date: string): Promis
     return asFormState(error);
   }
 }
+
+/**
+ * Fills the issue with everything waiting, growing it as needed.
+ *
+ * `seed` is what makes "another arrangement" possible without making the
+ * result unrepeatable: the same seed always gives the same issue, and the
+ * button that asks for a different layout passes a different one.
+ */
+export async function autoPlaceIssueAction(
+  issueId: string,
+  seed = 1,
+  /** Empty the board first — see autoPlaceIssue. */
+  reset = false,
+): Promise<FormState & { placed?: number; sheetsAdded?: number }> {
+  const ctx = await requireIssueWrite();
+
+  try {
+    const outcome = await placements.autoPlaceIssue(ctx, issueId, seed, reset);
+    revalidatePath(`/issues/${issueId}/board`);
+    revalidatePath("/issues");
+    revalidatePath("/publications");
+
+    if (outcome.placed === 0) {
+      return {
+        ok: true,
+        placed: 0,
+        sheetsAdded: 0,
+        message:
+          outcome.cleared > 0 ? "הלוח רוקן, ולא נמצא מה לשבץ" : "לא נמצא פרסום שממתין לשיבוץ",
+      };
+    }
+    return {
+      ok: true,
+      placed: outcome.placed,
+      sheetsAdded: outcome.sheetsAdded,
+      message:
+        outcome.sheetsAdded > 0
+          ? `שובצו ${outcome.placed} פרסומים, ונוספו ${outcome.sheetsAdded * 2} עמודים כדי שכולם ייכנסו`
+          : `שובצו ${outcome.placed} פרסומים`,
+    };
+  } catch (error) {
+    return asFormState(error);
+  }
+}

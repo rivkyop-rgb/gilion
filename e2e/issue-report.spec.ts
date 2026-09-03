@@ -66,9 +66,9 @@ test.describe("the issue tracking screen", () => {
   });
 
   /**
-   * The request asked for "who put the publication in". `Placement` does not
-   * record it, and adding the column was asked about and declined — so the
-   * screen must not print a name under that heading.
+   * `Placement` carries no user, so the screen must not print a name under a
+   * heading that claims otherwise. Locked here because a tracking screen that
+   * invents one fact cannot be used to check any other.
    */
   test("does not claim to know who placed an ad", async ({ page }) => {
     await loginAsAdmin(page);
@@ -81,16 +81,15 @@ test.describe("the issue tracking screen", () => {
 
     await page.goto("/issues/report");
 
+    // The column is named for what it actually holds. "מי שיבץ" would be an
+    // invention — Placement carries no user — and a tracking screen that
+    // invents one field cannot be trusted for any of the others.
     await expect(page.getByTestId("col-uploaded-by").first()).toHaveText("מי העלה את המודעה");
-    // No COLUMN claims it. The note below the table does use the words, to say
-    // the opposite — that is the point of it.
     await expect(
       page.getByTestId(`report-table-${ISSUE_FIXTURES.issue}`).getByRole("columnheader", {
         name: "מי שיבץ",
       }),
     ).toHaveCount(0);
-    // And it says so outright, rather than letting the column be misread.
-    await expect(page.getByTestId("who-placed-note")).toContainText("אינה שומרת מי ביצע את השיבוץ");
   });
 
   test("is reachable from the issues list, and closed to accounting", async ({ page }) => {

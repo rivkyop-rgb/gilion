@@ -366,11 +366,12 @@ model PageType {
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
-  newspaper      Newspaper        @relation(fields: [newspaper_id], references: [id], onDelete: Cascade)
+  newspaper      Newspaper         @relation(fields: [newspaper_id], references: [id], onDelete: Cascade)
   allowed_shapes AllowedAdShape[]
   price_rules    PriceRule[]
   order_items    AdOrderItem[]
   issue_pages    IssuePage[]
+  reservations   PageReservation[]
 
   @@unique([newspaper_id, name])
   /// Target for the composite foreign keys below. `id` alone is already unique;
@@ -440,6 +441,72 @@ model AllowedAdShape {
   @@unique([page_type_id, ad_shape_id])
   @@index([newspaper_id])
   @@map("AllowedAdShape")
+}
+
+/// A rectangle of a page type that is NOT for sale (backlog item 14).
+///
+/// The masthead on the cover, the strip a newspaper keeps for its own logo: an
+/// area that is part of the page design and that no ad may ever cover. It is a
+/// property OF THE PAGE TYPE and not of a single issue — "the cover always
+/// looks like this" — which is what makes it something defined once instead of
+/// re-drawn every week.
+///
+/// This is not the `LayoutTemplate` that was deleted on 24/08/2026 and replaced
+/// by the grid (conventions.md §7). That model described where ads GO. This one
+/// only says where they may not, and it is measured in the same grid units as
+/// everything else, so nothing here competes with the grid for authority.
+///
+/// `asset_key` is an object key, never a URL (conventions.md §5). When it is
+/// set the image is drawn in the area on every board and every printed page;
+/// when it is null the area is simply blocked.
+model PageReservation {
+  id           String  @id @default(cuid())
+  newspaper_id String
+  page_type_id String
+  name         String
+  col          Int
+  row          Int
+  cols         Int
+  rows         Int
+  asset_key    String?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  page_type PageType @relation(fields: [page_type_id, newspaper_id], references: [id, newspaper_id], onDelete: Cascade)
+
+  /// Two areas on one page type may not share a name — the name is what the
+  /// board shows inside an area that has no image.
+  @@unique([page_type_id, name])
+  @@index([newspaper_id])
+  @@map("PageReservation")
+}
+
+/// The reserved areas of one page of one issue, copied in when the page is
+/// created (conventions.md §7 rule 2).
+///
+/// Same reason the grid itself is snapshotted: an issue printed in March must
+/// still show, in September, the page it was actually printed as. Moving the
+/// masthead on the page type changes every issue from that moment ON, and none
+/// of the ones already laid out — and an ad that was legally placed six weeks
+/// ago cannot retroactively find itself underneath a reserved area.
+model IssuePageReservation {
+  id            String  @id @default(cuid())
+  issue_id      String
+  issue_page_id String
+  name          String
+  col           Int
+  row           Int
+  cols          Int
+  rows          Int
+  asset_key     String?
+
+  created_at DateTime @default(now())
+
+  issue_page IssuePage @relation(fields: [issue_page_id, issue_id], references: [id, issue_id], onDelete: Cascade)
+
+  @@index([issue_id])
+  @@map("IssuePageReservation")
 }
 
 /// Base price per (newspaper, page type, shape). Copied onto the publication at
@@ -757,11 +824,12 @@ model IssuePage {
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
-  issue      Issue       @relation(fields: [issue_id], references: [id], onDelete: Cascade)
+  issue        Issue                  @relation(fields: [issue_id], references: [id], onDelete: Cascade)
   /// Restrict: a page type in use by an issue is not something the settings
   /// screen may delete out from under it.
-  page_type  PageType    @relation(fields: [page_type_id], references: [id], onDelete: Restrict)
-  placements Placement[]
+  page_type    PageType               @relation(fields: [page_type_id], references: [id], onDelete: Restrict)
+  placements   Placement[]
+  reservations IssuePageReservation[]
 
   @@unique([issue_id, page_number])
   /// Target for Placement's composite foreign key — this is what makes

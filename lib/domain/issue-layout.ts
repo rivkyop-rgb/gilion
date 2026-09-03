@@ -191,10 +191,17 @@ export function pageFill(
   placed: readonly GridRect[],
   grid: DerivedGrid,
   allowedShapes: readonly ShapeSpec[],
+  /**
+   * Areas of the page that are not for sale (backlog item 14). They block like
+   * a placement but they are not one, so they come off the DENOMINATOR rather
+   * than adding to the numerator: "70% מלא" means 70% of what can be sold.
+   */
+  reserved: readonly GridRect[] = [],
 ): PageFill {
-  const totalCells = grid.columns * grid.rows;
+  const reservedCells = reserved.reduce((sum, r) => sum + r.cols * r.rows, 0);
+  const totalCells = Math.max(0, grid.columns * grid.rows - reservedCells);
   const usedCells = placed.reduce((sum, r) => sum + r.cols * r.rows, 0);
-  const occupied = occupancyOf(placed, grid);
+  const occupied = occupancyOf([...placed, ...reserved], grid);
   const fits = shapesThatFit(occupied, grid, allowedShapes);
 
   return {
