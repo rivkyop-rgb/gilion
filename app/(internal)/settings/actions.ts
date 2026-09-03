@@ -25,6 +25,7 @@ import { checkReservation, RESERVATION_IMAGE_TYPES } from "@/lib/domain/reservat
 import { sniffFileType } from "@/lib/domain/ad-file";
 import { CONTENT_TYPES, putObject } from "@/lib/storage/minio";
 import { validatePrice } from "@/lib/domain/pricing";
+import { validatePackage } from "@/lib/domain/ad-package";
 import { normalizeDays } from "@/lib/domain/publication-days";
 import * as papers from "@/lib/data/newspapers";
 import * as shapes from "@/lib/data/ad-shapes";
@@ -593,4 +594,71 @@ export async function deleteReservationAction(
   await papers.deleteReservation(ctx.businessId, reservationId);
   revalidatePath(`/settings/newspapers/${newspaperId}`);
   return { message: "האזור הוסר" };
+}
+
+/* --------------------------------------------------------- ad packages */
+
+/**
+ * Quantity discounts (backlog item 12) — see lib/domain/ad-package.ts for the
+ * two decisions taken at build time: a percentage rather than a fixed price,
+ * and per newspaper rather than across them.
+ */
+export async function createPackageAction(
+  newspaperId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const ctx = await requireAdmin();
+
+  const input = {
+    name: String(formData.get("name") ?? "").trim(),
+    minQuantity: Number(formData.get("minQuantity")),
+    discountPercent: Number(formData.get("discountPercent")),
+  };
+
+  const invalid = validatePackage(input);
+  if (invalid) return { message: invalid };
+
+  const existing = await papers.listPackages(ctx.businessId, newspaperId);
+  if (existing.some((p) => p.name === input.name)) {
+    return { message: "כבר קיימת חבילה בשם הזה" };
+  }
+  // Two packages at the same threshold cannot both apply, and which one wins
+  // would depend on nothing anyone chose.
+  if (existing.some((p) => p.min_quantity === input.minQuantity)) {
+    return { message: `כבר קיימת חבילה שמתחילה מ־${input.minQuantity} פרסומים` };
+  }
+
+  await papers.createPackage(ctx.businessId, newspaperId, input);
+  revalidatePath(`/settings/newspapers/${newspaperId}/pricing`);
+  return {};
+}
+
+export async function setPackageActiveAction(
+  newspaperId: string,
+  packageId: string,
+  active: boolean,
+): Promise<FormState> {
+  const ctx = await requireAdmin();
+  await papers.setPackageActive(ctx.businessId, packageId, active);
+  revalidatePath(`/settings/newspapers/${newspaperId}/pricing`);
+  return {};
+}
+
+export async function deletePackageAction(
+  newspaperId: string,
+  packageId: string,
+): Promise<FormState> {
+  const ctx = await requireAdmin();
+
+  const used = await papers.packageInUse(ctx.businessId, packageId);
+  if (used > 0) {
+    return {
+      message: `החבילה כבר הוחלה על ${used} שורות הזמנה. אפשר להשבית אותה כדי שלא תחול על הזמנות חדשות.`,
+    };
+  }
+
+  await papers.deletePackage(ctx.businessId, packageId);
+  revalidatePath(`/settings/newspapers/${newspaperId}/pricing`);
+  return {};
 }

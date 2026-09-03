@@ -7,7 +7,9 @@
  */
 import { Prisma } from "@prisma/client";
 import { basePrisma, tenantDb } from "./db";
-import { orderTotal, roundMoney } from "@/lib/domain/order";
+import { roundMoney } from "@/lib/domain/order";
+import { discountedPrice, orderPricing } from "@/lib/domain/ad-package";
+import { packagesByNewspaper } from "./newspapers";
 
 export type OrderFilters = { status?: string; source?: string };
 
@@ -23,6 +25,9 @@ const ORDER_INCLUDE = {
       newspaper: { select: { id: true, name: true, max_ad_file_size: true } },
       page_type: { select: { id: true, name: true } },
       ad_shape: { select: { id: true, name: true, cols: true, rows: true } },
+      /// The package this line earned, so the screen can name the discount
+      /// rather than merely subtract it (backlog item 12).
+      ad_package: { select: { id: true, name: true } },
     },
   },
   _count: { select: { items: true, publications: true } },
@@ -99,18 +104,47 @@ export type LineWrite = {
   off_schedule?: boolean;
 };
 
-/** Recomputes the total from the stored lines — never from anything a client sent. */
+/**
+ * Recomputes the total from the stored lines — never from anything a client sent.
+ *
+ * Quantity discounts are applied HERE and not only at approval (backlog item
+ * 12), because the total is what the seller quotes down the phone while the
+ * order is still a draft. A discount that only appeared at approval would mean
+ * quoting one number and charging another.
+ */
 export async function refreshTotal(businessId: string, orderId: string) {
   const items = await tenantDb(businessId).adOrderItem.findMany({
     where: { order_id: orderId },
-    select: { price: true },
+    select: { price: true, newspaper_id: true },
   });
-  const total = orderTotal(items.map((i) => ({ price: Number(i.price) })));
+  const packages = await packagesByNewspaper(businessId);
+  const pricing = orderPricing(
+    items.map((i) => ({ newspaperId: i.newspaper_id, price: Number(i.price) })),
+    packages,
+  );
   await tenantDb(businessId).adOrder.update({
     where: { id: orderId },
-    data: { total_price: total },
+    data: { total_price: pricing.total },
   });
-  return total;
+  return pricing.total;
+}
+
+/**
+ * What an order costs right now, with the packages it has earned.
+ *
+ * Reads the LIVE packages, because a draft is still being negotiated. At
+ * approval the answer is frozen onto the lines (`freezeDiscounts`) and this is
+ * never consulted for that order again — conventions.md §7 rule 1.
+ */
+export async function orderCharges(
+  businessId: string,
+  items: Array<{ newspaper_id: string; price: unknown }>,
+) {
+  const packages = await packagesByNewspaper(businessId);
+  return orderPricing(
+    items.map((i) => ({ newspaperId: i.newspaper_id, price: Number(i.price) })),
+    packages,
+  );
 }
 
 export async function addOrderItem(businessId: string, orderId: string, line: LineWrite) {
@@ -243,6 +277,43 @@ export async function orderFormOptions(businessId: string) {
  * copy is what FR-17 is (conventions.md §7 rule 1). skipDuplicates plus the
  * unique index on order_item_id makes a double click harmless.
  */
+/**
+ * Writes the quantity discount onto the order's lines, once, at approval.
+ *
+ * After this the order no longer depends on the package table at all: retiring
+ * a package, changing its percentage or raising its threshold cannot alter what
+ * a customer already agreed to (conventions.md §7 rule 1, the same rule that
+ * freezes the price itself). Returns the lines as they now stand, so the caller
+ * creates publications from the frozen numbers rather than from the ones it
+ * read a moment earlier.
+ */
+export async function freezeDiscounts<
+  T extends { id: string; newspaper_id: string; price: Prisma.Decimal | number },
+>(tx: Prisma.TransactionClient, businessId: string, items: T[]) {
+  const packages = await packagesByNewspaper(businessId);
+  const pricing = orderPricing(
+    items.map((i) => ({ newspaperId: i.newspaper_id, price: Number(i.price) })),
+    packages,
+  );
+
+  for (const [index, item] of items.entries()) {
+    const charge = pricing.lines[index]!;
+    if (charge.discountPercent === 0 && charge.packageId === null) continue;
+    await tx.adOrderItem.update({
+      where: { id: item.id },
+      data: { discount_percent: charge.discountPercent, package_id: charge.packageId },
+    });
+  }
+
+  return {
+    pricing,
+    items: items.map((item, index) => ({
+      ...item,
+      discount_percent: pricing.lines[index]!.discountPercent,
+    })),
+  };
+}
+
 export async function createPublicationsForOrder(
   tx: Prisma.TransactionClient,
   order: {
@@ -264,6 +335,8 @@ export async function createPublicationsForOrder(
     ad_shape_id: string;
     publication_date: Date;
     price: Prisma.Decimal | number;
+    /** Frozen by `freezeDiscounts` in the same transaction (backlog item 12). */
+    discount_percent?: Prisma.Decimal | number;
   }>,
 ) {
   const result = await tx.publication.createMany({
@@ -275,7 +348,11 @@ export async function createPublicationsForOrder(
       newspaper_id: i.newspaper_id,
       ad_shape_id: i.ad_shape_id,
       publication_date: i.publication_date,
-      price: roundMoney(Number(i.price)),
+      // The NET amount. A publication is a debt, and everything that reads
+      // this number has to be right about what is owed without knowing that
+      // packages exist. The list price stays on the order item.
+      price: discountedPrice(Number(i.price), Number(i.discount_percent ?? 0)),
+      discount_percent: Number(i.discount_percent ?? 0),
       source: order.source,
       advertisement_id: order.advertisement_id ?? null,
       // The state machine's answer for AD_LINKED on a valid, customer-owned
@@ -289,4 +366,70 @@ export async function createPublicationsForOrder(
     skipDuplicates: true,
   });
   return result.count;
+}
+
+/**
+ * The money on the order screen: what it lists at, what a package took off, and
+ * what is owed.
+ *
+ * A draft is priced from the LIVE packages, because it is still being
+ * negotiated and the seller is quoting from this screen. Once approved the
+ * numbers come off the lines themselves, where `freezeDiscounts` wrote them —
+ * changing a package afterwards must not restate an order a customer already
+ * agreed to (conventions.md §7 rule 1).
+ */
+export async function orderMoney(
+  businessId: string,
+  order: {
+    status: string;
+    items: Array<{
+      newspaper_id: string;
+      price: unknown;
+      discount_percent?: unknown;
+      newspaper: { name: string };
+      ad_package?: { name: string } | null;
+    }>;
+  },
+) {
+  const frozen = order.status !== "draft";
+
+  if (!frozen) {
+    const pricing = await orderCharges(businessId, order.items);
+    const names = new Map(order.items.map((i) => [i.newspaper_id, i.newspaper.name]));
+    return {
+      subtotal: pricing.subtotal,
+      discount: pricing.discount,
+      total: pricing.total,
+      earned: pricing.earned.map((e) => ({
+        label: e.pkg.name,
+        newspaperName: names.get(e.newspaperId) ?? "",
+        percent: e.pkg.discountPercent,
+      })),
+    };
+  }
+
+  let subtotal = 0;
+  let total = 0;
+  const earned = new Map<string, { label: string; newspaperName: string; percent: number }>();
+  for (const item of order.items) {
+    const price = Number(item.price);
+    const percent = Number(item.discount_percent ?? 0);
+    subtotal += price;
+    total += discountedPrice(price, percent);
+    if (percent > 0) {
+      const key = `${item.newspaper_id}|${percent}`;
+      earned.set(key, {
+        label: item.ad_package?.name ?? "הנחת כמות",
+        newspaperName: item.newspaper.name,
+        percent,
+      });
+    }
+  }
+
+  return {
+    subtotal: roundMoney(subtotal),
+    discount: roundMoney(subtotal - total),
+    total: roundMoney(total),
+    earned: [...earned.values()],
+  };
 }

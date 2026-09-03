@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
-import { pricingData } from "@/lib/data/newspapers";
+import { listPackages, packageInUse, pricingData } from "@/lib/data/newspapers";
 import { buildMatrix } from "@/lib/domain/pricing";
 import { EmptyState } from "@/components/states";
 import { NewspaperTabs } from "../tabs";
 import { PricingMatrix } from "./pricing-matrix";
+import { Packages } from "./packages";
 
 export const metadata: Metadata = { title: "מחירון · Gilion" };
 
@@ -18,6 +19,17 @@ export default async function PricingPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const data = await pricingData(ctx.businessId, id);
   if (!data) notFound();
+
+  const packages = await Promise.all(
+    (await listPackages(ctx.businessId, id)).map(async (pkg) => ({
+      id: pkg.id,
+      name: pkg.name,
+      minQuantity: pkg.min_quantity,
+      discountPercent: Number(pkg.discount_percent),
+      active: pkg.active,
+      used: await packageInUse(ctx.businessId, pkg.id),
+    })),
+  );
 
   const rows = buildMatrix(
     data.newspaper.page_types.map((pt) => ({ id: pt.id, name: pt.name })),
@@ -50,6 +62,8 @@ export default async function PricingPage({ params }: { params: Promise<{ id: st
           readOnly={!canWriteArea(ctx, "settings")}
         />
       )}
+
+      <Packages newspaperId={id} packages={packages} readOnly={!canWriteArea(ctx, "settings")} />
     </>
   );
 }

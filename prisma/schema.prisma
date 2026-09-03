@@ -349,6 +349,7 @@ model Newspaper {
   page_types   PageType[]
   ad_shapes    AdShape[]
   price_rules  PriceRule[]
+  packages     AdPackage[]
   order_items  AdOrderItem[]
   publications Publication[]
   issues       Issue[]
@@ -539,6 +540,47 @@ model PriceRule {
 
 /// A sales order. Nothing binding exists until it is approved: a draft creates
 /// no publications at all (US-003 AC-5).
+/// A quantity discount (backlog item 12).
+///
+/// *"חבילות פירסום — עדיין לא הגענו להגדרות של זה?"* — and the answer was that
+/// it had never been defined: not in prd.md, not in erd.md, not in the plan.
+/// Defined on 01/09/2026 in the narrowest form that answers the request:
+/// **"כמות פרסומים במחיר מוזל"** — a quantity at a discount, and nothing else.
+/// Not a series of dates, not a bundle of newspapers, not a bundle of sizes;
+/// all three were considered and refused, and each would have been a different
+/// data model.
+///
+/// It does NOT compete with `PriceRule`. The price list answers "what does this
+/// shape cost on this page of this newspaper"; a package answers "and what if
+/// they buy several". A percentage rather than a fixed package price for the
+/// same reason: a fixed price would have to restate the whole price list, and
+/// would go stale the moment one cell of it changed.
+///
+/// Per newspaper, because a price is per newspaper — a package spanning two
+/// would have to decide whose price list it discounts.
+model AdPackage {
+  id               String  @id @default(cuid())
+  newspaper_id     String
+  name             String
+  /// The number of publications from this newspaper that earns the discount.
+  min_quantity     Int
+  /// 0–100. Applied to each line of that newspaper on the order.
+  discount_percent Decimal @db.Decimal(5, 2)
+  /// Retired rather than deleted: orders already approved point at it.
+  active           Boolean @default(true)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  newspaper   Newspaper     @relation(fields: [newspaper_id], references: [id], onDelete: Cascade)
+  order_items AdOrderItem[]
+
+  @@unique([newspaper_id, name])
+  @@unique([newspaper_id, min_quantity])
+  @@index([newspaper_id])
+  @@map("AdPackage")
+}
+
 model AdOrder {
   id                      String        @id @default(cuid())
   business_id             String
@@ -602,10 +644,19 @@ model AdOrderItem {
   /// re-derived so that later changing the newspaper's schedule cannot
   /// retroactively turn a deliberate choice into a warning.
   off_schedule     Boolean  @default(false)
+  /// The quantity discount this line earned, frozen at approval (backlog
+  /// item 12). `price` above stays the LIST price — it is what the seller
+  /// typed and what the conversation with the customer was about — and the
+  /// net is what reaches the publication.
+  discount_percent Decimal  @default(0) @db.Decimal(5, 2)
+  /// Which package earned it, so an invoice can name it. SetNull: retiring a
+  /// package must not erase the discount an approved order already carries.
+  package_id       String?
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
+  ad_package  AdPackage?   @relation(fields: [package_id], references: [id], onDelete: SetNull)
   order       AdOrder      @relation(fields: [order_id], references: [id], onDelete: Cascade)
   newspaper   Newspaper    @relation(fields: [newspaper_id], references: [id], onDelete: Restrict)
   /// Composite keys, per conventions.md §2: a row that crosses one newspaper's
@@ -633,7 +684,14 @@ model Publication {
   publication_date DateTime          @db.Date
   /// Copied from AdOrderItem at approval and never read from PriceRule again
   /// (FR-17, conventions.md §7).
+  ///
+  /// The NET amount — the list price with the quantity discount already taken
+  /// off (backlog item 12). A publication is a debt, and every consumer of this
+  /// number has to be right about what is owed without knowing that packages
+  /// exist. The list price it came from is on the order item this row names.
   price            Decimal           @db.Decimal(12, 2)
+  /// What was taken off, so an invoice can say it rather than merely charge it.
+  discount_percent Decimal           @default(0) @db.Decimal(5, 2)
   source           OrderSource
   status           PublicationStatus @default(planned)
   placement_status PlacementStatus   @default(not_placed)

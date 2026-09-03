@@ -60,6 +60,7 @@ function parentModelOf(model: string): string {
     AllowedAdShape: "PageType",
     PageReservation: "PageType",
     PriceRule: "Newspaper",
+    AdPackage: "Newspaper",
     AdOrderItem: "AdOrder",
     IssuePage: "Issue",
     Placement: "Issue",

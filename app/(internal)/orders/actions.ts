@@ -300,6 +300,15 @@ export async function approveOrderAction(orderId: string): Promise<FormState> {
         data: { status: next, approved_at: new Date() },
       });
 
+      // The quantity discount is resolved once, here, and written onto the
+      // lines before anything is copied off them (backlog item 12). From this
+      // moment the order owes nothing to the package table.
+      const frozen = await data.freezeDiscounts(tx, ctx.businessId, order.items);
+      await tx.adOrder.update({
+        where: { id: orderId },
+        data: { total_price: frozen.pricing.total },
+      });
+
       const created = await data.createPublicationsForOrder(
         tx,
         {
@@ -309,12 +318,17 @@ export async function approveOrderAction(orderId: string): Promise<FormState> {
           source: order.source,
           advertisement_id: order.advertisement_id,
         },
-        order.items,
+        frozen.items,
       );
 
       return {
         old: { status: order.status },
-        new: { status: updated.status, publicationsCreated: created },
+        new: {
+          status: updated.status,
+          publicationsCreated: created,
+          total: frozen.pricing.total,
+          discount: frozen.pricing.discount,
+        },
       };
     },
   );

@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { ArrowRight, Info } from "lucide-react";
 
 import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
-import { getOrder, orderFormOptions } from "@/lib/data/orders";
+import { getOrder, orderFormOptions, orderMoney } from "@/lib/data/orders";
+import { formatPercent } from "@/lib/domain/ad-package";
 import { itemsEditable, type OrderStatus } from "@/lib/domain/order-status";
 import type { PublicationStatus } from "@/lib/domain/publication-status";
 import type { AdFileType } from "@/lib/domain/ad-file";
@@ -29,6 +30,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   if (!order) notFound();
 
   const status = order.status as OrderStatus;
+  const money = await orderMoney(ctx.businessId, order);
   const mayEdit = canWriteArea(ctx, "orders") && itemsEditable(status);
   const papers = mayEdit ? await orderFormOptions(ctx.businessId) : [];
 
@@ -75,9 +77,24 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
         <div className="text-end">
-          <p className="text-xs text-on-surface-variant">סכום כולל</p>
+          {/* The discount is shown, not merely applied. A total that is lower
+              than the lines add up to, with nothing saying why, is the kind of
+              number people stop trusting — and then re-check by hand. */}
+          {money.discount > 0 ? (
+            <>
+              <p className="text-xs text-on-surface-variant">
+                <Ltr>{formatMoney(money.subtotal)}</Ltr> לפני הנחה
+              </p>
+              <p className="text-xs text-status-success-fg" data-testid="order-discount">
+                {money.earned.map((e) => `${e.label} · ${formatPercent(e.percent)}-`).join(" · ")} (
+                <Ltr>{formatMoney(money.discount)}</Ltr>)
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-on-surface-variant">סכום כולל</p>
+          )}
           <p className="font-serif text-2xl font-semibold" data-testid="order-total">
-            <Ltr>{formatMoney(Number(order.total_price))}</Ltr>
+            <Ltr>{formatMoney(money.total)}</Ltr>
           </p>
         </div>
       </div>
@@ -252,7 +269,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           canComplete={ctx.role === "admin" || ctx.role === "accounting"}
           publicationCount={order.publications.length}
           lineCount={order.items.length}
-          total={formatMoney(Number(order.total_price))}
+          total={formatMoney(money.total)}
         />
       ) : null}
     </>

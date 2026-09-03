@@ -11,6 +11,7 @@ import { basePrisma, tenantDb } from "./db";
 import { copyBaseShapes, listAdShapes } from "./ad-shapes";
 import { BASE_PAGE_TYPES, materializeBaseShapes } from "@/lib/domain/base-shapes";
 import { deriveGrid } from "@/lib/domain/grid";
+import type { PackageSpec } from "@/lib/domain/ad-package";
 
 /* ---------------------------------------------------------------- newspapers */
 
@@ -395,4 +396,78 @@ export async function setReservationAsset(businessId: string, id: string, key: s
 
 export async function deleteReservation(businessId: string, id: string) {
   return tenantDb(businessId).pageReservation.delete({ where: { id } });
+}
+
+/* ----------------------------------------------------------- ad packages */
+
+/**
+ * Quantity discounts (backlog item 12). Owned by the newspaper, like the price
+ * list — see lib/domain/ad-package.ts for why they are per newspaper.
+ */
+export async function listPackages(businessId: string, newspaperId: string) {
+  return tenantDb(businessId).adPackage.findMany({
+    where: { newspaper_id: newspaperId },
+    orderBy: { min_quantity: "asc" },
+  });
+}
+
+/** Every newspaper's packages at once, keyed by newspaper — what pricing an order needs. */
+export async function packagesByNewspaper(businessId: string) {
+  const rows = await tenantDb(businessId).adPackage.findMany({ where: { active: true } });
+  const map: Record<string, PackageSpec[]> = {};
+  for (const row of rows) {
+    (map[row.newspaper_id] ??= []).push(toPackageSpec(row));
+  }
+  return map;
+}
+
+export function toPackageSpec(row: {
+  id: string;
+  name: string;
+  min_quantity: number;
+  discount_percent: unknown;
+  active: boolean;
+}): PackageSpec {
+  return {
+    id: row.id,
+    name: row.name,
+    minQuantity: row.min_quantity,
+    discountPercent: Number(row.discount_percent),
+    active: row.active,
+  };
+}
+
+export async function createPackage(
+  businessId: string,
+  newspaperId: string,
+  input: { name: string; minQuantity: number; discountPercent: number },
+) {
+  return tenantDb(businessId).adPackage.create({
+    data: {
+      newspaper_id: newspaperId,
+      name: input.name,
+      min_quantity: input.minQuantity,
+      discount_percent: input.discountPercent,
+    },
+  });
+}
+
+export async function setPackageActive(businessId: string, id: string, active: boolean) {
+  return tenantDb(businessId).adPackage.update({ where: { id }, data: { active } });
+}
+
+/**
+ * Deletes a package no approved order has earned yet.
+ *
+ * `package_id` on the order item is SetNull, so deleting one would leave an
+ * approved order carrying a discount with nothing to name it — the frozen
+ * percentage would survive and the reason for it would not. Retiring
+ * (`active = false`) is the operation for a package that has been used.
+ */
+export async function packageInUse(businessId: string, id: string) {
+  return tenantDb(businessId).adOrderItem.count({ where: { package_id: id } });
+}
+
+export async function deletePackage(businessId: string, id: string) {
+  return tenantDb(businessId).adPackage.delete({ where: { id } });
 }

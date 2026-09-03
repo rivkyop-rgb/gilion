@@ -102,6 +102,11 @@ test.describe("reserved areas", () => {
 
     // An issue opened now gets it.
     await page.goto("/issues/new");
+    // Named, never "the first option": newspaper-setup.spec.ts leaves the
+    // newspapers it creates behind for the rest of the run, and one of them
+    // has a 5 x 30 grid — so "the first option" stops being this newspaper
+    // somewhere in the middle of a full run and nowhere else.
+    await page.getByTestId("issue-newspaper").selectOption(NEWSPAPERS.alpha);
     await setIssueDate(page, OPEN_DATE);
     await page.getByTestId("create-issue").click();
     await expect(page).toHaveURL(/\/issues\/.+\/board/);
@@ -133,6 +138,11 @@ test.describe("reserved areas", () => {
 
     // "Once" is the requirement: nobody attaches it again per issue.
     await page.goto("/issues/new");
+    // Named, never "the first option": newspaper-setup.spec.ts leaves the
+    // newspapers it creates behind for the rest of the run, and one of them
+    // has a 5 x 30 grid — so "the first option" stops being this newspaper
+    // somewhere in the middle of a full run and nowhere else.
+    await page.getByTestId("issue-newspaper").selectOption(NEWSPAPERS.alpha);
     await setIssueDate(page, OPEN_DATE);
     await page.getByTestId("create-issue").click();
     await expect(page).toHaveURL(/\/issues\/.+\/board/);

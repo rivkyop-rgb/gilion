@@ -60,6 +60,7 @@ export default async function globalSetup() {
   await restoreSeededMemberships(prisma);
   await resetShapeCatalogue(prisma);
   await resetPageTypes(prisma);
+  await resetPackages(prisma);
   await resetPriceRules(prisma);
   await resetReminderWindow(prisma);
   await seedIssueFixtures(prisma);
@@ -174,6 +175,18 @@ const SEEDED_PAGE_TYPES: Record<string, { newspaperId: string; name: string; sha
  * merely clutter — it appears in the order builder's pickers and in the issue
  * composer, and shifts what "the first option" means.
  */
+/**
+ * Removes every ad package (backlog item 12).
+ *
+ * prisma/seed.ts creates none. One left behind quietly discounts every order
+ * spec that adds enough lines to earn it — and those specs assert exact totals,
+ * so the failure lands as "expected 2,000, received 1,800" in a file that never
+ * heard of packages.
+ */
+async function resetPackages(prisma: PrismaClient) {
+  await prisma.adPackage.deleteMany({});
+}
+
 async function resetPageTypes(prisma: PrismaClient) {
   const seededIds = Object.keys(SEEDED_PAGE_TYPES);
 
