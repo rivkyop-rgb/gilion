@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { assertMembership, auth, signOut, updateSession } from "@/lib/auth/config";
 
@@ -27,10 +26,19 @@ export async function switchBusinessAction(businessId: string) {
     },
   });
 
-  // The shell reads the active business in the layout, so the whole layout
-  // tree has to re-render — the destination path is unchanged.
-  revalidatePath("/", "layout");
-  redirect("/dashboard");
+  // Deliberately NOT `redirect("/dashboard")`, and deliberately no
+  // `revalidatePath` — the caller does a full page load instead.
+  //
+  // Redirecting from inside the action makes Next render the destination
+  // within the action's own response, from the session this action holds in
+  // memory. That render shows the new business whether or not the browser ever
+  // ended up with the new session cookie — so the one failure that matters
+  // here, the cookie not surviving, is precisely the one it hides. See the
+  // middleware for what was overwriting it.
+  //
+  // Returning normally makes the browser fetch the destination itself, with
+  // the cookie applied, and throws away every client-side cache of the tenant
+  // being left behind on the way.
 }
 
 export async function signOutAction() {

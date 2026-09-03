@@ -133,6 +133,14 @@ test.describe("quantity discounts", () => {
     await expect(page.getByTestId("order-total")).toContainText("3,600");
 
     await page.getByTestId("submit-order").click();
+    await expect(page.getByTestId("order-status")).toHaveText("ממתינה לאישור");
+    // Submitted is not yet approved: the discount is not frozen onto the lines
+    // until approval, so the screen must still price the order from the live
+    // packages. Reading the lines here would show a subtotal that disagrees
+    // with the total beside it.
+    await expect(page.getByTestId("order-total")).toContainText("3,600");
+    await expect(page.getByTestId("order-discount")).toContainText("חבילת 4");
+
     await page.getByTestId("approve-order").click();
     await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
 

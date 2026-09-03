@@ -7,7 +7,14 @@ import { withAudit } from "@/lib/data/audit";
 import { loadOverrides, replaceOverrides } from "@/lib/data/permissions";
 import { readSubmittedMatrix } from "@/lib/domain/permissions";
 
-export type FormState = { message?: string; ok?: boolean };
+/**
+ * `saved` is what the screen states after a save, and it is deliberately the
+ * number the SERVER now holds rather than the one the form is showing. The
+ * form's own count changes the instant a cell is edited, so it can never say
+ * whether the change reached the database — which is the one thing a person
+ * clicking "save" wants to know, and the one thing a test has to wait for.
+ */
+export type FormState = { message?: string; ok?: boolean; saved?: number };
 
 export async function savePermissionsAction(
   _prev: FormState,
@@ -48,5 +55,5 @@ export async function savePermissionsAction(
   // bust. Invalidating the root layout did nothing for it and did something
   // real to /login, which IS statically prerendered: every save forced that
   // page to regenerate, and signing in straight afterwards could time out.
-  return { ok: true };
+  return { ok: true, saved: Object.keys(result.overrides).length };
 }

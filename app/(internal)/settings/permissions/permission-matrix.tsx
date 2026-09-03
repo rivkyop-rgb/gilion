@@ -138,7 +138,9 @@ export function PermissionMatrix({ overrides }: { overrides: PermissionOverrides
           role="status"
           className="mt-3 rounded-sm bg-status-success-bg px-3 py-2 text-sm text-status-success-fg"
         >
-          ההרשאות נשמרו. הן חלות מיד, גם על מי שמחובר כרגע.
+          ההרשאות נשמרו —{" "}
+          {state.saved === 0 ? "כולן על ברירת המחדל" : `${state.saved} שונו מברירת המחדל`}. הן חלות
+          מיד, גם על מי שמחובר כרגע.
         </p>
       ) : null}
 

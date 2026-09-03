@@ -72,6 +72,13 @@ export function BusinessSwitcher({
               e.preventDefault();
               startTransition(async () => {
                 await onSelect(o.businessId);
+                // A FULL page load, and not `router.push` — see the comment in
+                // app/(internal)/actions.ts for why the navigation may not
+                // happen inside the action. A document request is the only kind
+                // that is guaranteed to carry the session cookie the action just
+                // set, and switching tenant is exactly the moment to throw away
+                // every client-side cache of the previous one's data anyway.
+                window.location.assign("/dashboard");
               });
             }}
           >

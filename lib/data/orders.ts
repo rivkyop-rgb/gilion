@@ -391,7 +391,11 @@ export async function orderMoney(
     }>;
   },
 ) {
-  const frozen = order.status !== "draft";
+  // Frozen only from APPROVAL, which is when `freezeDiscounts` runs — not from
+  // submission. A pending order still carries 0% on its lines while its total
+  // already includes the discount, and reading the lines would show a subtotal
+  // that does not match the total on the same screen.
+  const frozen = order.status === "approved" || order.status === "completed";
 
   if (!frozen) {
     const pricing = await orderCharges(businessId, order.items);

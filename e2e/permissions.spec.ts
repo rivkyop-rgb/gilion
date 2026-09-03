@@ -138,7 +138,11 @@ test.describe("a change takes effect on the server, not only in the menu", () =>
       // Put it back, and confirm the refusal returns.
       await admin.getByTestId("reset-defaults").click();
       await admin.getByTestId("save-permissions").click();
-      await expect(admin.getByTestId("override-count")).toContainText("ברירת המחדל");
+      // The confirmation, not the counter beside the button: that counter is
+      // the FORM's state and flips the instant "reset" is clicked, so waiting
+      // for it proves only that the click landed — and the next line then reads
+      // a page that was rendered while the save was still in flight.
+      await expect(admin.getByRole("status")).toContainText("כולן על ברירת המחדל");
 
       await designer.goto("/billing");
       await expect(designer.getByRole("heading", { name: "אין לך הרשאה לעמוד הזה" })).toBeVisible();
@@ -170,7 +174,11 @@ test.describe("a change takes effect on the server, not only in the menu", () =>
 
       await admin.getByTestId("reset-defaults").click();
       await admin.getByTestId("save-permissions").click();
-      await expect(admin.getByTestId("override-count")).toContainText("ברירת המחדל");
+      // The confirmation, not the counter beside the button: that counter is
+      // the FORM's state and flips the instant "reset" is clicked, so waiting
+      // for it proves only that the click landed — and the next line then reads
+      // a page that was rendered while the save was still in flight.
+      await expect(admin.getByRole("status")).toContainText("כולן על ברירת המחדל");
 
       await sales.goto("/customers");
       await expect(navItem(sales, "לקוחות")).toBeVisible();
