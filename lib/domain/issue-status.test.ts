@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ISSUE_STATUSES,
+  InvalidIssueTransitionError,
+  IssueLockedError,
+  type IssueStatus,
   availableTransitions,
   canTransition,
-  InvalidIssueTransitionError,
   isBackward,
   isEditable,
-  IssueLockedError,
-  ISSUE_STATUSES,
   lockReason,
+  pathToClosed,
   requireEditable,
   transition,
 } from "./issue-status";
@@ -88,5 +90,26 @@ describe("what the status menu offers", () => {
 
   it("offers a closed issue nothing at all to a designer", () => {
     expect(availableTransitions("closed", false)).toEqual([]);
+  });
+});
+
+describe("the walk to closed (stage 07)", () => {
+  it("names every step an issue still has to take", () => {
+    expect(pathToClosed("draft")).toEqual(["in_layout", "ready_for_print", "closed"]);
+    expect(pathToClosed("in_layout")).toEqual(["ready_for_print", "closed"]);
+    expect(pathToClosed("ready_for_print")).toEqual(["closed"]);
+  });
+
+  it("is empty for an issue that is already closed", () => {
+    expect(pathToClosed("closed")).toEqual([]);
+  });
+
+  it("only ever produces steps the machine itself allows", () => {
+    let from: IssueStatus = "draft";
+    for (const to of pathToClosed("draft")) {
+      expect(canTransition(from, to, false)).toBe(true);
+      from = to;
+    }
+    expect(from).toBe("closed");
   });
 });

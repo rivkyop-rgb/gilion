@@ -54,6 +54,12 @@ export async function withAudit<T>(
   ctx: AuditContext,
   target: AuditTarget,
   fn: (tx: Prisma.TransactionClient) => Promise<AuditResult<T>>,
+  /**
+   * Prisma's five-second default is right for the actions that write one row.
+   * Closing an issue walks every placement and every publication on it, and a
+   * fat issue on a slow box is not a deadlock — it is Tuesday.
+   */
+  options?: { timeout?: number },
 ): Promise<T | undefined> {
   return basePrisma.$transaction(async (tx) => {
     const { old: oldValue, new: newValue, result } = await fn(tx);
@@ -71,7 +77,7 @@ export async function withAudit<T>(
     });
 
     return result;
-  });
+  }, options);
 }
 
 /** Reading the trail is allowed; the admin-only audit screen uses this. */

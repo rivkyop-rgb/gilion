@@ -7,6 +7,8 @@ import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import * as issues from "@/lib/data/issues";
 import * as placements from "@/lib/data/placements";
 import * as sales from "@/lib/data/issue-sales";
+import * as pdf from "@/lib/data/issue-pdf";
+import { checkIssue } from "@/lib/data/issue-validation";
 import {
   InvalidIssueTransitionError,
   IssueLockedError,
@@ -522,5 +524,91 @@ export async function autoPlaceIssueAction(
     };
   } catch (error) {
     return asFormState(error);
+  }
+}
+
+/* ------------------------------------------- stage 07: check, close, reopen */
+
+/**
+ * Closing an issue is `pdf: write`, not `issues: write`.
+ *
+ * They resolve to the same two roles today, and that is not why the distinction
+ * exists: `issues` is "may move ads around" and `pdf` is "may declare this
+ * finished and put it on a press". A business that later hands a junior
+ * designer the board without the press button changes one cell of the matrix
+ * instead of asking for code.
+ */
+async function requirePdfWrite() {
+  const ctx = await getTenantContext();
+  requireArea(ctx, "pdf", "write");
+  return {
+    businessId: ctx.businessId,
+    userId: ctx.userId,
+    isAdmin: ctx.role === "admin" || ctx.isSuperAdmin,
+  };
+}
+
+/** Turns the two stage-07 refusals into a message; anything else is a fault. */
+function asPdfFormState(error: unknown): FormState {
+  if (error instanceof pdf.IssueNotCloseableError || error instanceof pdf.PdfGenerationError) {
+    return { message: error.message };
+  }
+  return asFormState(error);
+}
+
+/**
+ * Re-runs the seven checks (US-008 AC-1).
+ *
+ * Read-only, and it changes nothing — which is why it is safe to offer as a
+ * button on a screen somebody is fixing findings from in another tab.
+ */
+export async function validateIssueAction(issueId: string) {
+  const ctx = await getTenantContext();
+  requireArea(ctx, "issues");
+  return checkIssue(ctx.businessId, issueId);
+}
+
+export async function closeIssueAction(
+  issueId: string,
+): Promise<FormState & { publishedCount?: number }> {
+  const ctx = await requirePdfWrite();
+  try {
+    const result = await pdf.closeIssue(ctx, issueId);
+    revalidatePath(`/issues/${issueId}/validate`);
+    revalidatePath(`/issues/${issueId}/board`);
+    revalidatePath("/issues");
+    revalidatePath("/publications");
+    return {
+      ok: true,
+      publishedCount: result.publishedCount,
+      // The number the SERVER wrote, not one the form counted: a confirmation
+      // that quotes client state is a confirmation that can be true before the
+      // save has happened (CLAUDE.md).
+      message: `הגיליון נסגר · ${result.publishedCount} פרסומים סומנו כפורסמו`,
+    };
+  } catch (error) {
+    return asPdfFormState(error);
+  }
+}
+
+/** Admin only (validation rule 11). The final PDF survives — see reopenIssue. */
+export async function reopenIssueAction(issueId: string): Promise<FormState> {
+  const ctx = await getTenantContext();
+  requireArea(ctx, "pdf", "write");
+  if (ctx.role !== "admin" && !ctx.isSuperAdmin) {
+    return { message: "רק מנהל יכול לפתוח מחדש גיליון סגור" };
+  }
+
+  try {
+    await pdf.reopenIssue(
+      { businessId: ctx.businessId, userId: ctx.userId, isAdmin: true },
+      issueId,
+    );
+    revalidatePath(`/issues/${issueId}/validate`);
+    revalidatePath(`/issues/${issueId}/board`);
+    revalidatePath("/issues");
+    return { ok: true, message: "הגיליון נפתח מחדש" };
+  } catch (error) {
+    return asPdfFormState(error);
   }
 }

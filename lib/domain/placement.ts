@@ -20,6 +20,23 @@ import { isEditable, lockReason } from "./issue-status";
 import { overlaps, positionAllowed, validateRect, type Cell, type GridRect } from "./slot-geometry";
 
 /** A shape as the rules need it: a footprint plus where it may sit. */
+/**
+ * The placement states that are still ON the page.
+ *
+ * `placed` is the live one and the only one the two database constraints
+ * filter on (conventions.md §4) — a published placement no longer needs
+ * overlap protection, because the issue it belongs to is locked. But it is
+ * still an ad on a page: every READ that draws, counts or checks an issue has
+ * to include it, or a closed issue renders as a blank newspaper and its own
+ * PDF reprints empty.
+ *
+ * `removed` is the third state and is deliberately not here — that is the
+ * record of something a designer took off.
+ */
+/* Not `as const`: Prisma's `in` filter takes a MUTABLE array of the enum, and a
+   readonly tuple is refused by the generated types. */
+export const ON_PAGE_STATES: Array<"placed" | "published"> = ["placed", "published"];
+
 export type ShapeSpec = {
   id: string;
   name: string;

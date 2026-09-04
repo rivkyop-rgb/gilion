@@ -3,9 +3,9 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { expect, type Page } from "@playwright/test";
 
-import { BOARD_DATE, ISSUE_FIXTURES, OPEN_DATE } from "./global-setup";
+import { BOARD_DATE, CLOSE_DATE, ISSUE_FIXTURES, OPEN_DATE } from "./global-setup";
 
-export { BOARD_DATE, ISSUE_FIXTURES, OPEN_DATE };
+export { BOARD_DATE, CLOSE_DATE, ISSUE_FIXTURES, OPEN_DATE };
 
 /**
  * Puts the fixture issue back the way global-setup left it.
@@ -148,7 +148,9 @@ export async function resetFixtureIssue() {
     await prisma.advertisement.deleteMany({
       where: {
         business_id: "biz_alpha",
-        id: { notIn: [ISSUE_FIXTURES.adOk, ISSUE_FIXTURES.adOrphan] },
+        id: {
+          notIn: [ISSUE_FIXTURES.adOk, ISSUE_FIXTURES.adOrphan, ISSUE_FIXTURES.adBroken],
+        },
         publications: { none: {} },
         ad_orders: { none: {} },
         placements: { none: {} },
@@ -158,6 +160,9 @@ export async function resetFixtureIssue() {
     await prisma.auditLog.deleteMany({
       where: { action: "override_duplicate_placement", target_id: ISSUE_FIXTURES.quarterA },
     });
+    // And the generation trail: the check screen shows the log, and a row from
+    // a previous run makes "the first entry" mean something else (stage 07).
+    await prisma.pdfGenerationLog.deleteMany({ where: { issue_id: ISSUE_FIXTURES.issue } });
   } finally {
     await prisma.$disconnect();
   }
@@ -286,4 +291,313 @@ export async function placeAt(
 /** Waits for the board to finish reloading after a successful placement. */
 export async function expectPlacedCount(page: Page, unplaced: number) {
   await expect(page.getByTestId("unplaced-count")).toHaveText(`(${unplaced})`);
+}
+
+/* ------------------------------------------------- stage 07: check and close */
+
+export const closeIssueUrl = `/issues/${ISSUE_FIXTURES.closeIssue}/validate`;
+export const checkUrl = `/issues/${ISSUE_FIXTURES.issue}/validate`;
+
+/**
+ * Puts the CLOSE fixture back the way global-setup left it.
+ *
+ * Everything a close changes has to come back, and the list is longer than it
+ * looks: the issue's status and its `final_pdf_url`, the placement's status
+ * (closing marks it `published`, and a published placement is not one a second
+ * close spec can start from), the publication's status, the generation log —
+ * and the object in MinIO, because the next run of issue-draft-pdf.spec.ts
+ * asserts that a draft writes NOTHING under this business's issues/ prefix.
+ *
+ * beforeEach and not afterEach, for the reason at the top of this file: a spec
+ * that dies half way through cleans up nothing, and a retry does not re-run the
+ * global setup.
+ */
+export async function resetCloseIssue() {
+  const prisma = client();
+  try {
+    const shape = await prisma.adShape.findUnique({ where: { id: "shape_quarter" } });
+    if (!shape) throw new Error("shape_quarter is missing — has the seed run?");
+
+    await prisma.pdfGenerationLog.deleteMany({ where: { issue_id: ISSUE_FIXTURES.closeIssue } });
+    await prisma.placement.deleteMany({ where: { issue_id: ISSUE_FIXTURES.closeIssue } });
+    await prisma.issuePage.deleteMany({ where: { issue_id: ISSUE_FIXTURES.closeIssue } });
+
+    const paper = await prisma.newspaper.findUniqueOrThrow({ where: { id: "paper_alpha" } });
+    await prisma.issue.update({
+      where: { id: ISSUE_FIXTURES.closeIssue },
+      data: {
+        issue_date: new Date(CLOSE_DATE),
+        status: "in_layout",
+        closed_at: null,
+        final_pdf_url: null,
+        // The grid is fixture state as well: pdf-rollback.spec.ts breaks it on
+        // purpose to make the render fail, and a broken grid left behind fails
+        // every later close for a reason that reads as a product bug.
+        page_size: paper.page_size,
+        custom_width_mm: paper.custom_width_mm,
+        custom_height_mm: paper.custom_height_mm,
+        margin: paper.margin,
+        columns: paper.columns,
+        row_height_mm: paper.row_height_mm,
+        gutter_mm: paper.gutter_mm,
+      },
+    });
+
+    await prisma.issuePage.createMany({
+      data: [
+        { id: ISSUE_FIXTURES.closePageCover, page_type_id: "pt_cover", page_number: 1 },
+        { id: ISSUE_FIXTURES.closePageInner, page_type_id: "pt_inner", page_number: 2 },
+      ].map((p) => ({ ...p, issue_id: ISSUE_FIXTURES.closeIssue })),
+    });
+
+    // Anything a spec sold onto this date goes: a publication lands on a board
+    // by (newspaper, date) alone, so a stray one is an unplaced publication and
+    // an unplaced publication is a blocking finding.
+    await prisma.publication.deleteMany({
+      where: {
+        newspaper_id: "paper_alpha",
+        publication_date: new Date(CLOSE_DATE),
+        id: { not: ISSUE_FIXTURES.closePublication },
+      },
+    });
+
+    await prisma.publication.update({
+      where: { id: ISSUE_FIXTURES.closePublication },
+      data: {
+        publication_date: new Date(CLOSE_DATE),
+        advertisement_id: ISSUE_FIXTURES.adOk,
+        status: "placed",
+        placement_status: "placed",
+      },
+    });
+
+    await prisma.placement.create({
+      data: {
+        id: ISSUE_FIXTURES.closePlacement,
+        issue_id: ISSUE_FIXTURES.closeIssue,
+        issue_page_id: ISSUE_FIXTURES.closePageCover,
+        publication_id: ISSUE_FIXTURES.closePublication,
+        advertisement_id: ISSUE_FIXTURES.adOk,
+        ad_shape_id: "shape_quarter",
+        col: 0,
+        row: 0,
+        cols: shape.cols,
+        rows: shape.rows,
+        status: "placed",
+      },
+    });
+
+    await clearIssueObjects(ISSUE_FIXTURES.closeIssue);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/**
+ * Six of the seven findings, on the board fixture, in one go.
+ *
+ * Seeded through Prisma and not through the board, because that is the only way
+ * to reach them: the placement rules refuse five of these before they are
+ * written, which is exactly what stage 06 is for. Finding 3 in particular can
+ * only happen to an ad that went bad AFTER it was placed, and no sequence of
+ * clicks produces that inside one test.
+ *
+ * The seventh — a geometric overlap — is deliberately absent. `placement_no_overlap`
+ * is an EXCLUDE constraint, so the database refuses the row whichever way it is
+ * written, from the UI or from here. It is covered in
+ * lib/domain/issue-validation.test.ts, where the rule can be asked directly.
+ */
+export async function seedFindingPlacements() {
+  const prisma = client();
+  try {
+    const shapes = new Map(
+      (await prisma.adShape.findMany({ where: { newspaper_id: "paper_alpha" } })).map((s) => [
+        s.id,
+        s,
+      ]),
+    );
+    const at = (id: string) => shapes.get(id)!;
+
+    const rows = [
+      // Finding 2 — the ad on the page belongs to nobody.
+      {
+        id: "plc_finding_orphan",
+        page: ISSUE_FIXTURES.pageInnerA,
+        publication_id: ISSUE_FIXTURES.orphanAd,
+        advertisement_id: ISSUE_FIXTURES.adOrphan,
+        shape: "shape_quarter",
+        col: 0,
+        row: 0,
+      },
+      // Finding 3 — the right customer's ad, and it never passed validation.
+      {
+        id: "plc_finding_broken",
+        page: ISSUE_FIXTURES.pageInnerA,
+        publication_id: ISSUE_FIXTURES.noAd,
+        advertisement_id: ISSUE_FIXTURES.adBroken,
+        shape: "shape_quarter",
+        col: at("shape_quarter").cols,
+        row: 0,
+      },
+      // Finding 4 — the same publication twice. The partial unique index allows
+      // this pair precisely because one of them carries the override; what it
+      // forbids is two UNapproved rows. An issue where only SOME copies were
+      // approved is the state the check is here to catch.
+      {
+        id: "plc_finding_dup_a",
+        page: ISSUE_FIXTURES.pageInnerB,
+        publication_id: ISSUE_FIXTURES.quarterA,
+        advertisement_id: ISSUE_FIXTURES.adOk,
+        shape: "shape_quarter",
+        col: 0,
+        row: 0,
+      },
+      {
+        id: "plc_finding_dup_b",
+        page: ISSUE_FIXTURES.pageInnerB,
+        publication_id: ISSUE_FIXTURES.quarterA,
+        advertisement_id: ISSUE_FIXTURES.adOk,
+        shape: "shape_quarter",
+        col: at("shape_quarter").cols,
+        row: 0,
+        duplicate_override_approved: true,
+      },
+      // Finding 6 — a full page on a cover, which accepts only two shapes.
+      {
+        id: "plc_finding_shape",
+        page: ISSUE_FIXTURES.pageCover,
+        publication_id: ISSUE_FIXTURES.full,
+        advertisement_id: ISSUE_FIXTURES.adOk,
+        shape: "shape_full",
+        col: 0,
+        row: 0,
+      },
+    ];
+
+    for (const row of rows) {
+      await prisma.placement.create({
+        data: {
+          id: row.id,
+          issue_id: ISSUE_FIXTURES.issue,
+          issue_page_id: row.page,
+          publication_id: row.publication_id,
+          advertisement_id: row.advertisement_id,
+          ad_shape_id: row.shape,
+          col: row.col,
+          row: row.row,
+          cols: at(row.shape).cols,
+          rows: at(row.shape).rows,
+          status: "placed",
+          duplicate_override_approved: row.duplicate_override_approved ?? false,
+        },
+      });
+    }
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/**
+ * Drops a publication onto CLOSE_DATE that nobody has placed.
+ *
+ * Simulates the one thing that turns a closeable issue into a blocked one
+ * without anybody touching the issue: an order approved in another room, on the
+ * day this issue is for. A publication lands on a board by (newspaper, date)
+ * alone, so this is all it takes.
+ */
+export async function addStrayPublication() {
+  const prisma = client();
+  try {
+    await prisma.publication.create({
+      data: {
+        business_id: "biz_alpha",
+        order_id: ISSUE_FIXTURES.order,
+        customer_id: "cust_alpha_1",
+        newspaper_id: "paper_alpha",
+        ad_shape_id: "shape_eighth",
+        advertisement_id: ISSUE_FIXTURES.adOk,
+        publication_date: new Date(CLOSE_DATE),
+        price: 900,
+        source: "internal",
+        status: "ready_for_layout",
+        placement_status: "not_placed",
+      },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** Breaks an issue's grid snapshot, so the renderer cannot produce a page. */
+export async function breakIssueGrid(issueId: string) {
+  const prisma = client();
+  try {
+    await prisma.issue.update({
+      where: { id: issueId },
+      // "custom" with no dimensions: deriveGrid returns null and toPrintModel
+      // refuses. A render that fails for a reason the DATA explains, rather
+      // than by killing a browser out from under the test.
+      data: { page_size: "custom", custom_width_mm: null, custom_height_mm: null },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** What the issue looks like now — the assertions no screen can make. */
+export async function issueState(issueId: string) {
+  const prisma = client();
+  try {
+    const issue = await prisma.issue.findUniqueOrThrow({
+      where: { id: issueId },
+      include: {
+        placements: { select: { id: true, status: true, publication_id: true } },
+        pdf_logs: { orderBy: { generated_at: "desc" } },
+      },
+    });
+    const publications = await prisma.publication.findMany({
+      where: { id: { in: issue.placements.map((p) => p.publication_id) } },
+      select: { id: true, status: true },
+    });
+    return { issue, publications };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** Object keys under one issue's prefix — how a spec proves a draft saved nothing. */
+export async function issueObjectKeys(issueId: string, businessId = "biz_alpha") {
+  const { Client } = await import("minio");
+  const minio = new Client({
+    endPoint: process.env.MINIO_ENDPOINT!,
+    port: Number(process.env.MINIO_PORT ?? 9000),
+    useSSL: process.env.MINIO_USE_SSL === "true",
+    accessKey: process.env.MINIO_ACCESS_KEY!,
+    secretKey: process.env.MINIO_SECRET_KEY!,
+  });
+  const bucket = process.env.MINIO_BUCKET!;
+  if (!(await minio.bucketExists(bucket))) return [];
+
+  const keys: string[] = [];
+  const stream = minio.listObjectsV2(bucket, `${businessId}/issues/${issueId}/`, true);
+  await new Promise<void>((resolve, reject) => {
+    stream.on("data", (o) => o.name && keys.push(o.name));
+    stream.on("end", () => resolve());
+    stream.on("error", reject);
+  });
+  return keys;
+}
+
+async function clearIssueObjects(issueId: string, businessId = "biz_alpha") {
+  const keys = await issueObjectKeys(issueId, businessId);
+  if (keys.length === 0) return;
+  const { Client } = await import("minio");
+  const minio = new Client({
+    endPoint: process.env.MINIO_ENDPOINT!,
+    port: Number(process.env.MINIO_PORT ?? 9000),
+    useSSL: process.env.MINIO_USE_SSL === "true",
+    accessKey: process.env.MINIO_ACCESS_KEY!,
+    secretKey: process.env.MINIO_SECRET_KEY!,
+  });
+  await minio.removeObjects(process.env.MINIO_BUCKET!, keys);
 }

@@ -169,6 +169,7 @@ model User {
   audit_logs          AuditLog[]
   advertisements      Advertisement[]
   duplicate_overrides Placement[]
+  pdf_generations     PdfGenerationLog[]
 
   @@map("User")
 }
@@ -859,10 +860,11 @@ model Issue {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  business   Business    @relation(fields: [business_id], references: [id], onDelete: Restrict)
-  newspaper  Newspaper   @relation(fields: [newspaper_id], references: [id], onDelete: Restrict)
+  business   Business           @relation(fields: [business_id], references: [id], onDelete: Restrict)
+  newspaper  Newspaper          @relation(fields: [newspaper_id], references: [id], onDelete: Restrict)
   pages      IssuePage[]
   placements Placement[]
+  pdf_logs   PdfGenerationLog[]
 
   /// One issue per newspaper per day.
   @@unique([business_id, newspaper_id, issue_date])
@@ -945,6 +947,58 @@ model Placement {
   @@index([publication_id])
   @@index([issue_id, status])
   @@map("Placement")
+}
+
+// ---------------------------------------------------------------------------
+// Stage 07 — issue validation, close and PDF
+// ---------------------------------------------------------------------------
+
+/// Which of the two PDFs a run produced (FR-22).
+///
+/// `draft` is never stored — it streams to the browser and its log row keeps
+/// `file_url` null on purpose. The row records that a person LOOKED, which is
+/// worth knowing; the bytes are not, because a draft is out of date the moment
+/// the next ad moves.
+enum PdfType {
+  draft
+  final
+}
+
+enum PdfGenerationStatus {
+  generated
+  failed
+}
+
+/// One attempt at producing a PDF for one issue (FR-22, US-008).
+///
+/// The log ACCUMULATES and the file does not: a re-close overwrites
+/// `Issue.final_pdf_url` and adds a row here, so "who produced the file that is
+/// on the printer right now, and what came before it" is answerable.
+///
+/// A failed attempt is a row too. A close that dies inside Chromium with
+/// nothing written anywhere is the one failure mode that leaves a person
+/// staring at a button that did nothing.
+model PdfGenerationLog {
+  id                   String              @id @default(cuid())
+  issue_id             String
+  generated_by_user_id String
+  pdf_type             PdfType
+  status               PdfGenerationStatus
+  /// Object key, never a public URL (conventions.md §5). Null for every draft,
+  /// and for a final run that failed before it wrote anything.
+  file_url             String?
+  /// Hebrew, shown verbatim in the log panel. Null on success.
+  error_message        String?
+  generated_at         DateTime            @default(now())
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  issue        Issue @relation(fields: [issue_id], references: [id], onDelete: Cascade)
+  generated_by User  @relation(fields: [generated_by_user_id], references: [id], onDelete: Restrict)
+
+  @@index([issue_id, generated_at(sort: Desc)])
+  @@map("PdfGenerationLog")
 }
 
 // ---------------------------------------------------------------------------

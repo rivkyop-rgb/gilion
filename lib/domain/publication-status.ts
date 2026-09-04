@@ -27,6 +27,7 @@ export const PUBLICATION_EVENTS = [
   "PLACED",
   "PLACEMENT_REMOVED",
   "ISSUE_CLOSED",
+  "ISSUE_REOPENED",
   "CANCELED",
   "BILLED",
 ] as const;
@@ -51,7 +52,16 @@ const TRANSITIONS: Record<
   ad_received: { AD_UNLINKED: "missing_ad" },
   ready_for_layout: { AD_UNLINKED: "missing_ad", PLACED: "placed" },
   placed: { PLACEMENT_REMOVED: "ready_for_layout", ISSUE_CLOSED: "published" },
-  published: { BILLED: "billed" },
+  /**
+   * ISSUE_REOPENED is the only way out of `published`, and it exists because an
+   * admin reopening a closed issue (stage 07, validation rule 11) has to walk
+   * its publications back with it. Without the event the reopen would be
+   * writing `status` behind the machine's back — which conventions.md §3 forbids
+   * precisely so that an impossible state cannot be reached by a forgotten
+   * branch. It is deliberately NOT symmetric with everything else: the issue's
+   * own transition is already admin-only and audited, and this follows it.
+   */
+  published: { BILLED: "billed", ISSUE_REOPENED: "placed" },
   canceled: {},
   billed: {},
 };

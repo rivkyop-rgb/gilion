@@ -2,7 +2,16 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ChevronLeft, ChevronRight, Lock, Trash2, Wand2 } from "lucide-react";
+import Link from "next/link";
+import {
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardCheck,
+  Lock,
+  Trash2,
+  Wand2,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,7 +55,7 @@ import {
 } from "@/app/(internal)/issues/actions";
 import { PageCanvas, type CanvasPlacement } from "./page-canvas";
 import { ShapeChips } from "./shape-chips";
-import { ChangeIssueDate, NextIssueOffer } from "./issue-calendar";
+import { ChangeIssueDate } from "./issue-calendar";
 import { PageStrip } from "./page-strip";
 import { UnplacedPanel, type BoardCandidate } from "./unplaced-panel";
 import { useFittedSpread } from "./use-fitted-spread";
@@ -80,6 +89,14 @@ export type BoardModel = {
   candidates: BoardCandidate[];
   /** Existing customers, for selling a page to one of them from here. */
   customers: Array<{ id: string; label: string; hint?: string; casual: boolean }>;
+  /**
+   * `?page=` from the URL — the view to open on, rather than the first one.
+   *
+   * The check screen links every finding to the page it lives on, and a link
+   * that lands on the cover of a twenty-page issue and says "it is somewhere in
+   * here" is not a link. Null when the URL asked for nothing.
+   */
+  focusPageNumber: number | null;
 };
 
 /** What the designer is currently holding. */
@@ -111,7 +128,15 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
   const [pending, startTransition] = useTransition();
 
   const views = useMemo(() => viewsOf(model.pages), [model.pages]);
-  const [viewIndex, setViewIndex] = useState(0);
+  // The initial value only: after the first render the pager owns this, so a
+  // refresh triggered by a placement does not yank the person back to the page
+  // the URL named half an hour ago.
+  const [viewIndex, setViewIndex] = useState(() => {
+    if (model.focusPageNumber === null) return 0;
+    const page = model.pages.find((p) => p.number === model.focusPageNumber);
+    const index = page ? viewIndexOfPage(views, page.id) : -1;
+    return index >= 0 ? index : 0;
+  });
   const [held, setHeld] = useState<Held>(null);
   const [hover, setHover] = useState<{ pageId: string; cell: Cell } | null>(null);
   /**
@@ -127,7 +152,6 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
   const [duplicateFor, setDuplicateFor] = useState<BoardCandidate | null>(null);
   const [newPageType, setNewPageType] = useState(model.pageTypes[0]?.id ?? "");
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
-  const [offerNext, setOfferNext] = useState(false);
   /**
    * Which arrangement the auto-placer produced. Bumping it asks for another —
    * the same number always gives the same layout, so there is a way back.
@@ -748,39 +772,50 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
             ) : null}
 
             <div className="mt-2 flex flex-wrap gap-2">
-              {availableTransitions(model.status, model.isAdmin).map((to) => (
-                <Button
-                  key={to}
-                  size="sm"
-                  variant="secondary"
-                  disabled={pending}
-                  data-testid={`set-status-${to}`}
-                  onClick={() =>
-                    startTransition(async () => {
-                      const result = await setIssueStatusAction(model.issueId, to);
-                      if (!result.ok) {
-                        fail(result.message ?? "לא הצלחנו לשנות סטטוס");
-                        return;
-                      }
-                      // Closing an issue is the moment the next one starts
-                      // mattering, and the moment somebody has the schedule in
-                      // their head. Asking later means asking nobody.
-                      if (to === "closed") setOfferNext(true);
-                      router.refresh();
-                    })
-                  }
-                >
-                  {ISSUE_STATUS_LABELS[to]}
-                </Button>
-              ))}
+              {/* `closed` is NOT one of these buttons, and reopening is not
+                  either.
+                  
+                  Until stage 07 closing was a status change like any other. It
+                  is not: it runs seven checks, marks every publication on the
+                  page as published, and writes the file that goes to the press.
+                  Reopening has to walk all of that back. Both live on the check
+                  screen, behind the findings that decide whether they may
+                  happen at all — a one-click "closed" beside "in layout" would
+                  be an irreversible act dressed as a dropdown. */}
+              {availableTransitions(model.status, model.isAdmin)
+                .filter((to) => to !== "closed" && model.status !== "closed")
+                .map((to) => (
+                  <Button
+                    key={to}
+                    size="sm"
+                    variant="secondary"
+                    disabled={pending}
+                    data-testid={`set-status-${to}`}
+                    onClick={() =>
+                      startTransition(async () => {
+                        const result = await setIssueStatusAction(model.issueId, to);
+                        if (!result.ok) {
+                          fail(result.message ?? "לא הצלחנו לשנות סטטוס");
+                          return;
+                        }
+                        router.refresh();
+                      })
+                    }
+                  >
+                    {ISSUE_STATUS_LABELS[to]}
+                  </Button>
+                ))}
+
+              <Button asChild size="sm" data-testid="go-to-check">
+                <Link href={`/issues/${model.issueId}/validate`}>
+                  <ClipboardCheck className="size-4" />
+                  {model.status === "closed" ? "בדיקה ו־PDF" : "בדיקה וסגירה"}
+                </Link>
+              </Button>
             </div>
           </div>
         ) : null}
       </section>
-
-      {offerNext ? (
-        <NextIssueOffer issueId={model.issueId} onClose={() => setOfferNext(false)} />
-      ) : null}
 
       {duplicateFor ? (
         <DuplicateDialog

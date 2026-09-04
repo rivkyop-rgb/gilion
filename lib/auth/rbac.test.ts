@@ -72,7 +72,7 @@ const EXPECTED: Record<Area, Record<Role, Access>> = {
     accounting: "none",
     customer: "none",
   },
-  pdf: { admin: "write", sales: "none", designer: "write", accounting: "none", customer: "none" },
+  pdf: { admin: "write", sales: "read", designer: "write", accounting: "none", customer: "none" },
   billing: {
     admin: "write",
     sales: "none",

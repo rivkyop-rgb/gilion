@@ -66,6 +66,18 @@ export function adKey(
 }
 
 /**
+ * The one PDF an issue keeps (conventions.md §5, FR-22).
+ *
+ * A fixed name and not a versioned one, deliberately: the MVP stores only the
+ * LATEST final PDF, so a re-close must land on the same object and replace it.
+ * The history that does accumulate is PdfGenerationLog, which records who
+ * produced what and when — the file is the current truth, the log is the story.
+ */
+export function issuePdfKey(businessId: string, issueId: string): string {
+  return `${businessId}/issues/${issueId}/final.pdf`;
+}
+
+/**
  * A replacement needs a key that collides with nothing the ad already holds.
  *
  * The revision is a timestamp rather than a counter, and that is the point: a

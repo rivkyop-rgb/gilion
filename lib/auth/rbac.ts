@@ -100,7 +100,15 @@ const MATRIX: Record<Area, Record<Role, Access>> = {
     accounting: "none",
     customer: "none",
   },
-  pdf: { admin: "write", sales: "none", designer: "write", accounting: "none", customer: "none" },
+  // `write` produces a PDF — the draft, and the final one a close writes.
+  // `read` only downloads the final file that already exists.
+  //
+  // Sales reads it (07-pdf.md §הרשאות): a rep whose customer asks "did my ad
+  // run, and where" needs the page that answers, and the answer is the issue
+  // that was printed. `customer` stays out entirely — an issue PDF carries
+  // every advertiser's artwork, so handing one to a customer hands them their
+  // competitors' (FR-15).
+  pdf: { admin: "write", sales: "read", designer: "write", accounting: "none", customer: "none" },
   // FR-8: designer must not see payment data anywhere — not in the menu, not in
   // a table column, not in an API response.
   billing: {

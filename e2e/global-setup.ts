@@ -99,7 +99,7 @@ async function deleteTestAdvertisements(prisma: PrismaClient) {
   await clearObjects([...new Set(ads.map((a) => a.business_id))], "ads");
 }
 
-async function clearObjects(businessIds: string[], folder: "ads" | "reserved") {
+async function clearObjects(businessIds: string[], folder: "ads" | "reserved" | "issues") {
   const { Client } = await import("minio");
   const client = new Client({
     endPoint: process.env.MINIO_ENDPOINT!,
@@ -520,6 +520,21 @@ async function resetShapeCatalogue(prisma: PrismaClient) {
  */
 export const BOARD_DATE = "2027-06-15";
 export const OPEN_DATE = "2027-06-22";
+/**
+ * A date of its own for the specs that CLOSE an issue.
+ *
+ * The board fixture can never be closed and that is deliberate: it exists to
+ * make every placement rule reachable, so two of its six publications have
+ * artwork that is refused on purpose. An issue with an unplaceable publication
+ * on its date always has a blocking finding 1.
+ *
+ * So the close specs get their own day, with one publication and one usable ad
+ * on it. Checked against every other fixture date in this file, because a
+ * publication lands on a board by (newspaper, date) alone and a date reused by
+ * accident shows up as "expected 6, received 7" in a file that never heard of
+ * PDFs (CLAUDE.md).
+ */
+export const CLOSE_DATE = "2027-07-06";
 
 /** Ids the placement specs address directly. */
 export const ISSUE_FIXTURES = {
@@ -539,6 +554,15 @@ export const ISSUE_FIXTURES = {
   orphanAd: "pub_issue_orphan_ad",
   openA: "pub_open_a",
   openB: "pub_open_b",
+  /** The closeable issue and its single, correctly-dressed publication. */
+  closeIssue: "iss_close_fixture",
+  closePageCover: "ipage_close_cover",
+  closePageInner: "ipage_close_inner",
+  closePublication: "pub_close_a",
+  /** Placed on the cover by resetCloseIssue — the ad the final PDF contains. */
+  closePlacement: "plc_close_a",
+  /** An ad that exists and did not pass validation — finding 3. */
+  adBroken: "ad_issue_broken",
 } as const;
 
 /**
@@ -562,6 +586,14 @@ async function seedIssueFixtures(prisma: PrismaClient) {
   for (const ad of [
     { id: ISSUE_FIXTURES.adOk, customer_id: "cust_alpha_1", name: "מודעת שיבוץ.pdf" },
     { id: ISSUE_FIXTURES.adOrphan, customer_id: null, name: "מודעה ללא לקוח.pdf" },
+    // Belongs to the right customer and did NOT pass validation — the only way
+    // to reach finding 3, which is about a file that rotted AFTER it was placed.
+    {
+      id: ISSUE_FIXTURES.adBroken,
+      customer_id: "cust_alpha_1",
+      name: "מודעה פגומה.pdf",
+      validation_status: "failed" as const,
+    },
   ]) {
     await prisma.advertisement.upsert({
       where: { id: ad.id },
@@ -580,7 +612,7 @@ async function seedIssueFixtures(prisma: PrismaClient) {
         // renders a placeholder when preview_url is null and never fetches.
         preview_url: null,
         status: "valid",
-        validation_status: "passed",
+        validation_status: ad.validation_status ?? "passed",
       },
     });
   }
@@ -623,6 +655,15 @@ async function seedIssueFixtures(prisma: PrismaClient) {
     },
     { id: ISSUE_FIXTURES.openA, date: OPEN_DATE, shape: "shape_quarter", ad: ISSUE_FIXTURES.adOk },
     { id: ISSUE_FIXTURES.openB, date: OPEN_DATE, shape: "shape_eighth", ad: ISSUE_FIXTURES.adOk },
+    // ONE publication on CLOSE_DATE, and nothing wrong with it: the close specs
+    // need an issue that passes all seven checks, which the board fixture never
+    // can.
+    {
+      id: ISSUE_FIXTURES.closePublication,
+      date: CLOSE_DATE,
+      shape: "shape_quarter",
+      ad: ISSUE_FIXTURES.adOk,
+    },
   ];
 
   for (const row of rows) {
@@ -654,6 +695,50 @@ async function seedIssueFixtures(prisma: PrismaClient) {
   }
 
   await seedFixtureIssue(prisma);
+  await seedCloseIssue(prisma);
+}
+
+/**
+ * The issue the close-and-PDF specs work on (stage 07).
+ *
+ * Two pages, one publication, one usable ad. Kept apart from the board fixture
+ * on purpose — see CLOSE_DATE. The placement itself is put on by
+ * `resetCloseIssue` in issue-helpers.ts rather than here, because closing marks
+ * it `published` and every close spec has to start from `placed` again.
+ */
+async function seedCloseIssue(prisma: PrismaClient) {
+  const paper = await prisma.newspaper.findUnique({ where: { id: "paper_alpha" } });
+  if (!paper) return;
+
+  await prisma.issue.upsert({
+    where: { id: ISSUE_FIXTURES.closeIssue },
+    update: { status: "in_layout", closed_at: null, final_pdf_url: null },
+    create: {
+      id: ISSUE_FIXTURES.closeIssue,
+      business_id: "biz_alpha",
+      newspaper_id: "paper_alpha",
+      issue_date: new Date(CLOSE_DATE),
+      status: "in_layout",
+      page_size: paper.page_size,
+      custom_width_mm: paper.custom_width_mm,
+      custom_height_mm: paper.custom_height_mm,
+      margin: paper.margin,
+      columns: paper.columns,
+      row_height_mm: paper.row_height_mm,
+      gutter_mm: paper.gutter_mm,
+    },
+  });
+
+  for (const page of [
+    { id: ISSUE_FIXTURES.closePageCover, page_type_id: "pt_cover", page_number: 1 },
+    { id: ISSUE_FIXTURES.closePageInner, page_type_id: "pt_inner", page_number: 2 },
+  ]) {
+    await prisma.issuePage.upsert({
+      where: { id: page.id },
+      update: {},
+      create: { ...page, issue_id: ISSUE_FIXTURES.closeIssue },
+    });
+  }
 }
 
 /**
@@ -717,7 +802,21 @@ async function seedFixtureIssue(prisma: PrismaClient) {
  * database for a reason that looks nothing like the thing being tested.
  */
 async function deleteTestIssues(prisma: PrismaClient) {
+  // The generation log points at the issue and cascades with it, but the FILE
+  // does not: an issue closed by a previous run leaves a final.pdf in the
+  // bucket whose row is about to disappear. Left there, the bucket grows by a
+  // few megabytes a run and — worse — issue-draft-pdf.spec.ts asserts that
+  // NOTHING is written under a business's issues/ prefix, which is a claim last
+  // week's close would quietly falsify.
+  const businessIds = [
+    ...new Set(
+      (await prisma.issue.findMany({ select: { business_id: true } })).map((i) => i.business_id),
+    ),
+  ];
+
   await prisma.placement.deleteMany({});
   await prisma.issuePage.deleteMany({});
   await prisma.issue.deleteMany({});
+
+  if (businessIds.length > 0) await clearObjects(businessIds, "issues");
 }

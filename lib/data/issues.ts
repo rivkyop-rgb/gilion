@@ -16,7 +16,7 @@ import { basePrisma, tenantDb } from "./db";
 import { gridOf, type NewspaperRow } from "./newspapers";
 import { readAllowedCells } from "./ad-shapes";
 import type { DerivedGrid } from "@/lib/domain/grid";
-import type { ReservedArea, ShapeSpec } from "@/lib/domain/placement";
+import { ON_PAGE_STATES, type ReservedArea, type ShapeSpec } from "@/lib/domain/placement";
 import { isBackward, transition, type IssueStatus } from "@/lib/domain/issue-status";
 import { PAGES_PER_SHEET } from "@/lib/domain/issue-layout";
 import { withAudit } from "./audit";
@@ -56,7 +56,7 @@ export async function listIssues(businessId: string) {
 
   const placed = await tenantDb(businessId).placement.groupBy({
     by: ["issue_id"],
-    where: { issue_id: { in: ids }, status: "placed" },
+    where: { issue_id: { in: ids }, status: { in: ON_PAGE_STATES } },
     _count: { _all: true },
   });
   const placedBy = new Map(placed.map((p) => [p.issue_id, p._count._all]));
@@ -112,7 +112,8 @@ const BOARD_INCLUDE = {
     },
   },
   placements: {
-    where: { status: "placed" as const },
+    // Includes `published`: a closed issue must still show its own board.
+    where: { status: { in: ON_PAGE_STATES } },
     include: {
       publication: {
         select: {
@@ -313,7 +314,7 @@ export async function openIssuesForPlacement(businessId: string, take = 5) {
 
   const placed = await tenantDb(businessId).placement.groupBy({
     by: ["issue_id"],
-    where: { issue_id: { in: issues.map((i) => i.id) }, status: "placed" },
+    where: { issue_id: { in: issues.map((i) => i.id) }, status: { in: ON_PAGE_STATES } },
     _count: { _all: true },
   });
   const placedBy = new Map(placed.map((p) => [p.issue_id, p._count._all]));
@@ -415,7 +416,7 @@ export async function issueReport(
       newspaper: { select: { name: true } },
       pages: { select: { id: true, page_number: true } },
       placements: {
-        where: { status: "placed" },
+        where: { status: { in: ON_PAGE_STATES } },
         orderBy: [{ created_at: "asc" }],
         include: {
           publication: {
@@ -716,7 +717,7 @@ export class PageNotEmptyError extends Error {
  */
 export async function removeIssuePage(businessId: string, issueId: string, pageId: string) {
   const placed = await tenantDb(businessId).placement.count({
-    where: { issue_page_id: pageId, status: "placed" },
+    where: { issue_page_id: pageId, status: { in: ON_PAGE_STATES } },
   });
   if (placed > 0) throw new PageNotEmptyError();
 

@@ -27,7 +27,10 @@ const EXPECTED: Record<PublicationStatus, Partial<Record<PublicationEvent, Publi
     ISSUE_CLOSED: "published",
     CANCELED: "canceled",
   },
-  published: { BILLED: "billed" },
+  // ISSUE_REOPENED is the one way back out of `published`, added by stage 07:
+  // an admin reopening a closed issue takes its publications with it. Anything
+  // else out of `published` stays refused, rule 17 included.
+  published: { BILLED: "billed", ISSUE_REOPENED: "placed" },
   canceled: {},
   billed: {},
 };

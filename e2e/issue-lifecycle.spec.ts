@@ -1,8 +1,18 @@
 import { expect, test } from "@playwright/test";
 
 import { NEWSPAPERS, loginAsAdmin } from "./helpers";
-import { BOARD_DATE, boardUrl, resetFixtureIssue, setFixtureIssueStatus } from "./issue-helpers";
-import { clearIssuesOn } from "./issue-helpers";
+import {
+  BOARD_DATE,
+  boardUrl,
+  clearIssuesOn,
+  closeIssueUrl,
+  resetCloseIssue,
+  resetFixtureIssue,
+  setFixtureIssueStatus,
+} from "./issue-helpers";
+
+/** The Tuesday after CLOSE_DATE — what the offer suggests, and must be free. */
+const NEXT_AFTER_CLOSE = "2027-07-13";
 
 /**
  * The issue's own calendar (backlog items 6, 7, 8, 15).
@@ -74,45 +84,54 @@ test.describe("moving an issue to another date", () => {
   });
 });
 
+/** The close in this block renders a real PDF — see e2e/issue-draft-pdf.spec.ts. */
+test.describe.configure({ timeout: 240_000 });
+
 test.describe("closing an issue offers the next one", () => {
   test.beforeEach(async () => {
-    await resetFixtureIssue();
-    await setFixtureIssueStatus("ready_for_print");
+    // The CLOSE fixture, not the board one: the board fixture has publications
+    // on its date that can never be placed, and an unplaced publication is a
+    // blocking finding — so it can never be closed (see CLOSE_DATE).
+    await resetCloseIssue();
+    await clearIssuesOn(NEXT_AFTER_CLOSE);
   });
 
   test("proposes the newspaper's own next printing day, and opens it composed the same", async ({
     page,
   }) => {
     await loginAsAdmin(page);
-    await page.goto(boardUrl);
+    await page.goto(closeIssueUrl);
 
-    await page.getByTestId("set-status-closed").click();
+    await page.getByTestId("close-issue").click();
+    await page.getByTestId("confirm-close-issue").click();
+    // Wait for something that can only be true once the SERVER answered — the
+    // dialog stays open for the whole transition exactly so this is available
+    // (CLAUDE.md). Reading a count that was already right proves nothing.
+    await expect(page.getByTestId("close-issue-dialog")).toBeHidden({ timeout: 60_000 });
 
     // The moment an issue closes is the moment the next one starts mattering,
     // and the moment somebody has the schedule in their head.
     const offer = page.getByTestId("next-issue-offer");
     await expect(offer).toBeVisible();
-    // The seeded newspaper prints on Tuesdays; the fixture date is a Tuesday.
-    await expect(page.getByTestId("next-issue-options")).toContainText("22.06.2027");
+    // The seeded newspaper prints on Tuesdays; CLOSE_DATE is a Tuesday.
+    await expect(page.getByTestId("next-issue-options")).toContainText("13.07.2027");
 
     await page.getByTestId("open-next-issue").click();
     await expect(page).toHaveURL(/\/issues\/.+\/board/);
 
-    // Composed like the one just closed: cover, an inner spread, a back.
+    // Composed like the one just closed: a cover and an inner page.
     await expect(page.getByTestId("view-tab-0")).toContainText("שער");
-    await expect(page.getByTestId("view-tab-1")).toContainText("עמודים 2-3");
-    await expect(page.getByTestId("view-tab-2")).toContainText("גב");
   });
 
   test("never proposes a date that already has an issue", async ({ page }) => {
     await loginAsAdmin(page);
-    await page.goto(boardUrl);
-    await page.getByTestId("set-status-closed").click();
+    await page.goto(closeIssueUrl);
+    await page.getByTestId("close-issue").click();
+    await page.getByTestId("confirm-close-issue").click();
+    await expect(page.getByTestId("close-issue-dialog")).toBeHidden({ timeout: 60_000 });
     await expect(page.getByTestId("next-issue-offer")).toBeVisible();
 
     const options = page.getByTestId("next-issue-options");
-    // The fixture's own date is behind us, but the guard is what matters: an
-    // offered date that is taken is marked, not silently accepted.
     const taken = options.getByText("כבר קיים גיליון בתאריך הזה");
     if ((await taken.count()) > 0) {
       await expect(page.getByTestId("open-next-issue")).toBeEnabled();

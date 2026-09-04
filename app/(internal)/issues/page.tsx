@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ClipboardList, Newspaper, Plus } from "lucide-react";
+import { ClipboardList, FileDown, Newspaper, Plus } from "lucide-react";
 
-import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
+import { canReadArea, canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { listIssues } from "@/lib/data/issues";
 import { ISSUE_STATUS_LABELS, type IssueStatus } from "@/lib/domain/issue-status";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,8 @@ export default async function IssuesPage() {
 
   const issues = await listIssues(ctx.businessId);
   const mayWrite = canWriteArea(ctx, "issues");
+  // Sales reads the final PDF but never produces one (07-pdf.md §הרשאות).
+  const mayDownloadPdf = canReadArea(ctx, "pdf");
 
   return (
     <>
@@ -116,15 +118,21 @@ export default async function IssuesPage() {
                   </p>
                 </div>
 
-                <div className="mt-auto flex gap-2">
+                <div className="mt-auto flex flex-wrap gap-2">
                   <Button asChild size="sm" variant="secondary">
                     <Link href={`/issues/${issue.id}/board`}>פתח לוח שיבוץ</Link>
                   </Button>
-                  {status === "closed" ? (
-                    // Stage 07 writes the file; until then the button says so
-                    // rather than pretending to be a download that does nothing.
-                    <Button size="sm" variant="ghost" disabled title="יופעל בשלב הפקת ה־PDF">
-                      הורד PDF סופי
+                  <Button asChild size="sm" variant="ghost" data-testid="issue-check-link">
+                    <Link href={`/issues/${issue.id}/validate`}>
+                      {status === "closed" ? "בדיקה ו־PDF" : "בדיקה וסגירה"}
+                    </Link>
+                  </Button>
+                  {status === "closed" && issue.final_pdf_url && mayDownloadPdf ? (
+                    <Button asChild size="sm" variant="ghost" data-testid="download-final-pdf">
+                      <a href={`/api/issues/${issue.id}/pdf?type=final`}>
+                        <FileDown className="size-4" />
+                        הורד PDF סופי
+                      </a>
                     </Button>
                   ) : null}
                 </div>

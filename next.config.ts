@@ -26,7 +26,16 @@ const nextConfig: NextConfig = {
   // @napi-rs/canvas at runtime. Bundled, they resolve their own assets against
   // the bundle rather than node_modules and fail silently — which surfaces as
   // an upload that works but never produces a preview, with nothing in the log.
-  serverExternalPackages: ["sharp", "pdf-to-img", "@napi-rs/canvas", "pdfjs-dist"],
+  // playwright-core joins them for the same reason (stage 07): it resolves the
+  // Chromium binary and its own driver against node_modules at runtime, and a
+  // bundled copy looks for both against the bundle and finds neither.
+  serverExternalPackages: [
+    "sharp",
+    "pdf-to-img",
+    "@napi-rs/canvas",
+    "pdfjs-dist",
+    "playwright-core",
+  ],
 
   experimental: {
     // Server Actions cap request bodies at 1 MB by default, and an ad file is

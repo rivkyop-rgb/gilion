@@ -31,8 +31,18 @@ const DATE = new Intl.DateTimeFormat("he-IL", {
   timeZone: "UTC",
 });
 
-export default async function BoardPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function BoardPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  // `?page=` is how the check screen sends somebody to the finding they clicked
+  // (07-pdf.md §מסכים). A page number and not a view index, because the number
+  // is what the finding knows and what the person reads.
+  searchParams: Promise<{ page?: string }>;
+}) {
   const { id } = await params;
+  const { page: focus } = await searchParams;
   const ctx = await getTenantContext();
   requireArea(ctx, "issues");
 
@@ -63,6 +73,7 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
     grid,
     pageTypes,
     customers,
+    focusPageNumber: Number.isInteger(Number(focus)) && focus ? Number(focus) : null,
     pages: issue.pages.map((page) => ({
       id: page.id,
       number: page.page_number,

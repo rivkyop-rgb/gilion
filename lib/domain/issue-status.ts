@@ -66,6 +66,27 @@ export function transition(from: IssueStatus, to: IssueStatus, isAdmin: boolean)
   return to;
 }
 
+/**
+ * Every step from here to `closed`, in order.
+ *
+ * Closing is one act to the person doing it — they press a button on the check
+ * screen — and several steps to the machine: an issue in `in_layout` passes
+ * through `ready_for_print` on its way to the press, because that is what
+ * "finished and going to print" means. Making them press a second button first
+ * would be bookkeeping dressed as a workflow.
+ *
+ * The steps are still taken one at a time rather than the rule being loosened:
+ * `isForward` refusing a jump is what stops an issue reaching `ready_for_print`
+ * without having been laid out, and that refusal is worth keeping for every
+ * caller that is NOT the close.
+ */
+export function pathToClosed(from: IssueStatus): IssueStatus[] {
+  const start = ORDER.indexOf(from);
+  const end = ORDER.indexOf("closed");
+  if (start < 0 || start >= end) return [];
+  return ORDER.slice(start + 1, end + 1);
+}
+
 /** Whether a backward move is what is being asked for — the audited path. */
 export function isBackward(from: IssueStatus, to: IssueStatus): boolean {
   return ORDER.indexOf(to) < ORDER.indexOf(from);
