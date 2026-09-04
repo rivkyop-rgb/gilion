@@ -37,6 +37,24 @@ test.describe("when the PDF cannot be produced", () => {
     await breakIssueGrid(ISSUE_FIXTURES.closeIssue);
   });
 
+  /**
+   * The one afterEach in the suite, and it earns its exception.
+   *
+   * Everywhere else the rule is beforeEach-only: a spec that dies half way
+   * through cleans up nothing, so cleanup that only runs at the end is a
+   * guarantee that is not one (CLAUDE.md). That rule is about specs leaving
+   * STALE data. This one leaves DELIBERATELY BROKEN data — an issue whose grid
+   * snapshot cannot be resolved — and a broken row outlives the run: the next
+   * person to open that issue in the app gets a board that will not draw, with
+   * nothing to connect it to a test that finished hours ago. It happened.
+   *
+   * So the beforeEach stays as the guarantee and this is the courtesy that
+   * keeps the database browsable between runs.
+   */
+  test.afterEach(async () => {
+    await resetCloseIssue();
+  });
+
   test("the issue stays open and the publications stay unpublished", async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto(closeIssueUrl);

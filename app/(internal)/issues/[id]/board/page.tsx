@@ -19,6 +19,7 @@ import type { ShapeSpec } from "@/lib/domain/placement";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Ltr } from "@/components/ui/ltr";
+import { EmptyState } from "@/components/states";
 import { ISSUE_TONE } from "@/components/status-tone";
 import { PlacementBoard, type BoardModel } from "@/components/issues/placement-board";
 
@@ -50,7 +51,29 @@ export default async function BoardPage({
   if (!issue) notFound();
 
   const grid = gridOfIssue(issue);
-  if (!grid) notFound();
+  // The issue EXISTS and its grid snapshot cannot be resolved — a "custom" page
+  // size with no dimensions behind it. `notFound()` was wrong here: it told a
+  // person the issue was gone while the list they clicked from still showed it,
+  // which reads as "the board just doesn't open" with nothing to act on. An
+  // issue that cannot be drawn is a real state and it says so.
+  if (!grid) {
+    return (
+      <>
+        <h1 className="mb-4 font-serif text-2xl font-semibold">
+          {issue.newspaper.name} · <Ltr>{DATE.format(issue.issue_date)}</Ltr>
+        </h1>
+        <EmptyState
+          title="לא ניתן לצייר את הגיליון הזה"
+          body="חלוקת העמוד ששמורה בגיליון אינה שלמה — גודל העמוד מוגדר כ״מותאם אישית״ בלי מידות. זה צילום שנשמר בפתיחת הגיליון, ולכן שינוי בהגדרות העיתון לא יתקן אותו; צריך לפתוח את הגיליון מחדש לאותו תאריך."
+          action={
+            <Button asChild variant="secondary">
+              <Link href="/issues">חזרה לגיליונות</Link>
+            </Button>
+          }
+        />
+      </>
+    );
+  }
 
   const [publications, pageTypes, customers] = await Promise.all([
     publicationsForIssue(ctx.businessId, issue.newspaper_id, issue.issue_date),
