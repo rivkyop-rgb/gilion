@@ -528,6 +528,29 @@ export async function addStrayPublication() {
   }
 }
 
+/**
+ * Leaves exactly ONE publication the auto-placer can take.
+ *
+ * The singular is the case a fixture never produces: the board fixture holds
+ * four placeable ads and every count message therefore came out plural, which
+ * is how "שובצו 1 פרסומים" survived to production. Cancelling rather than
+ * deleting — a cancelled publication is a state the product has, and
+ * resetFixtureIssue puts the statuses back.
+ */
+export async function leaveOnlyOnePlaceable() {
+  const prisma = client();
+  try {
+    await prisma.publication.updateMany({
+      where: {
+        id: { in: [ISSUE_FIXTURES.quarterB, ISSUE_FIXTURES.strip, ISSUE_FIXTURES.full] },
+      },
+      data: { status: "canceled" },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 /** Breaks an issue's grid snapshot, so the renderer cannot produce a page. */
 export async function breakIssueGrid(issueId: string) {
   const prisma = client();

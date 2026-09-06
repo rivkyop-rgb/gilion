@@ -1,7 +1,12 @@
 import { expect, test } from "@playwright/test";
 
 import { loginAsAdmin } from "./helpers";
-import { ISSUE_FIXTURES, boardUrl, resetFixtureIssue } from "./issue-helpers";
+import {
+  ISSUE_FIXTURES,
+  boardUrl,
+  leaveOnlyOnePlaceable,
+  resetFixtureIssue,
+} from "./issue-helpers";
 
 /**
  * Filling an issue by itself (backlog item 4).
@@ -90,4 +95,46 @@ test.describe("automatic placement", () => {
     // offering the button would be offering an action that does nothing.
     await expect(page.getByTestId("auto-place")).toHaveCount(0);
   });
+});
+
+/**
+ * "שובצו 1 פרסומים" is not Hebrew, and one is the number a fixture never has.
+ *
+ * The board fixture places four at a time, so the singular went unseen through
+ * every run until an issue happened to hold a single ad. Reported 06/09/2026.
+ */
+test("says it in Hebrew when exactly one ad goes down", async ({ page }) => {
+  await resetFixtureIssue();
+  await leaveOnlyOnePlaceable();
+
+  await loginAsAdmin(page);
+  await page.goto(boardUrl);
+  await page.getByTestId("auto-place").click();
+
+  const message = page.getByTestId("board-message");
+  await expect(message).toContainText("שובץ פרסום אחד");
+  await expect(message).not.toContainText("1 פרסומים");
+});
+
+/**
+ * Where there is still room must survive the success that just filled some.
+ *
+ * The notice and the "still room to sell" line took turns in one row and the
+ * notice always won — so the line vanished at the exact moment somebody wants
+ * it, right after auto-placement. Reported 06/09/2026.
+ */
+test("still says where there is room, right after placing", async ({ page }) => {
+  await resetFixtureIssue();
+  await loginAsAdmin(page);
+  await page.goto(boardUrl);
+
+  await page.getByTestId("auto-place").click();
+  await expect(page.getByTestId("board-message")).toContainText("שובצו");
+
+  // Same row, same breath: what happened, and what is left to sell.
+  const room = page.getByTestId("unfinished-after-notice");
+  await expect(room).toBeVisible();
+  await expect(room).toContainText("עדיין יש מקום למכור");
+  // Free, not full — the number a seller quotes down the phone.
+  await expect(room).toContainText("% פנוי");
 });

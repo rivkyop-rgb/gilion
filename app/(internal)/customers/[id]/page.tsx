@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { publicationsPhrase } from "@/lib/domain/hebrew-count";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Pencil } from "lucide-react";
@@ -394,7 +395,7 @@ export default async function CustomerPage({
                         ) : null}
                         {ad._count.publications > 0 ? (
                           <span className="text-xs text-on-surface-variant">
-                            בשימוש ב־{ad._count.publications} פרסומים
+                            בשימוש ב־{publicationsPhrase(ad._count.publications)}
                           </span>
                         ) : null}
                       </span>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { publicationsPhrase } from "@/lib/domain/hebrew-count";
 import { AlertTriangle, FileText, ImageIcon, UserX } from "lucide-react";
 
 import { AdQuickLook } from "@/components/ads/ad-preview";
@@ -138,7 +139,9 @@ export function AdCard({ ad }: { ad: AdCardModel }) {
           ) : null}
 
           {ad.publicationCount > 0 ? (
-            <p className="text-xs text-on-surface-variant">משמשת ב־{ad.publicationCount} פרסומים</p>
+            <p className="text-xs text-on-surface-variant">
+              משמשת ב־{publicationsPhrase(ad.publicationCount)}
+            </p>
           ) : null}
 
           <div className="mt-auto flex items-center gap-2 border-t border-outline-variant pt-2 text-xs text-on-surface-variant">

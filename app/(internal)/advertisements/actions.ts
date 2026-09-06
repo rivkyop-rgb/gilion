@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { publicationsPhrase } from "@/lib/domain/hebrew-count";
 import { z } from "zod";
 
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
@@ -347,7 +348,7 @@ export async function linkAdToAllPublicationsAction(adId: string): Promise<AdFor
   revalidatePath(`/advertisements/${adId}`);
   revalidatePath("/publications");
   revalidatePath("/reminders");
-  return { ok: true, message: `שויכה ל־${open.length} פרסומים` };
+  return { ok: true, message: `שויכה ל־${publicationsPhrase(open.length)}` };
 }
 
 export async function unlinkAdFromPublicationAction(publicationId: string): Promise<AdFormState> {

@@ -456,13 +456,43 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
               data-kind="notice"
               data-ok={notice.ok}
               className={cn(
-                "absolute inset-0 overflow-y-auto rounded-md p-2 text-sm",
+                "absolute inset-0 flex flex-wrap items-center gap-2 overflow-y-auto rounded-md p-2 text-sm",
                 notice.ok
                   ? "bg-status-success-bg text-status-success-fg"
                   : "bg-status-error-bg text-status-error-fg",
               )}
             >
-              {notice.text}
+              <span>{notice.text}</span>
+
+              {/* What is still SELLABLE, said in the same breath as what just
+                  happened.
+                  
+                  The two used to take turns in this row, and a success always
+                  won — so the moment auto-placement finished, the one line that
+                  says where there is still room to sell disappeared, at exactly
+                  the moment somebody wants it. They are not competing pieces of
+                  news: "four ads went down" and "two pages still have room" are
+                  the same sentence to a person running an issue. */}
+              {notice.ok && unfinished.length > 0 ? (
+                <span
+                  data-testid="unfinished-after-notice"
+                  className="flex flex-wrap items-center gap-1.5 text-on-surface-variant"
+                >
+                  · עדיין יש מקום למכור ב־<Ltr>{unfinished.length}</Ltr>{" "}
+                  {unfinished.length === 1 ? "עמוד" : "עמודים"}:
+                  {unfinished.map((f) => (
+                    <button
+                      key={f.pageId}
+                      type="button"
+                      data-testid={`jump-to-page-${f.pageNumber}`}
+                      onClick={() => jumpToPage(f.pageId)}
+                      className="rounded-full bg-surface-container-lowest px-2 py-0.5 text-xs font-medium underline-offset-2 hover:underline"
+                    >
+                      {pageLabel(f.pageNumber, totalPages)} · {100 - f.percent}% פנוי
+                    </button>
+                  ))}
+                </span>
+              ) : null}
             </p>
           ) : unfinished.length > 0 ? (
             <p
@@ -471,7 +501,8 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
             >
               <AlertTriangle className="size-4 shrink-0" />
               <span>
-                עדיין יש מקום למכור ב־<Ltr>{unfinished.length}</Ltr> עמודים:
+                עדיין יש מקום למכור ב־<Ltr>{unfinished.length}</Ltr>{" "}
+                {unfinished.length === 1 ? "עמוד" : "עמודים"}:
               </span>
               {unfinished.map((f) => (
                 <button
@@ -481,7 +512,10 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                   onClick={() => jumpToPage(f.pageId)}
                   className="rounded-full bg-surface-container-lowest px-2 py-0.5 text-xs font-medium underline-offset-2 hover:underline"
                 >
-                  {pageLabel(f.pageNumber, totalPages)}
+                  {/* The number a seller acts on is what is LEFT, not what is
+                      gone. The page caption shows how full it is; this shows
+                      what there is to offer somebody on the phone. */}
+                  {pageLabel(f.pageNumber, totalPages)} · {100 - f.percent}% פנוי
                 </button>
               ))}
             </p>

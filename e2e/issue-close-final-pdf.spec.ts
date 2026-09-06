@@ -55,7 +55,10 @@ test.describe("closing an issue", () => {
     await expect(page.getByTestId("close-issue-dialog")).toBeHidden({ timeout: 120_000 });
 
     // The number in the confirmation is the number the SERVER wrote.
-    await expect(page.getByTestId("check-message")).toContainText("1 פרסומים סומנו כפורסמו");
+    // "פרסום אחד סומן", not "1 פרסומים סומנו" — the number agrees with the noun
+    // and the verb (lib/domain/hebrew-count.ts). This assertion carried the bad
+    // Hebrew until an issue with exactly one ad in it made it visible.
+    await expect(page.getByTestId("check-message")).toContainText("פרסום אחד סומן כפורסם");
 
     // ── The rows ────────────────────────────────────────────────────────────
     const { issue, publications } = await issueState(ISSUE_FIXTURES.closeIssue);

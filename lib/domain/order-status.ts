@@ -5,6 +5,7 @@
  * through `transition()`, which throws on an illegal move. That is what keeps
  * "approved" genuinely one-way instead of one-way-by-convention.
  */
+import { agrees, counted } from "./hebrew-count";
 
 export const ORDER_STATUSES = [
   "draft",
@@ -94,7 +95,7 @@ const DELETABLE_STATUSES: readonly OrderStatus[] = ["draft", "rejected", "cancel
 
 export function orderDeletionBlocked(status: OrderStatus, publicationCount: number): string | null {
   if (publicationCount > 0) {
-    return `לא ניתן למחוק את ההזמנה — ${publicationCount} פרסומים מחייבים כבר נוצרו ממנה. אפשר לבטל אותה.`;
+    return `לא ניתן למחוק את ההזמנה — ${counted(publicationCount, "פרסום מחייב אחד", "פרסומים מחייבים")} כבר ${agrees(publicationCount, "נוצר", "נוצרו")} ממנה. אפשר לבטל אותה.`;
   }
   if (!DELETABLE_STATUSES.includes(status)) {
     return `לא ניתן למחוק הזמנה במצב "${ORDER_STATUS_LABELS[status]}". אפשר לבטל אותה, וכך היא נשמרת בהיסטוריה.`;

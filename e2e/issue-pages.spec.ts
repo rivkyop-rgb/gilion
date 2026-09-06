@@ -60,10 +60,25 @@ test.describe("the pages of an issue", () => {
 
   test("names the outside pages instead of numbering them", async ({ page }) => {
     // A seller asked which pages still have room wants to hear "the cover".
+    //
+    // Asserted as "contains the name, and is NOT numbered" rather than as exact
+    // text: each chip also carries how much of that page is still free, which
+    // is the other half of what the same seller is asking. Pinning the whole
+    // string made the test about the chip's layout instead of about its claim.
     const alert = page.getByTestId("unfinished-alert");
-    await expect(alert.getByTestId("jump-to-page-1")).toHaveText("שער");
-    await expect(alert.getByTestId("jump-to-page-4")).toHaveText("גב");
-    await expect(alert.getByTestId("jump-to-page-2")).toHaveText("עמוד 2");
+
+    await expect(alert.getByTestId("jump-to-page-1")).toContainText("שער");
+    await expect(alert.getByTestId("jump-to-page-1")).not.toContainText("עמוד 1");
+
+    await expect(alert.getByTestId("jump-to-page-4")).toContainText("גב");
+    await expect(alert.getByTestId("jump-to-page-4")).not.toContainText("עמוד 4");
+
+    // An inner page has no name to be called by, so it keeps its number.
+    await expect(alert.getByTestId("jump-to-page-2")).toContainText("עמוד 2");
+
+    // And every chip says what is left to sell there — the number a seller
+    // quotes down the phone (asked for 06/09/2026).
+    await expect(alert.getByTestId("jump-to-page-1")).toContainText("% פנוי");
   });
 
   test("lists the shapes the open page allows, and strikes out what no longer fits", async ({

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
+import { agrees, pagesPhrase, placedPhrase, publicationsPhrase } from "@/lib/domain/hebrew-count";
 import * as issues from "@/lib/data/issues";
 import * as placements from "@/lib/data/placements";
 import * as sales from "@/lib/data/issue-sales";
@@ -475,7 +476,7 @@ export async function moveIssueDateAction(issueId: string, date: string): Promis
       ok: true,
       message:
         moved.moved > 0
-          ? `הגיליון הועבר ל־${moved.to}, ואיתו ${moved.moved} פרסומים`
+          ? `הגיליון הועבר ל־${moved.to}, ואיתו ${publicationsPhrase(moved.moved)}`
           : `הגיליון הועבר ל־${moved.to}`,
     };
   } catch (error) {
@@ -519,8 +520,8 @@ export async function autoPlaceIssueAction(
       sheetsAdded: outcome.sheetsAdded,
       message:
         outcome.sheetsAdded > 0
-          ? `שובצו ${outcome.placed} פרסומים, ונוספו ${outcome.sheetsAdded * 2} עמודים כדי שכולם ייכנסו`
-          : `שובצו ${outcome.placed} פרסומים`,
+          ? `${placedPhrase(outcome.placed)}, ונוספו ${pagesPhrase(outcome.sheetsAdded * 2)} כדי שכולם ייכנסו`
+          : placedPhrase(outcome.placed),
     };
   } catch (error) {
     return asFormState(error);
@@ -584,7 +585,7 @@ export async function closeIssueAction(
       // The number the SERVER wrote, not one the form counted: a confirmation
       // that quotes client state is a confirmation that can be true before the
       // save has happened (CLAUDE.md).
-      message: `הגיליון נסגר · ${result.publishedCount} פרסומים סומנו כפורסמו`,
+      message: `הגיליון נסגר · ${publicationsPhrase(result.publishedCount)} ${agrees(result.publishedCount, "סומן כפורסם", "סומנו כפורסמו")}`,
     };
   } catch (error) {
     return asPdfFormState(error);

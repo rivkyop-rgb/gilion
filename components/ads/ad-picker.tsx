@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { publicationsPhrase } from "@/lib/domain/hebrew-count";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Search, X } from "lucide-react";
 
@@ -142,7 +143,9 @@ export function AdPicker({
                         </span>
                         <span className="mt-auto text-xs text-on-surface-variant">
                           {ad.uploadedAt ? <Ltr>{DATE.format(ad.uploadedAt)}</Ltr> : null}
-                          {ad.publicationCount ? ` · ${ad.publicationCount} פרסומים` : ""}
+                          {ad.publicationCount
+                            ? ` · ${publicationsPhrase(ad.publicationCount)}`
+                            : ""}
                         </span>
                       </span>
                     </button>

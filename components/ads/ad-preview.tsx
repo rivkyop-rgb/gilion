@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { publicationsPhrase } from "@/lib/domain/hebrew-count";
 import Link from "next/link";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Download, Expand, FileText, ImageIcon, X } from "lucide-react";
@@ -129,7 +130,9 @@ export function AdPreviewDialog({
                     <Ltr>{DATE.format(ad.uploadedAt)}</Ltr>
                   </span>
                 ) : null}
-                {ad.publicationCount ? <span>· בשימוש ב־{ad.publicationCount} פרסומים</span> : null}
+                {ad.publicationCount ? (
+                  <span>· בשימוש ב־{publicationsPhrase(ad.publicationCount)}</span>
+                ) : null}
                 {ad.invalid ? <Badge tone="error">דורש טיפול</Badge> : null}
               </DialogPrimitive.Description>
             </div>

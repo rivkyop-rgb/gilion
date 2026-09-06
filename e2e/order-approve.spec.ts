@@ -42,7 +42,9 @@ test.describe("approving an order (US-004)", () => {
     await addLine(page, "2026-12-01", "1200");
 
     // The preview names what *would* be created, in the future tense.
-    await expect(page.getByTestId("preview-caption")).toContainText("ייווצרו לאחר אישור");
+    // Singular: this draft has one line. "1 פרסומים ייווצרו" is not Hebrew, and
+    // the assertion used to require exactly that (lib/domain/hebrew-count.ts).
+    await expect(page.getByTestId("preview-caption")).toContainText("פרסום אחד ייווצר לאחר אישור");
 
     // Assert on *this* draft rather than on an empty table: other specs leave
     // approved orders behind, and a global count would only measure them.

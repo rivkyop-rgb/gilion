@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { counted } from "@/lib/domain/hebrew-count";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, Info } from "lucide-react";
@@ -166,10 +167,10 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         </h2>
         <p className="mb-3 text-sm text-on-surface-variant" data-testid="preview-caption">
           {approved
-            ? `${order.publications.length} פרסומים מחייבים נוצרו מההזמנה הזאת.`
+            ? `${counted(order.publications.length, "פרסום מחייב אחד נוצר", `${order.publications.length} פרסומים מחייבים נוצרו`)} מההזמנה הזאת.`
             : order.items.length === 0
               ? "אחרי הוספת שורות יופיע כאן בדיוק מה ייווצר."
-              : `${order.items.length} פרסומים ייווצרו לאחר אישור ההזמנה.`}
+              : `${counted(order.items.length, "פרסום אחד ייווצר", `${order.items.length} פרסומים ייווצרו`)} לאחר אישור ההזמנה.`}
         </p>
 
         {(approved ? order.publications.length : order.items.length) > 0 ? (
