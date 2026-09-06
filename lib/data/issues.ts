@@ -131,7 +131,20 @@ const BOARD_INCLUDE = {
           file_size: true,
         },
       },
-      ad_shape: { select: { id: true, name: true, cols: true, rows: true } },
+      // position_mode and allowed_cells come along so the board can rebuild the
+      // real shape when a placement is PICKED UP — a moved strip is still
+      // bottom-only, and rule 5 needs the shape's own id (see
+      // CanvasPlacement.shapeId).
+      ad_shape: {
+        select: {
+          id: true,
+          name: true,
+          cols: true,
+          rows: true,
+          position_mode: true,
+          allowed_cells: true,
+        },
+      },
     },
   },
 };

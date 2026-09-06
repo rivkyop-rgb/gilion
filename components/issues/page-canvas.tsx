@@ -30,7 +30,20 @@ export type CanvasPlacement = {
   cols: number;
   rows: number;
   customerName: string;
+  /**
+   * The AD SHAPE this was placed as — not the placement's own id.
+   *
+   * Picking a placement up used to build a held shape whose `id` was the
+   * PLACEMENT id, which matches nothing in a page type's allowed list. Every
+   * rule that asks "is this shape allowed here" therefore answered no, on every
+   * page, for every move. It hid in an advisory hover message for a long time
+   * because the SERVER looks the real shape up and moving worked anyway —
+   * until the same answer started dimming pages and stamping them refused.
+   */
+  shapeId: string;
   shapeName: string;
+  /** The shape's allowed region, so a moved strip is still bottom-only. */
+  shapePositions: Cell[] | null;
   previewUrl: string | null;
   duplicate: boolean;
   /** The file behind it, for the full-size preview the panel opens. */
@@ -289,7 +302,8 @@ export function PageCanvas({
             aria-hidden
             data-testid={`dead-space-hint-${page.number}`}
             style={rectStyle(verdict.rect, grid)}
-            className="pointer-events-none absolute rounded-[2px] border-2 border-dotted border-status-warning-fg"
+            /* Red: this outline is part of a refusal, not a warning. */
+            className="pointer-events-none absolute rounded-[2px] border-2 border-dotted border-status-error-fg"
           />
         ) : null}
       </div>

@@ -1,7 +1,15 @@
 import { expect, test } from "@playwright/test";
 
 import { loginAsAdmin } from "./helpers";
-import { FIXTURE, ISSUE_FIXTURES, boardUrl, openView, resetFixtureIssue } from "./issue-helpers";
+import {
+  FIXTURE,
+  ISSUE_FIXTURES,
+  boardUrl,
+  expectPlacedCount,
+  openView,
+  placeAt,
+  resetFixtureIssue,
+} from "./issue-helpers";
 
 /**
  * US-007 AC-3 and AC-4: put an ad on the page, see what it is, take it off.
@@ -61,4 +69,31 @@ test.describe("placing an ad on a page", () => {
     await expect(page.locator('[data-testid^="placement-"]')).toHaveCount(1);
     await expect(page.getByTestId("unplaced-count")).toHaveText("(5)");
   });
+});
+
+/**
+ * Picking a placement up must not make every page refuse it.
+ *
+ * The held shape used to be built with the PLACEMENT's id in the shape id
+ * field, and that matches nothing in any page type's allowed list — so rule 5
+ * answered "not allowed here" for every page in the issue, including the one
+ * the ad was already sitting on. It hid for a long time inside an advisory
+ * hover message, because the server looks the real shape up and the move
+ * worked anyway; it stopped hiding the moment the same answer began dimming
+ * pages and stamping them refused. Reported from a screenshot, 06/09/2026.
+ */
+test("a placement picked up is still allowed where it already is", async ({ page }) => {
+  await resetFixtureIssue();
+  await loginAsAdmin(page);
+  await page.goto(boardUrl);
+
+  await placeAt(page, ISSUE_FIXTURES.quarterA, FIXTURE.coverPage, 0, 0);
+  await expectPlacedCount(page, 5);
+
+  // Pick the very same ad back up.
+  await page.locator('[data-testid^="placement-"]').first().click();
+
+  // The cover accepts quarters — the panel says so — and so must the page.
+  await expect(page.getByTestId(`page-refuses-${FIXTURE.coverPage}`)).toHaveCount(0);
+  await expect(page.getByTestId("board-message")).toHaveCount(0);
 });

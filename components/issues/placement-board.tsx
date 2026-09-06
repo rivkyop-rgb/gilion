@@ -438,7 +438,14 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
               role="status"
               data-testid="board-message"
               data-kind="verdict"
-              className="absolute inset-0 overflow-y-auto rounded-md bg-status-warning-bg p-2 text-sm text-status-warning-fg"
+              /* RED, because it blocks.
+                 
+                 One scheme across the product, the one the check screen already
+                 uses: red refuses, orange warns and blocks nothing, green is
+                 fine. This message used to be orange while hovering and red
+                 after the click — the same sentence in two colours, which
+                 taught the reader that the colour means nothing. */
+              className="absolute inset-0 overflow-y-auto rounded-md bg-status-error-bg p-2 text-sm text-status-error-fg"
             >
               {verdict.message}
             </p>
@@ -595,11 +602,18 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                             placementId: placement.id,
                             publicationId: placement.publicationId,
                             shape: {
-                              id: placement.id,
+                              // The AD SHAPE's id, never the placement's — see
+                              // CanvasPlacement.shapeId. With the wrong one,
+                              // rule 5 refuses the move on every page in the
+                              // issue, including the one it is already on.
+                              id: placement.shapeId,
                               name: placement.shapeName,
+                              // The footprint stays the PLACEMENT's own: an ad
+                              // laid out before the catalogue was resized keeps
+                              // the size it was sold at (conventions.md §7).
                               cols: placement.cols,
                               rows: placement.rows,
-                              positions: null,
+                              positions: placement.shapePositions,
                             },
                           },
                     );

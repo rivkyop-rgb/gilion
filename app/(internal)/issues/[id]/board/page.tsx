@@ -115,7 +115,9 @@ export default async function BoardPage({
       rows: placement.rows,
       customerName:
         placement.publication.customer.business_name ?? placement.publication.customer.contact_name,
+      shapeId: placement.ad_shape_id,
       shapeName: placement.ad_shape.name,
+      shapePositions: shapeOf(placement.ad_shape).positions,
       previewUrl: placement.advertisement.preview_url,
       duplicate: placement.duplicate_override_approved,
       // Enough to open the real file in the same dialog the ad library uses,
