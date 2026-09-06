@@ -51,7 +51,9 @@ const eslintConfig = defineConfig([
   // Seeds and E2E fixtures are exempt on purpose: their whole job is to set up
   // data across tenants, which the scoped client is designed to make impossible.
   {
-    files: ["lib/data/**/*.ts", "prisma/**/*.ts", "e2e/**/*.ts"],
+    // `.mts` too: a standalone repair script has to be ESM to use top-level
+    // await, and the extension is a module-format detail, not a layer.
+    files: ["lib/data/**/*.ts", "prisma/**/*.{ts,mts}", "e2e/**/*.ts"],
     rules: { "no-restricted-imports": "off" },
   },
 

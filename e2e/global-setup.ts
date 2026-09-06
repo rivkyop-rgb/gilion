@@ -56,6 +56,7 @@ export default async function globalSetup() {
   await deleteTestNewspapers(prisma);
   await deleteTestBusinesses(prisma);
   await deleteTestUsers(prisma);
+  await clearAuditTrail(prisma);
   await clearPermissionOverrides(prisma);
   await restoreSeededMemberships(prisma);
   await resetShapeCatalogue(prisma);
@@ -294,6 +295,30 @@ async function deleteTestOrders(prisma: PrismaClient) {
   await prisma.reminder.deleteMany({});
   await prisma.publication.deleteMany({});
   await prisma.adOrder.deleteMany({});
+}
+
+/**
+ * Every audit row a spec wrote, leaving only the two fixtures.
+ *
+ * AuditLog is append-only by design (conventions.md §6): nothing cascades it
+ * away when the order or issue it describes is deleted, and there is no
+ * endpoint that could. So a spec that approves an order leaves a row behind
+ * FOREVER — and tenant-isolation.spec.ts counts the audit listing of the other
+ * business expecting exactly its one fixture row. One approved order over there
+ * turns 1 into 2, in a spec that never approved anything and is about tenant
+ * boundaries.
+ *
+ * Deleting by "anything that is not a fixture id" rather than by chasing the
+ * rows down from their targets, because by the time this runs the targets are
+ * usually already gone and the rows are orphans nothing can find.
+ *
+ * prisma/seed.ts writes no audit rows at all; the two fixtures are upserted at
+ * the top of this file.
+ */
+async function clearAuditTrail(prisma: PrismaClient) {
+  await prisma.auditLog.deleteMany({
+    where: { id: { notIn: [ALPHA_AUDIT_ID, BETA_AUDIT_ID] } },
+  });
 }
 
 /**

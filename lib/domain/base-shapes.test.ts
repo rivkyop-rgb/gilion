@@ -72,7 +72,63 @@ describe("adapting to other grids", () => {
     }) as DerivedGrid;
     const halfH = materializeBaseShapes(wide).find((s) => s.key === "half_h")!;
     expect(halfH.cols).toBe(8);
-    expect(halfH.rows).toBe(Math.round(wide.rows / 2));
+    expect(halfH.rows).toBe(Math.floor(wide.rows / 2));
+  });
+
+  /**
+   * The property the whole catalogue rests on, and the one that was broken.
+   *
+   * `round` gave a 41-row page a 21-row "half", so two halves needed 42 rows
+   * and the second one did not go on — four quarters could not be laid on a
+   * page. It surfaced as the board refusing a corner with "no shape fits in
+   * what is left", which reads as a placement bug and was an arithmetic one.
+   */
+  it("lets n copies of a 1/n shape fit — on every grid, not only round ones", () => {
+    const grids = [
+      { pageSize: "Tabloid", marginMm: 9.5, columns: 26, rowHeightMm: 10, gutterMm: 0 },
+      { pageSize: "A4", marginMm: 10, columns: 6, rowHeightMm: 8, gutterMm: 0 },
+      { pageSize: "A3", marginMm: 12, columns: 9, rowHeightMm: 7, gutterMm: 2 },
+      { pageSize: "Berliner", marginMm: 8, columns: 13, rowHeightMm: 9, gutterMm: 1 },
+      { pageSize: "Broadsheet", marginMm: 15, columns: 8, rowHeightMm: 10, gutterMm: 3 },
+    ];
+
+    for (const settings of grids) {
+      const grid = deriveGrid(settings) as DerivedGrid;
+      for (const base of BASE_SHAPES) {
+        const shape = materializeBaseShapes(grid).find((s) => s.key === base.key)!;
+
+        // Only the ratios that mean "one nth of the page" have to tile.
+        const acrossN = 1 / base.colsRatio;
+        const downN = 1 / base.rowsRatio;
+
+        if (Number.isInteger(acrossN)) {
+          expect(
+            shape.cols * acrossN,
+            `${base.key} across on ${settings.pageSize}`,
+          ).toBeLessThanOrEqual(grid.columns);
+        }
+        if (Number.isInteger(downN)) {
+          expect(
+            shape.rows * downN,
+            `${base.key} down on ${settings.pageSize}`,
+          ).toBeLessThanOrEqual(grid.rows);
+        }
+      }
+    }
+  });
+
+  it("fits four quarters on a page, one per corner", () => {
+    const grid = deriveGrid({
+      pageSize: "Tabloid",
+      marginMm: 9.5,
+      columns: 26,
+      rowHeightMm: 10,
+      gutterMm: 0,
+    }) as DerivedGrid;
+    const q = materializeBaseShapes(grid).find((s) => s.key === "quarter")!;
+
+    expect(q.cols * 2).toBeLessThanOrEqual(grid.columns);
+    expect(q.rows * 2).toBeLessThanOrEqual(grid.rows);
   });
 
   it("never rounds a shape down to nothing on a tiny grid", () => {

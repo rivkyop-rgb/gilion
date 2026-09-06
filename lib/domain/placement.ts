@@ -444,9 +444,65 @@ export function deadSpaceCreatedBy(
   const created = after.filter(([c, r]) => !before.has(`${c},${r}`));
   if (created.length === 0) return null;
 
-  const regions = connectedRegions(created);
-  regions.sort((a, b) => b.length - a.length);
-  return boundingBox(regions[0]!);
+  /**
+   * Refuse only waste that MOVING THIS AD WOULD HAVE AVOIDED.
+   *
+   * The first version of this rule refused any newly stranded cell, and that is
+   * not the same question. On a page whose height does not divide by the shapes
+   * on it there is always a sliver left over — a 41-row page laid out in
+   * quarters of 20 rows has one row spare whatever anybody does — so the rule
+   * punished whoever happened to close an unavoidable gap. In practice it made
+   * the most ordinary layout in a newspaper, four quarters one per corner,
+   * impossible to build, and explained itself in a sentence about dead space
+   * that read as the designer's mistake.
+   *
+   * So the remainder is measured against the BEST this ad could have done. If
+   * some other legal position for the same shape strands strictly less, this
+   * position wastes sellable space and is refused, exactly as before. If every
+   * position strands as much, the waste belongs to the page and not to the
+   * person placing the ad.
+   *
+   * The search only runs when a remainder was found at all, which is the rare
+   * case — the common one returns above at the same cost it always did.
+   */
+  if (avoidable(rect, siblings, grid, shapes, created.length)) {
+    const regions = connectedRegions(created);
+    regions.sort((a, b) => b.length - a.length);
+    return boundingBox(regions[0]!);
+  }
+  return null;
+}
+
+/** Could this shape have been put somewhere that stranded less? */
+function avoidable(
+  rect: GridRect,
+  siblings: readonly GridRect[],
+  grid: DerivedGrid,
+  shapes: readonly ShapeSpec[],
+  here: number,
+): boolean {
+  const before = new Set(
+    deadCells(occupancyOf(siblings, grid), grid, shapes).map(([c, r]) => `${c},${r}`),
+  );
+  const shape = shapes.find((s) => s.cols === rect.cols && s.rows === rect.rows) ?? null;
+
+  for (let row = 0; row + rect.rows <= grid.rows; row++) {
+    for (let col = 0; col + rect.cols <= grid.columns; col++) {
+      if (col === rect.col && row === rect.row) continue;
+
+      const candidate: GridRect = { col, row, cols: rect.cols, rows: rect.rows };
+      if (shape && !positionAllowed(candidate, shape.positions)) continue;
+      // A position that collides is not an alternative.
+      if (siblings.some((other) => overlaps(candidate, other))) continue;
+
+      const stranded = deadCells(occupancyOf([...siblings, candidate], grid), grid, shapes).filter(
+        ([c, r]) => !before.has(`${c},${r}`),
+      ).length;
+
+      if (stranded < here) return true;
+    }
+  }
+  return false;
 }
 
 /** Four-connected groups of cells — one stranded remainder each. */

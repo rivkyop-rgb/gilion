@@ -56,13 +56,13 @@ describe("a base shape follows the page", () => {
   it("keeps half a page half a page", () => {
     const shapes = catalogue();
     const half = find(shapes, "half_h");
-    // 26 x 21 on the tall grid: round(41 / 2).
-    expect([half.cols, half.rows]).toEqual([26, 21]);
+    // 26 x 20 on the tall grid: floor(41 / 2), so that TWO of them fit.
+    expect([half.cols, half.rows]).toEqual([26, 20]);
 
     const change = changeFor(planRescale(shapes, wide, short), half.id);
     expect(change.action).toBe("rescaled");
-    // 26 x 14 on the short one: round(27 / 2).
-    expect(change.to).toEqual({ cols: 26, rows: 14 });
+    // 26 x 13 on the short one: floor(27 / 2).
+    expect(change.to).toEqual({ cols: 26, rows: 13 });
   });
 
   it("lands on exactly what a NEW newspaper of that size would get", () => {
@@ -209,7 +209,7 @@ describe("growing the page, not only shrinking it", () => {
 
     const back = planRescale(shapes, short, wide);
     const half = shapes.find((s) => s.baseKey === "half_h")!;
-    expect(changeFor(back, half.id).to).toEqual({ cols: 26, rows: 21 });
+    expect(changeFor(back, half.id).to).toEqual({ cols: 26, rows: 20 });
   });
 });
 

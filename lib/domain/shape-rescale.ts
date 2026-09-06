@@ -94,8 +94,9 @@ export function sizeForRatio(
   grid: DerivedGrid,
 ): { cols: number; rows: number } {
   return {
-    cols: Math.min(grid.columns, Math.max(1, Math.round(grid.columns * base.colsRatio))),
-    rows: Math.min(grid.rows, Math.max(1, Math.round(grid.rows * base.rowsRatio))),
+    // floor, so that n copies of a 1/n shape fit — see materializeBaseShapes.
+    cols: Math.min(grid.columns, Math.max(1, Math.floor(grid.columns * base.colsRatio))),
+    rows: Math.min(grid.rows, Math.max(1, Math.floor(grid.rows * base.rowsRatio))),
   };
 }
 

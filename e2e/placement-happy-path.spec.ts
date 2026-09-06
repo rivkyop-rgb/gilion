@@ -38,7 +38,7 @@ test.describe("placing an ad on a page", () => {
     await expect(details).toContainText("רבע עמוד");
     await expect(details).toContainText("עמוד");
     // 13 columns of 1 cm and 21 rows of 1 cm, with no gutter.
-    await expect(details).toContainText("13.0 × 21.0 ס״מ");
+    await expect(details).toContainText("13.0 × 20.0 ס״מ");
 
     await page.getByTestId("remove-placement-trigger").click();
     await page.getByTestId("remove-placement-confirm").click();

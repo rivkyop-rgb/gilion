@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { materializeBaseShapes } from "./base-shapes";
 import { deriveGrid, type DerivedGrid } from "./grid";
 import {
   checkPlacement,
@@ -242,6 +243,59 @@ describe("rule 7א — no dead remainders (decision of 25/08/2026)", () => {
         }),
       ),
     ).toBeNull();
+  });
+
+  /**
+   * The complaint that produced this test, 06/09/2026: four quarters, one per
+   * corner, refused on an ordinary page.
+   *
+   * A 41-row page laid out in quarters of 20 rows has one row spare whatever
+   * anybody does. The rule used to refuse whoever closed that gap — so the
+   * commonest layout in a newspaper could not be built, and the refusal
+   * explained itself as stranded space, which reads as the designer's mistake.
+   */
+  it("allows a remainder no position for this ad could have avoided", () => {
+    const page = deriveGrid({
+      pageSize: "Tabloid",
+      marginMm: 9.5,
+      columns: 26,
+      rowHeightMm: 10,
+      gutterMm: 0,
+    })!;
+    expect([page.columns, page.rows]).toEqual([26, 41]);
+
+    const shapes = materializeBaseShapes(page).map((s): ShapeSpec => ({
+      id: s.key,
+      name: s.name,
+      cols: s.cols,
+      rows: s.rows,
+      positions: s.allowedCells,
+    }));
+    const q = shapes.find((s) => s.id === "quarter")!;
+    // floor(41 / 2) — two of them fit, with the odd row left over.
+    expect([q.cols, q.rows]).toEqual([13, 20]);
+
+    const placed: GridRect[] = [];
+    for (const [col, row] of [
+      [0, 0],
+      [13, 0],
+      [0, 20],
+      [13, 20],
+    ] as const) {
+      const rect: GridRect = { col, row, cols: q.cols, rows: q.rows };
+      expect(deadSpaceCreatedBy(rect, placed, page, shapes)).toBeNull();
+      placed.push(rect);
+    }
+    expect(placed).toHaveLength(4);
+  });
+
+  it("still refuses one that a different position would have avoided", () => {
+    // The 8x8 fixture: at col 1 the ad strands a three-column band; at col 0 it
+    // strands nothing. Avoidable, so it is still refused.
+    const at = (col: number) =>
+      deadSpaceCreatedBy({ col, row: 0, cols: 4, rows: 4 }, [], grid, [quarter]);
+    expect(at(1)).not.toBeNull();
+    expect(at(0)).toBeNull();
   });
 
   it("blames only the remainder the placement created", () => {

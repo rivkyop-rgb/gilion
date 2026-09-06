@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { USERS, login, loginAsAdmin } from "./helpers";
+import { STRIP_FOOT_ROW, USERS, login, loginAsAdmin } from "./helpers";
 import {
   FIXTURE,
   ISSUE_FIXTURES,
@@ -39,14 +39,14 @@ test.describe("the issue tracking screen", () => {
     await expect(table).toContainText("רבע עמוד");
     await expect(table).toContainText(`עמוד ${FIXTURE.innerRightPage}`);
     // Centimetres, measured against this issue's own snapshot grid.
-    await expect(table).toContainText("13.0 × 21.0 ס״מ");
+    await expect(table).toContainText("13.0 × 20.0 ס״מ");
   });
 
   test("names the outside pages instead of numbering them", async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto(boardUrl);
     await page.getByTestId(`unplaced-item-${ISSUE_FIXTURES.strip}`).click();
-    await page.getByTestId(`board-cell-${FIXTURE.coverPage}-0-34`).click();
+    await page.getByTestId(`board-cell-${FIXTURE.coverPage}-0-${STRIP_FOOT_ROW}`).click();
     await expect(page.locator('[data-testid^="placement-"]')).toHaveCount(1);
 
     await page.goto("/issues/report");

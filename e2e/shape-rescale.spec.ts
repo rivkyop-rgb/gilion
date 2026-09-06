@@ -90,7 +90,7 @@ test.describe("resizing the page", () => {
     await expect(preview).toBeVisible();
     await expect(preview).toContainText("חצי עמוד יישאר חצי מהעמוד החדש");
     await expect(page.getByTestId("rescale-list")).toContainText("26×41 → 26×27");
-    await expect(page.getByTestId("rescale-list")).toContainText("26×21 → 26×14");
+    await expect(page.getByTestId("rescale-list")).toContainText("26×20 → 26×13");
     // And the two consequences a person has to know about.
     await expect(preview).toContainText("גיליונות שכבר נפתחו לא ישתנו");
     await expect(preview).toContainText("המחירון נשאר על כנו");
@@ -102,8 +102,9 @@ test.describe("resizing the page", () => {
 
     const before = await shapes();
     expect([before.get("עמוד מלא")!.cols, before.get("עמוד מלא")!.rows]).toEqual([26, 41]);
+    // floor(41 / 2), not round: two halves have to fit on the page.
     expect([before.get("חצי עמוד אופקי")!.cols, before.get("חצי עמוד אופקי")!.rows]).toEqual([
-      26, 21,
+      26, 20,
     ]);
 
     await page.fill("#rowHeightCm", "1.5");
@@ -116,9 +117,15 @@ test.describe("resizing the page", () => {
     const after = await shapes();
     expect([after.get("עמוד מלא")!.cols, after.get("עמוד מלא")!.rows]).toEqual([26, 27]);
     expect([after.get("חצי עמוד אופקי")!.cols, after.get("חצי עמוד אופקי")!.rows]).toEqual([
-      26, 14,
+      26, 13,
     ]);
-    expect([after.get("רבע עמוד")!.cols, after.get("רבע עמוד")!.rows]).toEqual([13, 14]);
+    expect([after.get("רבע עמוד")!.cols, after.get("רבע עמוד")!.rows]).toEqual([13, 13]);
+
+    // And the property that matters more than any single number: on the new
+    // page, two halves and four quarters still fit.
+    expect(after.get("חצי עמוד אופקי")!.rows * 2).toBeLessThanOrEqual(27);
+    expect(after.get("רבע עמוד")!.rows * 2).toBeLessThanOrEqual(27);
+    expect(after.get("רבע עמוד")!.cols * 2).toBeLessThanOrEqual(26);
 
     // The bottom strip's allowed region moved with the page. Stored as absolute
     // cells, so left alone it would have pointed at a row that no longer exists

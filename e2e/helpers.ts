@@ -58,6 +58,18 @@ export const SHAPES = {
  */
 export const GRID = { columns: 26, rows: 41, cellCm: 1 } as const;
 
+/**
+ * The seeded bottom strip, and the one row it is allowed on.
+ *
+ * DERIVED, never typed. The catalogue is defined as ratios (base-shapes.ts) and
+ * `floor` resolves them, so the strip's height moves whenever the page or the
+ * ratio does — and a spec holding the old number fails as "the ad would not go
+ * where it always goes", which reads as a product bug. It was 7 rows until the
+ * rounding fix of 06/09/2026 and is 6 now; nothing here had to change for that.
+ */
+export const STRIP_ROWS = Math.floor(GRID.rows / 6);
+export const STRIP_FOOT_ROW = GRID.rows - STRIP_ROWS;
+
 /** Seeded customers. cust_beta_1 lives in the other tenant on purpose. */
 export const CUSTOMERS = {
   alphaRegular: "cust_alpha_1",

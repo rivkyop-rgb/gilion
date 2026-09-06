@@ -80,9 +80,20 @@ function bottomPositions(shape: { cols: number; rows: number }, grid: DerivedGri
 /** Resolves the base catalogue against one newspaper's grid. */
 export function materializeBaseShapes(grid: DerivedGrid): MaterializedShape[] {
   return BASE_SHAPES.map((base) => {
-    // Never round down to zero, and never wider or taller than the page.
-    const cols = Math.min(grid.columns, Math.max(1, Math.round(grid.columns * base.colsRatio)));
-    const rows = Math.min(grid.rows, Math.max(1, Math.round(grid.rows * base.rowsRatio)));
+    // FLOOR, not round — and this is the whole correctness of the catalogue.
+    //
+    // A shape called "half a page" has to have the property that TWO OF THEM
+    // FIT. Rounding breaks exactly that: on a 41-row page, round(41 / 2) is 21,
+    // so two halves need 42 rows and the second one does not go on. Four
+    // quarters could not be laid on a page — which is not a subtle failure, it
+    // is the most ordinary layout a newspaper has, and it surfaced as the
+    // placement board refusing a corner with "no shape fits in what is left".
+    //
+    // floor(t / n) * n <= t for every n, so a shape declared as one nth of the
+    // page always tiles n times. The cost is up to one cell of unused paper at
+    // the foot, which is what a page that does not divide evenly actually has.
+    const cols = Math.min(grid.columns, Math.max(1, Math.floor(grid.columns * base.colsRatio)));
+    const rows = Math.min(grid.rows, Math.max(1, Math.floor(grid.rows * base.rowsRatio)));
 
     return {
       key: base.key,
