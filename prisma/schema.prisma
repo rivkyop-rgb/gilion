@@ -403,6 +403,20 @@ model AdShape {
   /// null when position_mode = anywhere. Otherwise { cells: [[col, row], …] }:
   /// the set that every cell of the shape's footprint must fall inside.
   allowed_cells Json?
+  /// Which entry of lib/domain/base-shapes.ts this shape was copied from, or
+  /// null when the newspaper invented it.
+  ///
+  /// It exists for one job: a shape that is still "half a page" has to STAY
+  /// half a page when the page changes size. The base catalogue is defined as
+  /// RATIOS and resolved into cells once, at newspaper creation; without a
+  /// record of which ratio produced which row there is nothing to re-resolve
+  /// against a new grid, and "חצי עמוד" quietly stops being half.
+  ///
+  /// Cleared the moment somebody edits the shape's SIZE by hand — at that point
+  /// the number is theirs, not the catalogue's, and the newspaper's own decision
+  /// outranks a proportion this file invented (decided 06/09/2026). Renaming
+  /// does not clear it: a name is not a size.
+  base_key      String?
   created_at    DateTime      @default(now())
   updated_at    DateTime      @updatedAt
 

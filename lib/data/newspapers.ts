@@ -7,9 +7,17 @@
  * used to be one and now belongs to its newspaper, and its catalogue lives in
  * lib/data/ad-shapes.ts.
  */
+import { Prisma } from "@prisma/client";
+
 import { basePrisma, tenantDb } from "./db";
-import { copyBaseShapes, listAdShapes } from "./ad-shapes";
+import { copyBaseShapes, listAdShapes, readAllowedCells } from "./ad-shapes";
 import { BASE_PAGE_TYPES, materializeBaseShapes } from "@/lib/domain/base-shapes";
+import {
+  gridChanged,
+  planRescale,
+  type RescalePlan,
+  type RescaleShape,
+} from "@/lib/domain/shape-rescale";
 import { deriveGrid } from "@/lib/domain/grid";
 import type { PackageSpec } from "@/lib/domain/ad-package";
 
@@ -126,6 +134,7 @@ export async function createNewspaper(businessId: string, data: NewspaperWrite) 
         rows: s.rows,
         position_mode: s.positionMode,
         allowed_cells: s.allowedCells,
+        base_key: s.key,
       })),
     );
   }
@@ -158,8 +167,109 @@ async function seedBasePageTypes(newspaperId: string) {
   }
 }
 
+/**
+ * The shapes as the rescale planner wants them.
+ *
+ * Exported because the settings screen asks for the plan BEFORE saving — the
+ * same rows have to reach the preview and the write, or the confirmation would
+ * be describing a different catalogue from the one that gets changed.
+ */
+export async function shapesForRescale(
+  businessId: string,
+  newspaperId: string,
+): Promise<RescaleShape[]> {
+  const shapes = await tenantDb(businessId).adShape.findMany({
+    where: { newspaper_id: newspaperId },
+    orderBy: { name: "asc" },
+  });
+  return shapes.map((s) => ({
+    id: s.id,
+    name: s.name,
+    cols: s.cols,
+    rows: s.rows,
+    positionMode: s.position_mode as "anywhere" | "region",
+    allowedCells: readAllowedCells(s.allowed_cells),
+    baseKey: s.base_key,
+  }));
+}
+
+/** What saving these settings would do to the catalogue. Read-only. */
+export async function previewRescale(
+  businessId: string,
+  id: string,
+  data: NewspaperWrite,
+): Promise<RescalePlan | null> {
+  const current = await getNewspaper(businessId, id);
+  if (!current) return null;
+
+  const from = gridOf(current);
+  const to = deriveGrid({
+    pageSize: data.page_size,
+    customWidthMm: data.custom_width_mm,
+    customHeightMm: data.custom_height_mm,
+    marginMm: data.margin,
+    columns: data.columns,
+    rowHeightMm: data.row_height_mm,
+    gutterMm: data.gutter_mm,
+  });
+  if (!from || !to || !gridChanged(from, to)) return null;
+
+  return planRescale(await shapesForRescale(businessId, id), from, to);
+}
+
+/**
+ * Saves the newspaper, and keeps the base catalogue proportional to it.
+ *
+ * ── Why the shapes move with the page ────────────────────────────────────────
+ * The catalogue is defined as ratios and resolved into cells once, when the
+ * newspaper is created. Leaving it alone here is what made "חצי עמוד" stop
+ * being half a page, and — worse — made a shape taller than the new page
+ * unsellable everywhere with nothing on any screen admitting it. See
+ * lib/domain/shape-rescale.ts for the three failures in full.
+ *
+ * Only shapes that still carry a `base_key` AND are still exactly where that
+ * ratio puts them are touched. Anything somebody typed is theirs.
+ *
+ * ── What this cannot reach, and must not ─────────────────────────────────────
+ * Issues that already exist. They snapshot the grid, and every placement holds
+ * its own geometry (conventions.md §7 rule 2) — so an ad laid out last month
+ * keeps the size it was sold at, and this changes only what can be sold from
+ * now on. Prices survive too: `PriceRule` is keyed on the shape id, which does
+ * not change. That is worth saying out loud on the screen, because the price
+ * now buys a different amount of paper.
+ */
 export async function updateNewspaper(businessId: string, id: string, data: NewspaperWrite) {
-  return tenantDb(businessId).newspaper.update({ where: { id }, data });
+  const plan = await previewRescale(businessId, id, data);
+
+  if (!plan || plan.rescaled.length === 0) {
+    return tenantDb(businessId).newspaper.update({ where: { id }, data });
+  }
+
+  // One transaction: a page that has resized while its catalogue has not is
+  // exactly the state this function exists to prevent, and a half-applied
+  // rescale would be that state with extra steps.
+  return basePrisma.$transaction(async (tx) => {
+    const paper = await tx.newspaper.update({ where: { id, business_id: businessId }, data });
+
+    for (const change of plan.rescaled) {
+      await tx.adShape.update({
+        where: { id: change.id },
+        data: {
+          cols: change.to.cols,
+          rows: change.to.rows,
+          // Region shapes carry ABSOLUTE cells, so the allowed row has to move
+          // with the page. Without this the bottom strip keeps pointing at a
+          // row that no longer exists and silently becomes unplaceable.
+          allowed_cells:
+            change.allowedCells === null
+              ? Prisma.DbNull
+              : { cells: change.allowedCells.map(([col, row]) => [col, row]) },
+        },
+      });
+    }
+
+    return paper;
+  });
 }
 
 /** True when the name is taken by a *different* newspaper in this business. */

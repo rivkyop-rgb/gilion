@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { DEFAULT_MAX_AD_FILE_SIZE_MB } from "@/lib/domain/newspaper";
 import { cmToMm, deriveGrid, formatCm } from "@/lib/domain/grid";
 import { PAGE_SIZE_KEYS, PAGE_SIZE_LABELS, type PageSizeKey } from "@/lib/domain/page-size";
 import { formatDays, WEEKDAYS, WEEKDAY_LABELS } from "@/lib/domain/publication-days";
+import { gridChanged, planRescale, type RescaleShape } from "@/lib/domain/shape-rescale";
 import type { FormState } from "../actions";
 
 /** Every measurement here is in CENTIMETRES — see the note in actions.ts. */
@@ -55,11 +56,18 @@ export function NewspaperForm({
   initial = EMPTY,
   submitLabel = "שמירה",
   cancelHref,
+  catalogue,
 }: {
   action: (prev: FormState, formData: FormData) => Promise<FormState>;
   initial?: NewspaperFormValues;
   submitLabel?: string;
   cancelHref: string;
+  /**
+   * The newspaper's shapes, so the form can say what resizing the page will do
+   * to them BEFORE it is saved. Absent when creating: there is no catalogue to
+   * disturb yet, it is about to be created from these very numbers.
+   */
+  catalogue?: RescaleShape[];
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(action, {});
   const [pageSize, setPageSize] = useState<PageSizeKey>(initial.pageSize);
@@ -82,6 +90,22 @@ export function NewspaperForm({
   const patchGrid = (key: keyof typeof gridInput) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setGridInput((g) => ({ ...g, [key]: e.target.value }));
 
+  // The grid as it is SAVED, not as it is being typed — the plan compares the
+  // two. Built from `initial` and therefore stable across keystrokes.
+  const startGrid = useMemo(
+    () =>
+      deriveGrid({
+        pageSize: initial.pageSize,
+        customWidthMm: numOrNull(initial.customWidthCm),
+        customHeightMm: numOrNull(initial.customHeightCm),
+        marginMm: cmToMm(Number(initial.marginCm)),
+        columns: Number(initial.columns),
+        rowHeightMm: cmToMm(Number(initial.rowHeightCm)),
+        gutterMm: cmToMm(Number(initial.gutterCm)),
+      }),
+    [initial],
+  );
+
   const derived = deriveGrid({
     pageSize,
     customWidthMm: numOrNull(gridInput.customWidthCm),
@@ -97,6 +121,20 @@ export function NewspaperForm({
   const gridReadable =
     derived && derived.rows >= 1 && derived.columnWidthMm > 0
       ? `${derived.columns} עמודות × ${derived.rows} שורות · עמודה ${formatCm(derived.columnWidthMm)} ס״מ · שורה ${formatCm(derived.rowHeightMm)} ס״מ`
+      : null;
+
+  /**
+   * What saving would do to the shape catalogue.
+   *
+   * Computed here from `planRescale` — the SAME pure module `updateNewspaper`
+   * applies on the server, so the preview cannot describe one outcome while the
+   * write performs another. The server still decides; this only tells the truth
+   * early, which is the rule the centimetre snapping already follows: a number
+   * that changes itself without warning reads as a bug (CLAUDE.md).
+   */
+  const plan =
+    catalogue && derived && startGrid && gridChanged(startGrid, derived) && derived.rows >= 1
+      ? planRescale(catalogue, startGrid, derived)
       : null;
 
   return (
@@ -234,6 +272,57 @@ export function NewspaperForm({
         >
           {gridReadable ? <Ltr>{gridReadable}</Ltr> : "החלוקה הזאת לא מייצרת גריד שאפשר לעבוד איתו"}
         </p>
+
+        {plan && (plan.rescaled.length > 0 || plan.warnings.length > 0) ? (
+          <div
+            data-testid="rescale-preview"
+            className="mt-3 rounded-md border border-status-warning-fg/40 bg-status-warning-bg/40 p-3 text-sm"
+          >
+            <p className="mb-2 font-medium">שינוי החלוקה משנה גם את קטלוג הצורות</p>
+
+            {plan.rescaled.length > 0 ? (
+              <>
+                <p className="mb-1 text-xs text-on-surface-variant">
+                  צורות הבסיס נשמרות ביחס לעמוד — חצי עמוד יישאר חצי מהעמוד החדש:
+                </p>
+                <ul className="mb-2 space-y-0.5" data-testid="rescale-list">
+                  {plan.rescaled.map((c) => (
+                    <li key={c.id} className="flex flex-wrap items-baseline gap-x-2">
+                      <span className="font-medium">{c.name}</span>
+                      <Ltr className="text-xs text-on-surface-variant">
+                        {c.from.cols}×{c.from.rows} → {c.to.cols}×{c.to.rows}
+                      </Ltr>
+                      {/* The printed size, when it moved at all. Halving a page
+                          of 41 one-centimetre rows and one of 27 rows of 1.5 cm
+                          both give 21 cm — the cells change and the paper does
+                          not, and that is the outcome being aimed at. */}
+                      {c.note ? (
+                        <Ltr className="text-xs">{c.note}</Ltr>
+                      ) : (
+                        <span className="text-xs text-status-success-fg">אותו גודל מודפס</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+
+            {plan.warnings.length > 0 ? (
+              <ul className="space-y-0.5 text-status-error-fg" data-testid="rescale-warnings">
+                {plan.warnings.map((c) => (
+                  <li key={c.id}>
+                    <span className="font-medium">{c.name}</span> — {c.note}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            <p className="mt-2 text-xs text-on-surface-variant">
+              גיליונות שכבר נפתחו לא ישתנו — כל גיליון מחזיק צילום משלו של החלוקה. המחירון נשאר על
+              כנו, כך שאותו מחיר יקנה עכשיו שטח אחר.
+            </p>
+          </div>
+        ) : null}
 
         {err("columns") ? <InlineError>{err("columns")}</InlineError> : null}
         {err("rowHeightMm") ? <InlineError>{err("rowHeightMm")}</InlineError> : null}

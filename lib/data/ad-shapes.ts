@@ -93,12 +93,21 @@ export async function updateAdShape(businessId: string, id: string, data: AdShap
   const existing = await getAdShape(businessId, id);
   if (!existing) return null;
 
+  // A typed size ends the shape's membership of the base catalogue.
+  //
+  // From here on it keeps whatever number was entered, and changing the
+  // newspaper's page size no longer rescales it (lib/domain/shape-rescale.ts).
+  // Renaming deliberately does NOT do this: a name is not a size, and a
+  // newspaper that calls half a page "מודעת פרימיום" still means half a page.
+  const resized = data.cols !== existing.cols || data.rows !== existing.rows;
+
   return basePrisma.adShape.update({
     where: { id },
     data: {
       name: data.name,
       cols: data.cols,
       rows: data.rows,
+      ...(resized ? { base_key: null } : {}),
       position_mode: data.position_mode,
       // Prisma needs DbNull to write an actual SQL NULL into a Json column;
       // plain `null` means "leave it alone", which would strand the old region
@@ -122,7 +131,7 @@ export async function deleteAdShape(businessId: string, id: string) {
  */
 export async function copyBaseShapes(
   newspaperId: string,
-  shapes: Array<AdShapeWrite & { id?: string }>,
+  shapes: Array<AdShapeWrite & { id?: string; base_key?: string | null }>,
 ) {
   const existing = await basePrisma.adShape.count({ where: { newspaper_id: newspaperId } });
   if (existing > 0) return { created: 0 };
@@ -136,6 +145,8 @@ export async function copyBaseShapes(
       rows: s.rows,
       position_mode: s.position_mode,
       allowed_cells: writeAllowedCells(s.allowed_cells) ?? undefined,
+      // What makes the shape rescalable later — see AdShape.base_key.
+      base_key: s.base_key ?? null,
     })),
   });
   return { created: shapes.length };

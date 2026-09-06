@@ -330,6 +330,7 @@ async function main() {
         cols: shape.cols,
         rows: shape.rows,
         position_mode: shape.positionMode,
+        base_key: shape.key,
         allowed_cells:
           shape.allowedCells === null
             ? Prisma.DbNull

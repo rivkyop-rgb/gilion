@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
-import { getNewspaper, gridOf } from "@/lib/data/newspapers";
+import { getNewspaper, gridOf, shapesForRescale } from "@/lib/data/newspapers";
 import { listAdShapes } from "@/lib/data/ad-shapes";
 import { toMegabytes } from "@/lib/domain/newspaper";
 import { mmToCm, type DerivedGrid } from "@/lib/domain/grid";
@@ -34,6 +34,7 @@ export default async function NewspaperPage({ params }: { params: Promise<{ id: 
   const grid = gridOf(paper) ?? UNRESOLVED_GRID;
 
   const mayEdit = canWriteArea(ctx, "settings");
+  const catalogue = await shapesForRescale(ctx.businessId, paper.id);
 
   return (
     <>
@@ -47,6 +48,10 @@ export default async function NewspaperPage({ params }: { params: Promise<{ id: 
         <NewspaperForm
           action={updateNewspaperAction.bind(null, paper.id)}
           cancelHref="/settings/newspapers"
+          // So the form can say what resizing the page does to the catalogue
+          // before it is saved — the plan is computed from the same pure module
+          // the Server Action applies (lib/domain/shape-rescale.ts).
+          catalogue={catalogue}
           initial={{
             name: paper.name,
             pageSize: paper.page_size as PageSizeKey,
