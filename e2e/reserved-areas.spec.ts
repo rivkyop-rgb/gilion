@@ -119,8 +119,8 @@ test.describe("reserved areas", () => {
     // looking for an ad to move, and there is none.
     await page.getByTestId("unplaced-list").getByRole("listitem").first().click();
     await page.getByTestId("board-cell-1-2-1").hover();
-    await expect(page.getByTestId("drop-reason")).toContainText("כותרת העיתון");
-    await expect(page.getByTestId("drop-reason")).toContainText("אינו נמכר");
+    await expect(page.getByTestId("board-message")).toContainText("כותרת העיתון");
+    await expect(page.getByTestId("board-message")).toContainText("אינו נמכר");
   });
 
   test("the logo is chosen once and then appears by itself", async ({ page }) => {

@@ -76,6 +76,7 @@ export function PageCanvas({
   fill,
   editable,
   holding,
+  refusesHeld,
   candidate,
   verdict,
   selectedPlacementId,
@@ -98,6 +99,15 @@ export function PageCanvas({
   editable: boolean;
   /** Something is in hand, so the page is a drop target rather than a picture. */
   holding: boolean;
+  /**
+   * The held shape's name when THIS page type does not accept it, else null.
+   *
+   * Said before the click and not after. The refusal was correct — a back page
+   * that sells only full and half pages is an ordinary newspaper rule — but it
+   * arrived as an error message on a page that looked exactly like the two
+   * beside it, so it read as the system being wrong (reported 06/09/2026).
+   */
+  refusesHeld: string | null;
   /** The rectangle being aimed at, when it is aimed at THIS page. */
   candidate: GridRect | null;
   verdict: PlacementRejection | null;
@@ -137,7 +147,13 @@ export function PageCanvas({
           gridTemplateColumns: `repeat(${grid.columns}, 1fr)`,
           gridTemplateRows: `repeat(${grid.rows}, 1fr)`,
         }}
-        className="relative grid gap-px rounded-sm border border-outline bg-outline-variant p-px"
+        className={cn(
+          "relative grid gap-px rounded-sm border border-outline bg-outline-variant p-px",
+          // Dimmed, and the cursor says no before anything is clicked. Not
+          // disabled: the page is still a page, and picking up an ad that IS
+          // allowed here has to keep working.
+          refusesHeld && "opacity-60 [&_button]:cursor-not-allowed",
+        )}
       >
         {Array.from({ length: grid.rows }).flatMap((_, row) =>
           Array.from({ length: grid.columns }).map((__, col) => (
@@ -281,6 +297,17 @@ export function PageCanvas({
       <div className="flex items-baseline justify-between gap-2 px-1 text-xs text-on-surface-variant">
         <span className="truncate">
           {pageLabel(page.number, totalPages)} · {page.pageTypeName}
+          {/* In the caption, which is reserved space under the page — never
+              over it. A label drawn on the canvas would cover the rows being
+              aimed at, which is the complaint that produced this. */}
+          {refusesHeld ? (
+            <span
+              data-testid={`page-refuses-${page.number}`}
+              className="ms-2 rounded-full bg-status-error-bg px-2 py-0.5 font-medium text-status-error-fg"
+            >
+              {refusesHeld} לא מותר בעמוד הזה
+            </span>
+          ) : null}
         </span>
         <span data-testid={`page-fill-${page.number}`} className="shrink-0">
           {fill.full ? "מלא" : `${fill.percent}%`}

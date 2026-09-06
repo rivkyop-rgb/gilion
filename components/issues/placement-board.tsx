@@ -265,8 +265,15 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
 
   const commit = (pageId: string, cell: Cell) => {
     if (!held || !editable) return;
-    setNotice(null);
 
+    // The previous notice is NOT cleared here.
+    //
+    // It used to be, and that left the board silent for the length of the round
+    // trip: the old message gone, the new one not yet written, and the hover
+    // reason liable to vanish with it the moment a re-render moved the element
+    // under the pointer. A row that empties and refills is read as a message
+    // that was dismissed. Whatever the action returns replaces it, and a
+    // success clears it explicitly below.
     startTransition(async () => {
       const result =
         held.kind === "publication"
@@ -286,6 +293,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
             });
 
       if (result.ok) {
+        setNotice(null);
         setHeld(null);
         setHover(null);
         router.refresh();
@@ -391,14 +399,57 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
             appears when the pointer enters a cell pushes the page down by its
             own height — out from under the pointer — so the cell being aimed at
             moves as it is aimed at, and the drop lands somewhere else. */}
-        <div className="mb-2 min-h-9 shrink-0">
-          {notice ? (
+        {/* One message, in one always-reserved place.
+            
+            The hover reason used to ALSO be drawn floating over the top of the
+            page — the same sentence twice, and the copy on the canvas sat
+            exactly on the rows being aimed at. It was an overlay so it never
+            pushed the page (the trap in CLAUDE.md), but covering the target is
+            its own version of the same fault: the answer to "why not here" must
+            not stand on "here". Reported 06/09/2026.
+            
+            Priority is deliberate: while something is in hand, why it will not
+            drop outranks whatever the last action said. */}
+        {/* A FIXED height, and the message positioned inside it.
+            
+            `min-h-9` reserved one line, so a long refusal wrapped to two and
+            took the difference out of the canvas — which moved the cell being
+            aimed at while it was being aimed at. That is the trap in CLAUDE.md
+            exactly, arriving through the door that was left open: the notice no
+            longer opens ABOVE the page, it grows above it, and a page that
+            moves is a page that cannot be clicked. Playwright called it
+            "element is not stable"; a person calls it a button that misses.
+            
+            Two lines' worth is reserved always. Anything longer scrolls inside
+            the box rather than pushing anything, because a reason is worth
+            reading in full and never worth moving the page for. */}
+        <div className="relative mb-2 h-14 shrink-0">
+          {held && verdict ? (
+            /* One testid for the whole row, whatever is in it.
+               
+               The hover reason used to be a second element with a second name,
+               floating over the canvas. Splitting them was splitting one thing:
+               "why will this not go down" and "what just happened" are the same
+               question to the person reading, they never appear together, and
+               two names meant every spec had to know which of them the board
+               happened to be showing. `data-kind` keeps them tellable apart
+               where that actually matters. */
+            <p
+              role="status"
+              data-testid="board-message"
+              data-kind="verdict"
+              className="absolute inset-0 overflow-y-auto rounded-md bg-status-warning-bg p-2 text-sm text-status-warning-fg"
+            >
+              {verdict.message}
+            </p>
+          ) : notice ? (
             <p
               role="alert"
               data-testid="board-message"
+              data-kind="notice"
               data-ok={notice.ok}
               className={cn(
-                "rounded-md p-2 text-sm",
+                "absolute inset-0 overflow-y-auto rounded-md p-2 text-sm",
                 notice.ok
                   ? "bg-status-success-bg text-status-success-fg"
                   : "bg-status-error-bg text-status-error-fg",
@@ -409,7 +460,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
           ) : unfinished.length > 0 ? (
             <p
               data-testid="unfinished-alert"
-              className="flex flex-wrap items-center gap-2 rounded-md bg-status-warning-bg p-2 text-sm text-status-warning-fg"
+              className="absolute inset-0 flex flex-wrap items-center gap-2 overflow-y-auto rounded-md bg-status-warning-bg p-2 text-sm text-status-warning-fg"
             >
               <AlertTriangle className="size-4 shrink-0" />
               <span>
@@ -428,7 +479,10 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
               ))}
             </p>
           ) : (
-            <p data-testid="all-full" className="p-2 text-sm text-status-success-fg">
+            <p
+              data-testid="all-full"
+              className="absolute inset-0 overflow-y-auto p-2 text-sm text-status-success-fg"
+            >
               כל העמודים מלאים — אין יותר שטח למכור בגיליון הזה.
             </p>
           )}
@@ -478,15 +532,6 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
             </div>
           ) : null}
 
-          {held && verdict ? (
-            <p
-              data-testid="drop-reason"
-              className="pointer-events-none absolute inset-x-0 top-2 z-20 mx-auto w-fit max-w-full rounded-md bg-status-warning-bg px-3 py-1.5 text-sm text-status-warning-fg shadow-md"
-            >
-              {verdict.message}
-            </p>
-          ) : null}
-
           {/* dir="rtl" puts the lower page number on the right with no
               arithmetic — the same rule the grid inside each page follows.
 
@@ -515,6 +560,11 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                   fill={fill}
                   editable={editable}
                   holding={held?.kind === "publication"}
+                  refusesHeld={
+                    held && !full.allowedShapes.some((s) => s.id === held.shape.id)
+                      ? held.shape.name
+                      : null
+                  }
                   candidate={candidate?.pageId === page.id ? candidate : null}
                   verdict={candidate?.pageId === page.id ? verdict : null}
                   selectedPlacementId={selectedPlacement?.id ?? null}
