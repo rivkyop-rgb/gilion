@@ -28,7 +28,11 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const draft = new URL(request.url).searchParams.get("draft") === "1";
+  const query = new URL(request.url).searchParams;
+  const draft = query.get("draft") === "1";
+  // ?layout=press shows the imposed sheets, so a fold can be checked in a
+  // browser with a ruler on it rather than only in a PDF viewer.
+  const layout = query.get("layout") === "press" ? ("press" as const) : ("reader" as const);
 
   let ctx;
   try {
@@ -38,7 +42,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
   if (!canWriteArea(ctx, "pdf")) return NOT_FOUND;
 
-  const html = await issuePrintHtml(ctx.businessId, id, draft);
+  const html = await issuePrintHtml(ctx.businessId, id, draft, layout);
   if (html === null) return NOT_FOUND;
 
   return new NextResponse(html, {

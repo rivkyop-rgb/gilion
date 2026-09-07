@@ -84,8 +84,8 @@ test.describe("closing an issue", () => {
     expect(response.headers()["content-type"]).toContain("application/pdf");
 
     const pdf = await PDFDocument.load(await response.body());
-    // Two pages, in order, with no gaps (validation rule 6).
-    expect(pdf.getPageCount()).toBe(2);
+    // Four pages, in order, with no gaps (validation rule 6).
+    expect(pdf.getPageCount()).toBe(4);
 
     for (const pdfPage of pdf.getPages()) {
       const { width, height } = pdfPage.getSize();

@@ -104,7 +104,11 @@ type IssueForPrint = NonNullable<Awaited<ReturnType<typeof loadIssueForPrint>>>;
  * objects, and doing them one after another is the difference between a render
  * that takes four seconds and one that takes forty.
  */
-export async function toPrintModel(issue: IssueForPrint, draft: boolean): Promise<PrintModel> {
+export async function toPrintModel(
+  issue: IssueForPrint,
+  draft: boolean,
+  layout: PrintModel["layout"] = "reader",
+): Promise<PrintModel> {
   const grid = gridOfIssue(issue);
   if (!grid) throw new PdfGenerationError("לגיליון אין גריד תקין — לא ניתן להפיק PDF");
 
@@ -139,6 +143,7 @@ export async function toPrintModel(issue: IssueForPrint, draft: boolean): Promis
     issueDate: DATE.format(issue.issue_date),
     grid,
     draft,
+    layout,
     pages: issue.pages.map((page) => ({
       number: page.page_number,
       pageTypeName: page.page_type.name,
@@ -163,10 +168,11 @@ export async function issuePrintHtml(
   businessId: string,
   issueId: string,
   draft: boolean,
+  layout: PrintModel["layout"] = "reader",
 ): Promise<string | null> {
   const issue = await loadIssueForPrint(businessId, issueId);
   if (!issue) return null;
-  return buildPrintHtml(await toPrintModel(issue, draft));
+  return buildPrintHtml(await toPrintModel(issue, draft, layout));
 }
 
 export type RenderedPdf = {
@@ -181,16 +187,19 @@ async function renderIssue(
   businessId: string,
   issueId: string,
   draft: boolean,
+  layout: PrintModel["layout"] = "reader",
 ): Promise<RenderedPdf | null> {
   const issue = await loadIssueForPrint(businessId, issueId);
   if (!issue) return null;
 
-  const model = await toPrintModel(issue, draft);
+  const model = await toPrintModel(issue, draft, layout);
   const bytes = await renderPdf(buildPrintHtml(model), issue.newspaper.print_quality);
 
   return {
     bytes,
-    fileName: `${issue.newspaper.name} ${model.issueDate}${draft ? " (טיוטה)" : ""}.pdf`,
+    fileName:
+      `${issue.newspaper.name} ${model.issueDate}` +
+      `${layout === "press" ? " (לדפוס)" : ""}${draft ? " (טיוטה)" : ""}.pdf`,
     fingerprint: fingerprintOf(issue.placements),
     printQuality: issue.newspaper.print_quality,
   };
@@ -224,6 +233,30 @@ export async function generateDraftPdf(ctx: Actor, issueId: string): Promise<Ren
     });
     throw error;
   }
+}
+
+/* --------------------------------------------------------------------- press */
+
+/**
+ * The imposed sheet file — what a press folds, rather than what a person reads
+ * (asked for 07/09/2026).
+ *
+ * Rendered on demand and NOT stored, for now. Storing it needs a second column
+ * on `Issue` and a third value in `PdfType`, and the schema is held while a
+ * parallel stage lands its own migrations. Producing it does not need either,
+ * and the file is what lets somebody hold the imposition up against what their
+ * printer actually wants — which is the open question this unblocks.
+ *
+ * It is deliberately available on an OPEN issue too. Confirming a fold with a
+ * print shop is something you do before committing to it, not after closing.
+ *
+ * ── Not logged yet, and that is a gap I am naming rather than papering over ──
+ * `PdfGenerationLog.pdf_type` is `draft | final`. Writing "draft" here would be
+ * a lie in the one table that exists to say who produced what, so nothing is
+ * written until `press` joins the enum with the storage.
+ */
+export async function generatePressPdf(ctx: Actor, issueId: string): Promise<RenderedPdf | null> {
+  return renderIssue(ctx.businessId, issueId, false, "press");
 }
 
 /* --------------------------------------------------------------------- close */

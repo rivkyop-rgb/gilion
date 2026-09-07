@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Download,
   FileText,
+  Layers,
   Lock,
   RotateCcw,
   XCircle,
@@ -165,6 +166,24 @@ export function IssueCheckPanel({
               <a href={`/api/issues/${issueId}/pdf?type=draft`}>
                 <FileText className="size-4" />
                 הפק PDF טיוטה
+              </a>
+            </Button>
+          ) : null}
+
+          {mayClose ? (
+            /* The imposed sheets — what a press folds, not what a person reads.
+               
+               Offered on an OPEN issue on purpose: confirming a fold with a
+               print shop is something you do before committing to it. The
+               tooltip names the one thing that has to be checked against them,
+               because a mirrored imposition is a whole run in the bin. */
+            <Button asChild variant="secondary" data-testid="press-pdf">
+              <a
+                href={`/api/issues/${issueId}/pdf?type=press`}
+                title="גיליונות מקופלים — כל צד ברוחב כפול. השער בחצי השמאלי, הגב בימני."
+              >
+                <Layers className="size-4" />
+                הפק PDF לדפוס
               </a>
             </Button>
           ) : null}

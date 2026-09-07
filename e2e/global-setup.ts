@@ -64,6 +64,7 @@ export default async function globalSetup() {
   await resetPackages(prisma);
   await resetPriceRules(prisma);
   await resetReminderWindow(prisma);
+  await clearBusinessSettings(prisma);
   await seedIssueFixtures(prisma);
 
   await prisma.$disconnect();
@@ -100,7 +101,32 @@ async function deleteTestAdvertisements(prisma: PrismaClient) {
   await clearObjects([...new Set(ads.map((a) => a.business_id))], "ads");
 }
 
-async function clearObjects(businessIds: string[], folder: "ads" | "reserved" | "issues") {
+/**
+ * Back to the shipped brand, the shipped palette and the shipped wording.
+ *
+ * prisma/seed.ts creates NO BusinessSettings row: a business that never opened
+ * the admin panel has none, and that is the state every run has to start from.
+ * A row left behind by admin-panel-theme.spec.ts repaints the whole product for
+ * every OTHER spec — and the failure would appear as a screenshot diff or a
+ * colour assertion in a file that never touched settings.
+ *
+ * The uploaded logos go too. They are not deleted by any cascade — the row
+ * points at an object store, not at a foreign key — so without this the bucket
+ * accumulates one mark per run, and `admin-panel-branding.spec.ts` cannot tell
+ * "the logo I just uploaded" from "the logo the last run uploaded".
+ */
+async function clearBusinessSettings(prisma: PrismaClient) {
+  const rows = await prisma.businessSettings.findMany({ select: { business_id: true } });
+  if (rows.length === 0) return;
+
+  await prisma.businessSettings.deleteMany({});
+  await clearObjects([...new Set(rows.map((r) => r.business_id))], "brand");
+}
+
+async function clearObjects(
+  businessIds: string[],
+  folder: "ads" | "reserved" | "issues" | "brand",
+) {
   const { Client } = await import("minio");
   const client = new Client({
     endPoint: process.env.MINIO_ENDPOINT!,
@@ -583,6 +609,8 @@ export const ISSUE_FIXTURES = {
   closeIssue: "iss_close_fixture",
   closePageCover: "ipage_close_cover",
   closePageInner: "ipage_close_inner",
+  closePageInnerB: "ipage_close_inner_b",
+  closePageBack: "ipage_close_back",
   closePublication: "pub_close_a",
   /** Placed on the cover by resetCloseIssue — the ad the final PDF contains. */
   closePlacement: "plc_close_a",
@@ -726,8 +754,11 @@ async function seedIssueFixtures(prisma: PrismaClient) {
 /**
  * The issue the close-and-PDF specs work on (stage 07).
  *
- * Two pages, one publication, one usable ad. Kept apart from the board fixture
- * on purpose — see CLOSE_DATE. The placement itself is put on by
+ * FOUR pages, one publication, one usable ad. Four and not two because a
+ * saddle-stitched issue folds in sheets of four (lib/domain/imposition.ts) — a
+ * two-page fixture cannot be folded at all, raises finding 8 on every close
+ * spec, and produces a press sheet with two blank halves. Kept apart from the
+ * board fixture on purpose — see CLOSE_DATE. The placement itself is put on by
  * `resetCloseIssue` in issue-helpers.ts rather than here, because closing marks
  * it `published` and every close spec has to start from `placed` again.
  */
@@ -757,6 +788,8 @@ async function seedCloseIssue(prisma: PrismaClient) {
   for (const page of [
     { id: ISSUE_FIXTURES.closePageCover, page_type_id: "pt_cover", page_number: 1 },
     { id: ISSUE_FIXTURES.closePageInner, page_type_id: "pt_inner", page_number: 2 },
+    { id: ISSUE_FIXTURES.closePageInnerB, page_type_id: "pt_inner", page_number: 3 },
+    { id: ISSUE_FIXTURES.closePageBack, page_type_id: "pt_back", page_number: 4 },
   ]) {
     await prisma.issuePage.upsert({
       where: { id: page.id },

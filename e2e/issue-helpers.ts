@@ -344,9 +344,13 @@ export async function resetCloseIssue() {
     });
 
     await prisma.issuePage.createMany({
+      // Four, because a saddle-stitched issue folds in sheets of four. Two was
+      // not a newspaper anybody could bind (lib/domain/imposition.ts).
       data: [
         { id: ISSUE_FIXTURES.closePageCover, page_type_id: "pt_cover", page_number: 1 },
         { id: ISSUE_FIXTURES.closePageInner, page_type_id: "pt_inner", page_number: 2 },
+        { id: ISSUE_FIXTURES.closePageInnerB, page_type_id: "pt_inner", page_number: 3 },
+        { id: ISSUE_FIXTURES.closePageBack, page_type_id: "pt_back", page_number: 4 },
       ].map((p) => ({ ...p, issue_id: ISSUE_FIXTURES.closeIssue })),
     });
 

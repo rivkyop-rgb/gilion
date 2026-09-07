@@ -25,7 +25,7 @@ import { Readable } from "node:stream";
 import { NextResponse } from "next/server";
 
 import { canReadArea, canWriteArea, getTenantContext } from "@/lib/auth/tenant";
-import { generateDraftPdf, PdfGenerationError } from "@/lib/data/issue-pdf";
+import { generateDraftPdf, generatePressPdf, PdfGenerationError } from "@/lib/data/issue-pdf";
 import { getIssue } from "@/lib/data/issues";
 import { getObjectStream, statObject } from "@/lib/storage/minio";
 
@@ -37,7 +37,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const type = new URL(request.url).searchParams.get("type") ?? "final";
-  if (type !== "draft" && type !== "final") return NOT_FOUND;
+  if (type !== "draft" && type !== "final" && type !== "press") return NOT_FOUND;
 
   let ctx;
   try {
@@ -49,16 +49,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   // Producing a PDF is `pdf: write`; downloading the one that exists is
   // `pdf: read`, which is what lets a sales rep answer "did my customer's ad
   // run" without being able to declare an issue finished (07-pdf.md §הרשאות).
-  const allowed = type === "draft" ? canWriteArea(ctx, "pdf") : canReadArea(ctx, "pdf");
+  //
+  // The press sheet is a production, not a reading — it renders the whole issue
+  // on demand — so it sits with `draft` on the write side.
+  const allowed =
+    type === "draft" || type === "press" ? canWriteArea(ctx, "pdf") : canReadArea(ctx, "pdf");
   if (!allowed) return NOT_FOUND;
 
   // Tenant-scoped read — a foreign issue id gets no further than this.
   const issue = await getIssue(ctx.businessId, id);
   if (!issue) return NOT_FOUND;
 
-  if (type === "draft") {
+  if (type === "draft" || type === "press") {
     try {
-      const rendered = await generateDraftPdf(
+      const render = type === "press" ? generatePressPdf : generateDraftPdf;
+      const rendered = await render(
         {
           businessId: ctx.businessId,
           userId: ctx.userId,
