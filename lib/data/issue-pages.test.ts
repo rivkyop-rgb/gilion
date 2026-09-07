@@ -47,9 +47,10 @@ const numbers = async () =>
   ).map((p) => `${p.page_number}:${p.page_type_id}`);
 
 describe("inserting a sheet at a seam", () => {
-  it("adds a PAIR directly after the named page and pushes the rest along", async () => {
-    // A sheet has two inner sides; adding one of them is not something a
-    // printer can do.
+  it("adds a WHOLE SHEET — four pages — after the named page", async () => {
+    // A saddle-stitched sheet is folded once and carries four pages. Adding two
+    // used to be the rule and let an issue reach six pages, which cannot be
+    // folded and stapled at all (PAGES_PER_SHEET, decided 07/09/2026).
     await insertIssuePages(BUSINESS, issueId, "pt_inner", await pageIdAt(2));
 
     expect(await numbers()).toEqual([
@@ -58,8 +59,18 @@ describe("inserting a sheet at a seam", () => {
       "3:pt_inner",
       "4:pt_inner",
       "5:pt_inner",
-      "6:pt_back",
+      "6:pt_inner",
+      "7:pt_inner",
+      "8:pt_back",
     ]);
+  });
+
+  it("keeps the total foldable, which is the point of the number", async () => {
+    await insertIssuePages(BUSINESS, issueId, "pt_inner", await pageIdAt(2));
+    expect((await numbers()).length % 4).toBe(0);
+
+    await insertIssuePages(BUSINESS, issueId, "pt_inner", await pageIdAt(2));
+    expect((await numbers()).length % 4).toBe(0);
   });
 
   it("can insert straight after the cover", async () => {
@@ -68,9 +79,11 @@ describe("inserting a sheet at a seam", () => {
       "1:pt_cover",
       "2:pt_back",
       "3:pt_back",
-      "4:pt_inner",
-      "5:pt_inner",
-      "6:pt_back",
+      "4:pt_back",
+      "5:pt_back",
+      "6:pt_inner",
+      "7:pt_inner",
+      "8:pt_back",
     ]);
   });
 
@@ -84,7 +97,8 @@ describe("inserting a sheet at a seam", () => {
       orderBy: { page_number: "asc" },
       select: { page_number: true },
     });
-    expect(rows.map((r) => r.page_number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    // 4 to start, three sheets of 4 added.
+    expect(rows.map((r) => r.page_number)).toEqual(Array.from({ length: 16 }, (_, i) => i + 1));
   });
 });
 

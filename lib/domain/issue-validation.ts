@@ -22,6 +22,7 @@
  * placement time, and it never blocks. A page with no ads on it is an editorial
  * page, which is most of a newspaper.
  */
+import { isStitchable, sheetsNeeded } from "./imposition";
 import type { GridRect } from "./slot-geometry";
 import { findOverlappingPairs } from "./slot-geometry";
 
@@ -33,6 +34,7 @@ export const FINDING_KINDS = [
   "overlap",
   "shape_not_allowed",
   "empty_page",
+  "not_stitchable",
 ] as const;
 
 export type FindingKind = (typeof FINDING_KINDS)[number];
@@ -48,6 +50,7 @@ export const FINDING_SEVERITY: Record<FindingKind, Severity> = {
   overlap: "blocking",
   shape_not_allowed: "blocking",
   empty_page: "warning",
+  not_stitchable: "warning",
 };
 
 export const FINDING_TITLES: Record<FindingKind, string> = {
@@ -58,6 +61,7 @@ export const FINDING_TITLES: Record<FindingKind, string> = {
   overlap: "שיבוצים שחופפים זה לזה באותו עמוד",
   shape_not_allowed: "שיבוצים בצורה שסוג העמוד אינו מתיר",
   empty_page: "עמודים בלי אף שיבוץ",
+  not_stitchable: "מספר העמודים לא מתחלק ב־4",
 };
 
 /** What a clean group says instead of a list. */
@@ -69,6 +73,7 @@ export const FINDING_CLEAR: Record<FindingKind, string> = {
   overlap: "אין חפיפות",
   shape_not_allowed: "כל הצורות מותרות בעמוד שלהן",
   empty_page: "בכל עמוד יש לפחות שיבוץ אחד",
+  not_stitchable: "מספר העמודים מתאים לכריכה",
 };
 
 /**
@@ -284,6 +289,32 @@ export function validateIssue(input: ValidationInput): ValidationReport {
         publicationId: null,
       })),
   );
+
+  // 8 — the count has to fold.
+  //
+  // A saddle-stitched issue is sheets folded once and stapled through the fold,
+  // so the page count must be a multiple of four (lib/domain/imposition.ts). It
+  // is a WARNING and not a refusal: a six-page issue can be printed, it just
+  // comes out as eight with the last two blank — and the last page of a
+  // stitched booklet is the BACK COVER. Saying that out loud is worth more than
+  // blocking somebody who knows it and wants it anyway.
+  //
+  // The composer adds four at a time, so the only way to arrive here is by
+  // removing a page — or by holding an issue built before that rule.
+  if (input.pages.length > 0 && !isStitchable(input.pages.length)) {
+    const short = sheetsNeeded(input.pages.length) * 4 - input.pages.length;
+    add("not_stitchable", [
+      {
+        label:
+          `בגיליון ${input.pages.length} עמודים. כריכה באמצע דורשת כפולה של 4, ` +
+          `ולכן הוא יודפס כ־${sheetsNeeded(input.pages.length) * 4} עמודים ` +
+          `עם ${short === 1 ? "עמוד ריק אחד" : `${short} עמודים ריקים`} בסוף — והאחרון שבהם הוא הגב.`,
+        pageNumber: null,
+        placementId: null,
+        publicationId: null,
+      },
+    ]);
+  }
 
   const count = (severity: Severity) =>
     findings.filter((f) => f.severity === severity).reduce((sum, f) => sum + f.items.length, 0);

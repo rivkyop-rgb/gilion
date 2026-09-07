@@ -16,6 +16,7 @@ import {
   requireEditable,
 } from "@/lib/domain/issue-status";
 import { InvalidPublicationTransitionError } from "@/lib/domain/publication-status";
+import { PAGES_PER_SHEET } from "@/lib/domain/issue-layout";
 import {
   describeDate,
   upcomingIssueDates,
@@ -520,7 +521,7 @@ export async function autoPlaceIssueAction(
       sheetsAdded: outcome.sheetsAdded,
       message:
         outcome.sheetsAdded > 0
-          ? `${placedPhrase(outcome.placed)}, ונוספו ${pagesPhrase(outcome.sheetsAdded * 2)} כדי שכולם ייכנסו`
+          ? `${placedPhrase(outcome.placed)}, ונוספו ${pagesPhrase(outcome.sheetsAdded * PAGES_PER_SHEET)} כדי שכולם ייכנסו`
           : placedPhrase(outcome.placed),
     };
   } catch (error) {

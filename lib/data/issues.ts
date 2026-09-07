@@ -619,11 +619,11 @@ export async function addIssuePage(businessId: string, issueId: string, pageType
 /**
  * Inserts a SHEET directly after a given page — the "+" on the seam.
  *
- * Two pages, not one: inner pages do not exist singly. A sheet folded into the
- * issue carries two inner sides, and adding one of them is not something a
- * printer can do. Appending and then dragging into place is also two actions
- * for one intention, and on a 24-page issue the drag is the expensive half —
- * naming the seam says where in one click.
+ * Four pages, not one and not two: a saddle-stitched sheet is folded once and
+ * carries four pages, so any other number produces an issue that cannot be
+ * folded and stapled (PAGES_PER_SHEET). Appending and then dragging into place
+ * is also two actions for one intention, and on a 24-page issue the drag is the
+ * expensive half — naming the seam says where in one click.
  */
 export async function insertIssuePages(
   businessId: string,

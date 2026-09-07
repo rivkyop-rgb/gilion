@@ -80,15 +80,23 @@ function labelFor(kind: ViewKind, pages: PageRef[]): string {
 }
 
 /**
- * How many pages one "add" adds: a sheet, not a side.
+ * How many pages one "add" adds: a whole SHEET of paper.
  *
- * Inner pages do not exist singly. A sheet of newsprint folded into the issue
- * carries two inner sides, and adding one of them is not something a printer
- * can do — an issue with an odd inner count has a blank half nobody ordered.
- * So the seam adds a pair, and the arithmetic stays what a print shop would
- * recognise.
+ * It used to be two, on the reasoning that a sheet folded into the issue
+ * carries two inner sides. That is half the story and the wrong half. The issue
+ * is saddle-stitched — sheets folded once down the middle and stapled through
+ * the fold — so one sheet carries FOUR pages: two on its outer face and two on
+ * its inner face. The cover and the back cover are two halves of one piece of
+ * paper (lib/domain/imposition.ts).
+ *
+ * Adding two therefore let an issue reach 6 or 10 pages, and neither can be
+ * folded and stapled at all. It passed silently, and the cost only appears at
+ * the press: a 6-page issue prints as 8 with the last two blank, and the last
+ * page of a stitched booklet is the BACK COVER. Decided with the user
+ * 07/09/2026 — the seam adds four, and page removal refuses to break the
+ * multiple.
  */
-export const PAGES_PER_SHEET = 2;
+export const PAGES_PER_SHEET = 4;
 
 /**
  * What to call a page when speaking to a person.

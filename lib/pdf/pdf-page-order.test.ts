@@ -148,3 +148,86 @@ describe("escaping", () => {
     expect(html).toContain("&lt;script&gt;");
   });
 });
+
+/**
+ * The press layout: one PDF page per printed SIDE, two issue pages on it.
+ *
+ * The arithmetic that decides which page lands where is asserted in
+ * lib/domain/imposition.test.ts. What is asserted here is the half of it this
+ * file owns — that the sheet is twice as wide, that the right-hand page's boxes
+ * are pushed across by exactly one page width, and that nothing else about a
+ * placement moves.
+ */
+describe("the press sheet", () => {
+  const withAd = (n: number): PrintPage =>
+    page(n, {
+      placements: [
+        { rect: { col: 0, row: 0, cols: 2, rows: 3 }, artwork: null, label: `מודעה ${n}` },
+      ],
+    });
+
+  const pressHtml = (count: number) =>
+    buildPrintHtml({
+      ...model(Array.from({ length: count }, (_, i) => withAd(i + 1))),
+      layout: "press",
+    });
+
+  it("is twice as wide as a page, and the same height", () => {
+    expect(pressHtml(4)).toContain("@page { size: 400mm 300mm; margin: 0; }");
+  });
+
+  it("prints one side per face, not one per page", () => {
+    const html = pressHtml(8);
+    expect([...html.matchAll(/data-sheet="/g)]).toHaveLength(4);
+    expect(html).not.toContain('data-page="');
+  });
+
+  it("puts the cover and the back on the same sheet, cover on the left", () => {
+    const html = pressHtml(4);
+    expect(html).toContain('data-sheet="1" data-side="outer" data-left="1" data-right="4"');
+    expect(html).toContain('data-sheet="1" data-side="inner" data-left="3" data-right="2"');
+  });
+
+  it("offsets the right-hand page by exactly one page width and nothing else", () => {
+    const rect = { col: 0, row: 0, cols: 2, rows: 3 };
+    const box = toMillimetres(rect, grid);
+    // col 0 is the RIGHT edge: 200 - 10 - 90 = 100 mm from the page's own left.
+    expect(box.xMm).toBe(100);
+
+    const html = pressHtml(4);
+    // Page 1 is the left half — untouched.
+    expect(html).toContain(`left:100mm;top:10mm;width:90mm;height:60mm`);
+    // Page 4 is the right half — pushed across by one page width, 200 mm.
+    expect(html).toContain(`left:300mm;top:10mm;width:90mm;height:60mm`);
+  });
+
+  it("marks the fold and names the side, so nobody measures", () => {
+    const html = pressHtml(4);
+    expect(html).toContain('class="fold"');
+    expect(html).toContain("דף 1 · צד חיצוני");
+    expect(html).toContain("דף 1 · צד פנימי");
+  });
+
+  it("leaves a half blank when the count does not fold", () => {
+    // Six pages print as eight; the two missing halves are on the outer sheet.
+    const html = pressHtml(6);
+    expect(html).toContain('data-left="1" data-right=""');
+    expect(html).toContain('data-left="" data-right="2"');
+  });
+
+  it("still watermarks a draft, on every side", () => {
+    const html = buildPrintHtml({
+      ...model([withAd(1), withAd(2), withAd(3), withAd(4)]),
+      layout: "press",
+      draft: true,
+    });
+    expect([...html.matchAll(/<span>טיוטה<\/span>/g)]).toHaveLength(2);
+  });
+
+  it("is not what the reader layout produces", () => {
+    const reader = buildPrintHtml(model([withAd(1), withAd(2), withAd(3), withAd(4)]));
+    expect(reader).toContain("@page { size: 200mm 300mm; margin: 0; }");
+    expect([...reader.matchAll(/data-page="/g)]).toHaveLength(4);
+    expect(reader).not.toContain('class="fold"');
+  });
+});

@@ -17,9 +17,17 @@ import {
  * has — and a fixture that is wrong in three ways cannot tell you that.
  */
 
+/**
+ * FOUR pages, because that is the smallest issue that can be folded and
+ * stapled. A two-page fixture used to be enough and is not any more: finding 8
+ * refuses a count that is not a multiple of four, and a fixture that trips a
+ * rule it is not testing makes every other assertion in the file read as noise.
+ */
 const PAGES = [
   { id: "pg1", number: 1, pageTypeName: "שער", allowedShapeIds: ["sh_quarter", "sh_strip"] },
   { id: "pg2", number: 2, pageTypeName: "פנימי", allowedShapeIds: ["sh_quarter", "sh_full"] },
+  { id: "pg3", number: 3, pageTypeName: "פנימי", allowedShapeIds: ["sh_quarter", "sh_full"] },
+  { id: "pg4", number: 4, pageTypeName: "גב", allowedShapeIds: ["sh_quarter", "sh_full"] },
 ];
 
 function placement(over: Partial<ValidationPlacement> = {}): ValidationPlacement {
@@ -42,20 +50,19 @@ function publication(over: Partial<ValidationPublication> = {}): ValidationPubli
   return { id: "pub1", customerName: "מאפיית לוי", shapeName: "רבע עמוד", placed: true, ...over };
 }
 
-/** One ad, on one page, correctly — and a second page that is not empty. */
+/** One correctly-placed ad on every page — nothing for any rule to catch. */
 function clean(): ValidationInput {
   return {
     pages: PAGES,
-    placements: [
-      placement(),
+    placements: PAGES.map((page, i) =>
       placement({
-        id: "pl2",
-        pageId: "pg2",
-        publicationId: "pub2",
+        id: `pl${i + 1}`,
+        pageId: page.id,
+        publicationId: `pub${i + 1}`,
         rect: { col: 0, row: 0, cols: 2, rows: 2 },
       }),
-    ],
-    publications: [publication(), publication({ id: "pub2" })],
+    ),
+    publications: PAGES.map((_, i) => publication({ id: `pub${i + 1}` })),
   };
 }
 
@@ -72,8 +79,8 @@ describe("a clean issue", () => {
 
   it("counts what was due and what got placed", () => {
     const report = validateIssue(clean());
-    expect(report.plannedCount).toBe(2);
-    expect(report.placedCount).toBe(2);
+    expect(report.plannedCount).toBe(4);
+    expect(report.placedCount).toBe(4);
   });
 });
 
@@ -231,5 +238,37 @@ describe("the summary on a disabled close button", () => {
     expect(summary).toContain("(1)");
     // Two different groups, and the warning is not among them.
     expect(summary.split("·")).toHaveLength(2);
+  });
+});
+
+describe("finding 8 — a page count that cannot be folded", () => {
+  it("warns, and does not block: six pages CAN be printed", () => {
+    const input = clean();
+    input.pages = PAGES.slice(0, 3);
+    input.placements = input.placements.filter((p) => p.pageId !== "pg4");
+    input.publications = input.publications.filter((p) => p.id !== "pub4");
+
+    const report = validateIssue(input);
+    const finding = report.findings.find((f) => f.kind === "not_stitchable")!;
+    expect(finding.severity).toBe("warning");
+    expect(isCloseable(report)).toBe(true);
+  });
+
+  it("names the consequence, which is a blank BACK COVER", () => {
+    const input = clean();
+    input.pages = PAGES.slice(0, 3);
+    input.placements = input.placements.filter((p) => p.pageId !== "pg4");
+    input.publications = input.publications.filter((p) => p.id !== "pub4");
+
+    const finding = validateIssue(input).findings.find((f) => f.kind === "not_stitchable")!;
+    // 3 pages print as 4, so one blank — and the last page of a stitched
+    // booklet is the back.
+    expect(finding.items[0]!.label).toContain("4 עמודים");
+    expect(finding.items[0]!.label).toContain("עמוד ריק אחד");
+    expect(finding.items[0]!.label).toContain("הגב");
+  });
+
+  it("says nothing at all about a count that folds", () => {
+    expect(validateIssue(clean()).findings).toEqual([]);
   });
 });

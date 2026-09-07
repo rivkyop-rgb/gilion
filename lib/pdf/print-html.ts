@@ -31,6 +31,7 @@
  * plan text predates that feature (backlog item 14) and is superseded by it.
  */
 import type { DerivedGrid } from "@/lib/domain/grid";
+import { impose, sideLabel, type PrintedSide } from "@/lib/domain/imposition";
 import { toMillimetres, type GridRect } from "@/lib/domain/slot-geometry";
 
 export type PrintBox = {
@@ -56,6 +57,15 @@ export type PrintModel = {
   pages: PrintPage[];
   /** Draws the diagonal "טיוטה" watermark (US-008 AC-3, FR-22). */
   draft: boolean;
+  /**
+   * `reader` — one page per sheet of PDF, in reading order. For proofing.
+   * `press`  — one printed SIDE per sheet of PDF, twice as wide, two pages on
+   *            it, in saddle-stitch order (lib/domain/imposition.ts).
+   *
+   * Two documents rather than one because they answer different questions. A
+   * person checking the issue reads it; a press folds it. Asked for 07/09/2026.
+   */
+  layout?: "reader" | "press";
 };
 
 /** Millimetres, trimmed: `12.5mm`, not `12.500000000000002mm`. */
@@ -80,6 +90,15 @@ export function escapeHtml(value: string): string {
 export function buildPrintHtml(model: PrintModel): string {
   const { grid } = model;
   const pages = [...model.pages].sort((a, b) => a.number - b.number);
+  const press = model.layout === "press";
+
+  // A printed side is two pages wide and the same height. Everything else about
+  // the document — the absolute millimetre offsets, the artwork, the watermark
+  // — is identical, which is the point of doing this here rather than in a
+  // second builder that would drift from this one.
+  const sheetWidthMm = press ? grid.pageWidthMm * 2 : grid.pageWidthMm;
+  const sides = press ? impose(pages.length) : [];
+  const byNumber = new Map(pages.map((p) => [p.number, p]));
 
   return `<!doctype html>
 <html lang="he" dir="ltr">
@@ -87,7 +106,7 @@ export function buildPrintHtml(model: PrintModel): string {
 <meta charset="utf-8">
 <title>${escapeHtml(model.newspaperName)} — ${escapeHtml(model.issueDate)}</title>
 <style>
-  @page { size: ${mm(grid.pageWidthMm)} ${mm(grid.pageHeightMm)}; margin: 0; }
+  @page { size: ${mm(sheetWidthMm)} ${mm(grid.pageHeightMm)}; margin: 0; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: #fff; }
   body {
@@ -100,10 +119,26 @@ export function buildPrintHtml(model: PrintModel): string {
   }
   .page {
     position: relative;
-    inline-size: ${mm(grid.pageWidthMm)};
+    inline-size: ${mm(sheetWidthMm)};
     block-size: ${mm(grid.pageHeightMm)};
     overflow: hidden;
     break-after: page;
+  }
+  /* The fold, drawn faintly down the centre of a press sheet. A folder is set
+     by eye against it, and a sheet with no mark on it is a sheet somebody has
+     to measure. */
+  .fold {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: ${mm(grid.pageWidthMm)};
+    border-inline-start: 0.2mm dashed #bbb;
+  }
+  .side-label {
+    position: absolute;
+    inset-block-start: 1mm;
+    inset-inline-start: 1mm;
+    font-size: 3mm;
+    color: #999;
   }
   .page:last-child { break-after: auto; }
   .box { position: absolute; overflow: hidden; }
@@ -122,10 +157,13 @@ export function buildPrintHtml(model: PrintModel): string {
     direction: rtl;
   }
   .reserved.empty { border-style: solid; background: #f2f2f2; }
+  /* Positioned per HALF, not per sheet: a press side carries two folios and
+     each belongs over its own page. The offset and width are set inline by the
+     renderer, so no backticks in here — this whole stylesheet is inside a
+     template literal and one would end it. */
   .folio {
     position: absolute;
-    inset-block-end: ${mm(Math.max(grid.marginMm / 2, 2))};
-    inset-inline: 0;
+    bottom: ${mm(Math.max(grid.marginMm / 2, 2))};
     text-align: center;
     font-size: 3mm;
     color: #666;
@@ -151,7 +189,11 @@ export function buildPrintHtml(model: PrintModel): string {
 </style>
 </head>
 <body>
-${pages.map((page) => renderPage(page, grid, model)).join("\n")}
+${
+  press
+    ? sides.map((side) => renderSide(side, byNumber, grid, model)).join("\n")
+    : pages.map((page) => renderPage(page, grid, model)).join("\n")
+}
 </body>
 </html>`;
 }
@@ -166,14 +208,56 @@ function renderPage(page: PrintPage, grid: DerivedGrid, model: PrintModel): stri
 
   return `<section class="page" data-page="${page.number}" data-page-type="${escapeHtml(page.pageTypeName)}">
 ${boxes.join("\n")}
-<div class="folio">${page.number}</div>
+<div class="folio" style="left:0;width:${mm(grid.pageWidthMm)}">${page.number}</div>
 ${model.draft ? `<div class="draft-mark"><span>טיוטה</span></div>` : ""}
 </section>`;
 }
 
-function renderBox(box: PrintBox, grid: DerivedGrid, kind: "ad" | "reserved"): string {
+/**
+ * One printed SIDE of one sheet: two pages side by side, ready to fold.
+ *
+ * The halves are drawn with the SAME box renderer as a reader page, offset by a
+ * page width for the right one. Nothing about a placement's geometry changes —
+ * an ad is where the designer put it on its page, and the sheet only decides
+ * which page sits where on the paper.
+ *
+ * A half with no page behind it is left blank on purpose: it is the paper the
+ * fold produces and nobody ordered anything onto it.
+ */
+function renderSide(
+  side: PrintedSide,
+  byNumber: Map<number, PrintPage>,
+  grid: DerivedGrid,
+  model: PrintModel,
+): string {
+  const half = (pageNumber: number | null, offsetMm: number) => {
+    const page = pageNumber === null ? undefined : byNumber.get(pageNumber);
+    if (!page) return "";
+    return [
+      ...page.reserved.map((box) => renderBox(box, grid, "reserved", offsetMm)),
+      ...page.placements.map((box) => renderBox(box, grid, "ad", offsetMm)),
+      `<div class="folio" style="left:${mm(offsetMm)};width:${mm(grid.pageWidthMm)}">${page.number}</div>`,
+    ].join("\n");
+  };
+
+  return `<section class="page" data-sheet="${side.sheet}" data-side="${side.side}" data-left="${side.left ?? ""}" data-right="${side.right ?? ""}">
+${half(side.left, 0)}
+${half(side.right, grid.pageWidthMm)}
+<div class="fold"></div>
+<div class="side-label">${escapeHtml(sideLabel(side))}</div>
+${model.draft ? `<div class="draft-mark"><span>טיוטה</span></div>` : ""}
+</section>`;
+}
+
+function renderBox(
+  box: PrintBox,
+  grid: DerivedGrid,
+  kind: "ad" | "reserved",
+  /** Where this page's left edge sits on the sheet. Zero on a reader page. */
+  offsetMm = 0,
+): string {
   const { xMm, yMm, widthMm, heightMm } = toMillimetres(box.rect, grid);
-  const style = `left:${mm(xMm)};top:${mm(yMm)};width:${mm(widthMm)};height:${mm(heightMm)}`;
+  const style = `left:${mm(xMm + offsetMm)};top:${mm(yMm)};width:${mm(widthMm)};height:${mm(heightMm)}`;
 
   return box.artwork
     ? `<div class="box ${kind}" style="${style}"><img src="${box.artwork}" alt=""></div>`
