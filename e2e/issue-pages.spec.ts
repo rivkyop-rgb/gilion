@@ -43,17 +43,21 @@ test.describe("the pages of an issue", () => {
     expect(right.x).toBeGreaterThan(left.x);
   });
 
-  test("the seam adds a whole SHEET — two pages — exactly where it sits", async ({ page }) => {
-    // Inner pages do not exist singly: a sheet folded into the issue carries
-    // two inner sides, and adding one of them is not something a printer can do.
+  test("the seam adds a whole SHEET — four pages — exactly where it sits", async ({ page }) => {
+    // A saddle-stitched sheet is folded once and carries FOUR pages: two on its
+    // outer face and two on its inner one (lib/domain/imposition.ts). Adding two
+    // was the old rule and let an issue reach six pages, which cannot be folded
+    // and stapled at all — it prints as eight with a blank BACK COVER.
     await expect(page.getByTestId("page-thumb-4")).toBeVisible();
     await expect(page.getByTestId("page-thumb-5")).toHaveCount(0);
 
     await page.getByTestId("seam-1").click();
 
-    await expect(page.getByTestId("page-thumb-6")).toBeVisible();
-    await expect(page.getByTestId("page-thumb-7")).toHaveCount(0);
-    // And the pair reads as one spread, not as two half-empty views.
+    await expect(page.getByTestId("page-thumb-8")).toBeVisible();
+    await expect(page.getByTestId("page-thumb-9")).toHaveCount(0);
+    // The count stays foldable, which is the whole point of the number.
+    await expect(page.getByTestId("page-thumb-4")).toBeVisible();
+    // And the pair still reads as one spread, not as two half-empty views.
     await openView(page, FIXTURE.spreadView);
     await expect(page.getByTestId("pager-label")).toContainText("עמודים 2-3");
   });
