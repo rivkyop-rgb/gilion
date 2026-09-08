@@ -179,6 +179,12 @@ export const CONTENT_TYPES: Record<string, string> = {
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
   png: "image/png",
+  // Brand assets (stage 11). SVG is served with its real type on purpose: an
+  // <img src> does not execute script inside it, and the bytes have already
+  // been through lib/domain/svg-sanitize.ts before they were ever stored.
+  svg: "image/svg+xml",
+  webp: "image/webp",
+  ico: "image/x-icon",
 };
 
 /** The type an object key implies, from its extension. */

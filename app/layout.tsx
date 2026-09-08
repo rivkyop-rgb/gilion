@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Frank_Ruhl_Libre, JetBrains_Mono } from "next/font/google";
 import localFont from "next/font/local";
+import { DEFAULT_BRAND } from "@/components/brand/brand-mark";
 import "./globals.css";
 
 // conventions.md §1 — all three fonts carry full Hebrew coverage except
@@ -31,7 +32,12 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Gilion",
   description: "מערכת לניהול פרסום בעיתון",
-  icons: { icon: "/brand/logo-mark.png" },
+  /**
+   * The fallback icon only. A signed-in page overrides it per business from
+   * app/(internal)/layout.tsx — this is what /login and anything outside a
+   * business shows, and it is the same file every new business starts with.
+   */
+  icons: { icon: DEFAULT_BRAND.favicon },
 };
 
 // The font variables belong on <html>, not <body>. globals.css declares

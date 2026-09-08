@@ -67,11 +67,18 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
     over: "status-success-bg",
   },
   { key: "status-warning-bg", label: "רקע — אזהרה", group: "status", default: "#fff3e0" },
+  /**
+   * Was #e65100 until the contrast check at the bottom of this file was written
+   * and failed on it the same minute: 3.46:1 against its own background, under
+   * the 4.5:1 that same check warns every admin about. Darkened to the nearest
+   * value in the same hue that clears AA (4.68:1). A palette that ships a
+   * warning it would itself warn about teaches people to dismiss the warning.
+   */
   {
     key: "status-warning-fg",
     label: "טקסט — אזהרה",
     group: "status",
-    default: "#e65100",
+    default: "#bf4600",
     over: "status-warning-bg",
   },
   { key: "status-error-bg", label: "רקע — שגיאה", group: "status", default: "#ffdad6" },

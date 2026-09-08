@@ -120,6 +120,11 @@ export async function renderPreview(file: StoredFile): Promise<Buffer | null> {
     if (!source) return null;
     return await sharp(source)
       .resize({ width: PREVIEW_WIDTH, withoutEnlargement: true })
+      // Not a brand colour: this is the paper a transparent PDF or PNG is
+      // composited onto before it becomes a thumbnail. It is what the ad will
+      // be PRINTED on, so it does not follow the interface theme and must not
+      // be settable from the admin panel.
+      // eslint-disable-next-line no-restricted-syntax
       .flatten({ background: "#ffffff" })
       .png()
       .toBuffer();

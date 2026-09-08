@@ -1,6 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BellRing, KeyRound, Newspaper, Shapes, Users } from "lucide-react";
+import {
+  BellRing,
+  Building2,
+  Globe,
+  KeyRound,
+  Newspaper,
+  Palette,
+  Shapes,
+  Type,
+  Users,
+} from "lucide-react";
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 
 export const metadata: Metadata = { title: "הגדרות · Gilion" };
@@ -35,6 +45,32 @@ const SECTIONS = [
     icon: Shapes,
     title: "צורות פרסום",
     body: "קטלוג הצורות. משותף לכל העסקים במערכת.",
+  },
+  // Stage 11 — the admin panel. Everything below is changed by an admin
+  // without a developer and without a deploy.
+  {
+    href: "/settings/branding",
+    icon: Building2,
+    title: "מותג",
+    body: "לוגו, סימן ו־favicon, שם תצוגה ומשפט מלווה. מופיעים בסרגל הצד, בלשונית ובמסך ההתחברות.",
+  },
+  {
+    href: "/settings/theme",
+    icon: Palette,
+    title: "צבעים",
+    body: "צבעי המותג וחמשת צבעי הסטטוס, עם תצוגה מקדימה חיה. נכנס לתוקף מיד, בלי גרסה חדשה.",
+  },
+  {
+    href: "/settings/texts",
+    icon: Type,
+    title: "טקסטים",
+    body: "המשפטים שהמשתמשים והלקוחות קוראים — מסך ההתחברות, הפורטל, תחתית ה־PDF ונוסח התזכורת.",
+  },
+  {
+    href: "/settings/general",
+    icon: Globe,
+    title: "כללי",
+    body: "פרטי התקשרות, אזור זמן, פורמט תאריך ומטבע.",
   },
 ];
 

@@ -22,6 +22,8 @@ import { NextResponse } from "next/server";
 
 import { getTenantContext, canReadArea } from "@/lib/auth/tenant";
 import { getAdvertisement } from "@/lib/data/advertisements";
+import { brandKeysFor, loginBrandKeys } from "@/lib/data/business-settings";
+import { isBrandKey } from "@/lib/domain/business-settings";
 import { businessOfKey, contentTypeOfKey, getObjectStream, statObject } from "@/lib/storage/minio";
 
 const NOT_FOUND = new NextResponse("not found", { status: 404 });
@@ -34,29 +36,57 @@ export async function GET(_request: Request, { params }: { params: Promise<{ key
   try {
     ctx = await getTenantContext();
   } catch {
+    // No session. Exactly one thing is reachable here, and only when the
+    // installation holds a single business: that business's brand assets, so
+    // /login can show its logo. See loginBrandKeys() for why this is a hole
+    // worth opening — a login-page logo is public by construction. Everything
+    // else, including any other key under the same business, is still 404.
+    if (isBrandKey(key) && (await loginBrandKeys()).includes(key)) {
+      return serve(key, key.split("/").pop() ?? "brand");
+    }
     return NOT_FOUND;
   }
 
-  // FR-8: accounting has no operational need for files, so it has none here
-  // either — the matrix is the same one the sidebar and the actions read.
-  if (!canReadArea(ctx, "advertisements")) return NOT_FOUND;
-
-  // First line: the key itself names a business. Comparing it to the session
-  // costs nothing and stops a cross-tenant key before any lookup happens.
+  // First line, and it comes before every role check: the key itself names a
+  // business. Comparing it to the session costs nothing and stops a
+  // cross-tenant key before any lookup happens.
   if (businessOfKey(key) !== ctx.businessId) return NOT_FOUND;
 
-  // Second line: the key must belong to a row this tenant can actually see,
-  // and the row must be the one that owns this exact object. A guessed adId
-  // under the right business id gets no further than this.
-  const adId = adIdFromKey(key);
-  if (!adId) return NOT_FOUND;
+  // Brand assets (stage 11) take a different door, and deliberately a wider
+  // one. A logo is chrome: it is on the sidebar of every screen, so gating it
+  // behind `advertisements` would blank it for accounting — FR-8 keeps that
+  // role away from artwork, not from the header of the page it is looking at.
+  // What still holds is the tenant check above and ownership below: the key
+  // must be one this business currently points at, so a guessed brand key
+  // under the right business id serves nothing.
+  let fileName = "";
+  if (isBrandKey(key)) {
+    if (!(await brandKeysFor(ctx.businessId)).includes(key)) return NOT_FOUND;
+    fileName = key.split("/").pop() ?? "brand";
+  } else {
+    // FR-8: accounting has no operational need for artwork, so it has none
+    // here either — the matrix is the same one the sidebar and the actions read.
+    if (!canReadArea(ctx, "advertisements")) return NOT_FOUND;
 
-  const ad = await getAdvertisement(ctx.businessId, adId);
-  if (!ad) return NOT_FOUND;
+    // Second line: the key must belong to a row this tenant can actually see,
+    // and the row must be the one that owns this exact object. A guessed adId
+    // under the right business id gets no further than this.
+    const adId = adIdFromKey(key);
+    if (!adId) return NOT_FOUND;
 
-  const owned = [ad.file_url, ad.original_file_url, ad.previous_file_url, ad.preview_url];
-  if (!owned.includes(key)) return NOT_FOUND;
+    const ad = await getAdvertisement(ctx.businessId, adId);
+    if (!ad) return NOT_FOUND;
 
+    const owned = [ad.file_url, ad.original_file_url, ad.previous_file_url, ad.preview_url];
+    if (!owned.includes(key)) return NOT_FOUND;
+    fileName = ad.name;
+  }
+
+  return serve(key, fileName);
+}
+
+/** Everything past the checks: the bytes, with the headers they go out under. */
+async function serve(key: string, fileName: string) {
   let stream;
   try {
     stream = await getObjectStream(key);
@@ -71,7 +101,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ key
     headers: {
       "Content-Type": contentTypeOfKey(key),
       // RFC 5987, so a Hebrew file name survives the round trip.
-      "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(ad.name)}`,
+      "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+      // A logo that renders as markup would run whatever survived sanitising.
+      // It cannot, through <img>, but the header costs nothing and covers the
+      // day someone opens the URL directly.
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
       // Private, because the answer depends on who asked: a shared cache must
       // never hand one business's artwork to another's browser.
       "Cache-Control": "private, max-age=300",

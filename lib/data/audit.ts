@@ -23,7 +23,8 @@ export type AuditAction =
   | "close_issue"
   | "generate_pdf"
   | "update_payment"
-  | "override_duplicate_placement";
+  | "override_duplicate_placement"
+  | "update_business_settings";
 
 export type AuditTarget = {
   action: AuditAction;

@@ -50,17 +50,17 @@
   /* --- semantic status colors ---
      Stitch inlined these as raw values; here they are tokens, because every
      badge in the system uses them. design-system.md §1. */
-  --color-status-success-bg: #e6f4ea;
-  --color-status-success-fg: #137333;
+  --color-status-success-bg: var(--gilion-status-success-bg, #e6f4ea);
+  --color-status-success-fg: var(--gilion-status-success-fg, #137333);
   --color-status-success-strong: #10b981;
-  --color-status-warning-bg: #fff3e0;
-  --color-status-warning-fg: #e65100;
-  --color-status-error-bg: #ffdad6;
-  --color-status-error-fg: #93000a;
-  --color-status-debt-bg: #fed65b;
-  --color-status-debt-fg: #745c00;
-  --color-status-neutral-bg: #d8e3fa;
-  --color-status-neutral-fg: #43474e;
+  --color-status-warning-bg: var(--gilion-status-warning-bg, #fff3e0);
+  --color-status-warning-fg: var(--gilion-status-warning-fg, #bf4600);
+  --color-status-error-bg: var(--gilion-status-error-bg, #ffdad6);
+  --color-status-error-fg: var(--gilion-status-error-fg, #93000a);
+  --color-status-debt-bg: var(--gilion-status-debt-bg, #fed65b);
+  --color-status-debt-fg: var(--gilion-status-debt-fg, #745c00);
+  --color-status-neutral-bg: var(--gilion-status-neutral-bg, #d8e3fa);
+  --color-status-neutral-fg: var(--gilion-status-neutral-fg, #43474e);
 
   /* Four more tones, so that no two states share a colour.
      A status colour whose only job is to be TOLD APART from the next status

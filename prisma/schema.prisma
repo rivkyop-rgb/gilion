@@ -74,6 +74,11 @@ enum AuditAction {
   generate_pdf
   update_payment
   override_duplicate_placement
+  /// Stage 11. Branding, palette, texts and general settings are a single
+  /// auditable action rather than four: they are all "the admin changed what
+  /// everyone sees", the target is always the business, and old/new already
+  /// name the fields that moved.
+  update_business_settings
 }
 
 /// An independent business in the multi-tenant system (FR-1, FR-2).
@@ -107,6 +112,7 @@ model Business {
   publications   Publication[]
   advertisements Advertisement[]
   issues         Issue[]
+  settings       BusinessSettings?
 
   @@map("Business")
 }
@@ -1057,4 +1063,58 @@ model Reminder {
   @@unique([publication_id])
   @@index([customer_id, status])
   @@map("Reminder")
+}
+
+// ---------------------------------------------------------------------------
+// Stage 11 — admin panel
+// ---------------------------------------------------------------------------
+
+/// Everything an admin may change without a developer (stage 11).
+///
+/// One row per business, created lazily on first read rather than by a
+/// migration: a business that never opened the panel has no row, and reads the
+/// same defaults as one that opened it and changed nothing. That keeps "unset"
+/// and "set to today's default" from becoming two different states.
+///
+/// The two override maps are Json rather than a column per token, and the
+/// reason is the same one that shaped RolePermission: the SET of tokens will
+/// change, and a sparse map means adding one needs no migration and touches no
+/// existing business. A missing key ALWAYS means "the default in code".
+model BusinessSettings {
+  id String @id @default(cuid())
+
+  /// Unique — one row per business (conventions.md §2, tenant-scoped directly).
+  business_id String @unique
+
+  /// Falls back to Business.name when null. Kept separate rather than editing
+  /// Business.name, because that name is what a super admin picks a business by
+  /// on the platform screen, and a business renaming its own header must not
+  /// rename the row in someone else's list.
+  display_name String?
+  tagline      String?
+
+  /// MinIO keys, `{businessId}/brand/{slot}.{ext}` (conventions.md §5).
+  /// null = the file shipped in public/brand/.
+  mark_file_key      String?
+  logo_full_file_key String?
+  favicon_file_key   String?
+
+  /// key → hex, and key → string. Sparse: see the note above.
+  color_overrides Json?
+  text_overrides  Json?
+
+  contact_phone   String?
+  contact_email   String?
+  contact_address String?
+
+  timezone    String @default("Asia/Jerusalem")
+  date_format String @default("dd/MM/yyyy")
+  currency    String @default("ILS")
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  business Business @relation(fields: [business_id], references: [id], onDelete: Cascade)
+
+  @@map("BusinessSettings")
 }

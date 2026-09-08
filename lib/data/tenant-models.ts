@@ -19,6 +19,7 @@ export const DIRECT_TENANT_MODELS = [
   "AuditLog",
   "UserMembership",
   "RolePermission",
+  "BusinessSettings",
 ] as const;
 
 /**

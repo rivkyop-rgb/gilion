@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as Icons from "lucide-react";
 import { AREA_LABELS } from "@/lib/auth/labels";
 import { canAccessPlatform, type Area, type Role } from "@/lib/auth/rbac";
 import { effectiveAccess, type PermissionOverrides } from "@/lib/domain/permissions";
+import { BrandMark, type BrandKeys } from "@/components/brand/brand-mark";
 import { cn } from "@/lib/utils";
 import { BUILT_THROUGH_STAGE, NAV_ITEMS } from "./nav-items";
 
@@ -36,6 +36,12 @@ type NavProps = {
   isSuperAdmin?: boolean;
   /** The business's overrides (FR-8). The menu must agree with the guards. */
   permissions?: PermissionOverrides;
+  /**
+   * The business's own mark and name (stage 11). Resolved by the layout, never
+   * by this component: a path to a logo written in here is a logo the admin
+   * panel cannot replace.
+   */
+  brand?: { keys: BrandKeys; name: string };
 };
 
 /**
@@ -181,6 +187,7 @@ function SidebarNav({
   role,
   isSuperAdmin = false,
   permissions = {},
+  brand,
   collapsed,
   onToggle,
 }: NavProps & { collapsed: boolean; onToggle?: () => void }) {
@@ -198,17 +205,19 @@ function SidebarNav({
     <nav className="flex h-full flex-col gap-1" aria-label="ניווט ראשי">
       <div className={cn("mb-4 flex items-center gap-2", collapsed ? "justify-center" : "px-2")}>
         <Link href="/dashboard" className="flex min-w-0 flex-1 items-center gap-3">
-          <Image
-            src="/brand/logo-mark.png"
-            alt=""
+          <BrandMark
+            slot="mark"
+            keys={brand?.keys}
             width={54}
             height={36}
-            priority
-            className={cn("shrink-0", collapsed && "w-8")}
+            className={cn("h-9 shrink-0", collapsed ? "w-8" : "w-[54px]")}
           />
           {!collapsed ? (
-            <span className="font-serif text-xl font-bold whitespace-nowrap text-primary">
-              Gilion
+            <span
+              data-testid="sidebar-brand-name"
+              className="truncate font-serif text-xl font-bold whitespace-nowrap text-primary"
+            >
+              {brand?.name || "Gilion"}
             </span>
           ) : null}
         </Link>
