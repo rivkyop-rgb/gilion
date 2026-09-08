@@ -117,7 +117,32 @@ export function pagesOn(sides: readonly PrintedSide[]): number[] {
     .sort((a, b) => a - b);
 }
 
-/** "דף 2 · צד פנימי" — what the proof sheet is labelled with. */
+/**
+ * The slug printed on a press sheet — and the one line that stops a run being
+ * set backwards.
+ *
+ * It names the halves EXPLICITLY rather than leaving the folios to speak,
+ * because on a sheet whose pages are mostly empty the folios are two grey
+ * digits and nothing else, and because the last clause is the one a person
+ * actually needs: an outer sheet reads "1 … 4" left to right, which to a Hebrew
+ * reader looks backwards every single time. It is not backwards — imposition
+ * order is not reading order — but a sheet that does not SAY so gets reported
+ * as a bug, or worse, "corrected" at the print shop.
+ *
+ *   דף 1 · צד חיצוני · שמאל: עמוד 1 · ימין: עמוד 4 · סדר קיפול, לא סדר קריאה
+ *
+ * Kept to one short line because a press sheet is cut to trim size: it has no
+ * slug area, so every character here is ink on the product. The renderer puts
+ * it on the fold, which is the gutter, which is where it costs least.
+ */
 export function sideLabel(side: PrintedSide): string {
-  return `דף ${side.sheet} · ${side.side === "outer" ? "צד חיצוני" : "צד פנימי"}`;
+  const half = (page: number | null) => (page === null ? "ריק" : `עמוד ${page}`);
+
+  return [
+    `דף ${side.sheet}`,
+    side.side === "outer" ? "צד חיצוני" : "צד פנימי",
+    `שמאל: ${half(side.left)}`,
+    `ימין: ${half(side.right)}`,
+    "סדר קיפול, לא סדר קריאה",
+  ].join(" · ");
 }

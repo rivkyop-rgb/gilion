@@ -133,11 +133,25 @@ export function buildPrintHtml(model: PrintModel): string {
     inset-inline-start: ${mm(grid.pageWidthMm)};
     border-inline-start: 0.2mm dashed #bbb;
   }
+  /* On the FOLD, at the foot — not in a corner.
+     A press sheet is cut to trim size and has no slug area, so this line is
+     ink on the finished product wherever it goes. The fold is the spine: after
+     folding and stapling it lands in the gutter, the least-read strip the
+     sheet has. Its first home was the top-left corner, which is the head
+     margin of the FRONT COVER.
+     The rtl direction is set because the label is Hebrew separated by ·, and
+     in an ltr document the segments would come out in the wrong order — the
+     one place in this file where direction matters, and it is text, not
+     geometry. (No backticks in here: the stylesheet is inside a template
+     literal and one would end it. Said above, and still true.) */
   .side-label {
     position: absolute;
-    inset-block-start: 1mm;
-    inset-inline-start: 1mm;
-    font-size: 3mm;
+    inset-block-end: 1mm;
+    inset-inline-start: 0;
+    inline-size: 100%;
+    text-align: center;
+    direction: rtl;
+    font-size: 2.6mm;
     color: #999;
   }
   .page:last-child { break-after: auto; }

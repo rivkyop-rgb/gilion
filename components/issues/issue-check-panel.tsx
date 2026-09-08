@@ -182,15 +182,14 @@ export function IssueCheckPanel({
                The tooltip names the one thing that has to be checked against
                them, because a mirrored imposition is a whole run in the bin. */
             <Button asChild variant="secondary" data-testid="press-pdf">
-              <a
-                href={`/api/issues/${issueId}/pdf?type=press`}
-                title="גיליונות מקופלים — כל צד ברוחב כפול. השער בחצי השמאלי, הגב בימני."
-              >
+              <a href={`/api/issues/${issueId}/pdf?type=press`}>
                 <Layers className="size-4" />
                 הפק PDF לדפוס
               </a>
             </Button>
           ) : null}
+
+          {mayClose && !closed ? <PressNote /> : null}
 
           {mayClose && !closed ? (
             <CloseIssueDialog
@@ -231,6 +230,29 @@ export function IssueCheckPanel({
 
       {offerNext ? <NextIssueOffer issueId={issueId} onClose={() => setOfferNext(false)} /> : null}
     </div>
+  );
+}
+
+/**
+ * What the press file IS, said out loud next to the button that produces it.
+ *
+ * This text used to be a `title` tooltip. A tooltip is invisible until someone
+ * hovers the exact element while already wondering — which is to say it is
+ * invisible to the person who is NOT wondering, and that is the person who
+ * reports the file as broken. Reported 08/09/2026 as "the sides come out
+ * reversed": they do not, but an outer sheet reads 1 … 4 from left to right,
+ * and to a Hebrew reader that looks wrong every time.
+ *
+ * The sheet itself carries the same sentence in its fold slug — this is the
+ * half that reaches her before she opens the file.
+ */
+function PressNote() {
+  return (
+    <p className="basis-full text-xs text-on-surface-variant" data-testid="press-note">
+      הקובץ לדפוס בנוי לפי סדר קיפול ולא לפי סדר קריאה: כל דף ברוחב כפול ונושא
+      שני עמודים רחוקים זה מזה — השער והגב יושבים על אותו נייר. בצד החיצוני
+      השער בחצי השמאלי. כל דף מסומן בקו הקיפול בעמודים שעליו.
+    </p>
   );
 }
 
@@ -362,6 +384,7 @@ function ClosedCard({
                 הורד PDF לדפוס
               </a>
             </Button>
+            <PressNote />
           </div>
         ) : null}
       </div>
@@ -373,8 +396,12 @@ function ClosedCard({
         <ul className="mt-2 grid gap-1 text-xs" data-testid="pdf-log">
           {log.map((row) => (
             <li key={row.id} className="flex flex-wrap items-center gap-2">
+              {/* Three types, not two. A `press` row fell through to "טיוטה"
+                  here, so the log said a draft had been produced at the exact
+                  moment the press file was — the one record that answers
+                  "what did we actually send". */}
               <Badge tone={row.status === "generated" ? "success" : "error"}>
-                {row.type === "final" ? "סופי" : "טיוטה"}
+                {row.type === "final" ? "סופי" : row.type === "press" ? "לדפוס" : "טיוטה"}
               </Badge>
               <span>{row.who}</span>
               <Ltr>{row.when}</Ltr>

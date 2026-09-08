@@ -138,6 +138,18 @@ test.describe("closing an issue", () => {
     await expect(page.getByTestId("press-pdf")).toHaveCount(0);
     await expect(page.getByTestId("download-press-pdf")).toBeVisible();
 
+    // Reported 08/09/2026 as "the sides come out reversed". They do not — an
+    // outer sheet reads 1 … N left to right and that looks backwards to a
+    // Hebrew reader. The file was right and nothing on the screen said so,
+    // which is the same defect as being wrong.
+    await expect(page.getByTestId("press-note")).toBeVisible();
+    await expect(page.getByTestId("press-note")).toContainText("לא לפי סדר קריאה");
+
+    // The log distinguishes all THREE types. A press row used to render as
+    // "טיוטה", so the record of what went to the press named the wrong file.
+    await page.locator("summary", { hasText: "לוג הפקות" }).click();
+    await expect(page.getByTestId("pdf-log")).toContainText("לדפוס");
+
     const response = await page.request.get(
       `/api/issues/${ISSUE_FIXTURES.closeIssue}/pdf?type=press`,
     );

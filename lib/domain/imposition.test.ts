@@ -166,7 +166,30 @@ describe("an issue that cannot be stapled still produces a file", () => {
 
 describe("labels", () => {
   it("names a side the way a printer says it out loud", () => {
-    expect(sideLabel({ sheet: 2, side: "inner", left: 5, right: 4 })).toBe("דף 2 · צד פנימי");
-    expect(sideLabel({ sheet: 1, side: "outer", left: 1, right: 8 })).toBe("דף 1 · צד חיצוני");
+    expect(sideLabel({ sheet: 2, side: "inner", left: 5, right: 4 })).toBe(
+      "דף 2 · צד פנימי · שמאל: עמוד 5 · ימין: עמוד 4 · סדר קיפול, לא סדר קריאה",
+    );
+    expect(sideLabel({ sheet: 1, side: "outer", left: 1, right: 8 })).toBe(
+      "דף 1 · צד חיצוני · שמאל: עמוד 1 · ימין: עמוד 8 · סדר קיפול, לא סדר קריאה",
+    );
+  });
+
+  /**
+   * The case that prompted all of this: an outer sheet reads "1 … 4" from left
+   * to right, and a Hebrew reader sees that as reversed. The label has to say
+   * which half is which IN WORDS, because the folios alone are what got read
+   * as a bug (reported 08/09/2026).
+   */
+  it("says which half is which, so the sheet does not have to be guessed", () => {
+    const outer = sideLabel({ sheet: 1, side: "outer", left: 1, right: 4 });
+    expect(outer).toContain("שמאל: עמוד 1");
+    expect(outer).toContain("ימין: עמוד 4");
+    expect(outer).toContain("לא סדר קריאה");
+  });
+
+  it("names a blank half as blank rather than leaving a gap", () => {
+    // A short run leaves the back cover empty. "ריק" is the difference between
+    // a sheet that is finished and a sheet that looks truncated.
+    expect(sideLabel({ sheet: 1, side: "outer", left: 1, right: null })).toContain("ימין: ריק");
   });
 });
