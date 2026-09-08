@@ -78,6 +78,18 @@ export function issuePdfKey(businessId: string, issueId: string): string {
 }
 
 /**
+ * The imposed sheets an issue keeps, beside its reading-order file.
+ *
+ * A second object rather than a second copy of the first: the two are different
+ * documents of different sizes for different readers, and the day somebody asks
+ * "what went to the printer" the answer has to be a file and not a rendering
+ * instruction (lib/domain/imposition.ts).
+ */
+export function issuePressPdfKey(businessId: string, issueId: string): string {
+  return `${businessId}/issues/${issueId}/press.pdf`;
+}
+
+/**
  * A replacement needs a key that collides with nothing the ad already holds.
  *
  * The revision is a timestamp rather than a counter, and that is the point: a

@@ -39,7 +39,7 @@ import {
 import { artworkDataUri, assetDataUri } from "@/lib/pdf/artwork";
 import { renderPdf, PdfGenerationError } from "@/lib/pdf/generate";
 import { buildPrintHtml, type PrintBox, type PrintModel } from "@/lib/pdf/print-html";
-import { CONTENT_TYPES, issuePdfKey, putObject } from "@/lib/storage/minio";
+import { CONTENT_TYPES, issuePdfKey, issuePressPdfKey, putObject } from "@/lib/storage/minio";
 
 export { PdfGenerationError };
 
@@ -241,22 +241,25 @@ export async function generateDraftPdf(ctx: Actor, issueId: string): Promise<Ren
  * The imposed sheet file — what a press folds, rather than what a person reads
  * (asked for 07/09/2026).
  *
- * Rendered on demand and NOT stored, for now. Storing it needs a second column
- * on `Issue` and a third value in `PdfType`, and the schema is held while a
- * parallel stage lands its own migrations. Producing it does not need either,
- * and the file is what lets somebody hold the imposition up against what their
- * printer actually wants — which is the open question this unblocks.
- *
- * It is deliberately available on an OPEN issue too. Confirming a fold with a
- * print shop is something you do before committing to it, not after closing.
- *
- * ── Not logged yet, and that is a gap I am naming rather than papering over ──
- * `PdfGenerationLog.pdf_type` is `draft | final`. Writing "draft" here would be
- * a lie in the one table that exists to say who produced what, so nothing is
- * written until `press` joins the enum with the storage.
+ * Rendered fresh, and deliberately available on an OPEN issue: confirming a
+ * fold with a print shop is something you do before committing to it. The
+ * version a close STORES is served straight from the object store instead —
+ * see the route — because after the fact the question stops being "what would
+ * this look like" and becomes "what did we actually send".
  */
 export async function generatePressPdf(ctx: Actor, issueId: string): Promise<RenderedPdf | null> {
-  return renderIssue(ctx.businessId, issueId, false, "press");
+  try {
+    const rendered = await renderIssue(ctx.businessId, issueId, false, "press");
+    if (!rendered) return null;
+    await logGeneration(ctx, issueId, "press", { status: "generated" });
+    return rendered;
+  } catch (error) {
+    await logGeneration(ctx, issueId, "press", {
+      status: "failed",
+      errorMessage: messageOf(error),
+    });
+    throw error;
+  }
 }
 
 /* --------------------------------------------------------------------- close */
@@ -287,9 +290,18 @@ export async function closeIssue(ctx: Actor, issueId: string): Promise<CloseResu
   let walk = check.status as IssueStatus;
   for (const step of pathToClosed(walk)) walk = issueTransition(walk, step, ctx.isAdmin);
 
+  // BOTH documents, both before anything is written. The reading-order file is
+  // what a person proofs; the imposed one is what a press folds, and neither
+  // can be derived from the other by whoever is holding it (asked 07/09/2026).
+  //
+  // Rendered together so a failure in either leaves the issue open: closing on
+  // a half-produced pair would mean a printer receives a file that does not
+  // exist yet.
   let rendered: RenderedPdf | null;
+  let press: RenderedPdf | null;
   try {
     rendered = await renderIssue(ctx.businessId, issueId, false);
+    press = await renderIssue(ctx.businessId, issueId, false, "press");
   } catch (error) {
     await logGeneration(ctx, issueId, "final", {
       status: "failed",
@@ -297,11 +309,13 @@ export async function closeIssue(ctx: Actor, issueId: string): Promise<CloseResu
     });
     throw error instanceof PdfGenerationError ? error : new PdfGenerationError();
   }
-  if (!rendered) throw new IssueNotCloseableError("הגיליון לא נמצא");
+  if (!rendered || !press) throw new IssueNotCloseableError("הגיליון לא נמצא");
 
   const key = issuePdfKey(ctx.businessId, issueId);
+  const pressKey = issuePressPdfKey(ctx.businessId, issueId);
   try {
     await putObject(key, rendered.bytes, CONTENT_TYPES.pdf!);
+    await putObject(pressKey, press.bytes, CONTENT_TYPES.pdf!);
   } catch (error) {
     await logGeneration(ctx, issueId, "final", {
       status: "failed",
@@ -347,7 +361,12 @@ export async function closeIssue(ctx: Actor, issueId: string): Promise<CloseResu
       // does not. A count of zero means somebody else got here first.
       const claimed = await tx.issue.updateMany({
         where: { id: issueId, business_id: ctx.businessId, status: { not: "closed" } },
-        data: { status: "closed", closed_at: new Date(), final_pdf_url: key },
+        data: {
+          status: "closed",
+          closed_at: new Date(),
+          final_pdf_url: key,
+          press_pdf_url: pressKey,
+        },
       });
       if (claimed.count !== 1) throw new IssueNotCloseableError("הגיליון כבר סגור");
 
@@ -372,19 +391,23 @@ export async function closeIssue(ctx: Actor, issueId: string): Promise<CloseResu
         });
       }
 
-      await tx.pdfGenerationLog.create({
-        data: {
+      // One row per FILE, because the log's job is to say what was produced —
+      // and two documents went out, not one.
+      await tx.pdfGenerationLog.createMany({
+        data: [
+          { pdf_type: "final" as const, file_url: key },
+          { pdf_type: "press" as const, file_url: pressKey },
+        ].map((row) => ({
+          ...row,
           issue_id: issueId,
           generated_by_user_id: ctx.userId,
-          pdf_type: "final",
-          status: "generated",
-          file_url: key,
-        },
+          status: "generated" as const,
+        })),
       });
 
       return {
         old: { status: fresh.status, final_pdf_url: fresh.final_pdf_url },
-        new: { status: "closed", final_pdf_url: key, published: rows.length },
+        new: { status: "closed", final_pdf_url: key, press_pdf_url: pressKey, published: rows.length },
         result: { publishedCount: rows.length, fileKey: key } satisfies CloseResult,
       };
     },
@@ -462,7 +485,7 @@ export async function reopenIssue(ctx: Actor, issueId: string, to: IssueStatus =
 async function logGeneration(
   ctx: Actor,
   issueId: string,
-  type: "draft" | "final",
+  type: "draft" | "final" | "press",
   outcome: { status: "generated" | "failed"; fileUrl?: string; errorMessage?: string },
 ) {
   // Its own write, outside any transaction: a FAILED run has no transaction to

@@ -125,7 +125,10 @@ test.describe("the press sheets", () => {
     }
   });
 
-  test("stores nothing — the column for it does not exist yet", async () => {
+  test("stores nothing while the issue is still open", async () => {
+    // The column exists now, and a CLOSE fills it. Rendering on demand does
+    // not: before the close there is nothing to be the record of, only a
+    // preview of what a fold would look like.
     expect(await issueObjectKeys(ISSUE_FIXTURES.closeIssue)).toEqual([]);
   });
 

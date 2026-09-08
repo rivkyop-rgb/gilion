@@ -330,6 +330,10 @@ export async function resetCloseIssue() {
         status: "in_layout",
         closed_at: null,
         final_pdf_url: null,
+        // Both files, or the next test asks for a press sheet whose row still
+        // points at an object this helper just deleted — and the route answers
+        // 404 for a reason that has nothing to do with the test.
+        press_pdf_url: null,
         // The grid is fixture state as well: pdf-rollback.spec.ts breaks it on
         // purpose to make the render fail, and a broken grid left behind fails
         // every later close for a reason that reads as a product bug.

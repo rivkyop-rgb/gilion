@@ -170,13 +170,17 @@ export function IssueCheckPanel({
             </Button>
           ) : null}
 
-          {mayClose ? (
+          {mayClose && !closed ? (
             /* The imposed sheets — what a press folds, not what a person reads.
                
                Offered on an OPEN issue on purpose: confirming a fold with a
-               print shop is something you do before committing to it. The
-               tooltip names the one thing that has to be checked against them,
-               because a mirrored imposition is a whole run in the bin. */
+               print shop is something you do before committing to it. Once the
+               issue IS closed this disappears and the stored file takes over,
+               because at that point re-rendering answers the wrong question —
+               "what would this look like" instead of "what did we send".
+               
+               The tooltip names the one thing that has to be checked against
+               them, because a mirrored imposition is a whole run in the bin. */
             <Button asChild variant="secondary" data-testid="press-pdf">
               <a
                 href={`/api/issues/${issueId}/pdf?type=press`}
@@ -342,12 +346,23 @@ function ClosedCard({
           ) : null}
         </div>
         {mayDownload ? (
-          <Button asChild size="sm" className="ms-auto" data-testid="download-final-pdf">
-            <a href={`/api/issues/${issueId}/pdf?type=final`}>
-              <Download className="size-4" />
-              הורד PDF סופי
-            </a>
-          </Button>
+          <div className="ms-auto flex flex-wrap gap-2">
+            <Button asChild size="sm" data-testid="download-final-pdf">
+              <a href={`/api/issues/${issueId}/pdf?type=final`}>
+                <Download className="size-4" />
+                הורד PDF סופי
+              </a>
+            </Button>
+            {/* The file that actually went to the press. Served from the object
+                store rather than re-rendered, so it is what was sent and not
+                what would be sent now. */}
+            <Button asChild size="sm" variant="secondary" data-testid="download-press-pdf">
+              <a href={`/api/issues/${issueId}/pdf?type=press`}>
+                <Layers className="size-4" />
+                הורד PDF לדפוס
+              </a>
+            </Button>
+          </div>
         ) : null}
       </div>
 

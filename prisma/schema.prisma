@@ -866,6 +866,12 @@ model Issue {
   status        IssueStatus @default(draft)
   /// Written at close (stage 07). Object key, never a public URL.
   final_pdf_url String?
+  /// The same issue imposed for the press — sheets folded and stapled, four
+  /// pages to a sheet (lib/domain/imposition.ts). Written at close beside
+  /// `final_pdf_url`, because the two answer different questions: one is
+  /// proofed by a person, the other is folded by a machine, and neither can be
+  /// derived from the other by anyone holding it.
+  press_pdf_url String?
   closed_at     DateTime?
 
   /// --- The grid snapshot ----------------------------------------------------
@@ -982,6 +988,12 @@ model Placement {
 enum PdfType {
   draft
   final
+  /// The imposed sheets — what a press folds, rather than what a person reads
+  /// (lib/domain/imposition.ts, asked for 07/09/2026). A separate value and not
+  /// a flag on `final`: they are two files with two audiences, and a log that
+  /// called one of them the other would be answering the wrong question for
+  /// whoever is chasing what actually went to the printer.
+  press
 }
 
 enum PdfGenerationStatus {

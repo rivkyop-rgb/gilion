@@ -73,8 +73,21 @@ test.describe("closing an issue", () => {
     expect(final?.status).toBe("generated");
     expect(final?.file_url).toBe(issue.final_pdf_url);
 
-    // ── The object ──────────────────────────────────────────────────────────
-    expect(await issueObjectKeys(ISSUE_FIXTURES.closeIssue)).toEqual([issue.final_pdf_url]);
+    // ── Both objects ────────────────────────────────────────────────────────
+    // Two files, because they answer different questions: one is proofed by a
+    // person, the other is folded by a press (asked 07/09/2026).
+    expect(issue.press_pdf_url).toBe(`biz_alpha/issues/${ISSUE_FIXTURES.closeIssue}/press.pdf`);
+    expect((await issueObjectKeys(ISSUE_FIXTURES.closeIssue)).sort()).toEqual(
+      [issue.final_pdf_url, issue.press_pdf_url].sort(),
+    );
+
+    // And the log names both, because both were produced.
+    expect(
+      issue.pdf_logs
+        .filter((row) => row.status === "generated")
+        .map((r) => r.pdf_type)
+        .sort(),
+    ).toEqual(["final", "press"]);
 
     // ── The file itself ─────────────────────────────────────────────────────
     const response = await page.request.get(
@@ -111,6 +124,33 @@ test.describe("closing an issue", () => {
     await expect(page.locator('[data-testid^="placement-"]')).toHaveCount(1);
   });
 
+  test("serves the press file that was SENT, not one rendered now", async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto(closeIssueUrl);
+    await page.getByTestId("close-issue").click();
+    await page.getByTestId("confirm-close-issue").click();
+    await expect(page.getByTestId("close-issue-dialog")).toBeHidden({ timeout: 120_000 });
+    await page.getByTestId("next-issue-dismiss").click();
+
+    // The "produce" button is gone once the file exists — re-rendering would
+    // answer "what would this look like" when the question is "what did we
+    // send". The stored one takes its place.
+    await expect(page.getByTestId("press-pdf")).toHaveCount(0);
+    await expect(page.getByTestId("download-press-pdf")).toBeVisible();
+
+    const response = await page.request.get(
+      `/api/issues/${ISSUE_FIXTURES.closeIssue}/pdf?type=press`,
+    );
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-type"]).toContain("application/pdf");
+
+    const pdf = await PDFDocument.load(await response.body());
+    expect(pdf.getPageCount()).toBe(2);
+    for (const sheet of pdf.getPages()) {
+      expect(sheet.getSize().width / PT_PER_MM).toBeCloseTo(TABLOID_MM.width * 2, 0);
+    }
+  });
+
   test("offers the file from the issues list once it exists", async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto(closeIssueUrl);
@@ -121,6 +161,7 @@ test.describe("closing an issue", () => {
     await page.goto("/issues");
     const card = page.getByTestId(`issue-card-${ISSUE_FIXTURES.closeIssue}`);
     await expect(card.getByTestId("download-final-pdf")).toBeVisible();
+    await expect(card.getByTestId("download-press-pdf")).toBeVisible();
   });
 });
 
@@ -150,9 +191,12 @@ test.describe("reopening a closed issue", () => {
     expect(issue.placements.map((p) => p.status)).toEqual(["placed"]);
     expect(publications.map((p) => p.status)).toEqual(["placed"]);
 
-    // The PDF stays: it is the file that went to the printer, and reopening the
-    // issue does not un-print it (validation rule 11).
+    // BOTH files stay: they are what went to the printer, and reopening the
+    // issue does not un-print it (validation rule 11). The press sheet in
+    // particular is the only record of what was actually sent — a re-render
+    // after the layout moves would be a different document wearing its name.
     expect(issue.final_pdf_url).not.toBeNull();
-    expect(await issueObjectKeys(ISSUE_FIXTURES.closeIssue)).toHaveLength(1);
+    expect(issue.press_pdf_url).not.toBeNull();
+    expect(await issueObjectKeys(ISSUE_FIXTURES.closeIssue)).toHaveLength(2);
   });
 });

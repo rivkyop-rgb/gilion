@@ -135,6 +135,14 @@ export default async function IssuesPage() {
                       </a>
                     </Button>
                   ) : null}
+                  {status === "closed" && issue.press_pdf_url && mayDownloadPdf ? (
+                    <Button asChild size="sm" variant="ghost" data-testid="download-press-pdf">
+                      <a href={`/api/issues/${issue.id}/pdf?type=press`}>
+                        <FileDown className="size-4" />
+                        הורד PDF לדפוס
+                      </a>
+                    </Button>
+                  ) : null}
                 </div>
               </li>
             );

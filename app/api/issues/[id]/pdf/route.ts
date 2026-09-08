@@ -2,7 +2,9 @@
  * The two PDFs an issue has (US-008 AC-3, AC-5, FR-13, FR-15, FR-22).
  *
  *   ?type=draft   render now, stream, keep nothing
- *   ?type=final   stream the file the close wrote
+ *   ?type=final   stream the reading-order file the close wrote
+ *   ?type=press   the imposed sheets — the stored file once the issue is
+ *                 closed, a fresh render before that
  *
  * ── Why this is a Route Handler and not a Server Action ──────────────────────
  * conventions.md §9: actions for writes, route handlers for FILES. A browser
@@ -46,21 +48,30 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NOT_FOUND;
   }
 
-  // Producing a PDF is `pdf: write`; downloading the one that exists is
-  // `pdf: read`, which is what lets a sales rep answer "did my customer's ad
-  // run" without being able to declare an issue finished (07-pdf.md §הרשאות).
-  //
-  // The press sheet is a production, not a reading — it renders the whole issue
-  // on demand — so it sits with `draft` on the write side.
-  const allowed =
-    type === "draft" || type === "press" ? canWriteArea(ctx, "pdf") : canReadArea(ctx, "pdf");
-  if (!allowed) return NOT_FOUND;
-
-  // Tenant-scoped read — a foreign issue id gets no further than this.
+  // Tenant-scoped read — a foreign issue id gets no further than this. Done
+  // before the permission branch because what `press` may do depends on whether
+  // the issue has been closed.
   const issue = await getIssue(ctx.businessId, id);
   if (!issue) return NOT_FOUND;
 
-  if (type === "draft" || type === "press") {
+  // The stored object for this type, or null when there is nothing on the shelf.
+  // A draft is never stored (FR-22), so it is always null here.
+  const stored =
+    type === "final" ? issue.final_pdf_url : type === "press" ? issue.press_pdf_url : null;
+
+  // Producing a PDF is `pdf: write`; downloading one that already exists is
+  // `pdf: read`, which is what lets a sales rep answer "did my customer's ad
+  // run" without being able to declare an issue finished (07-pdf.md §הרשאות).
+  //
+  // `press` falls on both sides of that line, deliberately: before the close it
+  // renders the whole issue and is a production; after it, the file exists and
+  // handing it over is a download like any other.
+  const allowed = stored ? canReadArea(ctx, "pdf") : canWriteArea(ctx, "pdf");
+  if (!allowed) return NOT_FOUND;
+
+  if (!stored) {
+    // `final` has nothing to offer until a close has written one.
+    if (type === "final") return NOT_FOUND;
     try {
       const render = type === "press" ? generatePressPdf : generateDraftPdf;
       const rendered = await render(
@@ -82,20 +93,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     }
   }
 
-  if (!issue.final_pdf_url) return NOT_FOUND;
-
   let stream;
   try {
-    stream = await getObjectStream(issue.final_pdf_url);
+    stream = await getObjectStream(stored);
   } catch {
     // The row names a file the store does not have. Nothing to serve.
     return NOT_FOUND;
   }
-  const stat = await statObject(issue.final_pdf_url);
+  const stat = await statObject(stored);
 
   return new NextResponse(Readable.toWeb(stream) as ReadableStream, {
     headers: {
-      ...pdfHeaders(`${issue.newspaper.name} ${isoOf(issue.issue_date)}.pdf`),
+      ...pdfHeaders(
+        `${issue.newspaper.name} ${isoOf(issue.issue_date)}${type === "press" ? " (לדפוס)" : ""}.pdf`,
+      ),
       // Private: the answer depends on who asked, and a shared cache handing
       // one business's issue to another's browser is the failure §5 exists for.
       "Cache-Control": "private, max-age=60",
