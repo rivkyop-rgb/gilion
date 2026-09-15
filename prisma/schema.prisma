@@ -112,6 +112,7 @@ model Business {
   publications   Publication[]
   advertisements Advertisement[]
   issues         Issue[]
+  payments       Payment[]
   settings       BusinessSettings?
 
   @@map("Business")
@@ -176,6 +177,7 @@ model User {
   advertisements      Advertisement[]
   duplicate_overrides Placement[]
   pdf_generations     PdfGenerationLog[]
+  payments            Payment[]
 
   @@map("User")
 }
@@ -251,6 +253,7 @@ model Customer {
   /// from under them (stage 05 §מודל נתונים).
   advertisements Advertisement[]
   reminders      Reminder[]
+  payments       Payment[]
 
   @@index([business_id, contact_name])
   @@index([business_id, business_name])
@@ -639,6 +642,7 @@ model AdOrder {
   advertisement Advertisement? @relation(fields: [advertisement_id], references: [id], onDelete: SetNull)
   items         AdOrderItem[]
   publications  Publication[]
+  payments      Payment[]
 
   @@index([business_id, status])
   @@index([business_id, customer_id, created_at])
@@ -1129,4 +1133,86 @@ model BusinessSettings {
   business Business @relation(fields: [business_id], references: [id], onDelete: Cascade)
 
   @@map("BusinessSettings")
+}
+
+// ---------------------------------------------------------------------------
+// Stage 08 — payments and reports
+// ---------------------------------------------------------------------------
+
+/// What a single payment RECORD is: money that arrived, or a record voided.
+///
+/// docs/erd.md gives Payment the same five-value enum as AdOrder.payment_status
+/// — [unpaid, partially_paid, paid, debt, canceled] — and this narrows it to
+/// two on purpose. The three that were dropped are properties of an ORDER, not
+/// of a receipt: a row in this table exists because somebody handed over money,
+/// so "unpaid" is not a state it can be in, and "partially paid" and "debt" are
+/// answers to "how much of the total is still open", which the order derives
+/// from the SUM of these rows (lib/domain/payment-status.ts). Keeping them here
+/// would offer three values nothing may ever write and invite a screen to set
+/// the order's answer by hand — the one thing rule 7 of stage 08 forbids.
+///
+/// The deviation is recorded in docs/erd.md §שדות שנוספו במימוש and in
+/// docs/plan/08-payments-reports.md §סטיות.
+enum PaymentRecordStatus {
+  recorded
+  canceled
+}
+
+/// One manually recorded payment against a customer, optionally against a
+/// single order (US-010, FR-7).
+///
+/// There is no automatic invoicing and no collection here — both are out of
+/// scope in prd.md. `external_invoice_number` is free text someone typed after
+/// producing the invoice somewhere else, and it is deliberately NOT unique: one
+/// invoice routinely covers several payments.
+model Payment {
+  id                      String              @id @default(cuid())
+  business_id             String
+  customer_id             String
+  /// Optional (rule 5): a payment with no order is credited to the customer's
+  /// balance rather than to one document.
+  order_id                String?
+  /// Who last touched the row. The full trail of WHO CHANGED WHAT is the audit
+  /// log (`update_payment`); this is the shortcut the table renders.
+  updated_by_user_id      String
+  /// Always positive (rule 1). A refund is expressed by cancelling a record,
+  /// never by a negative amount.
+  amount                  Decimal             @db.Decimal(12, 2)
+  payment_date            DateTime?           @db.Date
+  external_invoice_number String?
+  /// Cancelling is how a mistaken record leaves the totals. There is no
+  /// physical delete (rule 10): the row stays, struck through, and stops being
+  /// counted.
+  status                  PaymentRecordStatus @default(recorded)
+
+  /// One act of paying, spread over the orders it settled.
+  ///
+  /// A customer hands over one sum against four invoices, and the truthful
+  /// record is one row per order — that is where the money actually went, and
+  /// it is what lets every downstream reader (the per-order balance, the
+  /// period report's apportioning, the invoice list) keep asking the same
+  /// simple question. What those rows lose is that they were ONE act, so this
+  /// carries it: the screen groups by it, and cancelling offers to undo the
+  /// whole payment rather than a slice of it.
+  ///
+  /// null for a payment recorded against a single order by hand — the ordinary
+  /// case, and one that needs no group.
+  group_id String?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  business   Business @relation(fields: [business_id], references: [id], onDelete: Restrict)
+  customer   Customer @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+  /// SetNull per docs/erd.md: deleting an order must not delete the record that
+  /// money changed hands.
+  order      AdOrder? @relation(fields: [order_id], references: [id], onDelete: SetNull)
+  updated_by User     @relation(fields: [updated_by_user_id], references: [id], onDelete: Restrict)
+
+  @@index([business_id, customer_id])
+  @@index([business_id, order_id])
+  @@index([business_id, payment_date])
+  @@index([external_invoice_number])
+  @@index([group_id])
+  @@map("Payment")
 }

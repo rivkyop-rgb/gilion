@@ -92,6 +92,22 @@ export async function resetFixtureIssue() {
       });
     }
 
+    // Stage 08: closing an issue publishes its publications, which is exactly
+    // the event that re-derives the order's payment status. The close specs run
+    // that transition, so the fixture order has to start from "nothing paid"
+    // again — otherwise the FIRST close of a run leaves a status the later
+    // billing assertions never chose. Deleting the records as well, because the
+    // status is derived from them and restoring one without the other would
+    // produce a row the domain layer disagrees with.
+    await prisma.payment.deleteMany({ where: { order_id: ISSUE_FIXTURES.order } });
+    await prisma.adOrder.update({
+      where: { id: ISSUE_FIXTURES.order },
+      data: { payment_status: "unpaid" },
+    });
+    await prisma.publication.updateMany({
+      where: { order_id: ISSUE_FIXTURES.order },
+      data: { payment_status: "unpaid" },
+    });
     // The order lines moved with the publications, so they come back too.
     await prisma.adOrderItem.updateMany({
       where: { order_id: ISSUE_FIXTURES.order },
@@ -138,6 +154,10 @@ export async function resetFixtureIssue() {
           ad_orders: { none: {} },
           publications: { none: {} },
           advertisements: { none: {} },
+          // Payment → Customer is Restrict, so a record left pointing here
+          // turns this cleanup into a foreign-key error in a file about
+          // placement.
+          payments: { none: {} },
         },
       });
     }
@@ -393,6 +413,23 @@ export async function resetCloseIssue() {
         rows: shape.rows,
         status: "placed",
       },
+    });
+
+    // Stage 08: closing an issue publishes its publications, which is exactly
+    // the event that re-derives the order's payment status. The close specs run
+    // that transition, so the fixture order has to start from "nothing paid"
+    // again — otherwise the FIRST close of a run leaves a status the later
+    // billing assertions never chose. Deleting the records as well, because the
+    // status is derived from them and restoring one without the other would
+    // produce a row the domain layer disagrees with.
+    await prisma.payment.deleteMany({ where: { order_id: ISSUE_FIXTURES.order } });
+    await prisma.adOrder.update({
+      where: { id: ISSUE_FIXTURES.order },
+      data: { payment_status: "unpaid" },
+    });
+    await prisma.publication.updateMany({
+      where: { order_id: ISSUE_FIXTURES.order },
+      data: { payment_status: "unpaid" },
     });
 
     await clearIssueObjects(ISSUE_FIXTURES.closeIssue);

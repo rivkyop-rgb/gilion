@@ -11,6 +11,9 @@ import {
   customerOrders,
   customerPublications,
 } from "@/lib/data/customer-activity";
+import { customerCredit, paidByOrder, paymentsForCustomer } from "@/lib/data/payments";
+import { paymentsPhrase } from "@/lib/domain/payment";
+import { positionLabel } from "@/lib/domain/payment-allocation";
 import { deletionBlockedMessage } from "@/lib/domain/customer";
 import {
   PAYMENT_STATUS_LABELS,
@@ -67,11 +70,27 @@ export default async function CustomerPage({
     maySeeAds ? customerAdvertisements(ctx.businessId, customer.id) : Promise.resolve([]),
   ]);
 
+  // FR-8 again: a designer is never handed payment rows, not even to discard
+  // in the markup — the filtering is the server's, not the CSS's.
+  const [paidPerOrder, payments, credit] = maySeeMoney
+    ? await Promise.all([
+        paidByOrder(
+          ctx.businessId,
+          orders.map((o) => o.id),
+        ),
+        paymentsForCustomer(ctx.businessId, customer.id),
+        // Money received with no order named. The first version of this screen
+        // lost it entirely — recorded, listed, counted nowhere.
+        customerCredit(ctx.businessId, customer.id),
+      ])
+    : [new Map<string, number>(), [], 0];
+
   const account = summariseAccount(
     orders.map((o) => ({
       status: o.status,
       totalPrice: Number(o.total_price),
       paymentStatus: o.payment_status as PaymentStatus,
+      paidAmount: paidPerOrder.get(o.id) ?? 0,
     })),
   );
 
@@ -141,10 +160,20 @@ export default async function CustomerPage({
         </div>
         {maySeeMoney ? (
           <div data-testid="customer-debt">
-            <dt className="text-xs text-on-surface-variant">יתרה פתוחה</dt>
+            {/* The net position, not the raw debt: a customer who owes ₪500 and
+                holds ₪500 credit is level, and a tile that said "₪500 פתוחה"
+                would send somebody to chase them for money already paid. */}
+            <dt className="text-xs text-on-surface-variant">
+              {positionLabel(account.outstanding - credit)}
+            </dt>
             <dd className="mt-1 font-semibold">
-              <Ltr>{formatMoney(account.outstanding)}</Ltr>
+              <Ltr>{formatMoney(Math.abs(account.outstanding - credit))}</Ltr>
             </dd>
+            {credit > 0 ? (
+              <p className="mt-1 text-xs text-status-info-fg" data-testid="customer-credit-note">
+                כולל <Ltr>{formatMoney(credit)}</Ltr> לזכות הלקוח
+              </p>
+            ) : null}
           </div>
         ) : null}
       </dl>
@@ -152,7 +181,7 @@ export default async function CustomerPage({
       {maySeeMoney && maySeeOrders ? (
         <section className="mb-8" data-testid="customer-account">
           <h2 className="mb-3 font-serif text-xl font-semibold">מצב חשבון</h2>
-          <dl className="grid gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-6 sm:grid-cols-4">
+          <dl className="grid gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-6 sm:grid-cols-5">
             <div>
               <dt className="text-xs text-on-surface-variant">סה״כ הוזמן</dt>
               <dd className="mt-1 text-2xl font-semibold" data-testid="account-billed">
@@ -161,7 +190,7 @@ export default async function CustomerPage({
               <p className="mt-1 text-xs text-on-surface-variant">הזמנות מאושרות בלבד</p>
             </div>
             <div>
-              <dt className="text-xs text-on-surface-variant">סומן כשולם</dt>
+              <dt className="text-xs text-on-surface-variant">שולם</dt>
               <dd
                 className="mt-1 text-2xl font-semibold text-status-success-fg"
                 data-testid="account-settled"
@@ -175,8 +204,18 @@ export default async function CustomerPage({
                 <Ltr>{formatMoney(account.outstanding)}</Ltr>
               </dd>
             </div>
+            <div data-testid="account-credit-tile">
+              <dt className="text-xs text-on-surface-variant">לזכות הלקוח</dt>
+              <dd
+                className="mt-1 text-2xl font-semibold text-status-info-fg"
+                data-testid="account-credit"
+              >
+                <Ltr>{formatMoney(credit)}</Ltr>
+              </dd>
+              <p className="mt-1 text-xs text-on-surface-variant">התקבל ולא שויך להזמנה</p>
+            </div>
             <div>
-              <dt className="text-xs text-on-surface-variant">מתוכה מסומן כחוב</dt>
+              <dt className="text-xs text-on-surface-variant">מתוכה חוב</dt>
               <dd
                 className="mt-1 text-2xl font-semibold text-status-debt-fg"
                 data-testid="account-debt"
@@ -187,17 +226,106 @@ export default async function CustomerPage({
           </dl>
 
           {/*
-            The honest caveat, in the interface and not only in a comment.
-            Payment records arrive in stage 08 (FR-7); until then the system
-            knows what was ordered and how each order is MARKED, and a
-            partially paid order is counted as fully open rather than as a
-            guessed fraction. Showing a precise-looking number we cannot
-            source would be worse than saying so.
+            Until stage 08 this said the numbers came from how each order was
+            MARKED, because there was no Payment entity to ask. There is one
+            now, so "שולם" is the sum of the receipts and the caveat is gone —
+            replaced by the route to where those receipts are recorded.
           */}
-          <p className="mt-2 text-xs text-on-surface-variant" data-testid="account-caveat">
-            הסכומים מבוססים על סטטוס התשלום שסומן בכל הזמנה. רישום תשלומים בפועל — סכום, תאריך ומספר
-            חשבונית — נכנס בשלב 08, ואז &quot;שולם חלקית&quot; יציג סכום מדויק במקום להיספר כיתרה
-            מלאה.
+          <p className="mt-2 text-xs text-on-surface-variant" data-testid="account-source">
+            &quot;שולם&quot; הוא סכום רישומי התשלום בפועל. סטטוס התשלום נגזר מהם ואינו נקבע ביד.
+            {account.overpaid > 0 ? (
+              <>
+                {" "}
+                <span data-testid="account-overpaid">
+                  התקבל מעבר לחיוב: <Ltr>{formatMoney(account.overpaid)}</Ltr>.
+                </span>
+              </>
+            ) : null}
+          </p>
+        </section>
+      ) : null}
+
+      {maySeeMoney ? (
+        <section className="mb-8" data-testid="customer-payments-section">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-serif text-xl font-semibold">תשלומים</h2>
+            {canReadArea(ctx, "billing") ? (
+              <Link
+                href={`/billing?customer=${customer.id}`}
+                data-testid="go-to-billing"
+                className="text-sm underline underline-offset-2"
+              >
+                רישום ועריכה במסך הגבייה
+              </Link>
+            ) : null}
+          </div>
+          {payments.length === 0 ? (
+            <EmptyState
+              title="עוד לא נרשם תשלום"
+              body="רישום תשלום נעשה במסך הגבייה, ומופיע כאן מיד."
+            />
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest">
+              <table className="w-full text-sm" data-testid="customer-payments">
+                <thead className="bg-surface-container">
+                  <tr>
+                    <th className="p-3 text-start font-semibold">סכום</th>
+                    <th className="p-3 text-start font-semibold">תאריך</th>
+                    <th className="p-3 text-start font-semibold">חשבונית</th>
+                    <th className="p-3 text-start font-semibold">הזמנה</th>
+                    <th className="p-3 text-start font-semibold">עודכן</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payments.map((p) => (
+                    <tr
+                      key={p.id}
+                      data-testid={`customer-payment-${p.id}`}
+                      /* A cancelled record is kept and struck through — rule 10
+                         says there is no physical delete, and a row that simply
+                         vanished would make the balance unexplainable. */
+                      className={
+                        p.status === "canceled"
+                          ? "border-t border-outline-variant text-on-surface-variant line-through opacity-70"
+                          : "border-t border-outline-variant"
+                      }
+                    >
+                      <td className="p-3 font-medium">
+                        <Ltr>{formatMoney(Number(p.amount))}</Ltr>
+                      </td>
+                      <td className="p-3">
+                        {p.payment_date ? <Ltr>{formatDate(p.payment_date)}</Ltr> : "—"}
+                      </td>
+                      <td className="p-3">
+                        {p.external_invoice_number ? (
+                          <Ltr className="font-mono text-xs">{p.external_invoice_number}</Ltr>
+                        ) : (
+                          <span className="text-xs text-on-surface-variant">—</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {p.order_id ? (
+                          <Link
+                            href={`/orders/${p.order_id}`}
+                            className="font-mono text-xs underline"
+                          >
+                            <Ltr>{orderNumber(p.order_id)}</Ltr>
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-on-surface-variant">ליתרת הלקוח</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-xs text-on-surface-variant">
+                        {p.updated_by.name} · <Ltr>{formatDate(p.updated_at)}</Ltr>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="mt-2 text-xs text-on-surface-variant" data-testid="customer-payment-count">
+            {paymentsPhrase(payments.filter((p) => p.status !== "canceled").length)} נספרים ביתרה.
           </p>
         </section>
       ) : null}

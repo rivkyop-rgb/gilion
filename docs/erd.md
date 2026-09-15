@@ -526,5 +526,6 @@ FR-22 Issue, PdfGenerationLog
 | `User` | `is_super_admin` (boolean) | תכונה של האדם, לא תפקיד שישי בתוך עסק. | שם |
 | `RolePermission` | ישות שלמה | FR-8 מאפשר לעסק לשנות ברירת מחדל של תפקיד. נשמרות **רק חריגות**, כך שברירות המחדל נשארות בקוד. | [`plan/01-auth-multitenancy.md`](plan/01-auth-multitenancy.md) |
 | `Advertisement` | `validation_status`, `validation_error` | US-005 AC-2 דורש שקובץ פגום יסומן ותוצג הסיבה. | [`plan/05-advertisements.md`](plan/05-advertisements.md) |
+| `Payment` | `status` — **צומצם** מ־`[unpaid, partially_paid, paid, debt, canceled]` ל־`[recorded, canceled]` | שלושת הערכים שירדו הם תכונה של הזמנה ולא של קבלה: שורה כאן קיימת מפני שהתקבל כסף. "שולם חלקית" ו"חוב" נגזרים מ**סכום** השורות ויושבים על `AdOrder.payment_status`. השארתם כאן הייתה מציעה ערכים שאסור לכתוב, ומזמינה מסך לקבוע ביד את מה שכלל 7 אוסר. | [`plan/08-payments-reports.md`](plan/08-payments-reports.md) §סטיות 1 |
 
 **אזור RBAC נוסף שאינו במסמך:** `reminders`. לא פינה של `publications`, כי הקהל שונה — גרפיקאית חייבת לראות מי לא שלח קובץ, אבל הרדיפה אחרי הלקוח אינה תפקידה, ולהנהלת חשבונות אין בזה חלק כלל.

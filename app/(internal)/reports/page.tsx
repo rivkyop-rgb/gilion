@@ -1,0 +1,582 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
+import { getTenantContext, requireArea } from "@/lib/auth/tenant";
+import { billingReport, publicationReport } from "@/lib/data/payments";
+import { listNewspapers } from "@/lib/data/newspapers";
+import { customerOptions } from "@/lib/data/customers";
+import {
+  PERIOD_LABELS,
+  resolvePeriod,
+  shiftPeriod,
+  type PeriodKind,
+} from "@/lib/domain/payment-report";
+import {
+  LENS_EXPLANATIONS,
+  LENS_LABELS,
+  lensCounts,
+  type PublicationLens,
+} from "@/lib/domain/publication-report";
+import { PAYMENT_STATUS_LABELS, type PaymentStatus } from "@/lib/domain/payment-status";
+import { PUBLICATION_STATUS_LABELS, type PublicationStatus } from "@/lib/domain/publication-status";
+import { publicationsPhrase } from "@/lib/domain/hebrew-count";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
+import { Input } from "@/components/ui/input";
+import { Ltr } from "@/components/ui/ltr";
+import { EmptyState } from "@/components/states";
+import { PAYMENT_TONE, PUBLICATION_TONE } from "@/components/status-tone";
+import { cn } from "@/lib/utils";
+import { formatDate, formatMoney, orderNumber } from "../orders/format";
+import { StatusChip } from "../orders/order-badges";
+
+export const metadata: Metadata = { title: "דוחות · Gilion" };
+
+const PERIODS: PeriodKind[] = ["week", "month", "custom"];
+const LENSES: PublicationLens[] = ["all", "running", "missing_ad", "unplaced", "owing"];
+
+type Params = {
+  tab?: string;
+  period?: string;
+  anchor?: string;
+  from?: string;
+  to?: string;
+  newspaper?: string;
+  customer?: string;
+  lens?: string;
+};
+
+/**
+ * Reports (US-010).
+ *
+ * Two tabs, because US-010 asks two different questions and the design only
+ * drew one of them (docs/design/gaps.md §ה). The first is "who owes what this
+ * period", answered per customer; the second is "what is the state of each
+ * publication", answered per publication with the four chips that ARE the four
+ * acceptance criteria.
+ *
+ * Every filter lives in the URL. A report someone is looking at is a thing they
+ * send to somebody else, and a report held in component state cannot be sent.
+ */
+export default async function ReportsPage({ searchParams }: { searchParams: Promise<Params> }) {
+  const ctx = await getTenantContext();
+  requireArea(ctx, "reports");
+
+  const params = await searchParams;
+  const tab = params.tab === "publications" ? "publications" : "payments";
+  const period: PeriodKind = PERIODS.includes(params.period as PeriodKind)
+    ? (params.period as PeriodKind)
+    : "month";
+  const anchor = params.anchor ?? "";
+  const newspaperId = params.newspaper ?? "all";
+  // The customer combobox submits "" for "no filter" (see the control below),
+  // so this reads `||` and not `??`: an empty string has to mean "everyone",
+  // not "the customer whose id is empty".
+  const customerId = params.customer || "all";
+  const lens: PublicationLens = LENSES.includes(params.lens as PublicationLens)
+    ? (params.lens as PublicationLens)
+    : "all";
+
+  const range = resolvePeriod(period, anchor, { from: params.from ?? "", to: params.to ?? "" });
+
+  const hrefFor = (next: Partial<Params>) => {
+    const merged: Params = {
+      tab,
+      period,
+      anchor,
+      from: params.from ?? "",
+      to: params.to ?? "",
+      newspaper: newspaperId,
+      customer: customerId,
+      lens,
+      ...next,
+    };
+    const q = new URLSearchParams();
+    for (const [key, value] of Object.entries(merged)) {
+      if (!value) continue;
+      if (key === "newspaper" && value === "all") continue;
+      if (key === "customer" && value === "all") continue;
+      if (key === "lens" && value === "all") continue;
+      q.set(key, String(value));
+    }
+    const query = q.toString();
+    return query ? `/reports?${query}` : "/reports";
+  };
+
+  const [newspapers, customers] = await Promise.all([
+    listNewspapers(ctx.businessId),
+    customerOptions(ctx.businessId),
+  ]);
+
+  const filters = { from: range.from, to: range.to, newspaperId, customerId };
+
+  return (
+    <>
+      <h1 className="mb-1 font-serif text-3xl font-semibold">דוחות</h1>
+      <p className="mb-6 text-sm text-on-surface-variant">
+        התקופה נקבעת לפי <strong>תאריך הפרסום</strong>, ולא לפי מתי ההזמנה נפתחה — הזמנה שנמכרה במרץ
+        לארבעה שבועות באפריל מופיעה בדוח של אפריל.
+      </p>
+
+      <div className="mb-5 flex gap-2 border-b border-outline-variant" data-testid="report-tabs">
+        <TabLink
+          href={hrefFor({ tab: "payments" })}
+          active={tab === "payments"}
+          testId="tab-payments"
+        >
+          דוח תשלומים
+        </TabLink>
+        <TabLink
+          href={hrefFor({ tab: "publications" })}
+          active={tab === "publications"}
+          testId="tab-publications"
+        >
+          דוח ברמת פרסום
+        </TabLink>
+      </div>
+
+      {/* --- period ------------------------------------------------------- */}
+      <div className="mb-4 flex flex-wrap items-center gap-2" data-testid="period-filters">
+        {PERIODS.map((p) => (
+          <Link key={p} href={hrefFor({ period: p })} data-testid={`period-${p}`}>
+            <span
+              className={cn(
+                "inline-flex h-8 items-center rounded-full px-3 text-sm font-medium transition-colors",
+                period === p
+                  ? "bg-primary text-on-primary"
+                  : "bg-surface-container-lowest text-on-surface-variant ring-1 ring-outline-variant hover:bg-surface-container",
+              )}
+            >
+              {PERIOD_LABELS[p]}
+            </span>
+          </Link>
+        ))}
+
+        {period === "custom" ? null : (
+          <span className="ms-2 inline-flex items-center gap-1">
+            {/* RTL: ChevronRight points backwards on screen — earlier period. */}
+            <Button variant="ghost" size="sm" asChild>
+              <Link
+                href={hrefFor({ anchor: shiftPeriod(period, anchor || range.from, -1) })}
+                data-testid="period-prev"
+                aria-label="תקופה קודמת"
+              >
+                <ChevronRight className="size-4" />
+              </Link>
+            </Button>
+            <span
+              className="rounded-sm bg-surface-container px-3 py-1 text-sm"
+              data-testid="period-range"
+            >
+              <Ltr>
+                {range.from} — {range.to}
+              </Ltr>
+            </span>
+            <Button variant="ghost" size="sm" asChild>
+              <Link
+                href={hrefFor({ anchor: shiftPeriod(period, anchor || range.from, 1) })}
+                data-testid="period-next"
+                aria-label="תקופה הבאה"
+              >
+                <ChevronLeft className="size-4" />
+              </Link>
+            </Button>
+          </span>
+        )}
+      </div>
+
+      <form className="mb-6 flex flex-wrap items-end gap-3">
+        <input type="hidden" name="tab" value={tab} />
+        <input type="hidden" name="period" value={period} />
+        <input type="hidden" name="lens" value={lens} />
+        {period === "custom" ? null : <input type="hidden" name="anchor" value={anchor} />}
+
+        {period === "custom" ? (
+          <>
+            <div>
+              <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="from">
+                מתאריך
+              </label>
+              <Input
+                id="from"
+                name="from"
+                type="date"
+                dir="ltr"
+                defaultValue={range.from}
+                className="w-40"
+                data-testid="report-from"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="to">
+                עד תאריך
+              </label>
+              <Input
+                id="to"
+                name="to"
+                type="date"
+                dir="ltr"
+                defaultValue={range.to}
+                className="w-40"
+                data-testid="report-to"
+              />
+            </div>
+          </>
+        ) : null}
+
+        <div>
+          <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="newspaper">
+            עיתון
+          </label>
+          <select
+            id="newspaper"
+            name="newspaper"
+            defaultValue={newspaperId}
+            data-testid="report-newspaper"
+            className="h-10 rounded-sm border border-outline-variant bg-surface-container px-3 text-start text-sm"
+          >
+            {/* US-010 AC-1 asks for both, and "all" is the default question. */}
+            <option value="all">כל העיתונים</option>
+            {newspapers.map((n) => (
+              <option key={n.id} value={n.id}>
+                {n.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/*
+          Type-to-filter, the same control the order builder uses — a plain
+          <select> is already unusable at a few hundred customers, and this
+          screen is where somebody looks up ONE advertiser by name. The hidden
+          input it carries submits the id while the visible field holds the
+          name, which is why it drops straight into this form.
+        */}
+        <div className="w-64">
+          <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="customer">
+            לקוח
+          </label>
+          <Combobox
+            id="customer"
+            name="customer"
+            testId="report-customer"
+            options={customers.map((c) => ({
+              value: c.id,
+              label: c.business_name ?? c.contact_name,
+              // Searchable as well as shown: a business is often looked up by
+              // the person who answers the phone there.
+              ...(c.business_name && c.business_name !== c.contact_name
+                ? { hint: c.contact_name }
+                : {}),
+            }))}
+            // "" and not "all": an empty combobox IS "no filter", and giving
+            // that state a sentinel value would need a fake option to select.
+            defaultValue={customerId === "all" ? "" : customerId}
+            placeholder="כל הלקוחות"
+            emptyText="אין לקוח בשם הזה"
+          />
+        </div>
+
+        <Button type="submit" variant="secondary" data-testid="report-apply">
+          הצגה
+        </Button>
+      </form>
+
+      {tab === "payments" ? (
+        <PaymentsTab businessId={ctx.businessId} filters={filters} />
+      ) : (
+        <PublicationsTab
+          businessId={ctx.businessId}
+          filters={filters}
+          lens={lens}
+          hrefFor={hrefFor}
+        />
+      )}
+    </>
+  );
+}
+
+function TabLink({
+  href,
+  active,
+  testId,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  testId: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      data-testid={testId}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors",
+        active
+          ? "border-primary text-on-surface"
+          : "border-transparent text-on-surface-variant hover:text-on-surface",
+      )}
+    >
+      {children}
+    </Link>
+  );
+}
+
+type Filters = { from: string; to: string; newspaperId: string; customerId: string };
+
+/** The four numbers PRD §7 says a bookkeeper opens this report to see. */
+async function PaymentsTab({ businessId, filters }: { businessId: string; filters: Filters }) {
+  const { rows, totals } = await billingReport(businessId, filters);
+
+  if (rows.length === 0) {
+    return (
+      <EmptyState
+        title="אין פרסומים בתקופה הזאת"
+        body="אפשר להרחיב את הטווח, או לבחור עיתון אחר. הדוח נבנה מתאריכי הפרסום."
+      />
+    );
+  }
+
+  return (
+    <>
+      <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="report-totals">
+        <Total label="סה״כ לחיוב" value={totals.billed} testId="report-total-billed" />
+        <Total
+          label="שולם"
+          value={totals.paid}
+          testId="report-total-paid"
+          tone="text-status-success-fg"
+        />
+        <Total
+          label="יתרה"
+          value={totals.outstanding}
+          testId="report-total-outstanding"
+          tone="text-status-debt-fg"
+        />
+        <div className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
+          <p className="text-xs text-on-surface-variant">פרסומים בתקופה</p>
+          <p className="mt-1 font-serif text-3xl font-semibold" data-testid="report-total-count">
+            <Ltr>{totals.publicationCount}</Ltr>
+          </p>
+          <p className="mt-1 text-xs text-on-surface-variant">
+            {totals.customersInDebt} לקוחות עם יתרה
+          </p>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest">
+        <table className="w-full text-sm" data-testid="payments-report-table">
+          <thead className="bg-surface-container">
+            <tr>
+              <th className="p-3 text-start font-semibold">לקוח</th>
+              <th className="p-3 text-start font-semibold">פרסומים</th>
+              <th className="p-3 text-start font-semibold">סכום לתשלום</th>
+              <th className="p-3 text-start font-semibold">ששולם</th>
+              <th className="p-3 text-start font-semibold">יתרה</th>
+              <th className="p-3 text-start font-semibold">מספר חשבונית</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr
+                key={row.customerId}
+                data-testid={`report-row-${row.customerId}`}
+                className={cn(
+                  "border-t border-outline-variant",
+                  row.outstanding > 0 ? "bg-status-error-bg/20" : "hover:bg-surface-container-low",
+                )}
+              >
+                <td className="p-3 font-medium">
+                  <Link
+                    href={`/customers/${row.customerId}`}
+                    className="underline-offset-2 hover:underline"
+                  >
+                    {row.customerLabel}
+                  </Link>
+                </td>
+                <td className="p-3">
+                  <Ltr>{row.publicationCount}</Ltr>
+                </td>
+                <td className="p-3">
+                  <Ltr>{formatMoney(row.billed)}</Ltr>
+                </td>
+                <td className="p-3 text-status-success-fg">
+                  <Ltr>{formatMoney(row.paid)}</Ltr>
+                </td>
+                <td className="p-3 font-semibold">
+                  <Ltr>{formatMoney(row.outstanding)}</Ltr>
+                </td>
+                <td className="p-3">
+                  {row.invoiceNumbers.length > 0 ? (
+                    <Ltr className="font-mono text-xs">{row.invoiceNumbers.join(", ")}</Ltr>
+                  ) : (
+                    <span className="text-xs text-on-surface-variant">—</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/*
+        A payment is recorded against an ORDER, and an order can run across
+        several periods. Saying how the number was reached is what keeps a
+        weekly figure from reading as a mistake against the monthly one.
+      */}
+      <p className="mt-2 text-xs text-on-surface-variant" data-testid="report-apportion-note">
+        תשלום שנרשם על הזמנה מתחלק בין התקופות לפי חלקן בהזמנה — הזמנה של ארבעה פרסומים ששולמה
+        במלואה מוצגת כרבע בכל שבוע.
+      </p>
+    </>
+  );
+}
+
+/**
+ * The publication-level report (US-010 AC-2, AC-3).
+ *
+ * The chips carry live counts, which is the reason the lens filters in memory
+ * rather than in the `where`: a chip that cannot say how many rows it holds is
+ * a chip somebody has to click to find out, four times.
+ */
+async function PublicationsTab({
+  businessId,
+  filters,
+  lens,
+  hrefFor,
+}: {
+  businessId: string;
+  filters: Filters;
+  lens: PublicationLens;
+  hrefFor: (next: Partial<Params>) => string;
+}) {
+  const { rows, all } = await publicationReport(businessId, { ...filters, lens });
+  const counts = lensCounts(all);
+
+  return (
+    <>
+      <div className="mb-3 flex flex-wrap gap-2" data-testid="lens-filters">
+        {LENSES.map((l) => (
+          <Link key={l} href={hrefFor({ lens: l })} data-testid={`lens-${l}`}>
+            <StatusChip
+              tone={
+                l === "owing"
+                  ? "debt"
+                  : l === "missing_ad"
+                    ? "error"
+                    : l === "unplaced"
+                      ? "warning"
+                      : l === "running"
+                        ? "success"
+                        : "neutral"
+              }
+              label={LENS_LABELS[l]}
+              count={counts[l]}
+              active={lens === l}
+            />
+          </Link>
+        ))}
+      </div>
+
+      <p className="mb-4 text-xs text-on-surface-variant" data-testid="lens-explanation">
+        {LENS_EXPLANATIONS[lens]}
+      </p>
+
+      {rows.length === 0 ? (
+        <EmptyState
+          title="אין פרסומים שעונים לסינון"
+          body="אפשר לבחור צ׳יפ אחר או להרחיב את התקופה."
+        />
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest">
+          <table className="w-full text-sm" data-testid="publications-report-table">
+            <thead className="bg-surface-container">
+              <tr>
+                <th className="p-3 text-start font-semibold">לקוח</th>
+                <th className="p-3 text-start font-semibold">עיתון</th>
+                <th className="p-3 text-start font-semibold">תאריך</th>
+                <th className="p-3 text-start font-semibold">צורה</th>
+                <th className="p-3 text-start font-semibold">סטטוס פרסום</th>
+                <th className="p-3 text-start font-semibold">שיבוץ</th>
+                <th className="p-3 text-start font-semibold">תשלום</th>
+                <th className="p-3 text-start font-semibold">הזמנה</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr
+                  key={row.id}
+                  data-testid={`report-publication-${row.id}`}
+                  className="border-t border-outline-variant hover:bg-surface-container-low"
+                >
+                  <td className="p-3">
+                    <Link
+                      href={`/customers/${row.customerId}`}
+                      className="underline-offset-2 hover:underline"
+                    >
+                      {row.customerLabel}
+                    </Link>
+                  </td>
+                  <td className="p-3">{row.newspaper}</td>
+                  <td className="p-3">
+                    <Ltr>{formatDate(row.date)}</Ltr>
+                  </td>
+                  <td className="p-3">{row.shape}</td>
+                  <td className="p-3">
+                    <Badge tone={PUBLICATION_TONE[row.status as PublicationStatus]}>
+                      {PUBLICATION_STATUS_LABELS[row.status as PublicationStatus]}
+                    </Badge>
+                  </td>
+                  <td className="p-3">
+                    <Badge tone={row.placementStatus === "placed" ? "success" : "neutral"}>
+                      {row.placementStatus === "placed" ? "שובץ" : "לא שובץ"}
+                    </Badge>
+                  </td>
+                  <td className="p-3">
+                    <Badge tone={PAYMENT_TONE[row.paymentStatus as PaymentStatus]}>
+                      {PAYMENT_STATUS_LABELS[row.paymentStatus as PaymentStatus]}
+                    </Badge>
+                  </td>
+                  <td className="p-3">
+                    <Link href={`/orders/${row.orderId}`} className="font-mono text-xs underline">
+                      <Ltr>{orderNumber(row.orderId)}</Ltr>
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <p className="mt-2 text-xs text-on-surface-variant" data-testid="lens-count">
+        {publicationsPhrase(rows.length)} בתצוגה.
+      </p>
+    </>
+  );
+}
+
+function Total({
+  label,
+  value,
+  testId,
+  tone,
+}: {
+  label: string;
+  value: number;
+  testId: string;
+  tone?: string;
+}) {
+  return (
+    <div className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
+      <p className="text-xs text-on-surface-variant">{label}</p>
+      <p className={cn("mt-1 font-serif text-3xl font-semibold", tone)} data-testid={testId}>
+        <Ltr>{formatMoney(value)}</Ltr>
+      </p>
+    </div>
+  );
+}

@@ -27,6 +27,7 @@ import { Prisma } from "@prisma/client";
 import { basePrisma, tenantDb } from "./db";
 import { ON_PAGE_STATES } from "@/lib/domain/placement";
 import { withAudit } from "./audit";
+import { recalcOrdersForPublications } from "./payments";
 import { publicationsForIssue, gridOfIssue } from "./issues";
 import { checkIssue, loadIssueForValidation, toValidationInput } from "./issue-validation";
 import { validateIssue } from "@/lib/domain/issue-validation";
@@ -391,6 +392,14 @@ export async function closeIssue(ctx: Actor, issueId: string): Promise<CloseResu
         });
       }
 
+      // Closing is the event that turns "not paid yet" into a DEBT: rule 7 of
+      // stage 08 makes the order's payment status derived, and `debt` means
+      // "every publication on it has run and money is still open". Recomputed
+      // here, in the same transaction, because the alternative is a dashboard
+      // that only notices somebody owes money the next time a human happens to
+      // open a payment form.
+      await recalcOrdersForPublications(tx, ctx.businessId, placedIds);
+
       // One row per FILE, because the log's job is to say what was produced —
       // and two documents went out, not one.
       await tx.pdfGenerationLog.createMany({
@@ -407,7 +416,12 @@ export async function closeIssue(ctx: Actor, issueId: string): Promise<CloseResu
 
       return {
         old: { status: fresh.status, final_pdf_url: fresh.final_pdf_url },
-        new: { status: "closed", final_pdf_url: key, press_pdf_url: pressKey, published: rows.length },
+        new: {
+          status: "closed",
+          final_pdf_url: key,
+          press_pdf_url: pressKey,
+          published: rows.length,
+        },
         result: { publishedCount: rows.length, fileKey: key } satisfies CloseResult,
       };
     },
@@ -472,6 +486,17 @@ export async function reopenIssue(ctx: Actor, issueId: string, to: IssueStatus =
           data: { status: publicationTransition(row.status, "ISSUE_REOPENED") },
         });
       }
+
+      // And the money walks back with them. Without this an order that became a
+      // `debt` on close would stay a debt after the issue was reopened — the
+      // publications no longer claim to have run, and the status would be the
+      // one thing on the screen still saying they did.
+      await recalcOrdersForPublications(
+        tx,
+        ctx.businessId,
+        rows.map((r) => r.id),
+      );
+
       return { old: { status: "closed" }, new: { status: next } };
     },
     { timeout: 30_000 },

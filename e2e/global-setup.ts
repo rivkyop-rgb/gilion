@@ -51,6 +51,7 @@ export default async function globalSetup() {
   // it.
   await deleteTestIssues(prisma);
   await deleteTestAdvertisements(prisma);
+  await deleteTestPayments(prisma);
   await deleteTestOrders(prisma);
   await deleteTestCustomers(prisma);
   await deleteTestNewspapers(prisma);
@@ -317,6 +318,31 @@ async function resetReminderWindow(prisma: PrismaClient) {
  * Reminders and payments cascade or are cleared alongside; AdOrderItem
  * cascades from AdOrder.
  */
+/**
+ * Every payment record (stage 08).
+ *
+ * prisma/seed.ts creates none, so anything here was typed by a spec. Three
+ * reasons this cannot be skipped, and only the first is obvious:
+ *
+ *  1. Payment → Customer is Restrict. A stray record makes the customer it
+ *     names undeletable, and `deleteTestCustomers` below fails with a foreign
+ *     key error in a file that never touched money.
+ *  2. The billing KPIs are SUMS over the whole business. A payment from last
+ *     run is silently added to every total a later run asserts on, and the
+ *     failure reads as arithmetic that is wrong by an amount nobody typed.
+ *  3. `AdOrder.payment_status` is DERIVED from these rows. A leftover payment
+ *     against the seeded fixture order leaves that order marked `paid` — so a
+ *     spec about debt starts from a state no spec chose.
+ */
+async function deleteTestPayments(prisma: PrismaClient) {
+  await prisma.payment.deleteMany({});
+  // And the derived answer goes back to what no-payments means. Done as a bulk
+  // write rather than through the domain function on purpose: this is a reset
+  // to a known start state, not a business event.
+  await prisma.adOrder.updateMany({ data: { payment_status: "unpaid" } });
+  await prisma.publication.updateMany({ data: { payment_status: "unpaid" } });
+}
+
 async function deleteTestOrders(prisma: PrismaClient) {
   await prisma.reminder.deleteMany({});
   await prisma.publication.deleteMany({});

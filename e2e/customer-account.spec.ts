@@ -70,11 +70,17 @@ test("כרטיס הלקוח מציג הזמנות, יתרה, פרסומים וק
   await expect(orders).toContainText("1,500");
   await expect(orders).toContainText("לא שולם");
 
-  // The balance, and the caveat that makes it readable.
+  // The balance. Until stage 08 this screen carried a caveat saying the
+  // numbers came from how each order was MARKED, because there was no Payment
+  // entity to ask; it now says where they actually come from, and nothing was
+  // paid on this order.
   await expect(page.getByTestId("account-billed")).toContainText("1,500");
   await expect(page.getByTestId("account-settled")).toContainText("0");
   await expect(page.getByTestId("account-outstanding")).toContainText("1,500");
-  await expect(page.getByTestId("account-caveat")).toContainText("שלב 08");
+  await expect(page.getByTestId("account-source")).toContainText("רישומי התשלום בפועל");
+
+  // No payment was recorded, so the section says so rather than showing a table.
+  await expect(page.getByTestId("customer-payments-section")).toContainText("עוד לא נרשם תשלום");
 
   // Publications, and which of them are still missing artwork.
   await expect(page.getByTestId("customer-publications")).toContainText("חסר קובץ");

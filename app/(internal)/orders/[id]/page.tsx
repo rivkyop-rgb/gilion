@@ -4,7 +4,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, Info } from "lucide-react";
 
-import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
+import { canReadArea, canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
+import { customerCredit, paidByOrder } from "@/lib/data/payments";
 import { getOrder, orderFormOptions, orderMoney } from "@/lib/data/orders";
 import { formatPercent } from "@/lib/domain/ad-package";
 import { itemsEditable, type OrderStatus } from "@/lib/domain/order-status";
@@ -17,6 +18,7 @@ import { LinkAdCell } from "../../publications/link-ad";
 import { LineBuilder } from "./line-builder";
 import { OrderArtwork } from "./order-artwork";
 import { OrderActions } from "./order-actions";
+import { CreditPrompt } from "./credit-prompt";
 
 export const metadata: Metadata = { title: "הזמנה · Gilion" };
 
@@ -34,6 +36,20 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const money = await orderMoney(ctx.businessId, order);
   const mayEdit = canWriteArea(ctx, "orders") && itemsEditable(status);
   const papers = mayEdit ? await orderFormOptions(ctx.businessId) : [];
+
+  // The credit prompt (US-010 follow-up): a customer who overpaid once should
+  // not have that money quietly forgotten the next time they buy. Read only for
+  // roles that may see money at all — FR-8.
+  const maySeeMoney = canReadArea(ctx, "billing");
+  const credit = maySeeMoney ? await customerCredit(ctx.businessId, order.customer_id) : 0;
+  const openOnOrder =
+    credit > 0
+      ? Math.max(
+          0,
+          Number(order.total_price) -
+            ((await paidByOrder(ctx.businessId, [order.id])).get(order.id) ?? 0),
+        )
+      : 0;
 
   const approved = order.publications.length > 0;
   // The artwork column belongs to whoever may touch files, which is not the
@@ -60,6 +76,16 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         <ArrowRight className="size-4" />
         חזרה להזמנות
       </Link>
+
+      {maySeeMoney ? (
+        <CreditPrompt
+          orderId={order.id}
+          credit={credit}
+          open={openOnOrder}
+          binding={status === "approved" || status === "completed"}
+          mayApply={canWriteArea(ctx, "billing")}
+        />
+      ) : null}
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>

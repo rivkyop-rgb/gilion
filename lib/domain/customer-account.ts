@@ -1,25 +1,22 @@
 /**
  * The money summary on a customer card (US-010, FR-7).
  *
- * Pure. It sums what the system can actually answer TODAY, and is explicit
- * about the one thing it cannot: there is no `Payment` entity until stage 08,
- * so "how much did they actually pay" has no source. Inventing it from
- * `payment_status` would produce a number that looks precise and is not — a
- * `paid` order would silently claim its full total was received, and a
- * `partially_paid` one would have to guess.
+ * Pure. Until stage 08 this module had no source for "how much did they
+ * actually pay" — there was no `Payment` entity — so it summed what was
+ * ordered and how each order was MARKED, counted a partially paid order as
+ * fully open, and said so on screen rather than inventing a fraction.
  *
- * What IS knowable is what was committed to and how each order is marked, so
- * that is what this returns.
+ * `Payment` exists now, so `paidAmount` is a real number per order and the
+ * caveat is gone. What did not change is which orders count: a draft or a
+ * rejected order is not money anyone owes.
  */
 
-export type PaymentStatus = "unpaid" | "partially_paid" | "paid" | "debt";
+import { PAYMENT_STATUS_LABELS, type PaymentStatus } from "./payment-status";
 
-export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
-  unpaid: "לא שולם",
-  partially_paid: "שולם חלקית",
-  paid: "שולם",
-  debt: "חוב",
-};
+// Re-exported so the customer card keeps importing its money vocabulary from
+// one place. The definitions live with the derivation that produces them.
+export { PAYMENT_STATUS_LABELS };
+export type { PaymentStatus };
 
 /**
  * Only these order states represent money the customer owes.
@@ -33,17 +30,21 @@ export type OrderForAccount = {
   status: string;
   totalPrice: number;
   paymentStatus: PaymentStatus;
+  /** Sum of the live (non-cancelled) payment records against this order. */
+  paidAmount: number;
 };
 
 export type CustomerAccount = {
   /** Sum of every binding order. */
   billed: number;
-  /** Binding orders marked `paid` — settled in full. */
+  /** What actually arrived against those orders — recorded payments, not marks. */
   settled: number;
-  /** Binding orders not yet marked `paid`: what is still open. */
+  /** What is still open: billed minus settled, never below zero. */
   outstanding: number;
-  /** The subset of `outstanding` that someone has flagged as a debt (FR-7). */
+  /** The part of `outstanding` sitting on orders that already ran (FR-7). */
   inDebt: number;
+  /** Received beyond what was billed. Shown, never netted off a debt. */
+  overpaid: number;
   /** Orders that are still drafts or proposals — shown, never counted. */
   notBinding: number;
   counts: Record<PaymentStatus, number>;
@@ -55,6 +56,7 @@ export function summariseAccount(orders: OrderForAccount[]): CustomerAccount {
     settled: 0,
     outstanding: 0,
     inDebt: 0,
+    overpaid: 0,
     notBinding: 0,
     counts: { unpaid: 0, partially_paid: 0, paid: 0, debt: 0 },
   };
@@ -67,12 +69,14 @@ export function summariseAccount(orders: OrderForAccount[]): CustomerAccount {
     account.billed += order.totalPrice;
     account.counts[order.paymentStatus] += 1;
 
-    if (order.paymentStatus === "paid") {
-      account.settled += order.totalPrice;
-    } else {
-      account.outstanding += order.totalPrice;
-      if (order.paymentStatus === "debt") account.inDebt += order.totalPrice;
-    }
+    // Per order rather than on the totals: an overpayment on one order is not
+    // change the customer can spend on another, and netting the two would hide
+    // both the surplus and the debt.
+    const open = Math.max(0, order.totalPrice - order.paidAmount);
+    account.settled += Math.min(order.paidAmount, order.totalPrice);
+    account.overpaid += Math.max(0, order.paidAmount - order.totalPrice);
+    account.outstanding += open;
+    if (order.paymentStatus === "debt") account.inDebt += open;
   }
 
   return account;

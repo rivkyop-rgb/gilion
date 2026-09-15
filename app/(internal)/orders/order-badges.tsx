@@ -64,7 +64,11 @@ export function StatusChip({
     >
       {!active ? <span className={cn("size-2 rounded-full", TONE_DOT[tone])} aria-hidden /> : null}
       {label}
-      {count ? <span className="ltr-isolate text-xs opacity-70">{count}</span> : null}
+      {/* `count !== undefined`, not `count` — a chip that shows nothing at zero
+          reads as "unknown" beside chips that show numbers, and zero is an
+          answer. On the publication report "מי חייב כסף · 0" is often the
+          answer somebody came for, and it should not require a click. */}
+      {count !== undefined ? <span className="ltr-isolate text-xs opacity-70">{count}</span> : null}
     </span>
   );
 }
