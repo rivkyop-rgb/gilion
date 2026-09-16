@@ -104,6 +104,14 @@ export async function recordPaymentAction(form: {
     if (result && result.allocations.length === 0) {
       return { ok: true, note: `אין חוב פתוח — ${MONEY.format(result.credit)} נזקפו ליתרת הלקוח` };
     }
+    // One order settled, with change left over: say where the change went, or
+    // the money looks like it vanished between the amount typed and the status.
+    if (result && result.credit > 0) {
+      return {
+        ok: true,
+        note: `${statusNote(result.status) ?? "נשמר"} · ${MONEY.format(result.credit)} נזקפו ליתרת הלקוח`,
+      };
+    }
     return { ok: true, note: statusNote(result?.status) };
   } catch (e) {
     if (e instanceof data.PaymentNotFoundError) return { message: e.message };

@@ -239,13 +239,21 @@ export async function recordPayment(
 
       // --- unnamed: split across what is open ------------------------------
       const ids: string[] = [];
+      // Kept when the split turned out to land on exactly ONE order — the
+      // ordinary case of "he paid what he owed". The screen then reports the
+      // status it reached, the same as a payment that named that order; with
+      // nothing to report the confirmation could only say "נשמר", which is the
+      // one thing the person already knows.
+      let singleStatus: PaymentStatus | null = null;
+
       for (const allocation of plan.allocations) {
         const row = await tx.payment.create({
           data: { ...common, order_id: allocation.orderId, amount: allocation.amount },
           select: { id: true },
         });
         ids.push(row.id);
-        await recalcOrderPaymentStatus(tx, ctx.businessId, allocation.orderId);
+        const next = await recalcOrderPaymentStatus(tx, ctx.businessId, allocation.orderId);
+        if (plan.allocations.length === 1) singleStatus = next;
       }
 
       if (plan.leftover > 0) {
@@ -268,7 +276,7 @@ export async function recordPayment(
         },
         result: {
           ids,
-          status: null,
+          status: singleStatus,
           allocations: plan.allocations,
           credit: plan.leftover,
         } satisfies RecordedPayment,

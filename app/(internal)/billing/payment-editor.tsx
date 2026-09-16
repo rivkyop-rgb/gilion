@@ -116,9 +116,10 @@ export function PaymentEditor({
       <div>
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <div>
-            <h4 className="text-sm font-semibold">
-              נותר לתשלום: <Ltr className="text-base">{MONEY.format(outstanding)}</Ltr>
-            </h4>
+            {/* The BALANCE is not repeated here — the window's header carries
+                it, and a number printed twice on one screen is a number the
+                reader stops to compare. */}
+            <h4 className="text-sm font-semibold">מה פתוח, לפי חודש</h4>
             {/* The sentence somebody reads out on the phone. The table under it
                 is the detail; this is the answer. */}
             <p className="text-xs text-on-surface-variant" data-testid="open-months-phrase">
@@ -496,7 +497,11 @@ function HistoryDialog({ entries, months }: { entries: HistoryEntry[]; months: n
         <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-primary/40" />
         <DialogPrimitive.Content
           data-testid="payment-history-dialog"
-          className="fixed start-1/2 top-1/2 z-50 max-h-[80dvh] w-[min(40rem,92vw)] -translate-y-1/2 overflow-y-auto rounded-lg border border-outline-variant bg-surface-container-lowest p-6 shadow-xl ltr:-translate-x-1/2 rtl:translate-x-1/2"
+          // Same centring as confirm-dialog.tsx: inset-x-0 + mx-auto, which
+          // needs no RTL special case and no `left-`/`right-` utility. The
+          // translate pair this replaced had to name both directions and was a
+          // second way of doing something the codebase had already settled.
+          className="fixed inset-x-0 top-1/2 z-50 mx-auto max-h-[80dvh] w-[min(40rem,calc(100vw-2rem))] -translate-y-1/2 overflow-y-auto rounded-lg border border-outline-variant bg-surface-container-lowest p-6 shadow-xl"
         >
           <DialogPrimitive.Title className="mb-1 font-serif text-xl font-semibold">
             היסטוריית עדכונים
@@ -673,8 +678,12 @@ function NewPaymentForm({
       className="rounded-sm border border-outline-variant bg-surface-container-low p-4"
     >
       <h4 className="mb-3 text-sm font-semibold">רישום תשלום</h4>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="lg:col-span-2">
+      {/* Two columns and not four. Four fitted the old expanded row, where the
+          form borrowed the table's full width; in a window it left a dead
+          half-row beside the invoice field. Two reads straight down in the
+          order the fields are filled. */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="sm:col-span-2">
           <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="payment-order">
             שיוך
           </label>
@@ -717,7 +726,7 @@ function NewPaymentForm({
             onChange={(e) => setPaymentDate(e.target.value)}
           />
         </div>
-        <div className="lg:col-span-2">
+        <div className="sm:col-span-2">
           <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="payment-invoice">
             מספר חשבונית
           </label>

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronDown, Wallet } from "lucide-react";
+import { Wallet } from "lucide-react";
 
 import { getTenantContext, canWriteArea, requireArea } from "@/lib/auth/tenant";
 import {
@@ -21,7 +21,8 @@ import { PAYMENT_TONE, TONE_ROW } from "@/components/status-tone";
 import { cn } from "@/lib/utils";
 import { formatMoney, orderNumber } from "../orders/format";
 import { StatusChip } from "../orders/order-badges";
-import { PaymentEditor, type HistoryEntry, type PaymentRow } from "./payment-editor";
+import type { HistoryEntry, PaymentRow } from "./payment-editor";
+import { PaymentDialog } from "./payment-dialog";
 
 export const metadata: Metadata = { title: "גבייה · Gilion" };
 
@@ -166,6 +167,20 @@ export default async function BillingPage({
         </div>
       </div>
 
+      {/* A customer can be named in the URL and have no row here — the card
+          links straight to this screen, and somebody with no approved order and
+          no credit is not on it. Without this the link simply does nothing,
+          which reads as a broken link rather than as an empty account. */}
+      {customer && !open ? (
+        <p
+          role="status"
+          data-testid="billing-customer-missing"
+          className="mb-4 rounded-sm bg-status-warning-bg px-4 py-3 text-sm text-status-warning-fg"
+        >
+          ללקוח הזה אין עדיין הזמנה מאושרת ולא התקבל ממנו תשלום, ולכן אין לו שורה כאן.
+        </p>
+      ) : null}
+
       <div className="mb-4 flex flex-wrap gap-2" data-testid="billing-status-filters">
         <Link href={hrefFor({ status: "all", customer: "" })}>
           <span
@@ -232,143 +247,125 @@ export default async function BillingPage({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => {
-                const isOpen = open?.customerId === row.customerId;
-                return [
-                  <tr
-                    key={row.customerId}
-                    data-testid={`billing-row-${row.customerId}`}
-                    className={cn(
-                      "border-t border-outline-variant",
-                      // A row with a debt is tinted — the same scheme the
-                      // placement board and the close screen already use.
-                      row.status === "debt"
-                        ? TONE_ROW.debt
-                        : row.outstanding > 0
-                          ? "bg-status-error-bg/20"
-                          : "hover:bg-surface-container-low",
+              {rows.map((row) => (
+                <tr
+                  key={row.customerId}
+                  data-testid={`billing-row-${row.customerId}`}
+                  className={cn(
+                    "border-t border-outline-variant",
+                    // A row with a debt is tinted — the same scheme the
+                    // placement board and the close screen already use.
+                    row.status === "debt"
+                      ? TONE_ROW.debt
+                      : row.outstanding > 0
+                        ? "bg-status-error-bg/20"
+                        : "hover:bg-surface-container-low",
+                  )}
+                >
+                  <td className="p-3 font-medium">
+                    <Link
+                      href={`/customers/${row.customerId}`}
+                      className="underline-offset-2 hover:underline"
+                    >
+                      {row.label}
+                    </Link>
+                  </td>
+                  <td className="p-3">
+                    <Ltr>{formatMoney(row.billed)}</Ltr>
+                  </td>
+                  <td className="p-3 text-status-success-fg">
+                    <Ltr data-testid={`billing-paid-${row.customerId}`}>
+                      {formatMoney(row.paid)}
+                    </Ltr>
+                  </td>
+                  <td className="p-3 font-semibold">
+                    <Ltr data-testid={`billing-outstanding-${row.customerId}`}>
+                      {formatMoney(row.outstanding)}
+                    </Ltr>
+                  </td>
+                  <td className="p-3">
+                    {row.credit > 0 ? (
+                      <Ltr
+                        className="text-status-info-fg"
+                        data-testid={`billing-credit-${row.customerId}`}
+                      >
+                        {formatMoney(row.credit)}
+                      </Ltr>
+                    ) : (
+                      <span className="text-xs text-on-surface-variant">—</span>
                     )}
-                  >
-                    <td className="p-3 font-medium">
-                      <Link
-                        href={`/customers/${row.customerId}`}
-                        className="underline-offset-2 hover:underline"
-                      >
-                        {row.label}
-                      </Link>
-                    </td>
-                    <td className="p-3">
-                      <Ltr>{formatMoney(row.billed)}</Ltr>
-                    </td>
-                    <td className="p-3 text-status-success-fg">
-                      <Ltr data-testid={`billing-paid-${row.customerId}`}>
-                        {formatMoney(row.paid)}
-                      </Ltr>
-                    </td>
-                    <td className="p-3 font-semibold">
-                      <Ltr data-testid={`billing-outstanding-${row.customerId}`}>
-                        {formatMoney(row.outstanding)}
-                      </Ltr>
-                    </td>
-                    <td className="p-3">
-                      {row.credit > 0 ? (
-                        <Ltr
-                          className="text-status-info-fg"
-                          data-testid={`billing-credit-${row.customerId}`}
-                        >
-                          {formatMoney(row.credit)}
-                        </Ltr>
-                      ) : (
-                        <span className="text-xs text-on-surface-variant">—</span>
-                      )}
-                    </td>
-                    <td className="p-3">
-                      <Badge
-                        tone={PAYMENT_TONE[row.status]}
-                        data-testid={`billing-status-${row.customerId}`}
-                      >
-                        {PAYMENT_STATUS_LABELS[row.status]}
-                      </Badge>
-                    </td>
-                    <td className="p-3">
-                      {row.invoiceNumbers.length > 0 ? (
-                        <Ltr className="font-mono text-xs">{row.invoiceNumbers.join(", ")}</Ltr>
-                      ) : (
-                        <span className="text-xs text-on-surface-variant">—</span>
-                      )}
-                    </td>
-                    {/* whitespace-nowrap: the table has eight columns and the
+                  </td>
+                  <td className="p-3">
+                    <Badge
+                      tone={PAYMENT_TONE[row.status]}
+                      data-testid={`billing-status-${row.customerId}`}
+                    >
+                      {PAYMENT_STATUS_LABELS[row.status]}
+                    </Badge>
+                  </td>
+                  <td className="p-3">
+                    {row.invoiceNumbers.length > 0 ? (
+                      <Ltr className="font-mono text-xs">{row.invoiceNumbers.join(", ")}</Ltr>
+                    ) : (
+                      <span className="text-xs text-on-surface-variant">—</span>
+                    )}
+                  </td>
+                  {/* whitespace-nowrap: the table has eight columns and the
                         browser pays for the widest one by wrapping the last —
                         which chopped "רישום תשלום" to "ריש תשל". A control
                         whose label is cut in half is a control nobody trusts. */}
-                    <td className="p-3 text-end whitespace-nowrap">
-                      {/* A button, and one that says what it opens.
+                  <td className="p-3 text-end whitespace-nowrap">
+                    {/* A button, and one that says what it opens.
                           It was a small underlined "תשלומים" at the far end of
                           the row — the least prominent thing in it, for the one
                           act the whole screen exists to perform. */}
-                      <Button
-                        variant={isOpen ? "ghost" : row.outstanding > 0 ? "primary" : "secondary"}
-                        size="sm"
-                        asChild
-                      >
-                        <Link
-                          href={hrefFor({ customer: isOpen ? "" : row.customerId })}
-                          data-testid={`billing-expand-${row.customerId}`}
-                          aria-expanded={isOpen}
-                        >
-                          {isOpen ? (
-                            <>
-                              <ChevronDown className="size-4" />
-                              סגירה
-                            </>
-                          ) : (
-                            <>
-                              <Wallet className="size-4" />
-                              {/* What the click leads to depends on whether
-                                  there is anything to collect. */}
-                              {row.outstanding > 0 ? "רישום תשלום" : "פירוט תשלומים"}
-                            </>
-                          )}
-                        </Link>
-                      </Button>
-                    </td>
-                  </tr>,
-                  isOpen ? (
-                    <tr
-                      key={`${row.customerId}-open`}
-                      data-testid={`billing-open-${row.customerId}`}
+                    <Button
+                      variant={row.outstanding > 0 ? "primary" : "secondary"}
+                      size="sm"
+                      asChild
                     >
-                      <td
-                        colSpan={7}
-                        className="border-t border-outline-variant bg-surface-container-low/50 p-4"
+                      <Link
+                        href={hrefFor({ customer: row.customerId })}
+                        data-testid={`billing-expand-${row.customerId}`}
                       >
-                        <PaymentEditor
-                          customerId={row.customerId}
-                          mayWrite={mayWrite}
-                          orders={orders.map((o) => ({
-                            id: o.id,
-                            label: orderNumber(o.id),
-                            totalPrice: o.totalPrice,
-                            paid: o.paid,
-                            open: o.open,
-                            paymentStatus: o.paymentStatus,
-                          }))}
-                          months={monthly.months}
-                          payments={paymentRows}
-                          credit={credit}
-                          outstanding={row.outstanding}
-                          history={historyEntries}
-                          historyMonths={HISTORY_MONTHS}
-                        />
-                      </td>
-                    </tr>
-                  ) : null,
-                ];
-              })}
+                        <Wallet className="size-4" />
+                        {/* What the click leads to depends on whether there is
+                              anything to collect. */}
+                        {row.outstanding > 0 ? "רישום תשלום" : "פירוט תשלומים"}
+                      </Link>
+                    </Button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       )}
+
+      {/* Rendered only when the URL names a customer, which is also what opens
+          it. The data it needs was fetched above for exactly that reason. */}
+      {open ? (
+        <PaymentDialog
+          customerId={open.customerId}
+          customerLabel={open.label}
+          outstanding={open.outstanding}
+          credit={credit}
+          closeHref={hrefFor({ customer: "" })}
+          mayWrite={mayWrite}
+          orders={orders.map((o) => ({
+            id: o.id,
+            label: orderNumber(o.id),
+            totalPrice: o.totalPrice,
+            paid: o.paid,
+            open: o.open,
+            paymentStatus: o.paymentStatus,
+          }))}
+          months={monthly.months}
+          payments={paymentRows}
+          history={historyEntries}
+          historyMonths={HISTORY_MONTHS}
+        />
+      ) : null}
     </>
   );
 }
