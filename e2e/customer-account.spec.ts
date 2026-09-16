@@ -87,7 +87,7 @@ test("כרטיס הלקוח מציג הזמנות, יתרה, פרסומים וק
   // paid on this order.
   await expect(page.getByTestId("account-billed")).toContainText("1,500");
   await expect(page.getByTestId("account-settled")).toContainText("0");
-  await expect(page.getByTestId("account-outstanding")).toContainText("1,500");
+  await expect(page.getByTestId("account-upcoming")).toContainText("1,500");
   await expect(page.getByTestId("account-source")).toContainText("רישומי התשלום בפועל");
 
   // No payment was recorded, so the section says so rather than showing a table.
@@ -159,9 +159,9 @@ test("חמשת המספרים בכרטיס הלקוח, וההפרש בין 'הו
   await approvedOrder(page, customer.name, [BILLING_DATES.march[0]], "700");
 
   await page.goto(`/customers/${customer.id}`);
-  // Nothing printed yet: everything is owed, none of it is a debt.
-  await expect(page.getByTestId("account-outstanding")).toContainText("1,500");
-  await expect(page.getByTestId("account-debt")).toContainText("0");
+  // Nothing printed yet: the whole 1,500 sits in the "ordered" bucket.
+  await expect(page.getByTestId("account-upcoming")).toContainText("1,500");
+  await expect(page.getByTestId("account-ran")).toContainText("0");
 
   // Print the first one.
   await page.goto(`/issues/${ISSUE_FIXTURES.closeIssue}/board`);
@@ -189,15 +189,13 @@ test("חמשת המספרים בכרטיס הלקוח, וההפרש בין 'הו
 
   await page.goto(`/customers/${customer.id}`);
 
-  // 1,500 billed, 600 in: 900 still open overall...
-  await expect(page.getByTestId("account-outstanding")).toContainText("900");
   await expect(page.getByTestId("account-settled")).toContainText("600");
   await expect(page.getByTestId("account-billed")).toContainText("1,500");
-  // ...of which only the printed order's remainder is an actual DEBT. That gap
-  // is the whole reason the two tiles are separate.
-  await expect(page.getByTestId("account-debt")).toContainText("200");
-  // No credit was left over, so the total owed equals the open balance and the
-  // caption says why the two match rather than leaving it to be guessed.
+  // The 600 went to the older order — the printed one — so 200 of it is still
+  // owed on something that RAN, and the untouched 700 is merely ordered.
+  await expect(page.getByTestId("account-ran")).toContainText("200");
+  await expect(page.getByTestId("account-upcoming")).toContainText("700");
+  // And the total is the two buckets together, with no credit to deduct.
   await expect(page.getByTestId("account-net")).toContainText("900");
   await expect(page.getByTestId("account-credit-tile")).toContainText("אין יתרה לזכותו");
 
@@ -217,7 +215,9 @@ test("יתרת זכות מקוזזת ב'סה״כ חייב' ונאמרת בנפר
   await recordPayment(page, { amount: "800" });
 
   await page.goto(`/customers/${customer.id}`);
-  await expect(page.getByTestId("account-outstanding")).toContainText("0");
+  // Nothing owed in either bucket, and 300 held against nothing.
+  await expect(page.getByTestId("account-upcoming")).toContainText("0");
+  await expect(page.getByTestId("account-ran")).toContainText("0");
   await expect(page.getByTestId("account-credit")).toContainText("300");
   // The credit is its own fact and is never folded into "שילם".
   await expect(page.getByTestId("account-settled")).toContainText("500");

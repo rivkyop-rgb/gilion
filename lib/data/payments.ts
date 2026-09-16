@@ -19,6 +19,7 @@ import { buildReport, type ReportOrder, type ReportPublication } from "@/lib/dom
 import { matchesLens, type PublicationLens } from "@/lib/domain/publication-report";
 import { allocatePayment, positionOf, type OpenOrder } from "@/lib/domain/payment-allocation";
 import { monthlyBreakdown } from "@/lib/domain/payment-months";
+import { summariseAccount } from "@/lib/domain/customer-account";
 
 export type PaymentWriteContext = { businessId: string; userId: string };
 
@@ -642,6 +643,63 @@ export async function customerMonths(businessId: string, customerId: string) {
   );
 }
 
+/**
+ * The customer card's money, and the months it is made of, from ONE read.
+ *
+ * Both answers come off the same publication rows, which is what makes the
+ * tiles and the table under them agree by construction rather than by luck.
+ */
+export async function customerAccount(businessId: string, customerId: string) {
+  const rows = await tenantDb(businessId).publication.findMany({
+    where: { customer_id: customerId },
+    orderBy: { publication_date: "asc" },
+    select: {
+      publication_date: true,
+      price: true,
+      order_id: true,
+      status: true,
+      order: { select: { status: true } },
+    },
+    take: 2000,
+  });
+
+  const orderIds = [...new Set(rows.map((r) => r.order_id))];
+  const [orderTotals, orderPaid] = await Promise.all([
+    billableTotalsByOrder(businessId, orderIds),
+    paidByOrder(businessId, orderIds),
+  ]);
+
+  const account = summariseAccount(
+    rows.map((r) => ({
+      orderId: r.order_id,
+      orderStatus: r.order.status,
+      status: r.status,
+      price: Number(r.price),
+    })),
+    orderPaid,
+  );
+
+  // The monthly table shows only what is actually charged, so it reads the
+  // binding rows alone — same filter the summary applies.
+  const monthly = monthlyBreakdown(
+    rows
+      .filter((r) => BINDING_ORDER_STATUSES.includes(r.order.status))
+      .map((r) => ({
+        date: r.publication_date,
+        price: Number(r.price),
+        orderId: r.order_id,
+        status: r.status,
+      })),
+    orderTotals,
+    orderPaid,
+  );
+
+  return { account, ...monthly };
+}
+
+/** Orders that charge anything. Mirrors lib/domain/customer-account.ts. */
+const BINDING_ORDER_STATUSES = ["approved", "completed"];
+
 export type BillingCustomerRow = {
   customerId: string;
   label: string;
@@ -693,6 +751,16 @@ export async function billingCustomers(
 
   const credits = await creditByCustomer(businessId);
 
+  // Billable totals and NOT `AdOrder.total_price`: cancelling a publication
+  // does not reduce that field — it is the price at approval and stays as a
+  // record — so an order total keeps charging for a line nobody will print.
+  // The customer card sums live publications, and two money screens that
+  // disagree about one customer is worse than either being slightly off.
+  const billableTotals = await billableTotalsByOrder(
+    businessId,
+    orders.map((o) => o.id),
+  );
+
   const byCustomer = new Map<string, BillingCustomerRow>();
   for (const order of orders) {
     const label = order.customer.business_name ?? order.customer.contact_name;
@@ -709,7 +777,7 @@ export async function billingCustomers(
       invoiceNumbers: [],
     };
 
-    const total = Number(order.total_price);
+    const total = billableTotals.get(order.id) ?? 0;
     const received = paid.get(order.id) ?? 0;
     row.billed += total;
     row.paid += Math.min(received, total);

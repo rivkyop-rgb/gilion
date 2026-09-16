@@ -11,23 +11,14 @@ import {
   customerOrders,
   customerPublications,
 } from "@/lib/data/customer-activity";
-import {
-  customerCredit,
-  customerMonths,
-  paidByOrder,
-  paymentsForCustomer,
-} from "@/lib/data/payments";
+import { customerAccount, customerCredit, paymentsForCustomer } from "@/lib/data/payments";
 import { paymentsPhrase } from "@/lib/domain/payment";
 import { positionLabel } from "@/lib/domain/payment-allocation";
 import { openMonthsPhrase } from "@/lib/domain/payment-months";
 import { MonthTable } from "@/components/billing/month-table";
 import { cn } from "@/lib/utils";
 import { deletionBlockedMessage } from "@/lib/domain/customer";
-import {
-  PAYMENT_STATUS_LABELS,
-  summariseAccount,
-  type PaymentStatus,
-} from "@/lib/domain/customer-account";
+import { PAYMENT_STATUS_LABELS, type PaymentStatus } from "@/lib/domain/customer-account";
 import { AD_FILE_TYPE_LABELS, formatBytes, type AdFileType } from "@/lib/domain/ad-file";
 import { PUBLICATION_STATUS_LABELS, type PublicationStatus } from "@/lib/domain/publication-status";
 import { DeleteCustomer } from "./delete-customer";
@@ -80,31 +71,30 @@ export default async function CustomerPage({
 
   // FR-8 again: a designer is never handed payment rows, not even to discard
   // in the markup — the filtering is the server's, not the CSS's.
-  const [paidPerOrder, payments, credit] = maySeeMoney
+  const [payments, credit] = maySeeMoney
     ? await Promise.all([
-        paidByOrder(
-          ctx.businessId,
-          orders.map((o) => o.id),
-        ),
         paymentsForCustomer(ctx.businessId, customer.id),
         // Money received with no order named. The first version of this screen
         // lost it entirely — recorded, listed, counted nowhere.
         customerCredit(ctx.businessId, customer.id),
       ])
-    : [new Map<string, number>(), [], 0];
+    : [[], 0];
 
-  const monthly = maySeeMoney
-    ? await customerMonths(ctx.businessId, customer.id)
-    : { months: [], totals: { billed: 0, paid: 0, open: 0 } };
-
-  const account = summariseAccount(
-    orders.map((o) => ({
-      status: o.status,
-      totalPrice: Number(o.total_price),
-      paymentStatus: o.payment_status as PaymentStatus,
-      paidAmount: paidPerOrder.get(o.id) ?? 0,
-    })),
-  );
+  const { account, ...monthly } = maySeeMoney
+    ? await customerAccount(ctx.businessId, customer.id)
+    : {
+        account: {
+          billed: 0,
+          settled: 0,
+          outstanding: 0,
+          ranOpen: 0,
+          upcomingOpen: 0,
+          overpaid: 0,
+          notBinding: 0,
+        },
+        months: [],
+        totals: { billed: 0, paid: 0, open: 0 },
+      };
 
   // What to actually ask the customer for: the open balance less anything of
   // theirs we are holding. Negative means they are ahead of us.
@@ -209,26 +199,29 @@ export default async function CustomerPage({
             which arithmetic got it there so the match never looks like a bug.
           */}
           <dl className="grid gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-6 sm:grid-cols-2 lg:grid-cols-5">
+            {/* Two BUCKETS, not a total and one of its halves. Each answers
+                "how much debt" for its own stage, and the total tile further
+                along is the two of them together less any credit. */}
             <div>
-              <dt className="text-xs text-on-surface-variant">הוזמן ולא שולם</dt>
-              <dd className="mt-1 text-2xl font-semibold" data-testid="account-outstanding">
-                <Ltr>{formatMoney(account.outstanding)}</Ltr>
+              <dt className="text-xs text-on-surface-variant">הוזמנו ולא שולמו</dt>
+              <dd className="mt-1 text-2xl font-semibold" data-testid="account-upcoming">
+                <Ltr>{formatMoney(account.upcomingOpen)}</Ltr>
               </dd>
-              <p className="mt-1 text-xs text-on-surface-variant">כולל מה שטרם יצא לדפוס</p>
+              <p className="mt-1 text-xs text-on-surface-variant">טרם יצאו לדפוס</p>
             </div>
 
             <div>
-              <dt className="text-xs text-on-surface-variant">פורסם ולא שולם</dt>
+              <dt className="text-xs text-on-surface-variant">פורסמו ולא שולמו</dt>
               <dd
                 className="mt-1 text-2xl font-semibold text-status-debt-fg"
-                data-testid="account-debt"
+                data-testid="account-ran"
               >
-                <Ltr>{formatMoney(account.inDebt)}</Ltr>
+                <Ltr>{formatMoney(account.ranOpen)}</Ltr>
               </dd>
               {/* The distinction the whole derivation rests on, said out loud:
                   an open balance on something not yet printed is money owed and
                   not yet due, and only printing turns it into a debt. */}
-              <p className="mt-1 text-xs text-on-surface-variant">כבר יצא — חוב לכל דבר</p>
+              <p className="mt-1 text-xs text-on-surface-variant">כבר יצאו — חוב לכל דבר</p>
             </div>
 
             <div data-testid="account-credit-tile">
@@ -262,8 +255,11 @@ export default async function CustomerPage({
               >
                 <Ltr>{formatMoney(Math.abs(net))}</Ltr>
               </dd>
+              {/* Says the arithmetic, because this tile is the only one that
+                  is not read off a single fact: it is the two buckets together
+                  less the credit. */}
               <p className="mt-1 text-xs text-on-surface-variant">
-                {credit > 0 ? "אחרי קיזוז יתרת הזכות" : "אין יתרת זכות לקזז"}
+                {credit > 0 ? "שני הסכומים יחד, פחות יתרת הזכות" : "שני הסכומים יחד"}
               </p>
             </div>
 
