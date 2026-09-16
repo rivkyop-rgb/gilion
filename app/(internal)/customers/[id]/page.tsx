@@ -11,9 +11,17 @@ import {
   customerOrders,
   customerPublications,
 } from "@/lib/data/customer-activity";
-import { customerCredit, paidByOrder, paymentsForCustomer } from "@/lib/data/payments";
+import {
+  customerCredit,
+  customerMonths,
+  paidByOrder,
+  paymentsForCustomer,
+} from "@/lib/data/payments";
 import { paymentsPhrase } from "@/lib/domain/payment";
 import { positionLabel } from "@/lib/domain/payment-allocation";
+import { openMonthsPhrase } from "@/lib/domain/payment-months";
+import { MonthTable } from "@/components/billing/month-table";
+import { cn } from "@/lib/utils";
 import { deletionBlockedMessage } from "@/lib/domain/customer";
 import {
   PAYMENT_STATUS_LABELS,
@@ -85,6 +93,10 @@ export default async function CustomerPage({
       ])
     : [new Map<string, number>(), [], 0];
 
+  const monthly = maySeeMoney
+    ? await customerMonths(ctx.businessId, customer.id)
+    : { months: [], totals: { billed: 0, paid: 0, open: 0 } };
+
   const account = summariseAccount(
     orders.map((o) => ({
       status: o.status,
@@ -93,6 +105,10 @@ export default async function CustomerPage({
       paidAmount: paidPerOrder.get(o.id) ?? 0,
     })),
   );
+
+  // What to actually ask the customer for: the open balance less anything of
+  // theirs we are holding. Negative means they are ahead of us.
+  const net = account.outstanding - credit;
 
   return (
     <>
@@ -160,14 +176,14 @@ export default async function CustomerPage({
         </div>
         {maySeeMoney ? (
           <div data-testid="customer-debt">
-            {/* The net position, not the raw debt: a customer who owes ₪500 and
-                holds ₪500 credit is level, and a tile that said "₪500 פתוחה"
-                would send somebody to chase them for money already paid. */}
-            <dt className="text-xs text-on-surface-variant">
-              {positionLabel(account.outstanding - credit)}
-            </dt>
+            {/* One line, and deliberately the SAME number the account section
+                below headlines. It earns its place by being the glance — who is
+                this and do they owe us — beside the phone somebody is about to
+                dial; the section under it is the breakdown, and a reader who
+                wants only the answer should not have to scroll to it. */}
+            <dt className="text-xs text-on-surface-variant">{positionLabel(net)}</dt>
             <dd className="mt-1 font-semibold">
-              <Ltr>{formatMoney(Math.abs(account.outstanding - credit))}</Ltr>
+              <Ltr>{formatMoney(Math.abs(net))}</Ltr>
             </dd>
             {credit > 0 ? (
               <p className="mt-1 text-xs text-status-info-fg" data-testid="customer-credit-note">
@@ -181,34 +197,28 @@ export default async function CustomerPage({
       {maySeeMoney && maySeeOrders ? (
         <section className="mb-8" data-testid="customer-account">
           <h2 className="mb-3 font-serif text-xl font-semibold">מצב חשבון</h2>
-          <dl className="grid gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-6 sm:grid-cols-5">
+          {/*
+            The five questions, in the order the user asked them (16/09/2026):
+            how much was ordered and not paid · how much RAN and was not paid ·
+            is the customer in credit · what is owed in total · how much came in.
+
+            The first and the fourth differ only by the credit, and most of the
+            time that is zero and they read the same. They are both here on
+            purpose: the first is what is on the books and the fourth is what to
+            actually ask the customer for, and the caption on the fourth says
+            which arithmetic got it there so the match never looks like a bug.
+          */}
+          <dl className="grid gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-6 sm:grid-cols-2 lg:grid-cols-5">
             <div>
-              <dt className="text-xs text-on-surface-variant">סה״כ הוזמן</dt>
-              <dd className="mt-1 text-2xl font-semibold" data-testid="account-billed">
-                <Ltr>{formatMoney(account.billed)}</Ltr>
-              </dd>
-              <p className="mt-1 text-xs text-on-surface-variant">הזמנות מאושרות בלבד</p>
-            </div>
-            <div>
-              <dt className="text-xs text-on-surface-variant">שולם</dt>
-              <dd
-                className="mt-1 text-2xl font-semibold text-status-success-fg"
-                data-testid="account-settled"
-              >
-                <Ltr>{formatMoney(account.settled)}</Ltr>
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-on-surface-variant">יתרה פתוחה</dt>
+              <dt className="text-xs text-on-surface-variant">הוזמן ולא שולם</dt>
               <dd className="mt-1 text-2xl font-semibold" data-testid="account-outstanding">
                 <Ltr>{formatMoney(account.outstanding)}</Ltr>
               </dd>
+              <p className="mt-1 text-xs text-on-surface-variant">כולל מה שטרם יצא לדפוס</p>
             </div>
+
             <div>
-              {/* "מתוכה" points at the tile BEFORE it, so nothing may come
-                  between them — the credit tile did, and the word then referred
-                  across something unrelated to it. */}
-              <dt className="text-xs text-on-surface-variant">מתוכה חוב</dt>
+              <dt className="text-xs text-on-surface-variant">פורסם ולא שולם</dt>
               <dd
                 className="mt-1 text-2xl font-semibold text-status-debt-fg"
                 data-testid="account-debt"
@@ -218,28 +228,65 @@ export default async function CustomerPage({
               {/* The distinction the whole derivation rests on, said out loud:
                   an open balance on something not yet printed is money owed and
                   not yet due, and only printing turns it into a debt. */}
-              <p className="mt-1 text-xs text-on-surface-variant">פורסם ולא שולם</p>
+              <p className="mt-1 text-xs text-on-surface-variant">כבר יצא — חוב לכל דבר</p>
             </div>
+
             <div data-testid="account-credit-tile">
-              <dt className="text-xs text-on-surface-variant">לזכות הלקוח</dt>
+              <dt className="text-xs text-on-surface-variant">יתרת זכות</dt>
               <dd
-                className="mt-1 text-2xl font-semibold text-status-info-fg"
+                className={cn(
+                  "mt-1 text-2xl font-semibold",
+                  credit > 0 ? "text-status-info-fg" : "text-on-surface-variant",
+                )}
                 data-testid="account-credit"
               >
                 <Ltr>{formatMoney(credit)}</Ltr>
               </dd>
-              <p className="mt-1 text-xs text-on-surface-variant">התקבל ולא שויך להזמנה</p>
+              {/* Asked as a yes/no question, so the caption answers it rather
+                  than leaving ₪0.00 to be interpreted. */}
+              <p className="mt-1 text-xs text-on-surface-variant">
+                {credit > 0 ? "התקבל ולא שויך להזמנה" : "אין יתרה לזכותו"}
+              </p>
+            </div>
+
+            <div>
+              <dt className="text-xs text-on-surface-variant">
+                {net < 0 ? "לזכות הלקוח" : "סה״כ חייב"}
+              </dt>
+              <dd
+                className={cn(
+                  "mt-1 text-2xl font-semibold",
+                  net > 0 ? "text-status-debt-fg" : "text-status-success-fg",
+                )}
+                data-testid="account-net"
+              >
+                <Ltr>{formatMoney(Math.abs(net))}</Ltr>
+              </dd>
+              <p className="mt-1 text-xs text-on-surface-variant">
+                {credit > 0 ? "אחרי קיזוז יתרת הזכות" : "אין יתרת זכות לקזז"}
+              </p>
+            </div>
+
+            <div>
+              <dt className="text-xs text-on-surface-variant">שילם</dt>
+              <dd
+                className="mt-1 text-2xl font-semibold text-status-success-fg"
+                data-testid="account-settled"
+              >
+                <Ltr>{formatMoney(account.settled)}</Ltr>
+              </dd>
+              {/* "שילם 1,100" floats without the total it is a part of. Said as
+                  a caption rather than a sixth tile, which is not what was
+                  asked for. */}
+              <p className="mt-1 text-xs text-on-surface-variant">
+                מתוך <Ltr data-testid="account-billed">{formatMoney(account.billed)}</Ltr> שהוזמנו
+              </p>
             </div>
           </dl>
 
-          {/*
-            Until stage 08 this said the numbers came from how each order was
-            MARKED, because there was no Payment entity to ask. There is one
-            now, so "שולם" is the sum of the receipts and the caveat is gone —
-            replaced by the route to where those receipts are recorded.
-          */}
           <p className="mt-2 text-xs text-on-surface-variant" data-testid="account-source">
-            &quot;שולם&quot; הוא סכום רישומי התשלום בפועל. סטטוס התשלום נגזר מהם ואינו נקבע ביד.
+            הסכומים מהזמנות מאושרות בלבד. &quot;שילם&quot; הוא סכום רישומי התשלום בפועל, וסטטוס
+            התשלום נגזר מהם ואינו נקבע ביד.
             {account.overpaid > 0 ? (
               <>
                 {" "}
@@ -249,6 +296,25 @@ export default async function CustomerPage({
               </>
             ) : null}
           </p>
+
+          {/* The detail, under the summary. Which months the money above is
+              made of — the same table and the same apportioning rule the
+              billing window uses, so the two screens cannot quote different
+              numbers for the same month. */}
+          {monthly.months.length > 0 ? (
+            <div className="mt-6" data-testid="customer-month-detail">
+              <h3 className="mb-2 text-sm font-semibold">פירוט לפי חודש</h3>
+              <p
+                className="mb-2 text-xs text-on-surface-variant"
+                data-testid="customer-open-months"
+              >
+                {openMonthsPhrase(monthly.months)}
+              </p>
+              <div className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest p-3">
+                <MonthTable customerId={customer.id} months={monthly.months} />
+              </div>
+            </div>
+          ) : null}
         </section>
       ) : null}
 

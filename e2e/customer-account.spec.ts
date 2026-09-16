@@ -1,8 +1,19 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { USERS, login, loginAsAdmin, addOrderLine } from "./helpers";
-import { validPng } from "./ad-fixtures";
+import { PAGE_TYPES, SHAPES, USERS, login, loginAsAdmin, addOrderLine } from "./helpers";
+import { validPdf, validPng } from "./ad-fixtures";
 import { uploadFile } from "./ad-helpers";
+import { BILLING_DATES, approvedOrder, openBillingRow, recordPayment } from "./billing-helpers";
+import {
+  CLOSE_DATE,
+  FIXTURE,
+  ISSUE_FIXTURES,
+  closeIssueUrl,
+  expectPlacedCount,
+  openView,
+  placeAt,
+  resetCloseIssue,
+} from "./issue-helpers";
 
 /**
  * The customer card as a place you can actually answer questions from
@@ -122,4 +133,92 @@ test("מנהלת חשבונות רואה את הכסף ולא את הקבצים 
   await expect(page.getByTestId("customer-orders")).toContainText("700");
   // accounting has no access to artwork anywhere, this screen included.
   await expect(page.getByTestId("customer-ads")).toHaveCount(0);
+});
+
+/**
+ * The five numbers the user asked to see on a customer card (16/09/2026):
+ * ordered-and-unpaid · PRINTED-and-unpaid · is there a credit · total owed ·
+ * how much came in.
+ *
+ * Driven end to end through the product, because the interesting one is the
+ * gap between the first two — and only a real issue close can open it.
+ */
+test("חמשת המספרים בכרטיס הלקוח, וההפרש בין 'הוזמן' ל'פורסם'", async ({ page }) => {
+  test.setTimeout(240_000);
+  await resetCloseIssue();
+  await loginAsAdmin(page);
+
+  const customer = await ownCustomer(page);
+
+  // One order on the close fixture's date, so it can actually be printed.
+  await approvedOrder(page, customer.name, [CLOSE_DATE], "800", {
+    pageTypeId: PAGE_TYPES.inner,
+    shapeId: SHAPES.quarter,
+  });
+  // A second on a date nothing prints, so it stays owed-but-not-yet-due.
+  await approvedOrder(page, customer.name, [BILLING_DATES.march[0]], "700");
+
+  await page.goto(`/customers/${customer.id}`);
+  // Nothing printed yet: everything is owed, none of it is a debt.
+  await expect(page.getByTestId("account-outstanding")).toContainText("1,500");
+  await expect(page.getByTestId("account-debt")).toContainText("0");
+
+  // Print the first one.
+  await page.goto(`/issues/${ISSUE_FIXTURES.closeIssue}/board`);
+  const item = page.locator("[data-testid^='unplaced-item-']").first();
+  await expect(item).toBeVisible();
+  const publicationId = (await item.getAttribute("data-testid"))!.replace("unplaced-item-", "");
+  await page.getByTestId(`upload-for-${publicationId}`).click();
+  await page
+    .getByTestId("board-upload-file")
+    .setInputFiles(await validPdf(`חשבון-${Date.now()}.pdf`));
+  await page.getByTestId("board-upload-submit").click();
+  await expect(page.getByTestId("board-upload-dialog")).toHaveCount(0);
+  await openView(page, FIXTURE.spreadView);
+  await placeAt(page, publicationId, FIXTURE.innerRightPage, 0, 0);
+  await expectPlacedCount(page, 0);
+
+  await page.goto(closeIssueUrl);
+  await page.getByTestId("close-issue").click();
+  await page.getByTestId("confirm-close-issue").click();
+  await expect(page.getByTestId("close-issue-dialog")).toBeHidden({ timeout: 180_000 });
+
+  // Pay part of it, and leave money against nothing.
+  await openBillingRow(page, customer.id);
+  await recordPayment(page, { amount: "600" });
+
+  await page.goto(`/customers/${customer.id}`);
+
+  // 1,500 billed, 600 in: 900 still open overall...
+  await expect(page.getByTestId("account-outstanding")).toContainText("900");
+  await expect(page.getByTestId("account-settled")).toContainText("600");
+  await expect(page.getByTestId("account-billed")).toContainText("1,500");
+  // ...of which only the printed order's remainder is an actual DEBT. That gap
+  // is the whole reason the two tiles are separate.
+  await expect(page.getByTestId("account-debt")).toContainText("200");
+  // No credit was left over, so the total owed equals the open balance and the
+  // caption says why the two match rather than leaving it to be guessed.
+  await expect(page.getByTestId("account-net")).toContainText("900");
+  await expect(page.getByTestId("account-credit-tile")).toContainText("אין יתרה לזכותו");
+
+  // And the detail under the summary.
+  await expect(page.getByTestId("customer-month-detail")).toBeVisible();
+});
+
+test("יתרת זכות מקוזזת ב'סה״כ חייב' ונאמרת בנפרד", async ({ page }) => {
+  test.slow();
+  await loginAsAdmin(page);
+
+  const customer = await ownCustomer(page);
+  await approvedOrder(page, customer.name, [BILLING_DATES.march[0]], "500");
+
+  await openBillingRow(page, customer.id);
+  // 800 against a 500 charge: 500 settles it, 300 has nowhere to go.
+  await recordPayment(page, { amount: "800" });
+
+  await page.goto(`/customers/${customer.id}`);
+  await expect(page.getByTestId("account-outstanding")).toContainText("0");
+  await expect(page.getByTestId("account-credit")).toContainText("300");
+  // The credit is its own fact and is never folded into "שילם".
+  await expect(page.getByTestId("account-settled")).toContainText("500");
 });
