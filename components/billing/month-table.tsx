@@ -19,11 +19,28 @@ const MONEY = new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS
  * twenty-four rows here and twenty of them say "0.00" — and a panel that opens
  * onto twenty rows of nothing buries the two that matter.
  */
-export function MonthTable({ customerId, months }: { customerId: string; months: MonthRow[] }) {
+export function MonthTable({
+  customerId,
+  months,
+  collapseSettled = true,
+}: {
+  customerId: string;
+  months: MonthRow[];
+  /**
+   * Hide fully-paid months behind a count.
+   *
+   * Right in the billing window, where the question is what to collect. WRONG
+   * on a customer card whose month list is PAGED: the pager counts the rows it
+   * was given and this would then hide some of them, so the range label would
+   * promise ten rows and the table would show two. Two filters over one list
+   * have to be the same filter.
+   */
+  collapseSettled?: boolean;
+}) {
   const [showSettled, setShowSettled] = useState(false);
-  const open = months.filter((m) => m.open > 0);
-  const settled = months.length - open.length;
-  const shown = showSettled ? months : open.length > 0 ? open : months;
+  const open = collapseSettled ? months.filter((m) => m.open > 0) : months;
+  const settled = collapseSettled ? months.length - open.length : 0;
+  const shown = showSettled || !collapseSettled ? months : open.length > 0 ? open : months;
 
   return (
     <>

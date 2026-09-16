@@ -19,6 +19,7 @@ import { buildReport, type ReportOrder, type ReportPublication } from "@/lib/dom
 import { matchesLens, type PublicationLens } from "@/lib/domain/publication-report";
 import { allocatePayment, positionOf, type OpenOrder } from "@/lib/domain/payment-allocation";
 import { monthlyBreakdown } from "@/lib/domain/payment-months";
+import { orderNumberNeedle, skipFor, type ListParams } from "@/lib/domain/list-view";
 import { summariseAccount } from "@/lib/domain/customer-account";
 
 export type PaymentWriteContext = { businessId: string; userId: string };
@@ -531,6 +532,54 @@ export async function paymentsForCustomer(businessId: string, customerId: string
     },
     take: 200,
   });
+}
+
+/**
+ * The customer card's payment list: one page of it, with its total.
+ *
+ * Its own function rather than options on `paymentsForCustomer`, which the
+ * billing window uses whole — a shared signature that sometimes pages and
+ * sometimes does not is a signature every caller has to read twice.
+ */
+export async function customerPaymentsPage(
+  businessId: string,
+  customerId: string,
+  params: ListParams,
+) {
+  const db = tenantDb(businessId);
+  const needle = orderNumberNeedle(params.q);
+  const where: Prisma.PaymentWhereInput = {
+    customer_id: customerId,
+    ...(params.q
+      ? {
+          OR: [
+            { external_invoice_number: { contains: params.q, mode: "insensitive" as const } },
+            { order_id: { endsWith: needle } },
+          ],
+        }
+      : {}),
+  };
+
+  const [rows, total] = await Promise.all([
+    db.payment.findMany({
+      where,
+      orderBy: [{ payment_date: "desc" }, { created_at: "desc" }],
+      skip: skipFor(params),
+      take: params.size,
+      select: {
+        id: true,
+        amount: true,
+        payment_date: true,
+        external_invoice_number: true,
+        status: true,
+        order_id: true,
+        updated_at: true,
+        updated_by: { select: { name: true } },
+      },
+    }),
+    db.payment.count({ where }),
+  ]);
+  return { rows, total };
 }
 
 /** Live payment totals per order — what the customer card and the report need. */

@@ -84,7 +84,10 @@ describe("summariseAccount", () => {
   });
 
   it("keeps an overpayment on its own order instead of netting it off a debt", () => {
-    const a = summariseAccount([pub(100, "published"), pub(900, "planned", "o2")], paid({ o1: 250 }));
+    const a = summariseAccount(
+      [pub(100, "published"), pub(900, "planned", "o2")],
+      paid({ o1: 250 }),
+    );
     expect(a.settled).toBe(100);
     expect(a.overpaid).toBe(150);
     // The 150 surplus on the first order is NOT change against the second.

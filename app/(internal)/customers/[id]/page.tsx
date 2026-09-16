@@ -11,7 +11,7 @@ import {
   customerOrders,
   customerPublications,
 } from "@/lib/data/customer-activity";
-import { customerAccount, customerCredit, paymentsForCustomer } from "@/lib/data/payments";
+import { customerAccount, customerCredit, customerPaymentsPage } from "@/lib/data/payments";
 import { paymentsPhrase } from "@/lib/domain/payment";
 import { positionLabel } from "@/lib/domain/payment-allocation";
 import { openMonthsPhrase } from "@/lib/domain/payment-months";
@@ -19,6 +19,8 @@ import { MonthTable } from "@/components/billing/month-table";
 import { cn } from "@/lib/utils";
 import { deletionBlockedMessage } from "@/lib/domain/customer";
 import { PAYMENT_STATUS_LABELS, type PaymentStatus } from "@/lib/domain/customer-account";
+import { clampPage, parseListParams, type ListParams } from "@/lib/domain/list-view";
+import { ListToolbar } from "@/components/ui/list-toolbar";
 import { AD_FILE_TYPE_LABELS, formatBytes, type AdFileType } from "@/lib/domain/ad-file";
 import { PUBLICATION_STATUS_LABELS, type PublicationStatus } from "@/lib/domain/publication-status";
 import { DeleteCustomer } from "./delete-customer";
@@ -40,13 +42,60 @@ export default async function CustomerPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ converted?: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const ctx = await getTenantContext();
   requireArea(ctx, "customers");
 
   const { id } = await params;
-  const { converted } = await searchParams;
+  const query = await searchParams;
+  const converted = query["converted"];
+
+  /**
+   * One set of list parameters per section, namespaced by prefix.
+   *
+   * Five lists share this page and each has to page, search and resize without
+   * disturbing the other four — so `o_page` moves the orders and leaves the
+   * publications where they were.
+   */
+  const listOf = (prefix: string) =>
+    parseListParams({
+      page: query[`${prefix}_page`],
+      size: query[`${prefix}_size`],
+      q: query[`${prefix}_q`],
+    });
+
+  const ordersParams = listOf("o");
+  const pubsParams = listOf("p");
+  const adsParams = listOf("a");
+  const paymentsParams = listOf("y");
+  const monthsParams = listOf("m");
+
+  /** A URL with ONE section's parameters changed and everything else kept. */
+  const sectionHref =
+    (prefix: string, params: ListParams) =>
+    (next: Partial<Record<"page" | "size" | "q", string>>) => {
+      const merged = new URLSearchParams();
+      for (const [key, value] of Object.entries(query)) {
+        if (value && key !== "converted") merged.set(key, value);
+      }
+      const apply = (key: "page" | "size" | "q", fallback: string) => {
+        const value = next[key] ?? fallback;
+        if (value && value !== "1") merged.set(`${prefix}_${key}`, value);
+        else merged.delete(`${prefix}_${key}`);
+      };
+      apply("q", params.q);
+      apply("size", String(params.size));
+      apply("page", String(params.page));
+      const qs = merged.toString();
+      return qs ? `/customers/${id}?${qs}` : `/customers/${id}`;
+    };
+
+  /** Carries the section's live search into the file it downloads. */
+  const exportHref = (section: string, params: ListParams) =>
+    params.q
+      ? `/api/export/customer/${id}/${section}?q=${encodeURIComponent(params.q)}`
+      : `/api/export/customer/${id}/${section}`;
 
   // Scoped lookup: a customer of another business is not found, not forbidden.
   const customer = await getCustomer(ctx.businessId, id);
@@ -63,22 +112,27 @@ export default async function CustomerPage({
   const maySeeOrders = canReadArea(ctx, "orders");
   const maySeeAds = canReadArea(ctx, "advertisements");
 
+  const empty = { rows: [], total: 0 };
   const [orders, publications, ads] = await Promise.all([
-    maySeeOrders ? customerOrders(ctx.businessId, customer.id) : Promise.resolve([]),
-    customerPublications(ctx.businessId, customer.id),
-    maySeeAds ? customerAdvertisements(ctx.businessId, customer.id) : Promise.resolve([]),
+    maySeeOrders
+      ? customerOrders(ctx.businessId, customer.id, ordersParams)
+      : Promise.resolve(empty),
+    customerPublications(ctx.businessId, customer.id, pubsParams),
+    maySeeAds
+      ? customerAdvertisements(ctx.businessId, customer.id, adsParams)
+      : Promise.resolve(empty),
   ]);
 
   // FR-8 again: a designer is never handed payment rows, not even to discard
   // in the markup — the filtering is the server's, not the CSS's.
   const [payments, credit] = maySeeMoney
     ? await Promise.all([
-        paymentsForCustomer(ctx.businessId, customer.id),
+        customerPaymentsPage(ctx.businessId, customer.id, paymentsParams),
         // Money received with no order named. The first version of this screen
         // lost it entirely — recorded, listed, counted nowhere.
         customerCredit(ctx.businessId, customer.id),
       ])
-    : [[], 0];
+    : [{ rows: [], total: 0 }, 0];
 
   const { account, ...monthly } = maySeeMoney
     ? await customerAccount(ctx.businessId, customer.id)
@@ -95,6 +149,21 @@ export default async function CustomerPage({
         months: [],
         totals: { billed: 0, paid: 0, open: 0 },
       };
+
+  /**
+   * The months, searched and paged in memory.
+   *
+   * They were already read in full to produce the summary above, so a second
+   * database round trip would be reading the same rows twice to show fewer.
+   */
+  const matchedMonths = monthsParams.q
+    ? monthly.months.filter((m) => m.label.includes(monthsParams.q))
+    : monthly.months;
+  const monthPage = clampPage(monthsParams, matchedMonths.length);
+  const shownMonths = matchedMonths.slice(
+    (monthPage.page - 1) * monthPage.size,
+    monthPage.page * monthPage.size,
+  );
 
   // What to actually ask the customer for: the open balance less anything of
   // theirs we are holding. Negative means they are ahead of us.
@@ -306,8 +375,16 @@ export default async function CustomerPage({
               >
                 {openMonthsPhrase(monthly.months)}
               </p>
+              <ListToolbar
+                prefix="m"
+                params={monthPage}
+                total={matchedMonths.length}
+                hrefFor={sectionHref("m", monthPage)}
+                searchLabel="חודש"
+                exportHref={exportHref("months", monthsParams)}
+              />
               <div className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest p-3">
-                <MonthTable customerId={customer.id} months={monthly.months} />
+                <MonthTable customerId={customer.id} months={shownMonths} collapseSettled={false} />
               </div>
             </div>
           ) : null}
@@ -328,7 +405,15 @@ export default async function CustomerPage({
               </Link>
             ) : null}
           </div>
-          {payments.length === 0 ? (
+          <ListToolbar
+            prefix="y"
+            params={paymentsParams}
+            total={payments.total}
+            hrefFor={sectionHref("y", paymentsParams)}
+            searchLabel="חשבונית או מספר הזמנה"
+            exportHref={exportHref("payments", paymentsParams)}
+          />
+          {payments.rows.length === 0 ? (
             <EmptyState
               title="עוד לא נרשם תשלום"
               body="רישום תשלום נעשה במסך הגבייה, ומופיע כאן מיד."
@@ -346,7 +431,7 @@ export default async function CustomerPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {payments.map((p) => (
+                  {payments.rows.map((p) => (
                     <tr
                       key={p.id}
                       data-testid={`customer-payment-${p.id}`}
@@ -394,7 +479,8 @@ export default async function CustomerPage({
             </div>
           )}
           <p className="mt-2 text-xs text-on-surface-variant" data-testid="customer-payment-count">
-            {paymentsPhrase(payments.filter((p) => p.status !== "canceled").length)} נספרים ביתרה.
+            {paymentsPhrase(payments.rows.filter((p) => p.status !== "canceled").length)} מוצגים
+            בעמוד הזה.
           </p>
         </section>
       ) : null}
@@ -402,7 +488,15 @@ export default async function CustomerPage({
       {maySeeOrders ? (
         <section className="mb-8">
           <h2 className="mb-3 font-serif text-xl font-semibold">הזמנות</h2>
-          {orders.length === 0 ? (
+          <ListToolbar
+            prefix="o"
+            params={ordersParams}
+            total={orders.total}
+            hrefFor={sectionHref("o", ordersParams)}
+            searchLabel="מספר הזמנה או חשבונית"
+            exportHref={maySeeMoney ? exportHref("orders", ordersParams) : undefined}
+          />
+          {orders.rows.length === 0 ? (
             <EmptyState
               title="אין עדיין הזמנות"
               body="כל הזמנה שתיפתח ללקוח הזה תופיע כאן, עם הסכום וסטטוס התשלום שלה."
@@ -426,7 +520,7 @@ export default async function CustomerPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.map((o) => (
+                  {orders.rows.map((o) => (
                     <tr
                       key={o.id}
                       data-testid={`customer-order-${o.id}`}
@@ -474,7 +568,15 @@ export default async function CustomerPage({
 
       <section className="mb-8">
         <h2 className="mb-3 font-serif text-xl font-semibold">פרסומים</h2>
-        {publications.length === 0 ? (
+        <ListToolbar
+          prefix="p"
+          params={pubsParams}
+          total={publications.total}
+          hrefFor={sectionHref("p", pubsParams)}
+          searchLabel="עיתון, צורה או מספר הזמנה"
+          exportHref={exportHref("publications", pubsParams)}
+        />
+        {publications.rows.length === 0 ? (
           <EmptyState
             title="אין עדיין פרסומים"
             body="פרסומים נוצרים כשהזמנה מאושרת. טיוטה אינה יוצרת פרסומים."
@@ -489,11 +591,16 @@ export default async function CustomerPage({
                   <th className="p-3 text-start font-semibold">צורה</th>
                   <th className="p-3 text-start font-semibold">סטטוס</th>
                   <th className="p-3 text-start font-semibold">מודעה</th>
+                  {/* A publication exists only because an order was approved.
+                      That link was reachable from the orders table and not from
+                      here — so "which order is this from" meant reading dates
+                      off two tables and guessing. */}
+                  <th className="p-3 text-start font-semibold">הזמנה</th>
                   {maySeeMoney ? <th className="p-3 text-start font-semibold">מחיר</th> : null}
                 </tr>
               </thead>
               <tbody>
-                {publications.map((p) => (
+                {publications.rows.map((p) => (
                   <tr key={p.id} className="border-t border-outline-variant">
                     <td className="p-3">{p.newspaper.name}</td>
                     <td className="p-3">
@@ -521,6 +628,19 @@ export default async function CustomerPage({
                         <Badge tone="error">חסר קובץ</Badge>
                       )}
                     </td>
+                    <td className="p-3">
+                      {maySeeOrders ? (
+                        <Link
+                          href={`/orders/${p.order_id}`}
+                          className="font-mono text-xs underline"
+                          data-testid={`publication-order-${p.id}`}
+                        >
+                          <Ltr>{orderNumber(p.order_id)}</Ltr>
+                        </Link>
+                      ) : (
+                        <Ltr className="font-mono text-xs">{orderNumber(p.order_id)}</Ltr>
+                      )}
+                    </td>
                     {maySeeMoney ? (
                       <td className="p-3">
                         <Ltr>{formatMoney(Number(p.price))}</Ltr>
@@ -537,14 +657,22 @@ export default async function CustomerPage({
       {maySeeAds ? (
         <section className="mb-8">
           <h2 className="mb-3 font-serif text-xl font-semibold">קבצים</h2>
-          {ads.length === 0 ? (
+          <ListToolbar
+            prefix="a"
+            params={adsParams}
+            total={ads.total}
+            hrefFor={sectionHref("a", adsParams)}
+            searchLabel="שם הקובץ"
+            exportHref={exportHref("advertisements", adsParams)}
+          />
+          {ads.rows.length === 0 ? (
             <EmptyState
               title="אין עדיין קבצים"
               body="קובץ שיועלה ללקוח הזה — מספריית המודעות או ישירות מפרסום — יופיע כאן."
             />
           ) : (
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="customer-ads">
-              {ads.map((ad) => (
+              {ads.rows.map((ad) => (
                 <li key={ad.id} className="relative">
                   <span className="absolute top-2 end-2 z-10">
                     <AdQuickLook
