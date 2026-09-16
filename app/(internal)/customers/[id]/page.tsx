@@ -204,6 +204,22 @@ export default async function CustomerPage({
                 <Ltr>{formatMoney(account.outstanding)}</Ltr>
               </dd>
             </div>
+            <div>
+              {/* "מתוכה" points at the tile BEFORE it, so nothing may come
+                  between them — the credit tile did, and the word then referred
+                  across something unrelated to it. */}
+              <dt className="text-xs text-on-surface-variant">מתוכה חוב</dt>
+              <dd
+                className="mt-1 text-2xl font-semibold text-status-debt-fg"
+                data-testid="account-debt"
+              >
+                <Ltr>{formatMoney(account.inDebt)}</Ltr>
+              </dd>
+              {/* The distinction the whole derivation rests on, said out loud:
+                  an open balance on something not yet printed is money owed and
+                  not yet due, and only printing turns it into a debt. */}
+              <p className="mt-1 text-xs text-on-surface-variant">פורסם ולא שולם</p>
+            </div>
             <div data-testid="account-credit-tile">
               <dt className="text-xs text-on-surface-variant">לזכות הלקוח</dt>
               <dd
@@ -213,15 +229,6 @@ export default async function CustomerPage({
                 <Ltr>{formatMoney(credit)}</Ltr>
               </dd>
               <p className="mt-1 text-xs text-on-surface-variant">התקבל ולא שויך להזמנה</p>
-            </div>
-            <div>
-              <dt className="text-xs text-on-surface-variant">מתוכה חוב</dt>
-              <dd
-                className="mt-1 text-2xl font-semibold text-status-debt-fg"
-                data-testid="account-debt"
-              >
-                <Ltr>{formatMoney(account.inDebt)}</Ltr>
-              </dd>
             </div>
           </dl>
 
