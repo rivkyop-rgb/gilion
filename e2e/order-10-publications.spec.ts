@@ -45,7 +45,7 @@ test("a sales rep builds, previews and approves 10 publications well inside 3 mi
   const started = Date.now();
 
   await login(page, USERS.sales);
-  const id = await openDraft(page);
+  await openDraft(page);
 
   await page.getByTestId("line-newspaper").selectOption(NEWSPAPERS.alpha);
   await page.getByTestId("line-page-type").selectOption(PAGE_TYPES.inner);

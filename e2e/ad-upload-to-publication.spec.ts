@@ -19,7 +19,6 @@ async function approvedOrder(page: Page, dates: string[]): Promise<string> {
   await page.getByTestId("order-customer-list").getByRole("option").first().click();
   await page.getByTestId("create-order").click();
   await page.waitForURL(/\/orders\/c[a-z0-9]{20,}$/);
-  const id = new URL(page.url()).pathname.split("/").pop()!;
 
   for (const [index, date] of dates.entries()) {
     await addOrderLine(page, date, "1000", index + 1);
@@ -73,7 +72,6 @@ test("העלאה מהפרסום נמדדת מול העיתון של אותו פ�
   await page.getByTestId("order-customer-list").getByRole("option").first().click();
   await page.getByTestId("create-order").click();
   await page.waitForURL(/\/orders\/c[a-z0-9]{20,}$/);
-  const id = new URL(page.url()).pathname.split("/").pop()!;
 
   await page.getByTestId("line-newspaper").selectOption({ label: "קטלוג המרכז" });
   await addOrderLine(page, "2026-12-03", "1000", 1);

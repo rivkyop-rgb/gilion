@@ -72,8 +72,9 @@ test("שינוי מספר השורות לעמוד", async ({ page }) => {
   const customer = await customerWithHistory(page, 12);
 
   await page.goto(`/customers/${customer.id}`);
+  // Applies on change — a separate button was a second click for a choice
+  // that has no other meaning.
   await page.getByTestId("o-size").selectOption("50");
-  await page.getByTestId("o-size-go").click();
 
   await expect(page.getByTestId("customer-orders").locator("tbody tr")).toHaveCount(12);
   await expect(page.getByTestId("o-page")).toContainText("1 / 1");
@@ -183,4 +184,33 @@ test("גרפיקאית לא מייצאת כסף, גם לא דרך ה־URL (FR-8)
   const text = await publications.text();
   expect(text).not.toContain("מחיר");
   expect(text).not.toContain("777");
+});
+
+test("חיפוש ודפדוף לא מחזירים את העמוד לראש", async ({ page }) => {
+  test.slow();
+  await loginAsAdmin(page);
+  const customer = await customerWithHistory(page, 12);
+
+  await page.goto(`/customers/${customer.id}`);
+
+  // Scroll down to the orders list, the way somebody working through a card is.
+  await page.getByTestId("customer-orders").scrollIntoViewIfNeeded();
+  const before = await page.evaluate(() => window.scrollY);
+  expect(before).toBeGreaterThan(0);
+
+  await page.getByTestId("o-next").click();
+  await expect(page.getByTestId("o-page")).toContainText("2 / 2");
+  // The reader stays put. A native form submit or a default <Link> would have
+  // put them back at the top of the page, halfway from the list they were in.
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+  await page.getByTestId("o-search").fill(customer.refs[0]!);
+  await page.getByTestId("o-search-go").click();
+  await expect(page.getByTestId("o-range")).toContainText("1 מתוך 1");
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+  // And clearing empties the box rather than leaving the old term in it.
+  await page.getByTestId("o-search-clear").click();
+  await expect(page.getByTestId("o-range")).toContainText("מתוך 12");
+  await expect(page.getByTestId("o-search")).toHaveValue("");
 });

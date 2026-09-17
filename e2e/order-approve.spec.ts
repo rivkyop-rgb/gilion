@@ -38,7 +38,7 @@ async function addLine(page: Page, date: string, price: string) {
 test.describe("approving an order (US-004)", () => {
   test("a draft creates no publications at all (US-003 AC-5)", async ({ page }) => {
     await login(page, USERS.sales);
-    const id = await newDraft(page);
+    await newDraft(page);
     await addLine(page, "2026-12-01", "1200");
 
     // The preview names what *would* be created, in the future tense.

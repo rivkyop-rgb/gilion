@@ -97,7 +97,6 @@ async function approvedOrderOn(
   await (customer ? options.filter({ hasText: customer }).first() : options.first()).click();
   await page.getByTestId("create-order").click();
   await page.waitForURL(/\/orders\/c[a-z0-9]{20,}$/);
-  const id = new URL(page.url()).pathname.split("/").pop()!;
 
   const days = await addPrintableLine(page, minDays);
 

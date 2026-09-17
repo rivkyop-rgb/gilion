@@ -71,25 +71,24 @@ export default async function CustomerPage({
   const paymentsParams = listOf("y");
   const monthsParams = listOf("m");
 
-  /** A URL with ONE section's parameters changed and everything else kept. */
-  const sectionHref =
-    (prefix: string, params: ListParams) =>
-    (next: Partial<Record<"page" | "size" | "q", string>>) => {
-      const merged = new URLSearchParams();
-      for (const [key, value] of Object.entries(query)) {
-        if (value && key !== "converted") merged.set(key, value);
-      }
-      const apply = (key: "page" | "size" | "q", fallback: string) => {
-        const value = next[key] ?? fallback;
-        if (value && value !== "1") merged.set(`${prefix}_${key}`, value);
-        else merged.delete(`${prefix}_${key}`);
-      };
-      apply("q", params.q);
-      apply("size", String(params.size));
-      apply("page", String(params.page));
-      const qs = merged.toString();
-      return qs ? `/customers/${id}?${qs}` : `/customers/${id}`;
-    };
+  /**
+   * This page's URL with ONE section's parameters stripped.
+   *
+   * The toolbar writes its own three back on — so a move in the orders list
+   * leaves the publications, the files, the payments and the months exactly
+   * where they were. Passed as a string because a function cannot cross into a
+   * client component as a prop.
+   */
+  const baseHref = (prefix: string) => {
+    const kept = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (!value || key === "converted") continue;
+      if (key === `${prefix}_page` || key === `${prefix}_size` || key === `${prefix}_q`) continue;
+      kept.set(key, value);
+    }
+    const qs = kept.toString();
+    return qs ? `/customers/${id}?${qs}` : `/customers/${id}`;
+  };
 
   /** Carries the section's live search into the file it downloads. */
   const exportHref = (section: string, params: ListParams) =>
@@ -379,7 +378,7 @@ export default async function CustomerPage({
                 prefix="m"
                 params={monthPage}
                 total={matchedMonths.length}
-                hrefFor={sectionHref("m", monthPage)}
+                baseHref={baseHref("m")}
                 searchLabel="חודש"
                 exportHref={exportHref("months", monthsParams)}
               />
@@ -409,7 +408,7 @@ export default async function CustomerPage({
             prefix="y"
             params={paymentsParams}
             total={payments.total}
-            hrefFor={sectionHref("y", paymentsParams)}
+            baseHref={baseHref("y")}
             searchLabel="חשבונית או מספר הזמנה"
             exportHref={exportHref("payments", paymentsParams)}
           />
@@ -492,7 +491,7 @@ export default async function CustomerPage({
             prefix="o"
             params={ordersParams}
             total={orders.total}
-            hrefFor={sectionHref("o", ordersParams)}
+            baseHref={baseHref("o")}
             searchLabel="מספר הזמנה או חשבונית"
             exportHref={maySeeMoney ? exportHref("orders", ordersParams) : undefined}
           />
@@ -572,7 +571,7 @@ export default async function CustomerPage({
           prefix="p"
           params={pubsParams}
           total={publications.total}
-          hrefFor={sectionHref("p", pubsParams)}
+          baseHref={baseHref("p")}
           searchLabel="עיתון, צורה או מספר הזמנה"
           exportHref={exportHref("publications", pubsParams)}
         />
@@ -661,7 +660,7 @@ export default async function CustomerPage({
             prefix="a"
             params={adsParams}
             total={ads.total}
-            hrefFor={sectionHref("a", adsParams)}
+            baseHref={baseHref("a")}
             searchLabel="שם הקובץ"
             exportHref={exportHref("advertisements", adsParams)}
           />

@@ -68,7 +68,7 @@ test("שיוך מודעה אחת לכל הפרסומים הפתוחים של ה�
   test.slow();
   await loginAsAdmin(page);
 
-  const id = await draftWithLines(page, ["2026-11-03", "2026-11-10"]);
+  await draftWithLines(page, ["2026-11-03", "2026-11-10"]);
   await page.getByTestId("submit-order").click();
   await page.getByTestId("approve-order").click();
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");

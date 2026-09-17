@@ -56,7 +56,7 @@ test("אותו גודל בשני מחירים נשאר שתי שורות — ה�
 test("הפירוט לפי תאריך נמצא בפרסומים, שורה לכל אחד", async ({ page }) => {
   test.slow();
   await login(page, USERS.sales);
-  const id = await draft(page);
+  await draft(page);
 
   await addDate(page, "2026-12-01", "1000", 1);
   await addDate(page, "2026-12-08", "1000", 2);

@@ -16,7 +16,6 @@ async function approvedOrder(page: Page, dates: string[]): Promise<string> {
   await page.getByTestId("order-customer-list").getByRole("option").first().click();
   await page.getByTestId("create-order").click();
   await page.waitForURL(/\/orders\/c[a-z0-9]{20,}$/);
-  const id = new URL(page.url()).pathname.split("/").pop()!;
 
   for (const [index, date] of dates.entries()) {
     await addOrderLine(page, date, "500", index + 1);

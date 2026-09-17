@@ -34,7 +34,6 @@ async function approvedOrderFor(page: Page, customerName: string, date: string):
     .click();
   await page.getByTestId("create-order").click();
   await page.waitForURL(/\/orders\/c[a-z0-9]{20,}$/);
-  const id = new URL(page.url()).pathname.split("/").pop()!;
 
   await page.getByTestId("line-date").fill(date);
   await page.getByTestId("line-price").fill("400");
