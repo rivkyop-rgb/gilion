@@ -17,8 +17,6 @@ import type { Prisma } from "@prisma/client";
 import { tenantDb } from "./db";
 import { orderNumberNeedle, skipFor, type ListParams } from "@/lib/domain/list-view";
 
-export type Paged<T> = { rows: T[]; total: number };
-
 /** Case-insensitive `contains`, the shape Prisma wants it in. */
 const like = (q: string) => ({ contains: q, mode: "insensitive" as const });
 
