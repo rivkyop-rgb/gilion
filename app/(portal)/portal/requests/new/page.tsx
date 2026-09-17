@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 import { getCustomerScope } from "@/lib/auth/portal";
-import { portalFormOptions, type PortalFormNewspaper } from "@/lib/data/portal";
+import { portalAdLibrary, portalFormOptions, type PortalFormNewspaper } from "@/lib/data/portal";
 import { RequestForm } from "./request-form";
 
 export const metadata: Metadata = { title: "בקשת פרסום חדשה · Gilion" };
@@ -19,7 +19,10 @@ function forBrowser(paper: PortalFormNewspaper): PortalFormNewspaper {
 
 export default async function NewRequestPage() {
   const scope = await getCustomerScope();
-  const newspapers = await portalFormOptions(scope);
+  const [newspapers, library] = await Promise.all([
+    portalFormOptions(scope),
+    portalAdLibrary(scope),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -40,7 +43,16 @@ export default async function NewRequestPage() {
               אין כרגע עיתונים שאפשר להזמין בהם פרסום. אפשר לפנות ישירות לעיתון.
             </p>
           ) : (
-            <RequestForm newspapers={newspapers.map(forBrowser)} />
+            <RequestForm
+              newspapers={newspapers.map(forBrowser)}
+              library={library.map((ad) => ({
+                id: ad.id,
+                name: ad.name,
+                fileType: ad.file_type,
+                fileSize: ad.file_size,
+                previewUrl: ad.preview_url,
+              }))}
+            />
           )}
         </div>
       </div>

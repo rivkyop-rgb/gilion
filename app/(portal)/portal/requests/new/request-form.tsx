@@ -1,7 +1,16 @@
 "use client";
 
 import { useActionState, useMemo, useRef, useState, useTransition } from "react";
-import { ChevronLeft, ChevronRight, FileUp, Info, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  FileUp,
+  Images,
+  Info,
+  Loader2,
+  Plus,
+  Trash2,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { orderPricing } from "@/lib/domain/ad-package";
@@ -61,13 +70,22 @@ const MONEY = new Intl.NumberFormat("he-IL", {
  * measures it against that line's newspaper on submit, and the line says so
  * beforehand when it no longer fits.
  */
-export function RequestForm({ newspapers }: { newspapers: PortalFormNewspaper[] }) {
+export function RequestForm({
+  newspapers,
+  library = [],
+}: {
+  newspapers: PortalFormNewspaper[];
+  /** Files this customer uploaded before, in earlier requests (backlog 28). */
+  library?: UploadedAd[];
+}) {
   const counter = useRef(1);
   const single = newspapers.length === 1 ? newspapers[0]!.id : "";
   const [lines, setLines] = useState<Line[]>([
     { key: 0, newspaperId: single, shapeId: "", dates: [], adId: "" },
   ]);
-  const [files, setFiles] = useState<UploadedAd[]>([]);
+  // Everything pickable on a line: what they uploaded before, and what they
+  // upload while filling this form.
+  const [files, setFiles] = useState<UploadedAd[]>(library);
 
   const [state, submit, submitting] = useActionState<PortalRequestState, FormData>(
     submitAdRequestAction,
@@ -141,7 +159,7 @@ export function RequestForm({ newspapers }: { newspapers: PortalFormNewspaper[] 
           onChange={(patch) => update(line.key, patch)}
           onRemove={() => removeLine(line.key)}
           onUploaded={(ad) => {
-            setFiles((all) => [...all, ad]);
+            setFiles((all) => [ad, ...all]);
             update(line.key, { adId: ad.id });
           }}
         />
@@ -234,6 +252,7 @@ function LineEditor({
   const paper = newspapers.find((n) => n.id === line.newspaperId) ?? null;
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, startUpload] = useTransition();
+  const [picking, setPicking] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const error = (field: string) => errors[`lines.${index}.${field}`];
   const ad = files.find((f) => f.id === line.adId) ?? null;
@@ -424,29 +443,67 @@ function LineEditor({
               ) : (
                 <FileUp className="size-4" aria-hidden />
               )}
-              {uploading ? "מעלה ובודק…" : ad ? "קובץ אחר" : "העלאת קובץ"}
+              {uploading ? "מעלה ובודק…" : ad ? "קובץ אחר" : "העלאת קובץ חדש"}
             </Button>
 
-            {/* The same artwork on another line, without uploading it again. */}
+            {/* The customer's own files — earlier requests and this one
+                (backlog 28). Shown as pictures: a file name is not a file. */}
             {files.length > 0 ? (
-              <label className="flex items-center gap-2 text-sm">
-                <span className="text-on-surface-variant">או קובץ שכבר הועלה:</span>
-                <select
-                  value={line.adId}
-                  onChange={(e) => onChange({ adId: e.target.value })}
-                  className="h-9 rounded-sm border border-outline-variant bg-surface-container-lowest px-2"
-                  data-testid="line-file-select"
-                >
-                  <option value="">—</option>
-                  {files.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setPicking((open) => !open)}
+                aria-expanded={picking}
+                data-testid="pick-existing"
+              >
+                <Images className="size-4" aria-hidden />
+                בחירה מהקבצים שלי ({files.length})
+              </Button>
             ) : null}
           </div>
+
+          {picking && files.length > 0 ? (
+            <div
+              className="grid grid-cols-2 gap-2 rounded-lg bg-surface-container p-2 sm:grid-cols-4"
+              data-testid="file-library"
+            >
+              {files.map((f) => {
+                const chosen = f.id === line.adId;
+                const fits = !paper || f.fileSize <= paper.maxAdFileSize;
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => {
+                      onChange({ adId: f.id });
+                      setPicking(false);
+                    }}
+                    disabled={!fits}
+                    aria-pressed={chosen}
+                    data-testid="library-file"
+                    data-file-name={f.name}
+                    title={fits ? f.name : `${f.name} — גדול מהמותר לעיתון ${paper?.name}`}
+                    className={cn(
+                      "flex flex-col items-center gap-1 rounded-sm border p-2 text-xs transition-colors",
+                      chosen ? "border-primary bg-surface-container-lowest" : "border-transparent",
+                      fits ? "hover:border-outline" : "cursor-not-allowed opacity-40",
+                    )}
+                  >
+                    <AdThumb
+                      ad={{
+                        name: f.name,
+                        fileType: f.fileType as AdFileType,
+                        previewUrl: f.previewUrl,
+                      }}
+                      className="size-16"
+                    />
+                    <span className="w-full truncate">{f.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
 
           <p className="text-xs text-on-surface-variant" data-testid="file-requirements">
             קובץ <Ltr>PDF / JPG / PNG</Ltr>

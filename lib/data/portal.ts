@@ -356,6 +356,27 @@ export async function portalGreeting(scope: CustomerScope) {
   return { userName: user?.name ?? customer?.contact_name ?? "", customer };
 }
 
+/**
+ * The customer's own files — everything they have ever uploaded here that is
+ * still valid (backlog 28). A customer who ran the same ad last month picks it
+ * rather than finding the file again.
+ */
+export async function portalAdLibrary(scope: CustomerScope) {
+  return customerDb(scope).advertisement.findMany({
+    where: { status: "valid", validation_status: "passed" },
+    orderBy: { uploaded_at: "desc" },
+    take: 60,
+    select: {
+      id: true,
+      name: true,
+      file_type: true,
+      file_size: true,
+      preview_url: true,
+      uploaded_at: true,
+    },
+  });
+}
+
 // --- Publications waiting for artwork (backlog 24) ----------------------------
 
 /**

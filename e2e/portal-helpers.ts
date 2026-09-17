@@ -26,6 +26,9 @@ export const PORTAL_DATES = {
     "2029-03-20",
     "2029-03-27",
     "2029-04-03",
+    // Backlog 28: picking a file from an earlier request.
+    "2029-04-10",
+    "2029-04-17",
   ],
   catalog: ["2029-01-11"],
 } as const;
