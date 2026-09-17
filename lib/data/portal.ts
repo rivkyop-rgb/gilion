@@ -75,11 +75,16 @@ export async function portalFormOptions(scope: CustomerScope) {
     const estimated = [...shapes.values()].map((shape) => {
       const pageTypeId = pickPageType(shape);
       const list = pageTypeId ? priceOf.get(`${pageTypeId}:${shape.id}`) : undefined;
-      const estimate =
-        list === undefined
-          ? null
-          : orderPricing([{ newspaperId: p.id, price: list }], packages).total;
-      return { ...shape, estimate };
+      return {
+        ...shape,
+        /** The list price of one insertion, before any package. */
+        listPrice: list ?? null,
+        /** One insertion on its own, packages applied. */
+        estimate:
+          list === undefined
+            ? null
+            : orderPricing([{ newspaperId: p.id, price: list }], packages).total,
+      };
     });
 
     return {
@@ -88,6 +93,8 @@ export async function portalFormOptions(scope: CustomerScope) {
       publicationDays: p.publication_days,
       maxAdFileSize: p.max_ad_file_size,
       grid: grid ? { columns: grid.columns, rows: grid.rows } : null,
+      /** Quantity packages, so the form can price a whole request as approval would. */
+      packages: packages[p.id] ?? [],
       // Largest first — "a full page" before "a quarter" is how a price list
       // reads, and it keeps the proportions from jumping around.
       shapes: estimated.sort((a, b) => b.cols * b.rows - a.cols * a.rows),
@@ -114,11 +121,15 @@ const REQUEST_SELECT = {
     select: { id: true, name: true, file_type: true, file_size: true, preview_url: true },
   },
   items: {
-    take: 1,
+    orderBy: { publication_date: "asc" },
     select: {
+      id: true,
       publication_date: true,
       newspaper: { select: { id: true, name: true } },
       ad_shape: { select: { id: true, name: true, cols: true, rows: true } },
+      advertisement: {
+        select: { id: true, name: true, file_type: true, file_size: true, preview_url: true },
+      },
     },
   },
 } as const;
@@ -145,11 +156,12 @@ export async function portalRequest(scope: CustomerScope, id: string) {
   });
 }
 
-/** The uploaded file as the server knows it, for rule 4. */
-export async function portalAdvertisement(scope: CustomerScope, id: string) {
-  if (!id) return null;
-  return customerDb(scope).advertisement.findFirst({
-    where: { id },
+/** The uploaded files as the server knows them, for rule 4. Someone else's id finds nothing. */
+export async function portalAdvertisements(scope: CustomerScope, ids: string[]) {
+  const wanted = [...new Set(ids.filter(Boolean))];
+  if (wanted.length === 0) return [];
+  return customerDb(scope).advertisement.findMany({
+    where: { id: { in: wanted } },
     select: {
       id: true,
       customer_id: true,
@@ -207,21 +219,20 @@ export async function createPortalRequest(
         },
         select: { id: true },
       });
-      await tx.adOrderItem.create({
-        data: {
-          ...record.item,
+      await tx.adOrderItem.createMany({
+        data: record.items.map((item) => ({
+          ...item,
           order_id: order.id,
-          publication_date: new Date(`${record.item.publication_date}T00:00:00Z`),
-        },
+          publication_date: new Date(`${item.publication_date}T00:00:00Z`),
+        })),
       });
       return {
         new: {
           orderId: order.id,
           number,
-          publicationDate: record.item.publication_date,
-          newspaperId: record.item.newspaper_id,
-          adShapeId: record.item.ad_shape_id,
-          advertisementId: record.order.advertisement_id,
+          publications: record.items.length,
+          dates: [...new Set(record.items.map((i) => i.publication_date))],
+          advertisements: [...new Set(record.items.map((i) => i.advertisement_id))],
           estimate: record.order.total_price,
         },
         result: order,

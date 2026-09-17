@@ -1,9 +1,10 @@
 "use client";
 
 import { useActionState, useMemo, useRef, useState, useTransition } from "react";
-import { ChevronLeft, ChevronRight, FileUp, Info, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileUp, Info, Loader2, Plus, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { orderPricing } from "@/lib/domain/ad-package";
 import { AD_ACCEPT_ATTRIBUTE, formatBytes, type AdFileType } from "@/lib/domain/ad-file";
 import { jewishMonth } from "@/lib/domain/jewish-calendar";
 import {
@@ -14,6 +15,7 @@ import {
   WEEKDAYS,
   WEEKDAY_SHORT,
 } from "@/lib/domain/publication-days";
+import { MAX_LINES } from "@/lib/domain/portal-request";
 import type { PortalFormNewspaper } from "@/lib/data/portal";
 import { AdThumb } from "@/components/ads/ad-preview";
 import { ShapePreview } from "@/app/(internal)/settings/shape-preview";
@@ -30,6 +32,14 @@ import {
 
 type UploadedAd = NonNullable<PortalUploadState["ad"]>;
 
+type Line = {
+  key: number;
+  newspaperId: string;
+  shapeId: string;
+  dates: string[];
+  adId: string;
+};
+
 const MONEY = new Intl.NumberFormat("he-IL", {
   style: "currency",
   currency: "ILS",
@@ -37,42 +47,203 @@ const MONEY = new Intl.NumberFormat("he-IL", {
 });
 
 /**
- * The request form (docs/design/screens/06-portal-request.md).
+ * The request form (docs/design/screens/06-portal-request.md, backlog 26).
  *
- * Everything offered depends on the newspaper: its sizes (US-009 AC-3), its
- * print days and its file ceiling (AC-4). So choosing another newspaper clears
- * the size and the date — keeping a size the new paper does not sell would
- * submit a request the server refuses for a reason nobody on screen chose.
- * The file stays: it is re-measured against the new ceiling on submit.
+ * A request is LINES: a size in a newspaper, on as many dates as the customer
+ * wants, with a file. The same advertisement several times is one line with
+ * several dates; a full page on one date and a quarter on another is two lines.
+ * A file uploaded on one line can be picked on another, so the same artwork is
+ * never uploaded twice.
+ *
+ * Choosing another newspaper on a line clears that line's size and dates —
+ * keeping a size the new paper does not sell would submit a request the server
+ * refuses for a reason nobody on screen chose. The file stays; the server
+ * measures it against that line's newspaper on submit, and the line says so
+ * beforehand when it no longer fits.
  */
 export function RequestForm({ newspapers }: { newspapers: PortalFormNewspaper[] }) {
-  const [newspaperId, setNewspaperId] = useState(newspapers.length === 1 ? newspapers[0]!.id : "");
-  const [shapeId, setShapeId] = useState("");
-  const [date, setDate] = useState("");
-  const [ad, setAd] = useState<UploadedAd | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [uploading, startUpload] = useTransition();
-  const fileInput = useRef<HTMLInputElement>(null);
+  const counter = useRef(1);
+  const single = newspapers.length === 1 ? newspapers[0]!.id : "";
+  const [lines, setLines] = useState<Line[]>([
+    { key: 0, newspaperId: single, shapeId: "", dates: [], adId: "" },
+  ]);
+  const [files, setFiles] = useState<UploadedAd[]>([]);
 
   const [state, submit, submitting] = useActionState<PortalRequestState, FormData>(
     submitAdRequestAction,
     {},
   );
+  const errors = state.errors ?? {};
 
-  const paper = newspapers.find((n) => n.id === newspaperId) ?? null;
-  const chosenShape = paper?.shapes.find((s) => s.id === shapeId) ?? null;
+  const update = (key: number, patch: Partial<Line>) =>
+    setLines((all) => all.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
-  const chooseNewspaper = (id: string) => {
-    setNewspaperId(id);
-    setShapeId("");
-    setDate("");
-    setUploadError(null);
-  };
+  const addLine = () =>
+    setLines((all) => {
+      const last = all[all.length - 1];
+      return [
+        ...all,
+        {
+          key: counter.current++,
+          // The next line is usually the same newspaper — "and also a quarter
+          // page the week after" — so it starts there.
+          newspaperId: last?.newspaperId ?? single,
+          shapeId: "",
+          dates: [],
+          adId: "",
+        },
+      ];
+    });
+
+  const removeLine = (key: number) => setLines((all) => all.filter((l) => l.key !== key));
+
+  // The whole request priced the way approval will price it: every date of
+  // every line, packages counted per newspaper across the request.
+  const pricing = useMemo(() => {
+    const priced: Array<{ newspaperId: string; price: number }> = [];
+    let unpriced = 0;
+    for (const line of lines) {
+      const shape = newspapers
+        .find((n) => n.id === line.newspaperId)
+        ?.shapes.find((s) => s.id === line.shapeId);
+      if (!shape) continue;
+      for (let i = 0; i < line.dates.length; i++) {
+        if (shape.listPrice === null) unpriced++;
+        else priced.push({ newspaperId: line.newspaperId, price: shape.listPrice });
+      }
+    }
+    const packages = Object.fromEntries(newspapers.map((n) => [n.id, n.packages]));
+    return { ...orderPricing(priced, packages), count: priced.length + unpriced, unpriced };
+  }, [lines, newspapers]);
+
+  const payload = JSON.stringify(
+    lines.map((l) => ({
+      newspaperId: l.newspaperId,
+      adShapeId: l.shapeId,
+      dates: l.dates,
+      advertisementId: l.adId,
+    })),
+  );
+
+  return (
+    <form action={submit} className="space-y-6" data-testid="request-form">
+      <input type="hidden" name="lines" value={payload} />
+
+      {lines.map((line, index) => (
+        <LineEditor
+          key={line.key}
+          index={index}
+          line={line}
+          newspapers={newspapers}
+          files={files}
+          errors={errors}
+          removable={lines.length > 1}
+          onChange={(patch) => update(line.key, patch)}
+          onRemove={() => removeLine(line.key)}
+          onUploaded={(ad) => {
+            setFiles((all) => [...all, ad]);
+            update(line.key, { adId: ad.id });
+          }}
+        />
+      ))}
+
+      {lines.length < MAX_LINES ? (
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={addLine}
+          data-testid="add-line"
+          className="w-full border-dashed"
+        >
+          <Plus className="size-4" />
+          פרסום נוסף — גודל אחר, עיתון אחר או מודעה אחרת
+        </Button>
+      ) : null}
+
+      {errors.request ? <InlineError>{errors.request}</InlineError> : null}
+      {state.message ? <InlineError>{state.message}</InlineError> : null}
+
+      {/* US-009 AC-5 — said before the click, not after it. */}
+      <div className="space-y-4 border-t border-outline-variant pt-6">
+        <div
+          className="flex flex-wrap items-baseline justify-between gap-2"
+          data-testid="request-summary"
+        >
+          <span className="text-sm" data-testid="request-count">
+            {pricing.count === 0
+              ? "עדיין לא נבחרו תאריכים"
+              : pricing.count === 1
+                ? "פרסום אחד"
+                : `${pricing.count} פרסומים`}
+          </span>
+          {pricing.count > 0 && pricing.unpriced < pricing.count ? (
+            <span className="text-sm">
+              מחיר משוער:{" "}
+              <Ltr className="text-lg font-semibold" data-testid="form-estimate">
+                {MONEY.format(pricing.total)}
+              </Ltr>
+              {pricing.discount > 0 ? (
+                <span className="ms-2 text-xs text-status-success-fg" data-testid="form-discount">
+                  כולל הנחת כמות של <Ltr>{MONEY.format(pricing.discount)}</Ltr>
+                </span>
+              ) : null}
+            </span>
+          ) : null}
+        </div>
+        <p
+          data-testid="approval-banner"
+          className="flex items-start gap-2 rounded-lg bg-status-info-bg px-4 py-3 text-sm text-status-info-fg"
+        >
+          <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <span>
+            הבקשה תישלח לאישור. פרסום ייווצר רק לאחר אישור מערכת העיתון, והמחיר נקבע סופית באישור.
+            {pricing.unpriced > 0
+              ? " לחלק מהגדלים שנבחרו אין מחיר במחירון — העיתון ישלים אותו."
+              : null}
+          </span>
+        </p>
+        <Button type="submit" size="lg" block disabled={submitting} data-testid="submit-request">
+          {submitting ? "שולחת…" : "שליחת הבקשה"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function LineEditor({
+  index,
+  line,
+  newspapers,
+  files,
+  errors,
+  removable,
+  onChange,
+  onRemove,
+  onUploaded,
+}: {
+  index: number;
+  line: Line;
+  newspapers: PortalFormNewspaper[];
+  files: UploadedAd[];
+  errors: Record<string, string>;
+  removable: boolean;
+  onChange: (patch: Partial<Line>) => void;
+  onRemove: () => void;
+  onUploaded: (ad: UploadedAd) => void;
+}) {
+  const paper = newspapers.find((n) => n.id === line.newspaperId) ?? null;
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploading, startUpload] = useTransition();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const error = (field: string) => errors[`lines.${index}.${field}`];
+  const ad = files.find((f) => f.id === line.adId) ?? null;
+  const tooLarge = Boolean(paper && ad && ad.fileSize > paper.maxAdFileSize);
+  const id = `line-${line.key}`;
 
   // A browser restoring the form on "back" writes the select before React
   // hydrates, and the state would never learn of it (CLAUDE.md). Adopt it.
   const adoptNewspaper = (el: HTMLSelectElement | null) => {
-    if (el && el.value && el.value !== newspaperId) setNewspaperId(el.value);
+    if (el && el.value && el.value !== line.newspaperId) onChange({ newspaperId: el.value });
   };
 
   const upload = (file: File) => {
@@ -83,33 +254,44 @@ export function RequestForm({ newspapers }: { newspapers: PortalFormNewspaper[] 
     body.set("file", file);
     startUpload(async () => {
       const result = await uploadPortalAdAction({}, body);
-      if (result.ad) setAd(result.ad);
+      if (result.ad) onUploaded(result.ad);
       else setUploadError(result.message ?? "ההעלאה נכשלה");
       if (fileInput.current) fileInput.current.value = "";
     });
   };
 
-  // The ceiling shown is the chosen newspaper's, never a constant (FR-21), and
-  // an already-uploaded file that no longer fits is said out loud here rather
-  // than discovered on submit.
-  const tooLarge = Boolean(paper && ad && ad.fileSize > paper.maxAdFileSize);
-  const errors = state.errors ?? {};
-
   return (
-    <form action={submit} className="space-y-8" data-testid="request-form">
+    <fieldset
+      data-testid="request-line"
+      className="space-y-6 rounded-xl border border-outline-variant p-5"
+    >
+      <legend className="flex items-center gap-2 px-2 text-sm font-semibold">
+        פרסום {index + 1}
+        {removable ? (
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label={`הסרת פרסום ${index + 1}`}
+            data-testid="remove-line"
+            className="rounded-sm p-1 text-on-surface-variant hover:bg-surface-container"
+          >
+            <Trash2 className="size-4" />
+          </button>
+        ) : null}
+      </legend>
+
       {/* Newspaper */}
       <div>
-        <Label htmlFor="newspaperId" className="mb-2 block font-semibold">
+        <Label htmlFor={`${id}-newspaper`} className="mb-2 block font-semibold">
           עיתון
         </Label>
         <select
-          id="newspaperId"
-          name="newspaperId"
+          id={`${id}-newspaper`}
           ref={adoptNewspaper}
-          value={newspaperId}
-          onChange={(e) => chooseNewspaper(e.target.value)}
+          value={line.newspaperId}
+          onChange={(e) => onChange({ newspaperId: e.target.value, shapeId: "", dates: [] })}
           className="h-11 w-full rounded-sm border border-outline-variant bg-surface-container-lowest px-3"
-          required
+          data-testid="line-newspaper"
         >
           <option value="">בחרי מהרשימה…</option>
           {newspapers.map((n) => (
@@ -118,31 +300,12 @@ export function RequestForm({ newspapers }: { newspapers: PortalFormNewspaper[] 
             </option>
           ))}
         </select>
-        <FieldError message={errors.newspaperId} />
+        <FieldError message={error("newspaperId")} />
       </div>
 
-      {/* Date — exactly one (US-009 AC-2) */}
-      <fieldset disabled={!paper}>
-        <legend className="mb-2 font-semibold">תאריך פרסום</legend>
-        <input type="hidden" name="publicationDate" value={date} />
-        {paper ? (
-          <SingleDatePicker
-            key={paper.id}
-            value={date}
-            onChange={setDate}
-            publicationDays={paper.publicationDays}
-            newspaperName={paper.name}
-          />
-        ) : (
-          <p className="text-sm text-on-surface-variant">בחרי קודם עיתון, ויוצגו ימי ההדפסה שלו.</p>
-        )}
-        <FieldError message={errors.publicationDate} />
-      </fieldset>
-
       {/* Size — from AllowedAdShape of the chosen newspaper (US-009 AC-3) */}
-      <fieldset disabled={!paper}>
-        <legend className="mb-2 font-semibold">גודל המודעה</legend>
-        <input type="hidden" name="adShapeId" value={shapeId} />
+      <div>
+        <p className="mb-2 font-semibold">גודל המודעה</p>
         {!paper ? (
           <p className="text-sm text-on-surface-variant">הגדלים תלויים בעיתון שנבחר.</p>
         ) : paper.shapes.length === 0 ? (
@@ -150,12 +313,12 @@ export function RequestForm({ newspapers }: { newspapers: PortalFormNewspaper[] 
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="shape-options">
             {paper.shapes.map((s) => {
-              const chosen = s.id === shapeId;
+              const chosen = s.id === line.shapeId;
               return (
                 <button
                   key={s.id}
                   type="button"
-                  onClick={() => setShapeId(s.id)}
+                  onClick={() => onChange({ shapeId: s.id })}
                   aria-pressed={chosen}
                   data-testid="shape-option"
                   data-shape-name={s.name}
@@ -189,16 +352,42 @@ export function RequestForm({ newspapers }: { newspapers: PortalFormNewspaper[] 
             })}
           </div>
         )}
-        <FieldError message={errors.adShapeId} />
-      </fieldset>
+        <FieldError message={error("adShapeId")} />
+      </div>
+
+      {/* Dates — as many as wanted (backlog 26) */}
+      <div>
+        <p className="mb-2 font-semibold">
+          תאריכי פרסום
+          {line.dates.length > 0 ? (
+            <span
+              className="ms-2 text-sm font-normal text-on-surface-variant"
+              data-testid="line-date-count"
+            >
+              {line.dates.length === 1 ? "תאריך אחד נבחר" : `${line.dates.length} תאריכים נבחרו`}
+            </span>
+          ) : null}
+        </p>
+        {paper ? (
+          <DatesPicker
+            key={paper.id}
+            value={line.dates}
+            onChange={(dates) => onChange({ dates })}
+            publicationDays={paper.publicationDays}
+            newspaperName={paper.name}
+          />
+        ) : (
+          <p className="text-sm text-on-surface-variant">בחרי קודם עיתון, ויוצגו ימי ההדפסה שלו.</p>
+        )}
+        <FieldError message={error("dates")} />
+      </div>
 
       {/* File (US-009 AC-4) */}
-      <fieldset disabled={!paper}>
-        <legend className="mb-2 font-semibold">קובץ המודעה</legend>
-        <input type="hidden" name="advertisementId" value={ad?.id ?? ""} />
+      <div>
+        <p className="mb-2 font-semibold">קובץ המודעה</p>
         <div
           className={cn(
-            "rounded-lg border border-dashed p-5",
+            "space-y-3 rounded-lg border border-dashed p-4",
             tooLarge ? "border-error" : "border-outline-variant",
           )}
         >
@@ -218,38 +407,48 @@ export function RequestForm({ newspapers }: { newspapers: PortalFormNewspaper[] 
                   <Ltr>{formatBytes(ad.fileSize)}</Ltr>
                 </p>
               </div>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => fileInput.current?.click()}
-                disabled={uploading}
-              >
-                החלפת קובץ
-              </Button>
             </div>
-          ) : (
-            <button
+          ) : null}
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
               type="button"
+              variant={ad ? "secondary" : "primary"}
+              size="sm"
               onClick={() => fileInput.current?.click()}
               disabled={!paper || uploading}
-              className="flex w-full flex-col items-center gap-2 py-4 text-sm disabled:opacity-50"
               data-testid="upload-trigger"
             >
               {uploading ? (
-                <Loader2 className="size-6 animate-spin text-primary" aria-hidden />
+                <Loader2 className="size-4 animate-spin" aria-hidden />
               ) : (
-                <FileUp className="size-6 text-primary" aria-hidden />
+                <FileUp className="size-4" aria-hidden />
               )}
-              <span className="font-medium">
-                {uploading ? "מעלה ובודק את הקובץ…" : "בחירת קובץ"}
-              </span>
-            </button>
-          )}
-          <p
-            className="mt-3 text-center text-xs text-on-surface-variant"
-            data-testid="file-requirements"
-          >
+              {uploading ? "מעלה ובודק…" : ad ? "קובץ אחר" : "העלאת קובץ"}
+            </Button>
+
+            {/* The same artwork on another line, without uploading it again. */}
+            {files.length > 0 ? (
+              <label className="flex items-center gap-2 text-sm">
+                <span className="text-on-surface-variant">או קובץ שכבר הועלה:</span>
+                <select
+                  value={line.adId}
+                  onChange={(e) => onChange({ adId: e.target.value })}
+                  className="h-9 rounded-sm border border-outline-variant bg-surface-container-lowest px-2"
+                  data-testid="line-file-select"
+                >
+                  <option value="">—</option>
+                  {files.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+          </div>
+
+          <p className="text-xs text-on-surface-variant" data-testid="file-requirements">
             קובץ <Ltr>PDF / JPG / PNG</Ltr>
             {paper ? (
               <>
@@ -270,48 +469,14 @@ export function RequestForm({ newspapers }: { newspapers: PortalFormNewspaper[] 
             }}
           />
         </div>
-        {tooLarge && paper && ad ? (
+        {tooLarge && paper ? (
           <FieldError
             message={`הקובץ גדול מהמותר לעיתון ${paper.name} (מקסימום ${formatBytes(paper.maxAdFileSize)}). יש להעלות קובץ קטן יותר`}
           />
         ) : null}
-        <FieldError message={uploadError ?? errors.advertisementId} />
-      </fieldset>
-
-      {state.message ? <InlineError>{state.message}</InlineError> : null}
-
-      {/* US-009 AC-5 — said before the click, not after it. */}
-      <div className="space-y-4 border-t border-outline-variant pt-6">
-        <p
-          data-testid="approval-banner"
-          className="flex items-start gap-2 rounded-lg bg-status-info-bg px-4 py-3 text-sm text-status-info-fg"
-        >
-          <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
-          <span>
-            הבקשה תישלח לאישור. פרסום ייווצר רק לאחר אישור מערכת העיתון.
-            {chosenShape?.estimate != null ? (
-              <>
-                {" "}
-                מחיר משוער:{" "}
-                <Ltr className="font-semibold" data-testid="form-estimate">
-                  {MONEY.format(chosenShape.estimate)}
-                </Ltr>
-                . המחיר נקבע סופית באישור.
-              </>
-            ) : null}
-          </span>
-        </p>
-        <Button
-          type="submit"
-          size="lg"
-          block
-          disabled={submitting || uploading || !paper}
-          data-testid="submit-request"
-        >
-          {submitting ? "שולחת…" : "שליחת הבקשה"}
-        </Button>
+        <FieldError message={uploadError ?? error("advertisementId")} />
       </div>
-    </form>
+    </fieldset>
   );
 }
 
@@ -325,20 +490,20 @@ function FieldError({ message }: { message?: string | null }) {
 }
 
 /**
- * One date, on the paper's own calendar.
+ * Dates on the paper's own calendar, as many as wanted.
  *
- * Unlike the internal multi-date picker there is no "special edition" escape
- * hatch: a customer cannot know the paper printed on a Tuesday once, so only
- * print days that are not a chag and not past can be chosen at all.
+ * Unlike the internal picker there is no "special edition" escape hatch: a
+ * customer cannot know the paper printed on a Tuesday once, so only print days
+ * that are not a chag and not past can be chosen at all.
  */
-function SingleDatePicker({
+function DatesPicker({
   value,
   onChange,
   publicationDays,
   newspaperName,
 }: {
-  value: string;
-  onChange: (iso: string) => void;
+  value: string[];
+  onChange: (dates: string[]) => void;
   publicationDays: number[];
   newspaperName: string;
 }) {
@@ -353,12 +518,23 @@ function SingleDatePicker({
   );
   const jewish = useMemo(() => jewishMonth(cursor.year, cursor.month), [cursor]);
   const scheduled = hasSchedule(publicationDays);
+  const chosen = useMemo(() => new Set(value), [value]);
 
   const shift = (delta: number) =>
     setCursor(({ year, month }) => {
       const d = new Date(year, month + delta, 1);
       return { year: d.getFullYear(), month: d.getMonth() };
     });
+
+  const toggle = (iso: string) =>
+    onChange(chosen.has(iso) ? value.filter((d) => d !== iso) : [...value, iso].sort());
+
+  const isOpen = (d: (typeof days)[number]) =>
+    !d.isPast && jewish.get(d.iso)?.kind !== "chag" && d.isPublicationDay;
+
+  /** Every remaining print day in the month — "every week this month". */
+  const selectMonth = () =>
+    onChange([...new Set([...value, ...days.filter(isOpen).map((d) => d.iso)])].sort());
 
   const monthLabel = new Intl.DateTimeFormat("he-IL", { month: "long", year: "numeric" }).format(
     new Date(cursor.year, cursor.month, 1),
@@ -405,22 +581,21 @@ function SingleDatePicker({
         ))}
         {days.map((d) => {
           const heb = jewish.get(d.iso);
-          const isChag = heb?.kind === "chag";
-          const open = !d.isPast && !isChag && d.isPublicationDay;
-          const chosen = d.iso === value;
+          const open = isOpen(d);
+          const picked = chosen.has(d.iso);
           return (
             <button
               key={d.iso}
               type="button"
               disabled={!open}
-              onClick={() => onChange(d.iso)}
-              aria-pressed={chosen}
+              onClick={() => toggle(d.iso)}
+              aria-pressed={picked}
               data-testid={`day-${d.iso}`}
-              title={isChag ? `${heb?.holiday} — לא יוצא עיתון בחג` : undefined}
+              title={heb?.kind === "chag" ? `${heb.holiday} — לא יוצא עיתון בחג` : undefined}
               className={cn(
                 "flex h-12 flex-col items-center justify-center rounded-sm text-sm leading-tight",
                 !open && "cursor-not-allowed opacity-35",
-                chosen
+                picked
                   ? "bg-primary font-semibold text-on-primary"
                   : open
                     ? "bg-status-info-bg text-status-info-fg hover:brightness-95"
@@ -433,11 +608,21 @@ function SingleDatePicker({
           );
         })}
       </div>
-      <p className="mt-3 text-xs text-on-surface-variant">
-        {scheduled
-          ? `${newspaperName} יוצא ${formatDays(publicationDays)}`
-          : `אפשר לבחור כל יום שאינו חג`}
-      </p>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-on-surface-variant">
+          {scheduled
+            ? `${newspaperName} יוצא ${formatDays(publicationDays)}`
+            : "אפשר לבחור כל יום שאינו חג"}
+        </p>
+        <button
+          type="button"
+          onClick={selectMonth}
+          data-testid="select-whole-month"
+          className="text-xs font-medium text-primary underline"
+        >
+          כל ימי ההדפסה בחודש
+        </button>
+      </div>
     </div>
   );
 }

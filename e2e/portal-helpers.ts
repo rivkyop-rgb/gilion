@@ -21,6 +21,11 @@ export const PORTAL_DATES = {
     "2029-02-20",
     "2029-02-27",
     "2029-03-06",
+    // Backlog 26: a request with several lines and dates.
+    "2029-03-13",
+    "2029-03-20",
+    "2029-03-27",
+    "2029-04-03",
   ],
   catalog: ["2029-01-11"],
 } as const;
@@ -39,31 +44,52 @@ export async function portalLogin(page: Page, email: string) {
   await page.waitForURL(/\/portal$/, { timeout: 30_000 });
 }
 
-/** Moves the calendar forward until the day exists, then picks it. */
-export async function pickDay(page: Page, iso: string) {
-  const day = page.getByTestId(`day-${iso}`);
+/** One line of the request form — the first unless told otherwise (backlog 26). */
+export function requestLine(page: Page, index = 0) {
+  return page.getByTestId("request-line").nth(index);
+}
+
+/** Moves the line's calendar forward until the day exists, then picks it. */
+export async function pickDay(page: Page, iso: string, line = 0) {
+  const scope = requestLine(page, line);
+  const day = scope.getByTestId(`day-${iso}`);
   for (let i = 0; i < 48 && (await day.count()) === 0; i++) {
-    await page.getByTestId("next-month").click();
+    await scope.getByTestId("next-month").click();
   }
   await day.click();
   await expect(day).toHaveAttribute("aria-pressed", "true");
 }
 
-export async function chooseNewspaper(page: Page, id: string) {
-  await page.locator("#newspaperId").selectOption(id);
+export async function chooseNewspaper(page: Page, id: string, line = 0) {
+  const scope = requestLine(page, line);
+  await scope.getByTestId("line-newspaper").selectOption(id);
   // Something that is only true once React has taken the choice in.
-  await expect(page.getByTestId("shape-options")).toBeVisible();
+  await expect(scope.getByTestId("shape-options")).toBeVisible();
 }
 
-/** Uploads through the form and waits for the server's verdict, either way. */
-export async function uploadPortalFile(page: Page, file: Fixture) {
-  await page.getByTestId("portal-file-input").setInputFiles(file);
-  await expect(page.getByTestId("uploaded-ad").or(page.getByTestId("field-error"))).toBeVisible({
+export async function chooseShape(page: Page, name: string, line = 0) {
+  const option = requestLine(page, line).locator(`[data-shape-name="${name}"]`);
+  await option.click();
+  await expect(option).toHaveAttribute("aria-pressed", "true");
+}
+
+/** Uploads on a line and waits for the server's verdict, either way. */
+export async function uploadPortalFile(page: Page, file: Fixture, line = 0) {
+  const scope = requestLine(page, line);
+  await scope.getByTestId("portal-file-input").setInputFiles(file);
+  await expect(scope.getByTestId("uploaded-ad").or(scope.getByTestId("field-error"))).toBeVisible({
     timeout: 60_000,
   });
 }
 
-/** Fills and sends a complete request; returns the new request's id. */
+/** Sends the form as it stands and returns the new request's id. */
+export async function sendRequest(page: Page): Promise<string> {
+  await page.getByTestId("submit-request").click();
+  await page.waitForURL(/\/portal\/requests\/[a-z0-9]+\?sent=1$/, { timeout: 30_000 });
+  return new URL(page.url()).pathname.split("/").pop()!;
+}
+
+/** Fills and sends a one-line, one-date request; returns the new request's id. */
 export async function submitRequest(
   page: Page,
   opts: { newspaper: string; date: string; shape: string; file: Fixture },
@@ -71,12 +97,10 @@ export async function submitRequest(
   await page.goto("/portal/requests/new");
   await chooseNewspaper(page, opts.newspaper);
   await pickDay(page, opts.date);
-  await page.locator(`[data-shape-name="${opts.shape}"]`).click();
+  await chooseShape(page, opts.shape);
   await uploadPortalFile(page, opts.file);
-  await expect(page.getByTestId("uploaded-ad")).toBeVisible();
-  await page.getByTestId("submit-request").click();
-  await page.waitForURL(/\/portal\/requests\/[a-z0-9]+\?sent=1$/, { timeout: 30_000 });
-  return new URL(page.url()).pathname.split("/").pop()!;
+  await expect(requestLine(page).getByTestId("uploaded-ad")).toBeVisible();
+  return sendRequest(page);
 }
 
 /** Seeded customers behind the two portal logins. */

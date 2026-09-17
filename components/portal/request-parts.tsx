@@ -23,6 +23,14 @@ const DAY = new Intl.DateTimeFormat("he-IL", {
 
 export const formatPortalDate = (d: Date) => DATE.format(d);
 export const formatPublicationDay = (d: Date) => DAY.format(d);
+const SHORT_DAY = new Intl.DateTimeFormat("he-IL", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  timeZone: "UTC",
+});
+/** A publication date without its weekday, for ranges and lists. */
+export const formatPortalDay = (d: Date) => SHORT_DAY.format(d);
 
 /** The request's reference, the same ORD-0042 staff will quote on the phone. */
 export const requestNumber = (n: number) => `ORD-${String(n).padStart(4, "0")}`;

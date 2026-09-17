@@ -102,3 +102,15 @@ export async function portalActivity(businessId: string, customerId: string, lim
     },
   });
 }
+
+/**
+ * Who sent a portal order, and when (backlog 27) — read off the audit row the
+ * submission wrote in its own transaction, so the order screen names the
+ * person rather than just "the portal".
+ */
+export async function portalSubmission(businessId: string, orderId: string) {
+  return tenantDb(businessId).auditLog.findFirst({
+    where: { action: "portal_submit_request", new_value: { path: ["orderId"], equals: orderId } },
+    select: { created_at: true, user: { select: { name: true, email: true } } },
+  });
+}

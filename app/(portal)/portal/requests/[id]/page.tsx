@@ -5,12 +5,18 @@ import { ArrowRight, CheckCircle2, Circle, CircleDot, XCircle } from "lucide-rea
 
 import { getCustomerScope } from "@/lib/auth/portal";
 import { portalFormOptions, portalRequest } from "@/lib/data/portal";
-import { canCancelOwnRequest, requestTimeline } from "@/lib/domain/portal-request";
+import {
+  canCancelOwnRequest,
+  groupRequestItems,
+  requestTimeline,
+} from "@/lib/domain/portal-request";
+import { AdThumb } from "@/components/ads/ad-preview";
 import type { OrderStatus } from "@/lib/domain/order-status";
 import { formatBytes, type AdFileType } from "@/lib/domain/ad-file";
 import { cn } from "@/lib/utils";
 import {
   formatPortalDate,
+  formatPortalDay,
   formatPublicationDay,
   Ltr,
   PortalStatusBadge,
@@ -39,11 +45,11 @@ export default async function PortalRequestPage({
   const request = await portalRequest(scope, id);
   if (!request) notFound();
 
-  const item = request.items[0];
   const papers = await portalFormOptions(scope);
-  const grid = papers.find((p) => p.id === item?.newspaper.id)?.grid ?? null;
+  const gridOf = new Map(papers.map((p) => [p.id, p.grid]));
   const status = request.status as OrderStatus;
-  const ad = request.advertisement;
+  const groups = groupRequestItems(request.items);
+  const papersNamed = [...new Set(request.items.map((i) => i.newspaper.name))];
 
   return (
     <div className="space-y-4">
@@ -64,7 +70,7 @@ export default async function PortalRequestPage({
       <article className="space-y-6 rounded-xl border border-outline-variant bg-surface-container-lowest p-8">
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="font-serif text-2xl font-semibold">{item?.newspaper.name}</h1>
+            <h1 className="font-serif text-2xl font-semibold">{papersNamed.join(" · ")}</h1>
             <p className="text-sm text-on-surface-variant">
               בקשה <Ltr>{requestNumber(request.number)}</Ltr> · נשלחה{" "}
               <Ltr>{formatPortalDate(request.created_at)}</Ltr>
@@ -75,31 +81,67 @@ export default async function PortalRequestPage({
 
         <RejectionReason status={status} reason={request.rejection_reason} />
 
-        {item ? (
-          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <dt className="text-xs text-on-surface-variant">תאריך פרסום</dt>
-              <dd data-testid="request-date">{formatPublicationDay(item.publication_date)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-on-surface-variant">מחיר</dt>
-              <dd>
-                <RequestPrice order={request} />
-                {status === "pending_approval" ? (
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <p className="text-sm" data-testid="request-publication-count">
+            {request.items.length === 1 ? "פרסום אחד" : `${request.items.length} פרסומים`}
+          </p>
+          <div className="text-end">
+            <RequestPrice order={request} />
+            {status === "pending_approval" ? (
+              <p className="text-xs text-on-surface-variant">
+                המחיר נקבע סופית כשהעיתון מאשר את הבקשה.
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        {/* The request as the customer built it: one block per size, paper
+            and file, with its dates (backlog 26). */}
+        <ul className="space-y-4" data-testid="request-lines">
+          {groups.map(({ first, dates }) => (
+            <li
+              key={`${first.newspaper.id}-${first.ad_shape.id}-${first.advertisement?.id ?? ""}`}
+              data-testid="request-line-view"
+              className="flex flex-wrap gap-4 rounded-lg border border-outline-variant p-4"
+            >
+              {first.advertisement ? (
+                first.advertisement.preview_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`/api/files/${first.advertisement.preview_url}`}
+                    alt={`תצוגה מקדימה של ${first.advertisement.name}`}
+                    data-testid="request-ad-preview"
+                    className="h-40 w-auto rounded-sm border border-outline-variant bg-surface-container object-contain"
+                  />
+                ) : (
+                  <AdThumb
+                    ad={{
+                      name: first.advertisement.name,
+                      fileType: first.advertisement.file_type as AdFileType,
+                      previewUrl: null,
+                    }}
+                    className="size-40"
+                  />
+                )
+              ) : null}
+              <div className="min-w-0 flex-1 space-y-2 text-sm">
+                <p className="font-semibold">{first.newspaper.name}</p>
+                <ShapeLabel shape={first.ad_shape} grid={gridOf.get(first.newspaper.id) ?? null} />
+                <p data-testid="request-date">
+                  {dates.length === 1
+                    ? formatPublicationDay(dates[0]!)
+                    : dates.map((d) => formatPortalDay(d)).join(" · ")}
+                </p>
+                {first.advertisement ? (
                   <p className="text-xs text-on-surface-variant">
-                    המחיר נקבע סופית כשהעיתון מאשר את הבקשה.
+                    {first.advertisement.name} ·{" "}
+                    <Ltr>{formatBytes(first.advertisement.file_size)}</Ltr>
                   </p>
                 ) : null}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-on-surface-variant">גודל</dt>
-              <dd>
-                <ShapeLabel shape={item.ad_shape} grid={grid} />
-              </dd>
-            </div>
-          </dl>
-        ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
 
         <section>
           <h2 className="mb-3 text-sm font-semibold">מצב הבקשה</h2>
@@ -127,31 +169,6 @@ export default async function PortalRequestPage({
             ))}
           </ol>
         </section>
-
-        {ad ? (
-          <section>
-            <h2 className="mb-3 text-sm font-semibold">המודעה</h2>
-            <div className="overflow-hidden rounded-lg border border-outline-variant bg-surface-container">
-              {ad.preview_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={`/api/files/${ad.preview_url}`}
-                  alt={`תצוגה מקדימה של ${ad.name}`}
-                  data-testid="request-ad-preview"
-                  className="mx-auto max-h-[480px] w-auto object-contain"
-                />
-              ) : (
-                <p className="p-6 text-center text-sm text-on-surface-variant">
-                  אין תצוגה מקדימה לקובץ הזה
-                </p>
-              )}
-            </div>
-            <p className="mt-2 text-xs text-on-surface-variant">
-              {ad.name} · <Ltr>{formatBytes(ad.file_size)}</Ltr> ·{" "}
-              {(ad.file_type as AdFileType).toUpperCase()}
-            </p>
-          </section>
-        ) : null}
 
         {canCancelOwnRequest(status) ? (
           <footer className="border-t border-outline-variant pt-6">

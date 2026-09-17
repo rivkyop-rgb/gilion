@@ -16,14 +16,25 @@ import type { OrderStatus } from "./order-status";
 
 export type FieldError = { field: string; message: string };
 
-/** What the form sends. Deliberately no status, no source, no price. */
-export type PortalRequestInput = {
+/**
+ * One part of a request (backlog 26): a size in a newspaper, on one or more
+ * dates, with one file. Deliberately no status, no source, no price.
+ */
+export type PortalRequestLine = {
   newspaperId: string;
-  /** Exactly one — see readSingleDate. */
-  publicationDate: string;
   adShapeId: string;
+  dates: string[];
   advertisementId: string;
 };
+
+/**
+ * Ceilings on one request. Not business rules — a customer booking a year of
+ * weekly insertions is 52 dates — but a form that accepts a thousand rows is
+ * a form someone will eventually submit by accident.
+ */
+export const MAX_LINES = 20;
+export const MAX_DATES_PER_LINE = 60;
+export const MAX_PUBLICATIONS = 200;
 
 /** The newspapers this customer may order from, as the server loaded them. */
 export type PortalNewspaper = {
@@ -53,78 +64,103 @@ export type PortalAd = {
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-/**
- * US-009 AC-2: one date per request.
- *
- * The form has one field, but a hand-built POST can repeat it. Taking the first
- * value would quietly drop the rest and save a request the customer did not
- * make; refusing says what happened.
- */
-export function readSingleDate(values: readonly string[]): string | null {
-  const present = values.map((v) => v.trim()).filter(Boolean);
-  return present.length === 1 ? present[0]! : null;
+/** A date's own rules on one newspaper: real, not past, not a chag, a print day. */
+export function dateError(
+  date: string,
+  paper: PortalNewspaper | undefined,
+  today: string,
+): string | null {
+  if (!ISO_DATE.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) {
+    return "תאריך הפרסום אינו תקין";
+  }
+  if (date < today) return "אי אפשר לבקש פרסום בתאריך שעבר";
+  // Internally a special edition costs an explicit acknowledgement. A
+  // customer cannot give one — they do not know the paper's schedule — so for
+  // them a day the paper does not print on is simply not offered.
+  const holiday = noPaperReason(date);
+  if (holiday) return holiday;
+  if (
+    paper &&
+    hasSchedule(paper.publicationDays) &&
+    !isPublicationDay(paper.publicationDays, date)
+  ) {
+    return `${paper.name} יוצא ${formatDays(paper.publicationDays)} בלבד`;
+  }
+  return null;
 }
 
+/**
+ * The whole request (09-customer-portal.md §כללי ולידציה, as amended by
+ * backlog 26). Errors are keyed `lines.<index>.<field>` so the form can put
+ * each one next to the line it is about, and `request` for the request itself.
+ */
 export function validatePortalRequest(
-  input: PortalRequestInput,
+  lines: readonly PortalRequestLine[],
   newspapers: readonly PortalNewspaper[],
-  ad: PortalAd | null,
+  ads: ReadonlyMap<string, PortalAd>,
   context: { customerId: string; today: string },
 ): FieldError[] {
   const errors: FieldError[] = [];
 
-  // Rule 1 — only the business's own newspapers. An id from another business
-  // is not in the list the server loaded, so it fails exactly like a typo.
-  const paper = newspapers.find((n) => n.id === input.newspaperId);
-  if (!paper) errors.push({ field: "newspaperId", message: "יש לבחור עיתון" });
+  if (lines.length === 0) {
+    return [{ field: "request", message: "יש להוסיף לפחות פרסום אחד" }];
+  }
+  if (lines.length > MAX_LINES) {
+    return [{ field: "request", message: `אפשר עד ${MAX_LINES} שורות בבקשה אחת` }];
+  }
+  const total = lines.reduce((sum, l) => sum + new Set(l.dates).size, 0);
+  if (total > MAX_PUBLICATIONS) {
+    return [{ field: "request", message: `אפשר עד ${MAX_PUBLICATIONS} פרסומים בבקשה אחת` }];
+  }
 
-  // Rule 2 — one date, a real one, not in the past.
-  const date = input.publicationDate;
-  if (!date) {
-    errors.push({ field: "publicationDate", message: "יש לבחור תאריך פרסום אחד" });
-  } else if (!ISO_DATE.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) {
-    errors.push({ field: "publicationDate", message: "תאריך הפרסום אינו תקין" });
-  } else if (date < context.today) {
-    errors.push({ field: "publicationDate", message: "אי אפשר לבקש פרסום בתאריך שעבר" });
-  } else {
-    // Internally a special edition costs an explicit acknowledgement. A
-    // customer cannot give one — they do not know the paper's schedule — so
-    // for them a day the paper does not print on is simply not offered.
-    const holiday = noPaperReason(date);
-    if (holiday) {
-      errors.push({ field: "publicationDate", message: holiday });
-    } else if (paper && hasSchedule(paper.publicationDays)) {
-      if (!isPublicationDay(paper.publicationDays, date)) {
-        errors.push({
-          field: "publicationDate",
-          message: `${paper.name} יוצא ${formatDays(paper.publicationDays)} בלבד`,
-        });
+  lines.forEach((line, i) => {
+    const at = (field: string, message: string) =>
+      errors.push({ field: `lines.${i}.${field}`, message });
+
+    // Rule 1 — only the business's own newspapers. An id from another business
+    // is not in the list the server loaded, so it fails exactly like a typo.
+    const paper = newspapers.find((n) => n.id === line.newspaperId);
+    if (!paper) at("newspaperId", "יש לבחור עיתון");
+
+    // Rule 2 — at least one date, each one a real, future print day.
+    const dates = [...new Set(line.dates)];
+    if (dates.length === 0) {
+      at("dates", "יש לבחור לפחות תאריך פרסום אחד");
+    } else if (dates.length > MAX_DATES_PER_LINE) {
+      at("dates", `אפשר עד ${MAX_DATES_PER_LINE} תאריכים בשורה אחת`);
+    } else {
+      for (const date of dates) {
+        const problem = dateError(date, paper, context.today);
+        if (problem) {
+          at("dates", problem);
+          break;
+        }
       }
     }
-  }
 
-  // Rule 3 — a size the chosen newspaper sells (US-009 AC-3).
-  if (paper && !paper.shapes.some((s) => s.id === input.adShapeId)) {
-    errors.push({ field: "adShapeId", message: "יש לבחור גודל מודעה מתוך הגדלים של העיתון" });
-  }
+    // Rule 3 — a size the chosen newspaper sells (US-009 AC-3).
+    if (paper && !paper.shapes.some((s) => s.id === line.adShapeId)) {
+      at("adShapeId", "יש לבחור גודל מודעה מתוך הגדלים של העיתון");
+    }
 
-  // Rule 4 — the file (US-009 AC-4). Checked again here even though the upload
-  // already checked it: the customer may have uploaded against one newspaper
-  // and then switched to one with a smaller ceiling.
-  if (!input.advertisementId || !ad || ad.customerId !== context.customerId) {
-    errors.push({ field: "advertisementId", message: "יש להעלות את קובץ המודעה" });
-  } else if (!ad.valid) {
-    errors.push({ field: "advertisementId", message: "הקובץ שהועלה פגום. יש להעלות קובץ אחר" });
-  } else if (!(AD_FILE_TYPES as readonly string[]).includes(ad.fileType as AdFileType)) {
-    errors.push({ field: "advertisementId", message: "אפשר להעלות PDF, JPG או PNG בלבד" });
-  } else if (paper && ad.fileSize > paper.maxAdFileSize) {
-    errors.push({
-      field: "advertisementId",
-      message:
+    // Rule 4 — the file (US-009 AC-4). Checked against THIS line's newspaper
+    // even though the upload already checked it: a file uploaded for one line
+    // can be reused on a line in a paper with a smaller ceiling.
+    const ad = ads.get(line.advertisementId);
+    if (!line.advertisementId || !ad || ad.customerId !== context.customerId) {
+      at("advertisementId", "יש להעלות את קובץ המודעה");
+    } else if (!ad.valid) {
+      at("advertisementId", "הקובץ שהועלה פגום. יש להעלות קובץ אחר");
+    } else if (!(AD_FILE_TYPES as readonly string[]).includes(ad.fileType as AdFileType)) {
+      at("advertisementId", "אפשר להעלות PDF, JPG או PNG בלבד");
+    } else if (paper && ad.fileSize > paper.maxAdFileSize) {
+      at(
+        "advertisementId",
         `הקובץ גדול מהמותר לעיתון ${paper.name} ` +
-        `(מקסימום ${formatBytes(paper.maxAdFileSize)}, הקובץ ${formatBytes(ad.fileSize)})`,
-    });
-  }
+          `(מקסימום ${formatBytes(paper.maxAdFileSize)}, הקובץ ${formatBytes(ad.fileSize)})`,
+      );
+    }
+  });
 
   return errors;
 }
@@ -149,38 +185,48 @@ export function pickPageType(shape: PortalShape): string | null {
  *
  * Built here, not assembled at the call site, so that "the customer cannot
  * create a draft or an approved order" is a property of the only function that
- * produces the row rather than a thing each caller remembers. There is no
+ * produces the row rather than a thing each caller remembers. One ORDER for the
+ * whole request — so a quantity package counts every date in it — and one
+ * item per date, each carrying its line's file (backlog 26). There is no
  * publications field: a request creates none (FR-18, US-009 AC-5).
  */
 export function portalOrderRecord(input: {
   customerId: string;
-  advertisementId: string;
-  newspaperId: string;
-  pageTypeId: string;
-  adShapeId: string;
-  publicationDate: string;
-  /** From PriceRule; 0 when there is none, completed internally on approval. */
-  listPrice: number | null;
-  /** The list price less any package earned — what the customer was shown. */
-  estimate?: number | null;
+  lines: Array<{
+    newspaperId: string;
+    pageTypeId: string;
+    adShapeId: string;
+    dates: string[];
+    advertisementId: string;
+    /** From PriceRule; 0 when there is none, completed internally on approval. */
+    listPrice: number | null;
+  }>;
+  /** The list prices less any package earned — what the customer was shown. */
+  estimate: number;
 }) {
-  const price = input.listPrice ?? 0;
+  const items = input.lines.flatMap((line) =>
+    [...new Set(line.dates)].sort().map((date) => ({
+      newspaper_id: line.newspaperId,
+      page_type_id: line.pageTypeId,
+      ad_shape_id: line.adShapeId,
+      publication_date: date,
+      price: line.listPrice ?? 0,
+      off_schedule: false,
+      advertisement_id: line.advertisementId,
+    })),
+  );
+  const files = new Set(input.lines.map((l) => l.advertisementId));
   return {
     order: {
       customer_id: input.customerId,
-      advertisement_id: input.advertisementId,
+      // When one file covers the whole request it is also the order's file,
+      // which is what the order screen's artwork panel reads.
+      advertisement_id: files.size === 1 ? [...files][0]! : null,
       source: "customer_portal" as const,
       status: "pending_approval" as const,
-      total_price: input.estimate ?? price,
+      total_price: input.estimate,
     },
-    item: {
-      newspaper_id: input.newspaperId,
-      page_type_id: input.pageTypeId,
-      ad_shape_id: input.adShapeId,
-      publication_date: input.publicationDate,
-      price,
-      off_schedule: false,
-    },
+    items,
   };
 }
 
@@ -297,4 +343,27 @@ export function requestPrice(order: {
     };
   }
   return null;
+}
+
+/**
+ * A request's items read back as the lines the customer built (backlog 26):
+ * one per newspaper, size and file, with its dates. Items are stored one per
+ * date, which is right for approval and wrong for reading.
+ */
+export function groupRequestItems<
+  T extends {
+    publication_date: Date;
+    newspaper: { id: string };
+    ad_shape: { id: string };
+    advertisement: { id: string } | null;
+  },
+>(items: readonly T[]): Array<{ first: T; dates: Date[] }> {
+  const groups = new Map<string, { first: T; dates: Date[] }>();
+  for (const item of items) {
+    const key = `${item.newspaper.id}|${item.ad_shape.id}|${item.advertisement?.id ?? ""}`;
+    const group = groups.get(key) ?? { first: item, dates: [] };
+    group.dates.push(item.publication_date);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
 }

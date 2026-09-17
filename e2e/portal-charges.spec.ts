@@ -3,6 +3,8 @@ import { USERS, login, loginAsAdmin } from "./helpers";
 import { validPng } from "./ad-fixtures";
 import { openBillingRow, recordPayment } from "./billing-helpers";
 import {
+  chooseNewspaper,
+  requestLine,
   PORTAL_CUSTOMERS,
   PORTAL_DATES,
   PORTAL_PAPERS,
@@ -24,10 +26,10 @@ test("the estimate, the charge after approval, and the payments — of this cust
 
   await portalLogin(page, USERS.customer);
   await page.goto("/portal/requests/new");
-  await page.locator("#newspaperId").selectOption(PORTAL_PAPERS.alpha);
+  await chooseNewspaper(page, PORTAL_PAPERS.alpha);
   // The seeded price list has a quarter page on the inner pages at 1,200.
   await expect(
-    page.locator('[data-shape-name="רבע עמוד"]').getByTestId("shape-estimate"),
+    requestLine(page).locator('[data-shape-name="רבע עמוד"]').getByTestId("shape-estimate"),
   ).toContainText("1,200");
 
   const id = await submitRequest(page, {

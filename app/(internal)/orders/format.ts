@@ -12,6 +12,13 @@ const MONEY = new Intl.NumberFormat("he-IL", {
 });
 
 export const formatDate = (d: Date) => DATE.format(d);
+
+const DATE_TIME = new Intl.DateTimeFormat("he-IL", {
+  dateStyle: "short",
+  timeStyle: "short",
+  timeZone: "Asia/Jerusalem",
+});
+export const formatDateTime = (d: Date) => DATE_TIME.format(d);
 export const formatMoney = (n: number) => MONEY.format(n);
 
 /**

@@ -26,7 +26,10 @@ test("a portal request becomes publications only when staff approve it", async (
   await login(page, USERS.sales);
   await page.goto(`/orders/${id}`);
   await expect(page.getByTestId("order-status")).toHaveAttribute("data-status", "pending_approval");
-  await expect(page.getByText("פורטל לקוח").first()).toBeVisible();
+  await expect(page.getByTestId("source-portal")).toBeVisible();
+  await expect(page.getByTestId("portal-order-banner")).toContainText(
+    "הלקוח שלח את הבקשה הזאת מהפורטל",
+  );
 
   // Nothing binding yet: the order only says what WOULD be created.
   await expect(page.getByTestId("preview-caption")).toContainText("ייווצר לאחר אישור");

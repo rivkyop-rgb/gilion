@@ -719,18 +719,24 @@ model AdOrderItem {
   /// Which package earned it, so an invoice can name it. SetNull: retiring a
   /// package must not erase the discount an approved order already carries.
   package_id       String?
+  /// The artwork for THIS line (backlog 26), when a request carries different
+  /// files for different parts of it — a full page on one date and a quarter
+  /// on another. Falls back to AdOrder.advertisement_id on approval. SetNull
+  /// for the same reason as there: losing the file must not lose the line.
+  advertisement_id String?
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  ad_package  AdPackage?   @relation(fields: [package_id], references: [id], onDelete: SetNull)
-  order       AdOrder      @relation(fields: [order_id], references: [id], onDelete: Cascade)
-  newspaper   Newspaper    @relation(fields: [newspaper_id], references: [id], onDelete: Restrict)
+  advertisement Advertisement? @relation(fields: [advertisement_id], references: [id], onDelete: SetNull)
+  ad_package    AdPackage?     @relation(fields: [package_id], references: [id], onDelete: SetNull)
+  order         AdOrder        @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  newspaper     Newspaper      @relation(fields: [newspaper_id], references: [id], onDelete: Restrict)
   /// Composite keys, per conventions.md §2: a row that crosses one newspaper's
   /// page type with another newspaper's shape is not representable.
-  page_type   PageType     @relation(fields: [page_type_id, newspaper_id], references: [id, newspaper_id], onDelete: Restrict)
-  ad_shape    AdShape      @relation(fields: [ad_shape_id, newspaper_id], references: [id, newspaper_id], onDelete: Restrict)
-  publication Publication?
+  page_type     PageType       @relation(fields: [page_type_id, newspaper_id], references: [id, newspaper_id], onDelete: Restrict)
+  ad_shape      AdShape        @relation(fields: [ad_shape_id, newspaper_id], references: [id, newspaper_id], onDelete: Restrict)
+  publication   Publication?
 
   @@index([order_id])
   @@map("AdOrderItem")
@@ -862,6 +868,7 @@ model Advertisement {
   uploaded_by  User          @relation(fields: [uploaded_by_user_id], references: [id], onDelete: Restrict)
   publications Publication[]
   ad_orders    AdOrder[]
+  order_items  AdOrderItem[]
   placements   Placement[]
 
   @@index([business_id, customer_id])

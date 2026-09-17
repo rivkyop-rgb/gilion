@@ -8,11 +8,13 @@ import { portalFormOptions, portalRequests, publicationsAwaitingArtwork } from "
 import { PublicationUpload } from "@/components/portal/publication-upload";
 import { textFor } from "@/lib/domain/business-settings";
 import type { OrderStatus } from "@/lib/domain/order-status";
+import { groupRequestItems } from "@/lib/domain/portal-request";
 import { todayIso } from "@/lib/domain/publication-days";
 import { AdThumb } from "@/components/ads/ad-preview";
 import { Button } from "@/components/ui/button";
 import type { AdFileType } from "@/lib/domain/ad-file";
 import {
+  formatPortalDay,
   formatPublicationDay,
   Ltr,
   PortalStatusBadge,
@@ -103,7 +105,16 @@ export default async function PortalHomePage() {
       ) : (
         <ul className="space-y-4" data-testid="portal-requests">
           {requests.map((r) => {
-            const item = r.items[0];
+            const groups = groupRequestItems(r.items);
+            const papers = [...new Set(r.items.map((i) => i.newspaper.name))];
+            const dates = r.items.map((i) => i.publication_date);
+            const files = [
+              ...new Map(
+                r.items.flatMap((i) =>
+                  i.advertisement ? [[i.advertisement.id, i.advertisement]] : [],
+                ),
+              ).values(),
+            ];
             return (
               <li key={r.id}>
                 <Link
@@ -113,32 +124,41 @@ export default async function PortalHomePage() {
                   className="block rounded-xl border border-outline-variant bg-surface-container-lowest p-5 transition-colors hover:border-outline"
                 >
                   <div className="flex gap-4">
-                    {r.advertisement ? (
-                      <AdThumb
-                        ad={{
-                          name: r.advertisement.name,
-                          fileType: r.advertisement.file_type as AdFileType,
-                          previewUrl: r.advertisement.preview_url,
-                        }}
-                        className="size-20 shrink-0"
-                      />
+                    {files.length > 0 ? (
+                      <div className="flex shrink-0 gap-1">
+                        {files.slice(0, 3).map((f) => (
+                          <AdThumb
+                            key={f.id}
+                            ad={{
+                              name: f.name,
+                              fileType: f.file_type as AdFileType,
+                              previewUrl: f.preview_url,
+                            }}
+                            className={files.length > 1 ? "size-14" : "size-20"}
+                          />
+                        ))}
+                      </div>
                     ) : null}
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-semibold">{item?.newspaper.name}</p>
+                        <p className="font-semibold">{papers.join(" · ")}</p>
                         <PortalStatusBadge status={r.status as OrderStatus} />
                       </div>
-                      {item ? (
-                        <>
-                          <p className="text-sm">{formatPublicationDay(item.publication_date)}</p>
-                          <p className="text-sm text-on-surface-variant">
-                            <ShapeLabel
-                              shape={item.ad_shape}
-                              grid={gridOf.get(item.newspaper.id) ?? null}
-                            />
-                          </p>
-                        </>
-                      ) : null}
+                      <p className="text-sm" data-testid="request-card-dates">
+                        {dates.length === 1
+                          ? formatPublicationDay(dates[0]!)
+                          : `${dates.length} פרסומים · ${formatPortalDay(dates[0]!)} – ${formatPortalDay(dates[dates.length - 1]!)}`}
+                      </p>
+                      <p className="text-sm text-on-surface-variant">
+                        {groups.length === 1 ? (
+                          <ShapeLabel
+                            shape={groups[0]!.first.ad_shape}
+                            grid={gridOf.get(groups[0]!.first.newspaper.id) ?? null}
+                          />
+                        ) : (
+                          [...new Set(groups.map((g) => g.first.ad_shape.name))].join(" · ")
+                        )}
+                      </p>
                       <p className="flex flex-wrap justify-between gap-2 text-xs text-on-surface-variant">
                         <Ltr>{requestNumber(r.number)}</Ltr>
                         <RequestPrice order={r} />
