@@ -347,6 +347,12 @@ async function deleteTestOrders(prisma: PrismaClient) {
   await prisma.reminder.deleteMany({});
   await prisma.publication.deleteMany({});
   await prisma.adOrder.deleteMany({});
+
+  // The order counter too, or it is state a run changes and never gives back:
+  // every suite creates a few dozen orders, so the numbers climb for ever and
+  // the demo opens on ORD-0236 rather than ORD-0001. Safe here and only here —
+  // every order was just deleted, so nothing can collide with a fresh 1.
+  await prisma.business.updateMany({ data: { last_order_number: 0 } });
 }
 
 /**
