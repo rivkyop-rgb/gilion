@@ -64,9 +64,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ key
     if (!(await brandKeysFor(ctx.businessId)).includes(key)) return NOT_FOUND;
     fileName = key.split("/").pop() ?? "brand";
   } else {
+    // A portal customer reads the matrix as "none" for advertisements, and
+    // still has to see their own artwork on their own requests (stage 09).
+    // So they get a door of their own, narrower than staff's: the row must
+    // name THEIR customer, not merely their business. Brand assets above stay
+    // open to them — the portal wears the business's logo too.
+    const isCustomer = ctx.role === "customer";
     // FR-8: accounting has no operational need for artwork, so it has none
     // here either — the matrix is the same one the sidebar and the actions read.
-    if (!canReadArea(ctx, "advertisements")) return NOT_FOUND;
+    if (!isCustomer && !canReadArea(ctx, "advertisements")) return NOT_FOUND;
+    if (isCustomer && !ctx.customerId) return NOT_FOUND;
 
     // Second line: the key must belong to a row this tenant can actually see,
     // and the row must be the one that owns this exact object. A guessed adId
@@ -76,6 +83,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ key
 
     const ad = await getAdvertisement(ctx.businessId, adId);
     if (!ad) return NOT_FOUND;
+    if (isCustomer && ad.customer_id !== ctx.customerId) return NOT_FOUND;
 
     const owned = [ad.file_url, ad.original_file_url, ad.previous_file_url, ad.preview_url];
     if (!owned.includes(key)) return NOT_FOUND;

@@ -144,25 +144,9 @@ async function main() {
     }
   }
 
-  // A customer-portal user. It has no membership yet: Customer does not exist
-  // until stage 02, and the CHECK constraint requires customer_id for this role.
-  // It is here so customer-blocked.spec.ts has a real user_type=customer login.
-  await prisma.user.upsert({
-    where: { id: "usr_customer" },
-    update: {
-      name: "לקוח לדוגמה",
-      email: "customer@gilion.test",
-      password_hash: hash,
-      user_type: "customer",
-    },
-    create: {
-      id: "usr_customer",
-      name: "לקוח לדוגמה",
-      email: "customer@gilion.test",
-      password_hash: hash,
-      user_type: "customer",
-    },
-  });
+  // Customer-portal users (stage 09). Their memberships are written below, once
+  // the customers they belong to exist — the CHECK constraint on
+  // UserMembership refuses role = customer without a customer_id.
 
   // Customers in BOTH businesses — tenant isolation cannot be tested with one.
   const customers = [
@@ -206,6 +190,44 @@ async function main() {
 
   for (const c of customers) {
     await prisma.customer.upsert({ where: { id: c.id }, update: c, create: c });
+  }
+
+  // Two portal logins at two DIFFERENT customers of the same business — the
+  // pair portal-isolation.spec.ts needs. Isolation between customers cannot be
+  // shown with one, and isolation between businesses is already stage 01's.
+  const portalUsers = [
+    {
+      id: "usr_customer",
+      name: "יעל אבידן",
+      email: "customer@gilion.test",
+      customer: "cust_alpha_1",
+    },
+    {
+      id: "usr_customer_2",
+      name: "דוד הדר",
+      email: "customer2@gilion.test",
+      customer: "cust_alpha_3",
+    },
+  ];
+  for (const u of portalUsers) {
+    const row = {
+      name: u.name,
+      email: u.email,
+      password_hash: hash,
+      user_type: "customer" as const,
+    };
+    await prisma.user.upsert({ where: { id: u.id }, update: row, create: { id: u.id, ...row } });
+    await prisma.userMembership.upsert({
+      where: { user_id_business_id: { user_id: u.id, business_id: alpha.id } },
+      update: { role: "customer", customer_id: u.customer, status: "active" },
+      create: {
+        user_id: u.id,
+        business_id: alpha.id,
+        role: "customer",
+        customer_id: u.customer,
+        status: "active",
+      },
+    });
   }
 
   // Drop memberships this file no longer declares.

@@ -53,6 +53,6 @@ async function destinationFor(email: string): Promise<string> {
   });
 
   if (!user) return "/login";
-  if (user.user_type === "customer") return "/portal-only"; // FR-9
+  if (user.user_type === "customer") return "/portal"; // FR-9
   return user.memberships.length === 1 ? "/dashboard" : "/select-business";
 }

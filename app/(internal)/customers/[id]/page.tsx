@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { publicationsPhrase } from "@/lib/domain/hebrew-count";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil } from "lucide-react";
+import { KeyRound, Pencil } from "lucide-react";
 
 import { canReadArea, canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { customerHistoryCounts } from "@/lib/data/customers";
@@ -201,6 +201,17 @@ export default async function CustomerPage({
         {mayEdit ? (
           <div className="flex gap-2">
             {customer.customer_type === "casual" ? <ConvertToRegular id={customer.id} /> : null}
+            {canWriteArea(ctx, "settings") ? (
+              <Button variant="secondary" asChild>
+                <Link
+                  href={`/customers/${customer.id}/portal-access`}
+                  data-testid="portal-access-link"
+                >
+                  <KeyRound className="size-4" />
+                  גישה לפורטל
+                </Link>
+              </Button>
+            ) : null}
             <Button variant="secondary" asChild>
               <Link href={`/customers/${customer.id}/edit`}>
                 <Pencil className="size-4" />

@@ -1,0 +1,74 @@
+import { Info } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Ltr } from "@/components/ui/ltr";
+import { ShapePreview } from "@/app/(internal)/settings/shape-preview";
+import { PORTAL_STATUS, rejectionReasonToShow } from "@/lib/domain/portal-request";
+import type { OrderStatus } from "@/lib/domain/order-status";
+
+const DATE = new Intl.DateTimeFormat("he-IL", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  timeZone: "Asia/Jerusalem",
+});
+/** Publication dates are calendar dates stored at UTC midnight — no zone shift. */
+const DAY = new Intl.DateTimeFormat("he-IL", {
+  weekday: "long",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+export const formatPortalDate = (d: Date) => DATE.format(d);
+export const formatPublicationDay = (d: Date) => DAY.format(d);
+
+/** The request's reference, the same ORD-0042 staff will quote on the phone. */
+export const requestNumber = (n: number) => `ORD-${String(n).padStart(4, "0")}`;
+
+export function PortalStatusBadge({ status }: { status: OrderStatus }) {
+  const s = PORTAL_STATUS[status];
+  return (
+    <Badge tone={s.tone} data-testid="portal-status" data-status={status}>
+      {s.label}
+    </Badge>
+  );
+}
+
+/** FR-19 — present when a reason was given, absent (not empty) when not. */
+export function RejectionReason({ status, reason }: { status: string; reason: string | null }) {
+  const text = rejectionReasonToShow(status, reason);
+  if (!text) return null;
+  return (
+    <div
+      data-testid="rejection-reason"
+      className="flex items-start gap-2 rounded-lg bg-status-error-bg px-4 py-3 text-sm text-status-error-fg"
+    >
+      <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+      <p>
+        <span className="font-semibold">סיבת הדחייה: </span>
+        {text}
+      </p>
+    </div>
+  );
+}
+
+export function ShapeLabel({
+  shape,
+  grid,
+}: {
+  shape: { name: string; cols: number; rows: number };
+  grid: { columns: number; rows: number } | null;
+}) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      {grid ? (
+        <ShapePreview cols={shape.cols} rows={shape.rows} grid={grid} className="h-8 w-6" />
+      ) : null}
+      <span>{shape.name}</span>
+    </span>
+  );
+}
+
+export { Ltr };

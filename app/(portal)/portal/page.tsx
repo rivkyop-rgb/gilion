@@ -1,0 +1,121 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { Plus, Send } from "lucide-react";
+
+import { getCustomerScope } from "@/lib/auth/portal";
+import { loadSettings } from "@/lib/data/business-settings";
+import { portalFormOptions, portalRequests } from "@/lib/data/portal";
+import { textFor } from "@/lib/domain/business-settings";
+import type { OrderStatus } from "@/lib/domain/order-status";
+import { AdThumb } from "@/components/ads/ad-preview";
+import { Button } from "@/components/ui/button";
+import type { AdFileType } from "@/lib/domain/ad-file";
+import {
+  formatPublicationDay,
+  Ltr,
+  PortalStatusBadge,
+  RejectionReason,
+  requestNumber,
+  ShapeLabel,
+} from "@/components/portal/request-parts";
+
+export const metadata: Metadata = { title: "הבקשות שלי · Gilion" };
+
+export default async function PortalHomePage() {
+  const scope = await getCustomerScope();
+  const [requests, settings, papers] = await Promise.all([
+    portalRequests(scope),
+    loadSettings(scope.businessId),
+    portalFormOptions(scope),
+  ]);
+  const gridOf = new Map(papers.map((p) => [p.id, p.grid]));
+
+  return (
+    <div className="space-y-8">
+      <section className="rounded-xl border border-outline-variant bg-linear-to-b from-status-info-bg/60 to-surface-container-lowest p-8">
+        <h1 className="mb-2 font-serif text-3xl font-semibold">הבקשות שלי</h1>
+        <p data-testid="portal-intro" className="mb-6 whitespace-pre-line text-on-surface-variant">
+          {textFor("portal_intro", settings.texts)}
+        </p>
+        <Button asChild size="lg">
+          <Link href="/portal/requests/new" data-testid="new-request">
+            <Plus className="size-4" />
+            בקשת פרסום חדשה
+          </Link>
+        </Button>
+      </section>
+
+      {requests.length === 0 ? (
+        <section
+          data-testid="portal-empty"
+          className="flex flex-col items-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest px-8 py-14 text-center"
+        >
+          <span className="flex size-12 items-center justify-center rounded-full bg-surface-container">
+            <Send className="size-6 text-primary" aria-hidden />
+          </span>
+          <p className="font-serif text-xl font-semibold">עדיין לא שלחת בקשות</p>
+          <p className="text-sm text-on-surface-variant">
+            בקשה חדשה לוקחת דקה: עיתון, תאריך, גודל וקובץ המודעה.
+          </p>
+          <Button asChild>
+            <Link href="/portal/requests/new">בקשת פרסום חדשה</Link>
+          </Button>
+        </section>
+      ) : (
+        <ul className="space-y-4" data-testid="portal-requests">
+          {requests.map((r) => {
+            const item = r.items[0];
+            return (
+              <li key={r.id}>
+                <Link
+                  href={`/portal/requests/${r.id}`}
+                  data-testid="request-card"
+                  data-request-id={r.id}
+                  className="block rounded-xl border border-outline-variant bg-surface-container-lowest p-5 transition-colors hover:border-outline"
+                >
+                  <div className="flex gap-4">
+                    {r.advertisement ? (
+                      <AdThumb
+                        ad={{
+                          name: r.advertisement.name,
+                          fileType: r.advertisement.file_type as AdFileType,
+                          previewUrl: r.advertisement.preview_url,
+                        }}
+                        className="size-20 shrink-0"
+                      />
+                    ) : null}
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-semibold">{item?.newspaper.name}</p>
+                        <PortalStatusBadge status={r.status as OrderStatus} />
+                      </div>
+                      {item ? (
+                        <>
+                          <p className="text-sm">{formatPublicationDay(item.publication_date)}</p>
+                          <p className="text-sm text-on-surface-variant">
+                            <ShapeLabel
+                              shape={item.ad_shape}
+                              grid={gridOf.get(item.newspaper.id) ?? null}
+                            />
+                          </p>
+                        </>
+                      ) : null}
+                      <p className="text-xs text-on-surface-variant">
+                        <Ltr>{requestNumber(r.number)}</Ltr>
+                      </p>
+                    </div>
+                  </div>
+                  {r.status === "rejected" ? (
+                    <div className="mt-4">
+                      <RejectionReason status={r.status} reason={r.rejection_reason} />
+                    </div>
+                  ) : null}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}

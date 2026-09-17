@@ -1,5 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 
+/**
+ * 3100 by default. Overridable so a second checkout (a git worktree on another
+ * branch, with its own DATABASE_URL and MINIO_BUCKET in its .env) can run the
+ * suite at the same time without the two global setups wiping each other.
+ */
+const PORT = Number(process.env.GILION_PORT ?? 3100);
+
 export default defineConfig({
   testDir: "./e2e",
   globalSetup: "./e2e/global-setup.ts",
@@ -29,15 +36,15 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 1,
   reporter: "list",
   use: {
-    baseURL: "http://127.0.0.1:3100",
+    baseURL: `http://127.0.0.1:${PORT}`,
     trace: "on-first-retry",
     locale: "he-IL",
     timezoneId: "Asia/Jerusalem",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "npm run dev",
-    url: "http://127.0.0.1:3100",
+    command: `npx next dev -p ${PORT}`,
+    url: `http://127.0.0.1:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
