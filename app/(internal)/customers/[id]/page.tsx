@@ -34,6 +34,9 @@ import { ORDER_TONE, PAYMENT_TONE, PUBLICATION_TONE } from "@/components/status-
 import { OrderStatusBadge } from "../../orders/order-badges";
 import { formatDate, formatMoney, orderNumber } from "../../orders/format";
 import { ConvertToRegular } from "./convert-to-regular";
+import { CopyLink } from "@/components/portal/copy-link";
+import { businessSlug } from "@/lib/data/portal-link";
+import { portalUrl } from "@/lib/portal-origin";
 
 export const metadata: Metadata = { title: "כרטיס לקוח · Gilion" };
 
@@ -167,6 +170,8 @@ export default async function CustomerPage({
   // What to actually ask the customer for: the open balance less anything of
   // theirs we are holding. Negative means they are ahead of us.
   const net = account.outstanding - credit;
+  // Backlog 21: the business's portal link, to send this customer.
+  const portalLink = await portalUrl(await businessSlug(ctx.businessId));
 
   return (
     <>
@@ -201,6 +206,7 @@ export default async function CustomerPage({
         {mayEdit ? (
           <div className="flex gap-2">
             {customer.customer_type === "casual" ? <ConvertToRegular id={customer.id} /> : null}
+            <CopyLink url={portalLink} label="העתקת קישור לפורטל" testId="customer-portal-link" />
             {canWriteArea(ctx, "settings") ? (
               <Button variant="secondary" asChild>
                 <Link
@@ -208,7 +214,7 @@ export default async function CustomerPage({
                   data-testid="portal-access-link"
                 >
                   <KeyRound className="size-4" />
-                  גישה לפורטל
+                  פורטל: גישה ופעילות
                 </Link>
               </Button>
             ) : null}

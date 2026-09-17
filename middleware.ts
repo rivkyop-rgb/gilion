@@ -16,10 +16,17 @@ const gate = authEdge((req) => {
   const isAuthRoute = path === "/login";
   const isPicker = path === "/select-business";
   const isPortal = path === "/portal" || path.startsWith("/portal/");
-  const isPortalLogin = path === "/portal/login";
+  // /p/<slug> is a business's own portal door (backlog 21) — a sign-in page,
+  // so it belongs with /portal/login in every rule below.
+  const isPortalLogin = path === "/portal/login" || /^\/p\/[^/]+\/?$/.test(path);
 
   if (!session?.user) {
     if (isAuthRoute || isPortalLogin) return NextResponse.next();
+    // A business's logo on its own portal door, before sign-in. The route
+    // decides which keys that covers — this only lets the request reach it.
+    if (path.startsWith("/api/files/") && nextUrl.searchParams.has("portal")) {
+      return NextResponse.next();
+    }
     // Each side has its own door, so someone following a portal link is sent
     // to the portal's sign-in rather than the staff one.
     return NextResponse.redirect(new URL(isPortal ? "/portal/login" : "/login", nextUrl));
@@ -37,7 +44,7 @@ const gate = authEdge((req) => {
     return NextResponse.redirect(new URL("/portal", nextUrl));
   }
 
-  if (isPortal) {
+  if (isPortal || isPortalLogin) {
     return NextResponse.redirect(
       new URL(session.user.businessId ? "/dashboard" : "/select-business", nextUrl),
     );

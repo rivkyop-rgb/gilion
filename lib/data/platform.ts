@@ -7,6 +7,7 @@
  * requireSuperAdmin() at the action boundary.
  */
 import bcrypt from "bcryptjs";
+import { newBusinessSlug } from "@/lib/domain/portal-link";
 import { basePrisma } from "./db";
 
 export async function listBusinesses() {
@@ -54,7 +55,9 @@ export async function createBusinessWithAdmin(data: NewBusiness) {
   const hash = await bcrypt.hash(data.adminPassword, 10);
 
   return basePrisma.$transaction(async (tx) => {
-    const business = await tx.business.create({ data: { name: data.businessName.trim() } });
+    const business = await tx.business.create({
+      data: { name: data.businessName.trim(), slug: newBusinessSlug() },
+    });
 
     const user = await tx.user.create({
       data: {

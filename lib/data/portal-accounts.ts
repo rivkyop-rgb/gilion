@@ -65,3 +65,40 @@ export async function setPortalAccountStatus(
   });
   return result.count === 1;
 }
+
+/**
+ * Everything this customer's portal logins did (backlog 25), newest first.
+ *
+ * By the people, not by the target: a sign-in targets the customer, a request
+ * the customer, an upload the advertisement, a cancellation the order — what
+ * they all share is who did them.
+ */
+export async function portalActivity(businessId: string, customerId: string, limit = 100) {
+  const logins = await tenantDb(businessId).userMembership.findMany({
+    where: { role: "customer", customer_id: customerId },
+    select: { user_id: true },
+  });
+  if (logins.length === 0) return [];
+  return tenantDb(businessId).auditLog.findMany({
+    where: {
+      user_id: { in: logins.map((l) => l.user_id) },
+      action: {
+        in: [
+          "portal_sign_in",
+          "portal_submit_request",
+          "portal_upload_ad",
+          "portal_cancel_request",
+        ],
+      },
+    },
+    orderBy: { created_at: "desc" },
+    take: limit,
+    select: {
+      id: true,
+      action: true,
+      created_at: true,
+      new_value: true,
+      user: { select: { name: true, email: true } },
+    },
+  });
+}

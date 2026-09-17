@@ -28,13 +28,13 @@ async function main() {
   // was never wrong, only the seed data made it look duplicated.
   const alpha = await prisma.business.upsert({
     where: { id: "biz_alpha" },
-    update: { name: "הוצאת המרכז" },
-    create: { id: "biz_alpha", name: "הוצאת המרכז" },
+    update: { name: "הוצאת המרכז", slug: "merkaz" },
+    create: { id: "biz_alpha", name: "הוצאת המרכז", slug: "merkaz" },
   });
   const beta = await prisma.business.upsert({
     where: { id: "biz_beta" },
-    update: { name: "הוצאת הצפון" },
-    create: { id: "biz_beta", name: "הוצאת הצפון" },
+    update: { name: "הוצאת הצפון", slug: "tzafon" },
+    create: { id: "biz_beta", name: "הוצאת הצפון", slug: "tzafon" },
   });
 
   const people = [

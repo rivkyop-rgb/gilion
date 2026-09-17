@@ -3,7 +3,7 @@ import { Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Ltr } from "@/components/ui/ltr";
 import { ShapePreview } from "@/app/(internal)/settings/shape-preview";
-import { PORTAL_STATUS, rejectionReasonToShow } from "@/lib/domain/portal-request";
+import { PORTAL_STATUS, rejectionReasonToShow, requestPrice } from "@/lib/domain/portal-request";
 import type { OrderStatus } from "@/lib/domain/order-status";
 
 const DATE = new Intl.DateTimeFormat("he-IL", {
@@ -72,3 +72,38 @@ export function ShapeLabel({
 }
 
 export { Ltr };
+
+const MONEY = new Intl.NumberFormat("he-IL", {
+  style: "currency",
+  currency: "ILS",
+  maximumFractionDigits: 2,
+});
+export const formatPortalMoney = (n: number) => MONEY.format(n);
+
+/**
+ * The price of a request, said honestly (backlog 23): "estimated" until the
+ * newspaper approves it, the charged amount after, nothing when it was turned
+ * down or withdrawn.
+ */
+export function RequestPrice({
+  order,
+}: {
+  order: {
+    status: string;
+    total_price: unknown;
+    publications: Array<{ price: unknown; status: string }>;
+  };
+}) {
+  const price = requestPrice({
+    status: order.status,
+    total_price: Number(order.total_price),
+    publications: order.publications.map((p) => ({ price: Number(p.price), status: p.status })),
+  });
+  if (!price) return null;
+  return (
+    <span data-testid="request-price" data-estimate={price.estimate || undefined}>
+      {price.estimate ? "מחיר משוער: " : "מחיר: "}
+      <Ltr className="font-semibold">{formatPortalMoney(price.amount)}</Ltr>
+    </span>
+  );
+}

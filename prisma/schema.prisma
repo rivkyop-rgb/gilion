@@ -79,6 +79,12 @@ enum AuditAction {
   /// everyone sees", the target is always the business, and old/new already
   /// name the fields that moved.
   update_business_settings
+  /// Stage 09, backlog 25 — everything a customer does in the portal is on
+  /// the record, attributed to the portal user who did it.
+  portal_sign_in
+  portal_submit_request
+  portal_upload_ad
+  portal_cancel_request
 }
 
 /// An independent business in the multi-tenant system (FR-1, FR-2).
@@ -90,6 +96,16 @@ model Business {
   /// reactivating restores the business whole — that is the difference between
   /// this and deleting, and the reason deletion is not offered at all.
   status BusinessStatus @default(active)
+
+  /// The customer portal's address for this business: /p/<slug> (backlog 21).
+  ///
+  /// One portal address for every business cannot say whose logo to show
+  /// before anyone signs in, and cannot say which business a customer means
+  /// when the same email is a customer of two. Lowercase Latin, digits and
+  /// hyphens (lib/domain/portal-link.ts). No @default — a business created
+  /// without one would have no portal, and the compiler says so instead.
+  /// Editable by the admin; changing it breaks links already sent.
+  slug String @unique
 
   /// The last order number handed out in this business (stage 08, 16/09/2026).
   ///

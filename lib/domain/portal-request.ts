@@ -161,6 +161,8 @@ export function portalOrderRecord(input: {
   publicationDate: string;
   /** From PriceRule; 0 when there is none, completed internally on approval. */
   listPrice: number | null;
+  /** The list price less any package earned — what the customer was shown. */
+  estimate?: number | null;
 }) {
   const price = input.listPrice ?? 0;
   return {
@@ -169,7 +171,7 @@ export function portalOrderRecord(input: {
       advertisement_id: input.advertisementId,
       source: "customer_portal" as const,
       status: "pending_approval" as const,
-      total_price: price,
+      total_price: input.estimate ?? price,
     },
     item: {
       newspaper_id: input.newspaperId,
@@ -268,4 +270,31 @@ export function requestTimeline(order: {
         { key: "published", label: "פורסם", at: null, state: "upcoming" },
       ];
   }
+}
+
+/**
+ * The price a customer is shown for a request (backlog 23).
+ *
+ * While nothing is binding it is the ESTIMATE on the order, and says so —
+ * conventions.md §7 fixes the price at approval, not at submission. Once
+ * approved it is what the publications actually carry. A request that was
+ * turned down or withdrawn costs nothing, and showing its old estimate would
+ * read as a charge.
+ */
+export function requestPrice(order: {
+  status: string;
+  total_price: number;
+  publications: Array<{ price: number; status: string }>;
+}): { amount: number; estimate: boolean } | null {
+  if (order.status === "pending_approval" || order.status === "draft") {
+    return order.total_price > 0 ? { amount: order.total_price, estimate: true } : null;
+  }
+  if (order.status === "approved" || order.status === "completed") {
+    const live = order.publications.filter((p) => p.status !== "canceled");
+    return {
+      amount: Math.round(live.reduce((s, p) => s + p.price, 0) * 100) / 100,
+      estimate: false,
+    };
+  }
+  return null;
 }

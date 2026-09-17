@@ -5,7 +5,8 @@ import { ArrowRight } from "lucide-react";
 
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { getCustomer } from "@/lib/data/customers";
-import { listPortalAccounts } from "@/lib/data/portal-accounts";
+import { listPortalAccounts, portalActivity } from "@/lib/data/portal-accounts";
+import { auditActionLabel } from "@/lib/domain/audit-labels";
 import { Badge } from "@/components/ui/badge";
 import { Ltr } from "@/components/ui/ltr";
 import { formatDate } from "../../../orders/format";
@@ -13,6 +14,25 @@ import { AccountStatusToggle } from "./account-status";
 import { PortalAccountForm } from "./portal-account-form";
 
 export const metadata: Metadata = { title: "גישה לפורטל · Gilion" };
+
+const STAMP = new Intl.DateTimeFormat("he-IL", {
+  dateStyle: "short",
+  timeStyle: "short",
+  timeZone: "Asia/Jerusalem",
+});
+
+/** One line of what the row recorded, in words — not the raw JSON. */
+function activityDetail(value: unknown): string {
+  if (!value || typeof value !== "object") return "";
+  const v = value as Record<string, unknown>;
+  if (typeof v["number"] === "number") {
+    return `בקשה ORD-${String(v["number"]).padStart(4, "0")}${v["publicationDate"] ? ` לתאריך ${v["publicationDate"]}` : ""}`;
+  }
+  if (typeof v["name"] === "string")
+    return `קובץ ${v["name"]}${v["publicationId"] ? " לפרסום קיים" : ""}`;
+  if (v["status"] === "canceled") return "הבקשה בוטלה";
+  return "";
+}
 
 /**
  * Who at this customer may sign in to the portal (stage 09).
@@ -29,7 +49,10 @@ export default async function PortalAccessPage({ params }: { params: Promise<{ i
   const customer = await getCustomer(ctx.businessId, id);
   if (!customer) notFound();
 
-  const accounts = await listPortalAccounts(ctx.businessId, customer.id);
+  const [accounts, activity] = await Promise.all([
+    listPortalAccounts(ctx.businessId, customer.id),
+    portalActivity(ctx.businessId, customer.id),
+  ]);
   const label = customer.business_name || customer.contact_name;
 
   return (
@@ -98,6 +121,43 @@ export default async function PortalAccessPage({ params }: { params: Promise<{ i
           </tbody>
         </table>
       )}
+
+      <section>
+        <h2 className="mb-3 font-serif text-xl font-semibold">פעילות בפורטל</h2>
+        {activity.length === 0 ? (
+          <p className="text-sm text-on-surface-variant" data-testid="portal-activity-empty">
+            עדיין לא נרשמה פעילות.
+          </p>
+        ) : (
+          <table
+            className="w-full overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest text-sm"
+            data-testid="portal-activity"
+          >
+            <thead className="bg-surface-container text-on-surface-variant">
+              <tr>
+                <th className="px-3 py-2 text-start font-medium">מתי</th>
+                <th className="px-3 py-2 text-start font-medium">פעולה</th>
+                <th className="px-3 py-2 text-start font-medium">מי</th>
+                <th className="px-3 py-2 text-start font-medium">פרטים</th>
+              </tr>
+            </thead>
+            <tbody>
+              {activity.map((a) => (
+                <tr key={a.id} className="border-t border-outline-variant" data-action={a.action}>
+                  <td className="whitespace-nowrap px-3 py-2">
+                    <Ltr>{STAMP.format(a.created_at)}</Ltr>
+                  </td>
+                  <td className="px-3 py-2">{auditActionLabel(a.action)}</td>
+                  <td className="px-3 py-2">{a.user.name}</td>
+                  <td className="px-3 py-2 text-on-surface-variant">
+                    {activityDetail(a.new_value)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
 
       <PortalAccountForm
         customerId={customer.id}

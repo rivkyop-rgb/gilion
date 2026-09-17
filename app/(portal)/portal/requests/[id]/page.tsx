@@ -15,6 +15,7 @@ import {
   Ltr,
   PortalStatusBadge,
   RejectionReason,
+  RequestPrice,
   requestNumber,
   ShapeLabel,
 } from "@/components/portal/request-parts";
@@ -79,6 +80,17 @@ export default async function PortalRequestPage({
             <div>
               <dt className="text-xs text-on-surface-variant">תאריך פרסום</dt>
               <dd data-testid="request-date">{formatPublicationDay(item.publication_date)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-on-surface-variant">מחיר</dt>
+              <dd>
+                <RequestPrice order={request} />
+                {status === "pending_approval" ? (
+                  <p className="text-xs text-on-surface-variant">
+                    המחיר נקבע סופית כשהעיתון מאשר את הבקשה.
+                  </p>
+                ) : null}
+              </dd>
             </div>
             <div>
               <dt className="text-xs text-on-surface-variant">גודל</dt>

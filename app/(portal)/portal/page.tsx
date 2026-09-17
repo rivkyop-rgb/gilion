@@ -4,9 +4,11 @@ import { Plus, Send } from "lucide-react";
 
 import { getCustomerScope } from "@/lib/auth/portal";
 import { loadSettings } from "@/lib/data/business-settings";
-import { portalFormOptions, portalRequests } from "@/lib/data/portal";
+import { portalFormOptions, portalRequests, publicationsAwaitingArtwork } from "@/lib/data/portal";
+import { PublicationUpload } from "@/components/portal/publication-upload";
 import { textFor } from "@/lib/domain/business-settings";
 import type { OrderStatus } from "@/lib/domain/order-status";
+import { todayIso } from "@/lib/domain/publication-days";
 import { AdThumb } from "@/components/ads/ad-preview";
 import { Button } from "@/components/ui/button";
 import type { AdFileType } from "@/lib/domain/ad-file";
@@ -15,6 +17,7 @@ import {
   Ltr,
   PortalStatusBadge,
   RejectionReason,
+  RequestPrice,
   requestNumber,
   ShapeLabel,
 } from "@/components/portal/request-parts";
@@ -23,10 +26,12 @@ export const metadata: Metadata = { title: "הבקשות שלי · Gilion" };
 
 export default async function PortalHomePage() {
   const scope = await getCustomerScope();
-  const [requests, settings, papers] = await Promise.all([
+  const today = new Date(`${todayIso()}T00:00:00Z`);
+  const [requests, settings, papers, waiting] = await Promise.all([
     portalRequests(scope),
     loadSettings(scope.businessId),
     portalFormOptions(scope),
+    publicationsAwaitingArtwork(scope, today),
   ]);
   const gridOf = new Map(papers.map((p) => [p.id, p.grid]));
 
@@ -44,6 +49,40 @@ export default async function PortalHomePage() {
           </Link>
         </Button>
       </section>
+
+      {/* Backlog 24: an order the office opened for this customer, still
+          waiting for the file. First on the page, because it is the one thing
+          here with a deadline. */}
+      {waiting.length > 0 ? (
+        <section
+          data-testid="awaiting-artwork"
+          className="rounded-xl border border-status-warning-fg/30 bg-status-warning-bg/40 p-6"
+        >
+          <h2 className="mb-1 font-serif text-xl font-semibold">מחכים למודעה ממך</h2>
+          <p className="mb-4 text-sm text-on-surface-variant">
+            פרסומים שהוזמנו ועדיין לא הגיע אליהם קובץ.
+          </p>
+          <ul className="divide-y divide-outline-variant">
+            {waiting.map((p) => (
+              <li
+                key={p.id}
+                data-testid="awaiting-row"
+                data-publication-id={p.id}
+                className="flex flex-wrap items-center justify-between gap-3 py-3"
+              >
+                <div className="text-sm">
+                  <p className="font-semibold">{p.newspaper.name}</p>
+                  <p>{formatPublicationDay(p.publication_date)}</p>
+                  <p className="text-on-surface-variant">
+                    {p.ad_shape.name} · <Ltr>{requestNumber(p.order.number)}</Ltr>
+                  </p>
+                </div>
+                <PublicationUpload publicationId={p.id} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {requests.length === 0 ? (
         <section
@@ -100,8 +139,9 @@ export default async function PortalHomePage() {
                           </p>
                         </>
                       ) : null}
-                      <p className="text-xs text-on-surface-variant">
+                      <p className="flex flex-wrap justify-between gap-2 text-xs text-on-surface-variant">
                         <Ltr>{requestNumber(r.number)}</Ltr>
+                        <RequestPrice order={r} />
                       </p>
                     </div>
                   </div>

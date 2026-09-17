@@ -30,6 +30,12 @@ import {
 
 type UploadedAd = NonNullable<PortalUploadState["ad"]>;
 
+const MONEY = new Intl.NumberFormat("he-IL", {
+  style: "currency",
+  currency: "ILS",
+  maximumFractionDigits: 2,
+});
+
 /**
  * The request form (docs/design/screens/06-portal-request.md).
  *
@@ -54,6 +60,7 @@ export function RequestForm({ newspapers }: { newspapers: PortalFormNewspaper[] 
   );
 
   const paper = newspapers.find((n) => n.id === newspaperId) ?? null;
+  const chosenShape = paper?.shapes.find((s) => s.id === shapeId) ?? null;
 
   const chooseNewspaper = (id: string) => {
     setNewspaperId(id);
@@ -169,6 +176,14 @@ export function RequestForm({ newspapers }: { newspapers: PortalFormNewspaper[] 
                     />
                   ) : null}
                   <span className="text-center">{s.name}</span>
+                  {s.estimate !== null ? (
+                    <span
+                      className="text-xs font-normal text-on-surface-variant"
+                      data-testid="shape-estimate"
+                    >
+                      <Ltr>{MONEY.format(s.estimate)}</Ltr>
+                    </span>
+                  ) : null}
                 </button>
               );
             })}
@@ -272,7 +287,19 @@ export function RequestForm({ newspapers }: { newspapers: PortalFormNewspaper[] 
           className="flex items-start gap-2 rounded-lg bg-status-info-bg px-4 py-3 text-sm text-status-info-fg"
         >
           <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
-          הבקשה תישלח לאישור. פרסום ייווצר רק לאחר אישור מערכת העיתון.
+          <span>
+            הבקשה תישלח לאישור. פרסום ייווצר רק לאחר אישור מערכת העיתון.
+            {chosenShape?.estimate != null ? (
+              <>
+                {" "}
+                מחיר משוער:{" "}
+                <Ltr className="font-semibold" data-testid="form-estimate">
+                  {MONEY.format(chosenShape.estimate)}
+                </Ltr>
+                . המחיר נקבע סופית באישור.
+              </>
+            ) : null}
+          </span>
         </p>
         <Button
           type="submit"

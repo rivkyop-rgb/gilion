@@ -353,6 +353,10 @@ async function deleteTestOrders(prisma: PrismaClient) {
   // the demo opens on ORD-0236 rather than ORD-0001. Safe here and only here —
   // every order was just deleted, so nothing can collide with a fresh 1.
   await prisma.business.updateMany({ data: { last_order_number: 0 } });
+  // Stage 09 (backlog 21): a spec that edits the portal address must not
+  // leave the next run's /p/merkaz pointing nowhere.
+  await prisma.business.update({ where: { id: "biz_alpha" }, data: { slug: "merkaz" } });
+  await prisma.business.update({ where: { id: "biz_beta" }, data: { slug: "tzafon" } });
 }
 
 /**

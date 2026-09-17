@@ -24,13 +24,15 @@ import { getTenantContext, canReadArea } from "@/lib/auth/tenant";
 import { getAdvertisement } from "@/lib/data/advertisements";
 import { brandKeysFor, loginBrandKeys } from "@/lib/data/business-settings";
 import { isBrandKey } from "@/lib/domain/business-settings";
+import { portalBusiness } from "@/lib/data/portal-link";
 import { businessOfKey, contentTypeOfKey, getObjectStream, statObject } from "@/lib/storage/minio";
 
 const NOT_FOUND = new NextResponse("not found", { status: 404 });
 
-export async function GET(_request: Request, { params }: { params: Promise<{ key: string[] }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ key: string[] }> }) {
   const { key: segments } = await params;
   const key = segments.join("/");
+  const portalSlug = new URL(request.url).searchParams.get("portal");
 
   let ctx;
   try {
@@ -43,6 +45,19 @@ export async function GET(_request: Request, { params }: { params: Promise<{ key
     // else, including any other key under the same business, is still 404.
     if (isBrandKey(key) && (await loginBrandKeys()).includes(key)) {
       return serve(key, key.split("/").pop() ?? "brand");
+    }
+    // The same hole, for one business's portal door (/p/<slug>): that
+    // business's CURRENT brand keys and nothing else. The key must also name
+    // that business, so a slug cannot be used to fetch another's logo.
+    if (portalSlug && isBrandKey(key)) {
+      const business = await portalBusiness(portalSlug);
+      if (
+        business &&
+        businessOfKey(key) === business.id &&
+        (await brandKeysFor(business.id)).includes(key)
+      ) {
+        return serve(key, key.split("/").pop() ?? "brand");
+      }
     }
     return NOT_FOUND;
   }

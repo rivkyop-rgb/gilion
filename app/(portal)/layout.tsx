@@ -8,6 +8,7 @@ import { portalGreeting } from "@/lib/data/portal";
 import { cssVariables } from "@/lib/domain/theme-tokens";
 import { BrandMark, brandSrc, hasCustomBrand } from "@/components/brand/brand-mark";
 import { Button } from "@/components/ui/button";
+import { PortalNav } from "@/components/portal/portal-nav";
 import { portalSignOutAction } from "./portal/actions";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -71,6 +72,9 @@ export default async function PortalLayout({ children }: { children: React.React
               </Button>
             </form>
           </span>
+        </div>
+        <div className="mx-auto max-w-[720px] px-4 pb-2">
+          <PortalNav />
         </div>
       </header>
 

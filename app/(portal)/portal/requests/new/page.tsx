@@ -9,9 +9,9 @@ import { RequestForm } from "./request-form";
 export const metadata: Metadata = { title: "בקשת פרסום חדשה · Gilion" };
 
 /**
- * Page types, and whether each has a price, are how the SERVER files the
- * request (pickPageType). The browser needs neither, so neither is sent — not
- * even a boolean about pricing (FR-18).
+ * Page types are how the SERVER files the request (pickPageType) — the
+ * newspaper's internal vocabulary. The browser gets the size and its estimate,
+ * and not the page type or the per-page-type price list behind it.
  */
 function forBrowser(paper: PortalFormNewspaper): PortalFormNewspaper {
   return { ...paper, shapes: paper.shapes.map((s) => ({ ...s, pageTypes: [] })) };

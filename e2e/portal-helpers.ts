@@ -10,7 +10,18 @@ import type { Fixture } from "./ad-fixtures";
  * paper_catalog on Thursdays.
  */
 export const PORTAL_DATES = {
-  alpha: ["2029-01-09", "2029-01-16", "2029-01-23", "2029-01-30", "2029-02-06"],
+  alpha: [
+    "2029-01-09",
+    "2029-01-16",
+    "2029-01-23",
+    "2029-01-30",
+    "2029-02-06",
+    // Backlog 23–25 specs.
+    "2029-02-13",
+    "2029-02-20",
+    "2029-02-27",
+    "2029-03-06",
+  ],
   catalog: ["2029-01-11"],
 } as const;
 
@@ -66,4 +77,20 @@ export async function submitRequest(
   await page.getByTestId("submit-request").click();
   await page.waitForURL(/\/portal\/requests\/[a-z0-9]+\?sent=1$/, { timeout: 30_000 });
   return new URL(page.url()).pathname.split("/").pop()!;
+}
+
+/** Seeded customers behind the two portal logins. */
+export const PORTAL_CUSTOMERS = {
+  one: { id: "cust_alpha_1", label: "מרכז הרפואה" },
+  two: { id: "cust_alpha_3", label: "אולמי הדר" },
+} as const;
+
+/** Signs in through a business's own portal door, /p/<slug>. */
+export async function portalLoginVia(page: Page, slug: string, email: string) {
+  await page.goto("about:blank");
+  await page.context().clearCookies();
+  await page.goto(`/p/${slug}`);
+  await page.fill("#email", email);
+  await page.fill("#password", PASSWORD);
+  await page.click('button[type="submit"]');
 }
