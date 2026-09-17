@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { USERS, login, loginAsAdmin } from "./helpers";
+import { USERS, login, loginAsAdmin, orderRef } from "./helpers";
 import { BILLING_DATES, approvedOrder, createCustomer } from "./billing-helpers";
 
 /**
@@ -13,14 +13,22 @@ import { BILLING_DATES, approvedOrder, createCustomer } from "./billing-helpers"
  * the screen went on looking complete.
  */
 
-/** A customer with more rows than one page holds. */
+/**
+ * A customer with more rows than one page holds.
+ *
+ * The REF is captured as each order is approved, while its page is still open.
+ * Order numbers are a real per-business sequence — nothing about the id
+ * predicts the label, so a spec cannot compute one.
+ */
 async function customerWithHistory(page: Page, count: number) {
   const customer = await createCustomer(page, "לקוח ותיק");
   const orders: string[] = [];
+  const refs: string[] = [];
   for (let i = 0; i < count; i++) {
     orders.push(await approvedOrder(page, customer.name, [BILLING_DATES.march[i % 3]!], "500"));
+    refs.push(await orderRef(page));
   }
-  return { ...customer, orders };
+  return { ...customer, orders, refs };
 }
 
 test("ברירת המחדל היא עשר שורות, עם דפדוף ומונה שאומר כמה יש", async ({ page }) => {
@@ -77,7 +85,7 @@ test("חיפוש לפי מספר הזמנה מוצא את ההזמנה ואת ה
   const customer = await customerWithHistory(page, 12);
 
   // The number as a person reads it off their own screen.
-  const orderNumber = `ORD-${customer.orders[0]!.slice(-6).toUpperCase()}`;
+  const orderNumber = customer.refs[0]!;
 
   await page.goto(`/customers/${customer.id}`);
   await page.getByTestId("o-search").fill(orderNumber);
@@ -101,13 +109,14 @@ test("כל פרסום אומר מאיזו הזמנה הוא בא", async ({ page
   await loginAsAdmin(page);
   const customer = await createCustomer(page, "לקוח עמודת הזמנה");
   const orderId = await approvedOrder(page, customer.name, [BILLING_DATES.march[0]], "500");
+  const ref = await orderRef(page);
 
   await page.goto(`/customers/${customer.id}`);
   const table = page.getByTestId("customer-publications");
   await expect(table).toContainText("הזמנה");
   // And it is a link to that order, not just a number to copy.
   const link = page.locator("[data-testid^='publication-order-']").first();
-  await expect(link).toContainText(`ORD-${orderId.slice(-6).toUpperCase()}`);
+  await expect(link).toContainText(ref);
   await link.click();
   await expect(page).toHaveURL(new RegExp(`/orders/${orderId}`));
 });
@@ -117,7 +126,7 @@ test("חיפוש שמצמצם את הרשימה לא משאיר אותך בעמ�
   await loginAsAdmin(page);
   const customer = await customerWithHistory(page, 12);
 
-  const orderNumber = `ORD-${customer.orders[0]!.slice(-6).toUpperCase()}`;
+  const orderNumber = customer.refs[0]!;
 
   // On page 2, then a search that leaves one row. An un-clamped page 2 would
   // show an empty table, which reads as "no results" when there is one.
@@ -133,7 +142,7 @@ test("ייצוא מוריד קובץ שנפתח באקסל, עם החיפוש ש
   test.slow();
   await loginAsAdmin(page);
   const customer = await customerWithHistory(page, 12);
-  const orderNumber = `ORD-${customer.orders[0]!.slice(-6).toUpperCase()}`;
+  const orderNumber = customer.refs[0]!;
 
   await page.goto(`/customers/${customer.id}`);
 

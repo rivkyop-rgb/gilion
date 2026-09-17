@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { loginAsAdmin } from "./helpers";
+import { loginAsAdmin, orderRef } from "./helpers";
 import { validPdf } from "./ad-fixtures";
 import { adCard, uploadFile } from "./ad-helpers";
 
@@ -38,7 +38,7 @@ async function approvedOrder(page: Page, dates: string[]): Promise<string> {
   await page.getByTestId("submit-order").click();
   await page.getByTestId("approve-order").click();
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
-  return `ORD-${id.slice(-6).toUpperCase()}`;
+  return orderRef(page);
 }
 
 test("שיוך מודעה לפרסום — משני הכיוונים — מזיז את הסטטוס דרך מכונת המצבים", async ({ page }) => {

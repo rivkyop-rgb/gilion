@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { USERS, login } from "./helpers";
+import { USERS, login, orderRef } from "./helpers";
 import { validJpg, validPdf, validPng } from "./ad-fixtures";
 import { uploadFile } from "./ad-helpers";
 
@@ -47,7 +47,7 @@ async function approvedOrderFor(page: Page, customerName: string, date: string):
   await page.getByTestId("submit-order").click();
   await page.getByTestId("approve-order").click();
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
-  return `ORD-${id.slice(-6).toUpperCase()}`;
+  return orderRef(page);
 }
 
 test("בורר המודעות מציג תמונות, מסנן בחיפוש, ומאפשר להציץ בלי לבחור", async ({ page }) => {

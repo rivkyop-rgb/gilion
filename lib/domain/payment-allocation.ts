@@ -17,13 +17,15 @@
 
 export type OpenOrder = {
   orderId: string;
+  /** What the sentence calls it: ORD-0042. */
+  number: number;
   /** What is still owed on it. Orders with nothing open are not passed in. */
   open: number;
   /** Used only to sort. Oldest first. */
   createdAt: Date;
 };
 
-export type Allocation = { orderId: string; amount: number };
+export type Allocation = { orderId: string; number: number; amount: number };
 
 export type AllocationResult = {
   allocations: Allocation[];
@@ -66,7 +68,7 @@ export function allocatePayment(amount: number, openOrders: OpenOrder[]): Alloca
     if (remaining <= 0) break;
     const take = round2(Math.min(remaining, order.open));
     if (take <= 0) continue;
-    allocations.push({ orderId: order.orderId, amount: take });
+    allocations.push({ orderId: order.orderId, number: order.number, amount: take });
     remaining = round2(remaining - take);
   }
 
@@ -83,14 +85,14 @@ export function allocatePayment(amount: number, openOrders: OpenOrder[]): Alloca
  */
 export function describeAllocation(
   result: AllocationResult,
-  orderLabel: (id: string) => string,
+  orderLabel: (n: number) => string,
 ): string {
   const { allocations, leftover } = result;
   if (allocations.length === 0) {
     return leftover > 0 ? "אין כרגע חוב פתוח — הסכום כולו ייזקף ליתרת הלקוח" : "אין מה לשייך";
   }
 
-  const parts = allocations.map((a) => `${orderLabel(a.orderId)} — ${money(a.amount)}`);
+  const parts = allocations.map((a) => `${orderLabel(a.number)} — ${money(a.amount)}`);
   const head =
     allocations.length === 1
       ? `ייסגר מול ${parts[0]}`

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { NEWSPAPERS, USERS, login, pickOrderNewspaper } from "./helpers";
+import { NEWSPAPERS, USERS, login, orderRef, pickOrderNewspaper } from "./helpers";
 
 /**
  * The stage 04 follow-ups: a print schedule per newspaper, several dates per
@@ -137,7 +137,7 @@ test.describe("deleting an order", () => {
 
     await page.getByTestId("delete-order").click();
     const dialog = page.getByTestId("delete-order-dialog");
-    await expect(dialog).toContainText(`ORD-${id.slice(-6).toUpperCase()}`);
+    await expect(dialog).toContainText(await orderRef(page));
     await expect(dialog).toContainText("250");
 
     await page.getByTestId("delete-order-dialog-confirm").click();

@@ -16,7 +16,7 @@ const PUBLICATION_INCLUDE = {
   customer: { select: { id: true, contact_name: true, business_name: true } },
   newspaper: { select: { id: true, name: true } },
   ad_shape: { select: { id: true, name: true, cols: true, rows: true } },
-  order: { select: { id: true } },
+  order: { select: { id: true, number: true } },
 };
 
 export async function listPublications(businessId: string, filters: PublicationFilters = {}) {

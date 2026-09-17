@@ -24,13 +24,14 @@ const like = (q: string) => ({ contains: q, mode: "insensitive" as const });
 
 export async function customerOrders(businessId: string, customerId: string, params: ListParams) {
   const db = tenantDb(businessId);
+  const wanted = orderNumberNeedle(params.q);
   const where: Prisma.AdOrderWhereInput = {
     customer_id: customerId,
     ...(params.q
       ? {
           OR: [
-            // The order NUMBER as it is printed, undone back to the stored id.
-            { id: { endsWith: orderNumberNeedle(params.q) } },
+            // The order number as it is printed — ORD-0042, 0042 or 42.
+            ...(wanted === null ? [] : [{ number: wanted }]),
             { external_invoice_number: like(params.q) },
           ],
         }
@@ -45,6 +46,7 @@ export async function customerOrders(businessId: string, customerId: string, par
       take: params.size,
       select: {
         id: true,
+        number: true,
         status: true,
         source: true,
         total_price: true,
@@ -66,6 +68,7 @@ export async function customerPublications(
   params: ListParams,
 ) {
   const db = tenantDb(businessId);
+  const wanted = orderNumberNeedle(params.q);
   const where: Prisma.PublicationWhereInput = {
     customer_id: customerId,
     ...(params.q
@@ -73,9 +76,9 @@ export async function customerPublications(
           OR: [
             { newspaper: { name: like(params.q) } },
             { ad_shape: { name: like(params.q) } },
-            // Asked for by name: find every publication of one order by typing
-            // the order number off the row above it.
-            { order_id: { endsWith: orderNumberNeedle(params.q) } },
+            // Asked for by name: every publication of one order, found by
+            // typing the order number off the row above it.
+            ...(wanted === null ? [] : [{ order: { number: wanted } }]),
           ],
         }
       : {}),
@@ -98,6 +101,7 @@ export async function customerPublications(
         // order was approved, and that link was reachable from the orders table
         // but not from this one.
         order_id: true,
+        order: { select: { number: true } },
         newspaper: { select: { name: true } },
         ad_shape: { select: { name: true } },
       },

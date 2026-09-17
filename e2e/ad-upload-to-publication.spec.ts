@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { loginAsAdmin, addOrderLine } from "./helpers";
+import { addOrderLine, loginAsAdmin, orderRef } from "./helpers";
 import { validPdf } from "./ad-fixtures";
 import { pngOfRoughly } from "./ad-fixtures";
 
@@ -28,7 +28,7 @@ async function approvedOrder(page: Page, dates: string[]): Promise<string> {
   await page.getByTestId("submit-order").click();
   await page.getByTestId("approve-order").click();
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
-  return `ORD-${id.slice(-6).toUpperCase()}`;
+  return orderRef(page);
 }
 
 test("העלאת קובץ ישירות מהפרסום משייכת ללקוח ומחברת בצעד אחד", async ({ page }) => {
@@ -82,9 +82,9 @@ test("העלאה מהפרסום נמדדת מול העיתון של אותו פ�
   await page.getByTestId("approve-order").click();
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
 
-  const orderRef = `ORD-${id.slice(-6).toUpperCase()}`;
+  const ref = await orderRef(page);
   await page.goto("/publications");
-  const row = page.locator("tbody tr").filter({ hasText: orderRef }).first();
+  const row = page.locator("tbody tr").filter({ hasText: ref }).first();
   const pubId = (await row.getAttribute("data-testid"))!.replace("publication-row-", "");
 
   await page.getByTestId(`row-upload-${pubId}`).click();

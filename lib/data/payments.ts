@@ -146,7 +146,7 @@ export type RecordedPayment = {
   ids: string[];
   /** Set when the payment named a single order. */
   status: PaymentStatus | null;
-  allocations: Array<{ orderId: string; amount: number }>;
+  allocations: Array<{ orderId: string; number: number; amount: number }>;
   /** Money that reached no order and is now the customer's to spend. */
   credit: number;
 };
@@ -233,7 +233,9 @@ export async function recordPayment(
           result: {
             ids: [created.id],
             status,
-            allocations: [{ orderId: created.order_id!, amount: Number(created.amount) }],
+            allocations: [
+              { orderId: created.order_id!, number: 0, amount: Number(created.amount) },
+            ],
             credit: 0,
           } satisfies RecordedPayment,
         };
@@ -525,6 +527,7 @@ export async function paymentsForCustomer(businessId: string, customerId: string
       external_invoice_number: true,
       status: true,
       order_id: true,
+      order: { select: { number: true } },
       group_id: true,
       created_at: true,
       updated_at: true,
@@ -547,14 +550,14 @@ export async function customerPaymentsPage(
   params: ListParams,
 ) {
   const db = tenantDb(businessId);
-  const needle = orderNumberNeedle(params.q);
+  const wanted = orderNumberNeedle(params.q);
   const where: Prisma.PaymentWhereInput = {
     customer_id: customerId,
     ...(params.q
       ? {
           OR: [
             { external_invoice_number: { contains: params.q, mode: "insensitive" as const } },
-            { order_id: { endsWith: needle } },
+            ...(wanted === null ? [] : [{ order: { number: wanted } }]),
           ],
         }
       : {}),
@@ -573,6 +576,7 @@ export async function customerPaymentsPage(
         external_invoice_number: true,
         status: true,
         order_id: true,
+        order: { select: { number: true } },
         updated_at: true,
         updated_by: { select: { name: true } },
       },
@@ -639,7 +643,7 @@ export async function creditByCustomer(businessId: string): Promise<Map<string, 
 export async function openOrdersOf(businessId: string, customerId: string): Promise<OpenOrder[]> {
   const orders = await tenantDb(businessId).adOrder.findMany({
     where: { customer_id: customerId, status: { in: ["approved", "completed"] } },
-    select: { id: true, total_price: true, created_at: true },
+    select: { id: true, number: true, total_price: true, created_at: true },
   });
   const paid = await paidByOrder(
     businessId,
@@ -648,6 +652,7 @@ export async function openOrdersOf(businessId: string, customerId: string): Prom
   return orders
     .map((o) => ({
       orderId: o.id,
+      number: o.number,
       open: round2(Math.max(0, Number(o.total_price) - (paid.get(o.id) ?? 0))),
       createdAt: o.created_at,
     }))
@@ -937,6 +942,7 @@ export async function billableOrders(businessId: string, customerId: string) {
     orderBy: { created_at: "desc" },
     select: {
       id: true,
+      number: true,
       total_price: true,
       payment_status: true,
       created_at: true,
@@ -952,6 +958,7 @@ export async function billableOrders(businessId: string, customerId: string) {
     const received = paid.get(o.id) ?? 0;
     return {
       id: o.id,
+      number: o.number,
       totalPrice: round2(Number(o.total_price)),
       paid: round2(received),
       // What the per-order table shows, and what the split queue consumes.
@@ -1114,6 +1121,7 @@ export async function publicationReport(
       price: true,
       advertisement_id: true,
       order_id: true,
+      order: { select: { number: true } },
       customer: { select: { id: true, business_name: true, contact_name: true } },
       newspaper: { select: { name: true } },
       ad_shape: { select: { name: true } },
@@ -1134,6 +1142,7 @@ export async function publicationReport(
     price: Number(r.price),
     hasAdvertisement: r.advertisement_id !== null,
     orderId: r.order_id,
+    orderNumber: r.order.number,
   }));
 
   const lens = filters.lens ?? "all";

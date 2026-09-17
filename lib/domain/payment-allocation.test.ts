@@ -8,8 +8,10 @@ import {
   type OpenOrder,
 } from "./payment-allocation";
 
+let seq = 0;
 const order = (orderId: string, open: number, day: number): OpenOrder => ({
   orderId,
+  number: ++seq,
   open,
   createdAt: new Date(`2026-03-${String(day).padStart(2, "0")}T00:00:00Z`),
 });
@@ -17,24 +19,24 @@ const order = (orderId: string, open: number, day: number): OpenOrder => ({
 describe("allocatePayment", () => {
   it("settles one order exactly, with nothing left", () => {
     const r = allocatePayment(500, [order("a", 500, 1)]);
-    expect(r.allocations).toEqual([{ orderId: "a", amount: 500 }]);
+    expect(r.allocations.map((x) => [x.orderId, x.amount])).toEqual([["a", 500]]);
     expect(r.leftover).toBe(0);
   });
 
   it("walks the open orders oldest first", () => {
     const r = allocatePayment(1000, [order("newer", 800, 10), order("older", 600, 1)]);
-    expect(r.allocations).toEqual([
-      { orderId: "older", amount: 600 },
-      { orderId: "newer", amount: 400 },
+    expect(r.allocations.map((x) => [x.orderId, x.amount])).toEqual([
+      ["older", 600],
+      ["newer", 400],
     ]);
     expect(r.leftover).toBe(0);
   });
 
   it("leaves the last order partly open when the money runs out", () => {
     const r = allocatePayment(700, [order("a", 500, 1), order("b", 500, 2)]);
-    expect(r.allocations).toEqual([
-      { orderId: "a", amount: 500 },
-      { orderId: "b", amount: 200 },
+    expect(r.allocations.map((x) => [x.orderId, x.amount])).toEqual([
+      ["a", 500],
+      ["b", 200],
     ]);
     expect(r.leftover).toBe(0);
   });
@@ -43,7 +45,7 @@ describe("allocatePayment", () => {
     // The surplus is the customer's credit, not an overpayment on whichever
     // order happened to be last in the queue.
     const r = allocatePayment(1000, [order("a", 300, 1)]);
-    expect(r.allocations).toEqual([{ orderId: "a", amount: 300 }]);
+    expect(r.allocations.map((x) => [x.orderId, x.amount])).toEqual([["a", 300]]);
     expect(r.leftover).toBe(700);
   });
 
@@ -55,7 +57,7 @@ describe("allocatePayment", () => {
 
   it("skips orders that are already settled", () => {
     const r = allocatePayment(100, [order("paid", 0, 1), order("open", 100, 2)]);
-    expect(r.allocations).toEqual([{ orderId: "open", amount: 100 }]);
+    expect(r.allocations.map((x) => [x.orderId, x.amount])).toEqual([["open", 100]]);
   });
 
   it("keeps two decimals and still adds up", () => {
@@ -72,18 +74,20 @@ describe("allocatePayment", () => {
 
   it("is deterministic when two orders share a date", () => {
     const same = new Date("2026-03-01T00:00:00Z");
-    const a = { orderId: "aaa", open: 100, createdAt: same };
-    const b = { orderId: "bbb", open: 100, createdAt: same };
-    expect(allocatePayment(100, [b, a]).allocations).toEqual([{ orderId: "aaa", amount: 100 }]);
+    const a = { orderId: "aaa", number: 1, open: 100, createdAt: same };
+    const b = { orderId: "bbb", number: 2, open: 100, createdAt: same };
+    expect(allocatePayment(100, [b, a]).allocations).toEqual([
+      { orderId: "aaa", number: 1, amount: 100 },
+    ]);
   });
 });
 
 describe("describeAllocation", () => {
-  const label = (id: string) => `ORD-${id.toUpperCase()}`;
+  const label = (n: number) => `ORD-${String(n).padStart(4, "0")}`;
 
   it("says which single order will be settled", () => {
     const text = describeAllocation(allocatePayment(500, [order("a", 500, 1)]), label);
-    expect(text).toContain("ORD-A");
+    expect(text).toContain("ORD-");
     expect(text).not.toContain("יתרת הלקוח");
   });
 
@@ -93,8 +97,8 @@ describe("describeAllocation", () => {
       label,
     );
     expect(text).toContain("2 הזמנות");
-    expect(text).toContain("ORD-A");
-    expect(text).toContain("ORD-B");
+    // Both orders named by their own number, not by their id.
+    expect(text.match(/ORD-\d{4}/g)).toHaveLength(2);
     expect(text).toContain("יתרת הלקוח");
   });
 

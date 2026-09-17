@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { USERS, login, addOrderLine } from "./helpers";
+import { USERS, addOrderLine, login, orderRef } from "./helpers";
 
 /**
  * The order reads by what was ORDERED; the publications list keeps the detail.
@@ -65,7 +65,7 @@ test("הפירוט לפי תאריך נמצא בפרסומים, שורה לכל 
   await page.getByTestId("approve-order").click();
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
 
-  const orderRef = `ORD-${id.slice(-6).toUpperCase()}`;
+  const ref = await orderRef(page);
   await page.goto("/publications");
-  await expect(page.locator("tbody tr").filter({ hasText: orderRef })).toHaveCount(2);
+  await expect(page.locator("tbody tr").filter({ hasText: ref })).toHaveCount(2);
 });

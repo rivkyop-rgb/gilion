@@ -105,7 +105,7 @@ export default async function BillingPage({
       )
     : [];
 
-  const orderLabels = new Map(orders.map((o) => [o.id, orderNumber(o.id)]));
+  const orderLabels = new Map(orders.map((o) => [o.id, orderNumber(o.number)]));
 
   const credit = open?.credit ?? 0;
 
@@ -116,7 +116,11 @@ export default async function BillingPage({
     invoiceNumber: p.external_invoice_number ?? "",
     canceled: p.status === "canceled",
     orderId: p.order_id,
-    orderLabel: p.order_id ? (orderLabels.get(p.order_id) ?? orderNumber(p.order_id)) : null,
+    // The payment carries its order's number; the map is only a shortcut for
+    // the orders already on screen.
+    orderLabel: p.order_id
+      ? (orderLabels.get(p.order_id) ?? orderNumber(p.order?.number ?? 0))
+      : null,
     groupId: p.group_id,
     updatedBy: p.updated_by.name,
     updatedAt: DATE_TIME.format(p.updated_at),
@@ -354,7 +358,7 @@ export default async function BillingPage({
           mayWrite={mayWrite}
           orders={orders.map((o) => ({
             id: o.id,
-            label: orderNumber(o.id),
+            label: orderNumber(o.number),
             totalPrice: o.totalPrice,
             paid: o.paid,
             open: o.open,

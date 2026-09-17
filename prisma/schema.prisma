@@ -91,6 +91,20 @@ model Business {
   /// this and deleting, and the reason deletion is not offered at all.
   status BusinessStatus @default(active)
 
+  /// The last order number handed out in this business (stage 08, 16/09/2026).
+  ///
+  /// A counter and not `MAX(number) + 1`: two people selling at the same moment
+  /// both read the same maximum and both try to write it. `UPDATE ... SET
+  /// last_order_number = last_order_number + 1 RETURNING` takes a row lock, so
+  /// the allocation is serialised by Postgres and needs no retry.
+  ///
+  /// The price is that a rolled-back order burns its number. That is the right
+  /// trade for an INTERNAL reference: this is not an invoice — FR-7 keeps
+  /// invoicing outside the system and `external_invoice_number` is typed in by
+  /// hand from wherever the real one was issued — so a gap here is a gap in a
+  /// filing label, not in a tax document.
+  last_order_number Int @default(0)
+
   /// How many days before its publication date a publication with no artwork
   /// starts appearing on the reminder list (FR-11).
   ///
@@ -608,6 +622,15 @@ model AdPackage {
 model AdOrder {
   id                      String        @id @default(cuid())
   business_id             String
+  /// The number people say out loud: ORD-0042 (app/(internal)/orders/format.ts).
+  ///
+  /// Until 16/09/2026 this was faked by slicing the last six characters off the
+  /// cuid, which produced a different-looking token for every order and, on a
+  /// seeded fixture with a hand-written id, the word "ORD-IXTURE". A reference
+  /// somebody reads down the phone has to count.
+  ///
+  /// Per business, so two publishers both have an order 1 (conventions.md §2).
+  number                  Int
   customer_id             String
   source                  OrderSource   @default(internal)
   status                  OrderStatus   @default(draft)
@@ -644,6 +667,9 @@ model AdOrder {
   publications  Publication[]
   payments      Payment[]
 
+  /// Counts from one — a CHECK constraint says so, because the display pads to
+  /// four digits and a negative rendered as "ORD-00-1".
+  @@unique([business_id, number])
   @@index([business_id, status])
   @@index([business_id, customer_id, created_at])
   @@map("AdOrder")

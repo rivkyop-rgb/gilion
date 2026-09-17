@@ -27,6 +27,7 @@
 import { Prisma } from "@prisma/client";
 
 import { basePrisma, tenantDb } from "./db";
+import { nextOrderNumber } from "./orders";
 import { createPublicationsForOrder } from "./orders";
 
 import { toStorage, validateCustomer, type CustomerInput } from "@/lib/domain/customer";
@@ -142,6 +143,9 @@ export async function createBoardSale(
           status: "approved",
           approved_at: new Date(),
           total_price: new Prisma.Decimal(input.price),
+          // The same allocator the order builder uses, inside this transaction
+          // so the counter and the order it numbers commit together.
+          number: await nextOrderNumber(ctx.businessId, tx),
         },
       });
 

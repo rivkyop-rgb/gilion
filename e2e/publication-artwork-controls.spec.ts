@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { USERS, login, addOrderLine } from "./helpers";
+import { USERS, addOrderLine, login, orderRef } from "./helpers";
 import { validJpg, validPdf } from "./ad-fixtures";
 
 /**
@@ -25,7 +25,7 @@ async function approvedOrder(page: Page, dates: string[]): Promise<string> {
   await page.getByTestId("submit-order").click();
   await page.getByTestId("approve-order").click();
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
-  return `ORD-${id.slice(-6).toUpperCase()}`;
+  return orderRef(page);
 }
 
 test("החלפת המודעה בשורת הפרסום, וביטול שיוך שמבקש אישור", async ({ page }) => {

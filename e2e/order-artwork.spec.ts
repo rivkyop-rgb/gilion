@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { NEWSPAPERS, addOrderLine, loginAsAdmin, pickOrderNewspaper } from "./helpers";
+import { NEWSPAPERS, addOrderLine, loginAsAdmin, orderRef, pickOrderNewspaper } from "./helpers";
 import { validPdf } from "./ad-fixtures";
 
 /**
@@ -72,7 +72,7 @@ test("שיוך מודעה אחת לכל הפרסומים הפתוחים של ה�
   await page.getByTestId("submit-order").click();
   await page.getByTestId("approve-order").click();
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
-  const orderRef = `ORD-${id.slice(-6).toUpperCase()}`;
+  const ref = await orderRef(page);
 
   // A file uploaded the ordinary way, assigned to the same customer.
   const file = await validPdf(`bulk-${Date.now()}.pdf`);
@@ -91,7 +91,7 @@ test("שיוך מודעה אחת לכל הפרסומים הפתוחים של ה�
   await expect(page.locator('[data-testid="ad-publications"] tbody tr')).not.toHaveCount(0);
 
   await page.goto("/publications");
-  const rows = page.locator("tbody tr").filter({ hasText: orderRef });
+  const rows = page.locator("tbody tr").filter({ hasText: ref });
   await expect(rows).toHaveCount(2);
   await expect(rows.first()).toContainText("מוכן לשיבוץ");
   await expect(rows.last()).toContainText("מוכן לשיבוץ");

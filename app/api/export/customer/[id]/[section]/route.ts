@@ -53,8 +53,8 @@ function csv(headers: string[], rows: (string | number | null)[][]): string {
   return BOM + [headers, ...rows].map((r) => r.map(cell).join(",")).join("\r\n");
 }
 
-/** Orders are addressed by a readable tail of their cuid (orders/format.ts). */
-const orderNumber = (id: string) => `ORD-${id.slice(-6).toUpperCase()}`;
+/** The same label the screens print (orders/format.ts). */
+const orderNumber = (n: number) => `ORD-${String(n).padStart(4, "0")}`;
 const money = (v: unknown) => Number(v).toFixed(2);
 const day = (d: Date | null) => (d ? DATE.format(d) : "");
 
@@ -93,7 +93,7 @@ export async function GET(
       body = csv(
         ["הזמנה", "נפתחה", "אושרה", "פרסומים", "סטטוס", "סכום", "תשלום", "חשבונית"],
         rows.map((o) => [
-          orderNumber(o.id),
+          orderNumber(o.number),
           day(o.created_at),
           day(o.approved_at),
           o._count.publications,
@@ -117,7 +117,7 @@ export async function GET(
           p.ad_shape.name,
           PUBLICATION_STATUS_LABELS[p.status as PublicationStatus],
           p.advertisement_id ? "יש קובץ" : "חסר קובץ",
-          orderNumber(p.order_id),
+          orderNumber(p.order?.number ?? 0),
           ...(maySeeMoney ? [money(p.price)] : []),
         ]),
       );
@@ -156,7 +156,7 @@ export async function GET(
           money(p.amount),
           day(p.payment_date),
           p.external_invoice_number ?? "",
-          p.order_id ? orderNumber(p.order_id) : "יתרת הלקוח",
+          p.order_id ? orderNumber(p.order?.number ?? 0) : "יתרת הלקוח",
           PAYMENT_RECORD_LABELS[p.status as keyof typeof PAYMENT_RECORD_LABELS],
           p.updated_by.name,
           day(p.updated_at),

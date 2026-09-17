@@ -121,7 +121,7 @@ export default async function OrdersPage({
                 >
                   <td className="p-3">
                     <Link href={`/orders/${o.id}`} className="font-mono text-xs underline">
-                      <Ltr>{orderNumber(o.id)}</Ltr>
+                      <Ltr>{orderNumber(o.number)}</Ltr>
                     </Link>
                   </td>
                   <td className="p-3">{o.customer.business_name ?? o.customer.contact_name}</td>

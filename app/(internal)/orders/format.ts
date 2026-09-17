@@ -14,5 +14,17 @@ const MONEY = new Intl.NumberFormat("he-IL", {
 export const formatDate = (d: Date) => DATE.format(d);
 export const formatMoney = (n: number) => MONEY.format(n);
 
-/** Orders are addressed by a readable prefix of their cuid, never by row number. */
-export const orderNumber = (id: string) => `ORD-${id.slice(-6).toUpperCase()}`;
+/**
+ * The number people say out loud: `ORD-0042`.
+ *
+ * Until 16/09/2026 this sliced the last six characters off the order's cuid,
+ * and the comment here said orders were addressed that way "never by row
+ * number". That was a convention with nothing behind it, and it produced a
+ * different-looking token per order — plus, on a seeded fixture whose id was
+ * written by hand, the word `ORD-IXTURE`. A reference somebody reads down the
+ * phone has to count, so `AdOrder.number` is a real per-business sequence.
+ *
+ * Padded to four so the column lines up in a table and sorts as text for the
+ * first ten thousand; past that it simply grows rather than truncating.
+ */
+export const orderNumber = (n: number) => `ORD-${String(n).padStart(4, "0")}`;

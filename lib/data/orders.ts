@@ -88,9 +88,39 @@ export async function getOrder(businessId: string, id: string) {
   });
 }
 
+/**
+ * Takes the next order number for this business.
+ *
+ * `increment` compiles to `UPDATE ... SET last_order_number = last_order_number
+ * + 1 RETURNING`, which takes a row lock — so two people selling at the same
+ * moment are serialised by Postgres and neither has to retry. Reading
+ * `MAX(number) + 1` instead would let both read the same maximum.
+ *
+ * On `basePrisma` because `Business` carries no `business_id` of its own and is
+ * outside the tenant extension (lib/data/tenant-models.ts).
+ */
+export async function nextOrderNumber(
+  businessId: string,
+  /** Inside a caller's transaction when there is one, so the row lock and the
+      order it numbers commit together. */
+  tx: Pick<typeof basePrisma, "business"> = basePrisma,
+): Promise<number> {
+  const business = await tx.business.update({
+    where: { id: businessId },
+    data: { last_order_number: { increment: 1 } },
+    select: { last_order_number: true },
+  });
+  return business.last_order_number;
+}
+
 export async function createOrderDraft(businessId: string, customerId: string) {
   return tenantDb(businessId).adOrder.create({
-    data: { customer_id: customerId, source: "internal", status: "draft" } as never,
+    data: {
+      customer_id: customerId,
+      source: "internal",
+      status: "draft",
+      number: await nextOrderNumber(businessId),
+    } as never,
   });
 }
 

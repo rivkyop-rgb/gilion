@@ -198,3 +198,20 @@ export async function addOrderLine(page: Page, date: string, price: string, expe
   await page.getByTestId("add-line").click();
   await expect(page.getByTestId("order-line-count")).toContainText(`${expectedDates} תאריכים`);
 }
+
+/**
+ * The order's reference as the PRODUCT prints it — `ORD-0042`.
+ *
+ * Read off the order page rather than computed. Until 16/09/2026 every spec
+ * built it with `ORD-${id.slice(-6).toUpperCase()}`, which worked only because
+ * the label was a slice of the id; the number is a real per-business sequence
+ * now and nothing about the id predicts it. A spec that recomputed the label
+ * would be asserting on its own arithmetic instead of on what the screen says.
+ *
+ * Call it while the order page is open — which is where every caller already
+ * is, having just approved the order.
+ */
+export async function orderRef(page: Page): Promise<string> {
+  const text = await page.getByTestId("order-ref").textContent();
+  return (text ?? "").trim();
+}

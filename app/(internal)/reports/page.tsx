@@ -543,7 +543,7 @@ async function PublicationsTab({
                   </td>
                   <td className="p-3">
                     <Link href={`/orders/${row.orderId}`} className="font-mono text-xs underline">
-                      <Ltr>{orderNumber(row.orderId)}</Ltr>
+                      <Ltr>{orderNumber(row.orderNumber)}</Ltr>
                     </Link>
                   </td>
                 </tr>

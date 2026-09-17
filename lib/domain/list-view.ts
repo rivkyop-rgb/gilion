@@ -82,17 +82,22 @@ export function rangeLabel(params: ListParams, total: number): string {
 }
 
 /**
- * The id suffix an order number stands for.
+ * The order number somebody typed, as a number.
  *
- * Orders are addressed as `ORD-VCPZ76` — a readable tail of the cuid, upper
- * case (orders/format.ts). Searching for one has to undo exactly that: drop the
- * prefix if it was typed, and lower the case, because the stored id is lower.
- * Without this, typing the number a person is reading off their own screen
- * finds nothing.
+ * Orders are shown as `ORD-0042` (orders/format.ts), and a person searching
+ * types what they are reading — with the prefix, with the padding, or neither.
+ * All three have to find the same order, so the prefix and the zeros come off
+ * and what is left is matched numerically.
+ *
+ * `null` for anything that is not a number, which is how the caller knows to
+ * search the text columns only rather than to match order 0.
  */
-export function orderNumberNeedle(q: string): string {
-  return q
+export function orderNumberNeedle(q: string): number | null {
+  const digits = q
     .trim()
     .replace(/^ord[-\s]?/i, "")
-    .toLowerCase();
+    .replace(/^0+/, "");
+  if (digits === "" || !/^\d+$/.test(digits)) return null;
+  const n = Number(digits);
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
 }

@@ -696,6 +696,23 @@ async function seedIssueFixtures(prisma: PrismaClient) {
     });
   }
 
+  // Order numbers are a real per-business sequence with a CHECK that they are
+  // positive, so the fixture draws one like any other order — and only on the
+  // first run, or the counter would climb by one every time the suite starts.
+  const existingOrder = await prisma.adOrder.findUnique({
+    where: { id: ISSUE_FIXTURES.order },
+    select: { number: true },
+  });
+  const fixtureNumber =
+    existingOrder?.number ??
+    (
+      await prisma.business.update({
+        where: { id: "biz_alpha" },
+        data: { last_order_number: { increment: 1 } },
+        select: { last_order_number: true },
+      })
+    ).last_order_number;
+
   await prisma.adOrder.upsert({
     where: { id: ISSUE_FIXTURES.order },
     update: {},
@@ -707,6 +724,7 @@ async function seedIssueFixtures(prisma: PrismaClient) {
       status: "approved",
       total_price: 0,
       approved_at: new Date(),
+      number: fixtureNumber,
     },
   });
 

@@ -463,7 +463,7 @@ export default async function CustomerPage({
                             href={`/orders/${p.order_id}`}
                             className="font-mono text-xs underline"
                           >
-                            <Ltr>{orderNumber(p.order_id)}</Ltr>
+                            <Ltr>{orderNumber(p.order?.number ?? 0)}</Ltr>
                           </Link>
                         ) : (
                           <span className="text-xs text-on-surface-variant">ליתרת הלקוח</span>
@@ -528,7 +528,7 @@ export default async function CustomerPage({
                     >
                       <td className="p-3">
                         <Link href={`/orders/${o.id}`} className="font-mono text-xs underline">
-                          <Ltr>{orderNumber(o.id)}</Ltr>
+                          <Ltr>{orderNumber(o.number)}</Ltr>
                         </Link>
                       </td>
                       <td className="p-3">
@@ -635,10 +635,10 @@ export default async function CustomerPage({
                           className="font-mono text-xs underline"
                           data-testid={`publication-order-${p.id}`}
                         >
-                          <Ltr>{orderNumber(p.order_id)}</Ltr>
+                          <Ltr>{orderNumber(p.order?.number ?? 0)}</Ltr>
                         </Link>
                       ) : (
-                        <Ltr className="font-mono text-xs">{orderNumber(p.order_id)}</Ltr>
+                        <Ltr className="font-mono text-xs">{orderNumber(p.order?.number ?? 0)}</Ltr>
                       )}
                     </td>
                     {maySeeMoney ? (

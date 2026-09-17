@@ -312,7 +312,7 @@ export default async function PublicationsPage({
                     ) : null}
                     <td className="p-3">
                       <Link href={`/orders/${p.order_id}`} className="font-mono text-xs underline">
-                        <Ltr>{orderNumber(p.order_id)}</Ltr>
+                        <Ltr>{orderNumber(p.order.number)}</Ltr>
                       </Link>
                     </td>
                     {mayCancel ? (

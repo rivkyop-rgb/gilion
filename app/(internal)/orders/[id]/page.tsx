@@ -90,7 +90,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="mb-2 font-serif text-3xl font-semibold">
-            <Ltr>{orderNumber(order.id)}</Ltr>
+            <Ltr data-testid="order-ref">{orderNumber(order.number)}</Ltr>
           </h1>
           <div className="flex flex-wrap items-center gap-3">
             <OrderStatusBadge status={status} />
@@ -290,7 +290,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       {canWriteArea(ctx, "orders") || ctx.role === "accounting" ? (
         <OrderActions
           orderId={order.id}
-          orderRef={orderNumber(order.id)}
+          orderRef={orderNumber(order.number)}
           status={status}
           canApprove={canWriteArea(ctx, "orders")}
           canComplete={ctx.role === "admin" || ctx.role === "accounting"}

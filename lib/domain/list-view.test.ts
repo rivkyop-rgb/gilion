@@ -87,15 +87,22 @@ describe("rangeLabel", () => {
 });
 
 describe("orderNumberNeedle", () => {
-  it("undoes exactly what the display does to an order id", () => {
-    // The screen shows ORD-VCPZ76; the stored cuid ends in lowercase vcpz76.
-    expect(orderNumberNeedle("ORD-VCPZ76")).toBe("vcpz76");
-    expect(orderNumberNeedle("ord-vcpz76")).toBe("vcpz76");
-    expect(orderNumberNeedle("VCPZ76")).toBe("vcpz76");
-    expect(orderNumberNeedle(" ORD VCPZ76 ")).toBe("vcpz76");
+  it("accepts the number however a person types what they are reading", () => {
+    // The screen shows ORD-0042. All three of these are the same order.
+    expect(orderNumberNeedle("ORD-0042")).toBe(42);
+    expect(orderNumberNeedle("0042")).toBe(42);
+    expect(orderNumberNeedle("42")).toBe(42);
+    expect(orderNumberNeedle("ord-42")).toBe(42);
+    expect(orderNumberNeedle(" ORD 42 ")).toBe(42);
   });
 
-  it("leaves an ordinary word alone", () => {
-    expect(orderNumberNeedle("אולמי")).toBe("אולמי");
+  it("is null for anything that is not a number", () => {
+    // The caller then searches the text columns only, instead of matching
+    // order zero and finding nothing with no explanation.
+    expect(orderNumberNeedle("אולמי")).toBeNull();
+    expect(orderNumberNeedle("INV-2026-01")).toBeNull();
+    expect(orderNumberNeedle("")).toBeNull();
+    expect(orderNumberNeedle("ORD-")).toBeNull();
+    expect(orderNumberNeedle("0")).toBeNull();
   });
 });
