@@ -70,6 +70,7 @@ export function EnterBusiness({
       data-testid={testId ?? `enter-business-${businessId}`}
       aria-label={`כניסה ל${businessName}`}
       onClick={enter}
+      className="whitespace-nowrap"
     >
       <LogIn className="size-4" />
       {pending ? "נכנסת…" : "כניסה לעסק"}
