@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { canReadArea, canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
-import { listPublications } from "@/lib/data/publications";
+import { listPublicationsPage } from "@/lib/data/publications";
 import { placeableAds } from "@/lib/data/advertisements";
 import type { AdPreviewModel } from "@/components/ads/ad-preview";
 import type { AdFileType } from "@/lib/domain/ad-file";
@@ -31,26 +31,45 @@ export const metadata: Metadata = { title: "פרסומים · Gilion" };
 export default async function PublicationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ newspaper?: string; status?: string; from?: string; to?: string }>;
+  searchParams: Promise<{
+    newspaper?: string;
+    status?: string;
+    from?: string;
+    to?: string;
+    customer?: string;
+    /** The dashboard's drill-down (FR-20) — see lib/data/publications.ts. */
+    attention?: string;
+  }>;
 }) {
   const ctx = await getTenantContext();
   requireArea(ctx, "publications");
 
-  const { newspaper = "all", status = "all", from = "", to = "" } = await searchParams;
+  const {
+    newspaper = "all",
+    status = "all",
+    from = "",
+    to = "",
+    customer = "all",
+    attention = "all",
+  } = await searchParams;
 
   // FR-8: a designer places ads but never sees money.
   const maySeeMoney = ctx.role !== "designer";
 
   /** Clicking a status chip must not silently drop the other filters. */
-  const hrefFor = (next: string) => {
+  const hrefWith = (over: { status?: string; attention?: string }) => {
+    const merged = { status, attention, ...over };
     const q = new URLSearchParams();
     if (newspaper !== "all") q.set("newspaper", newspaper);
-    if (next !== "all") q.set("status", next);
+    if (merged.status !== "all") q.set("status", merged.status);
     if (from) q.set("from", from);
     if (to) q.set("to", to);
+    if (customer !== "all") q.set("customer", customer);
+    if (merged.attention !== "all") q.set("attention", merged.attention);
     const query = q.toString();
     return query ? `/publications?${query}` : "/publications";
   };
+  const hrefFor = (next: string) => hrefWith({ status: next });
 
   // FR-8 again: accounting reads publications but has no access to artwork,
   // so it never receives the ad list and never sees the control.
@@ -60,11 +79,19 @@ export default async function PublicationsPage({
   const mayCancel = canWriteArea(ctx, "orders");
   const mayOpenIssues = canWriteArea(ctx, "issues");
 
-  const [rows, papers, ads] = await Promise.all([
-    listPublications(ctx.businessId, { newspaperId: newspaper, status, from, to }),
+  const [page, papers, ads] = await Promise.all([
+    listPublicationsPage(ctx.businessId, {
+      newspaperId: newspaper,
+      status,
+      from,
+      to,
+      customerId: customer,
+      attention,
+    }),
     listNewspapers(ctx.businessId),
     mayLinkAds ? placeableAds(ctx.businessId) : Promise.resolve([]),
   ]);
+  const { rows, total } = page;
 
   // One query for the whole table, grouped here: an ad may only be offered to
   // a publication of its own customer (stage 05 rule 5).
@@ -114,8 +141,39 @@ export default async function PublicationsPage({
   return (
     <>
       <h1 className="mb-1 font-serif text-3xl font-semibold">פרסומים</h1>
-      <p className="mb-6 text-sm text-on-surface-variant">
+      <p className="mb-4 text-sm text-on-surface-variant">
         כל פרסום מחייב שנוצר מאישור הזמנה. פרסום בלי מודעה או בלי שיבוץ מסומן ברקע אדמדם.
+      </p>
+
+      {/* Somebody who arrived from a KPI card is looking at a SUBSET, and a
+          filtered list that does not say what it is filtered by reads as the
+          whole list — which makes the card above it look wrong. */}
+      {attention !== "all" ? (
+        <p
+          data-testid="attention-banner"
+          className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-status-info-bg px-4 py-3 text-sm text-status-info-fg"
+        >
+          {attention === "missing_ad"
+            ? "מוצגים רק פרסומים שנמכרו ועדיין אין להם קובץ מודעה."
+            : "מוצגים רק פרסומים שיש להם מודעה ועדיין לא שובצו על עמוד."}
+          <Link href={hrefWith({ attention: "all" })} className="underline">
+            הצגת כל הפרסומים
+          </Link>
+        </p>
+      ) : null}
+
+      <p className="mb-4 text-xs text-on-surface-variant" data-testid="publications-count">
+        {/* `take` without a count is a silent truncation, and a cut list that
+            does not say it was cut reads as a complete answer. */}
+        {total > rows.length ? (
+          <>
+            מוצגים <Ltr>{rows.length}</Ltr> מתוך <Ltr>{total}</Ltr> פרסומים
+          </>
+        ) : (
+          <>
+            <Ltr>{total}</Ltr> פרסומים
+          </>
+        )}
       </p>
 
       {/* Eight statuses, eight colours — the row is the legend for the table. */}
@@ -170,8 +228,12 @@ export default async function PublicationsPage({
         </div>
 
         {/* The status filter lives in the chip row above, in colour. It rides
-            along here as a hidden field so submitting the other filters keeps it. */}
+            along here as a hidden field so submitting the other filters keeps it.
+            So do the two the dashboard sets: submitting the date range must not
+            silently widen a list somebody arrived at from a KPI card. */}
         <input type="hidden" name="status" value={status} />
+        <input type="hidden" name="attention" value={attention} />
+        <input type="hidden" name="customer" value={customer} />
 
         <div>
           <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="from">

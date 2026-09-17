@@ -5,6 +5,7 @@ import { ClipboardList, FileDown, Newspaper, Plus } from "lucide-react";
 import { canReadArea, canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { listIssues } from "@/lib/data/issues";
 import { ISSUE_STATUS_LABELS, type IssueStatus } from "@/lib/domain/issue-status";
+import { OPEN_ISSUE_STATES } from "@/lib/domain/dashboard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Ltr } from "@/components/ui/ltr";
@@ -20,11 +21,25 @@ const dateFormat = new Intl.DateTimeFormat("he-IL", {
   timeZone: "UTC",
 });
 
-export default async function IssuesPage() {
+export default async function IssuesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
   const ctx = await getTenantContext();
   requireArea(ctx, "issues");
 
-  const issues = await listIssues(ctx.businessId);
+  // `open` is what the dashboard's "גיליונות פתוחים" card counted (FR-20), and
+  // the filter here applies exactly the states it counted — a card that opens a
+  // list of everything has not answered the question it was clicked for.
+  const { status: filter = "all" } = await searchParams;
+  const all = await listIssues(ctx.businessId);
+  const issues =
+    filter === "open"
+      ? all.filter((i) => (OPEN_ISSUE_STATES as string[]).includes(i.status))
+      : filter === "closed"
+        ? all.filter((i) => i.status === "closed")
+        : all;
   const mayWrite = canWriteArea(ctx, "issues");
   // Sales reads the final PDF but never produces one (07-pdf.md §הרשאות).
   const mayDownloadPdf = canReadArea(ctx, "pdf");
@@ -60,12 +75,50 @@ export default async function IssuesPage() {
         </div>
       </div>
 
+      <div className="mb-4 flex flex-wrap gap-2" data-testid="issue-status-filters">
+        {(
+          [
+            { value: "all", label: "הכל", count: all.length },
+            {
+              value: "open",
+              label: "פתוחים",
+              count: all.filter((i) => (OPEN_ISSUE_STATES as string[]).includes(i.status)).length,
+            },
+            {
+              value: "closed",
+              label: "סגורים",
+              count: all.filter((i) => i.status === "closed").length,
+            },
+          ] as const
+        ).map((tab) => (
+          <Link
+            key={tab.value}
+            href={tab.value === "all" ? "/issues" : `/issues?status=${tab.value}`}
+            data-testid={`issue-filter-${tab.value}`}
+            aria-current={filter === tab.value ? "page" : undefined}
+            className={
+              filter === tab.value
+                ? "inline-flex h-8 items-center gap-2 rounded-full bg-primary px-3 text-sm font-medium text-on-primary"
+                : "inline-flex h-8 items-center gap-2 rounded-full bg-surface-container-lowest px-3 text-sm font-medium text-on-surface-variant ring-1 ring-outline-variant hover:bg-surface-container"
+            }
+          >
+            {tab.label}
+            {/* `count !== undefined`, never `count &&` — zero is an answer. */}
+            <span className="ltr-isolate text-xs opacity-70">{tab.count}</span>
+          </Link>
+        ))}
+      </div>
+
       {issues.length === 0 ? (
         <EmptyState
-          title="אין עדיין גיליונות"
-          body="גיליון נפתח לתאריך של עיתון, ומרגע שנפתח אפשר לשבץ עליו את הפרסומים שכבר מתוכננים לאותו יום."
+          title={all.length === 0 ? "אין עדיין גיליונות" : "אין גיליונות בסינון הזה"}
+          body={
+            all.length === 0
+              ? "גיליון נפתח לתאריך של עיתון, ומרגע שנפתח אפשר לשבץ עליו את הפרסומים שכבר מתוכננים לאותו יום."
+              : 'יש גיליונות, אבל אף אחד מהם אינו בסינון הנוכחי. אפשר לבחור "הכל" למעלה.'
+          }
           action={
-            mayWrite ? (
+            mayWrite && all.length === 0 ? (
               <Button asChild>
                 <Link href="/issues/new">פתיחת גיליון חדש</Link>
               </Button>

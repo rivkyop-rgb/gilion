@@ -19,6 +19,7 @@ import type { DerivedGrid } from "@/lib/domain/grid";
 import { ON_PAGE_STATES, type ReservedArea, type ShapeSpec } from "@/lib/domain/placement";
 import { isBackward, transition, type IssueStatus } from "@/lib/domain/issue-status";
 import { PAGES_PER_SHEET } from "@/lib/domain/issue-layout";
+import { OPEN_ISSUE_STATES } from "@/lib/domain/dashboard";
 import { withAudit } from "./audit";
 
 /** yyyy-mm-dd, in UTC — the form a @db.Date column round-trips unchanged. */
@@ -319,7 +320,10 @@ export async function issueDatesTaken(
  */
 export async function openIssuesForPlacement(businessId: string, take = 5) {
   const issues = await tenantDb(businessId).issue.findMany({
-    where: { status: { in: ["draft", "in_layout"] } },
+    // The same three states the dashboard card counts (FR-20). A widget that
+    // listed two of them under a number that counted three would be read as a
+    // missing issue, not as two different definitions.
+    where: { status: { in: OPEN_ISSUE_STATES } },
     orderBy: [{ issue_date: "asc" }],
     include: { newspaper: { select: { name: true } } },
     take,
