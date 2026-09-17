@@ -4,7 +4,6 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Ltr } from "@/components/ui/ltr";
 import { InlineError } from "@/components/states";
 import { CopyLink } from "@/components/portal/copy-link";
 import { updatePortalSlugAction, type SlugState } from "./portal-link-actions";
@@ -41,8 +40,10 @@ export function PortalLinkPanel({ url, slug }: { url: string; slug: string }) {
       <form action={action} className="flex flex-wrap items-end gap-3">
         <div>
           <Label htmlFor="slug">כתובת</Label>
-          <div className="flex items-center gap-1">
-            <Ltr className="text-sm text-on-surface-variant">{base}</Ltr>
+          {/* dir=ltr on the row: the address reads left to right, prefix then
+              slug, even though the page around it is RTL. */}
+          <div dir="ltr" className="flex items-center gap-1">
+            <span className="text-sm text-on-surface-variant">{base}</span>
             <Input
               id="slug"
               name="slug"
