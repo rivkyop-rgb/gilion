@@ -353,6 +353,10 @@ async function deleteTestOrders(prisma: PrismaClient) {
   // the demo opens on ORD-0236 rather than ORD-0001. Safe here and only here —
   // every order was just deleted, so nothing can collide with a fresh 1.
   await prisma.business.updateMany({ data: { last_order_number: 0 } });
+  // Stage 09 (backlog 21): a spec that edits the portal address must not
+  // leave the next run's /p/merkaz pointing nowhere.
+  await prisma.business.update({ where: { id: "biz_alpha" }, data: { slug: "merkaz" } });
+  await prisma.business.update({ where: { id: "biz_beta" }, data: { slug: "tzafon" } });
 }
 
 /**
@@ -511,7 +515,13 @@ async function deleteTestBusinesses(prisma: PrismaClient) {
  * Same idea as resetShapeCatalogue below. The list mirrors the `people` array
  * in prisma/seed.ts; if a role changes there, it changes here.
  */
-const SEEDED_MEMBERSHIPS: Array<{ user: string; business: string; role: MembershipRole }> = [
+const SEEDED_MEMBERSHIPS: Array<{
+  user: string;
+  business: string;
+  role: MembershipRole;
+  /** Portal logins only — the CHECK constraint requires it for role = customer. */
+  customer?: string;
+}> = [
   { user: "usr_admin", business: "biz_alpha", role: "admin" },
   { user: "usr_multi", business: "biz_alpha", role: "admin" },
   { user: "usr_multi", business: "biz_beta", role: "admin" },
@@ -519,13 +529,17 @@ const SEEDED_MEMBERSHIPS: Array<{ user: string; business: string; role: Membersh
   { user: "usr_designer", business: "biz_alpha", role: "designer" },
   { user: "usr_accounting", business: "biz_alpha", role: "accounting" },
   { user: "usr_beta_admin", business: "biz_beta", role: "admin" },
+  // Stage 09: two portal logins at two customers of the same business, which
+  // portal-isolation.spec.ts depends on being exactly that.
+  { user: "usr_customer", business: "biz_alpha", role: "customer", customer: "cust_alpha_1" },
+  { user: "usr_customer_2", business: "biz_alpha", role: "customer", customer: "cust_alpha_3" },
 ];
 
 async function restoreSeededMemberships(prisma: PrismaClient) {
   for (const m of SEEDED_MEMBERSHIPS) {
     await prisma.userMembership.updateMany({
       where: { user_id: m.user, business_id: m.business },
-      data: { role: m.role, status: "active" },
+      data: { role: m.role, status: "active", customer_id: m.customer ?? null },
     });
   }
 }

@@ -28,6 +28,10 @@ const ORDER_INCLUDE = {
       /// The package this line earned, so the screen can name the discount
       /// rather than merely subtract it (backlog item 12).
       ad_package: { select: { id: true, name: true } },
+      /// The line's own file, when the customer sent one per line (backlog 26).
+      advertisement: {
+        select: { id: true, name: true, file_type: true, file_size: true, preview_url: true },
+      },
     },
   },
   _count: { select: { items: true, publications: true } },
@@ -45,6 +49,13 @@ export async function listOrders(businessId: string, filters: OrderFilters = {})
     },
     orderBy: { created_at: "desc" },
     include: ORDER_INCLUDE,
+  });
+}
+
+/** Portal requests nobody has acted on yet — the number on the "מהפורטל" chip. */
+export async function pendingPortalRequests(businessId: string): Promise<number> {
+  return tenantDb(businessId).adOrder.count({
+    where: { source: "customer_portal", status: "pending_approval" },
   });
 }
 
@@ -367,32 +378,37 @@ export async function createPublicationsForOrder(
     price: Prisma.Decimal | number;
     /** Frozen by `freezeDiscounts` in the same transaction (backlog item 12). */
     discount_percent?: Prisma.Decimal | number;
+    /** The line's own file (backlog 26). Wins over the order's. */
+    advertisement_id?: string | null;
   }>,
 ) {
   const result = await tx.publication.createMany({
-    data: items.map((i) => ({
-      business_id: order.business_id,
-      order_id: order.id,
-      order_item_id: i.id,
-      customer_id: order.customer_id,
-      newspaper_id: i.newspaper_id,
-      ad_shape_id: i.ad_shape_id,
-      publication_date: i.publication_date,
-      // The NET amount. A publication is a debt, and everything that reads
-      // this number has to be right about what is owed without knowing that
-      // packages exist. The list price stays on the order item.
-      price: discountedPrice(Number(i.price), Number(i.discount_percent ?? 0)),
-      discount_percent: Number(i.discount_percent ?? 0),
-      source: order.source,
-      advertisement_id: order.advertisement_id ?? null,
-      // The state machine's answer for AD_LINKED on a valid, customer-owned
-      // file — the ad on an order always belongs to that order's customer, so
-      // there is no case where it would stop at `ad_received`.
-      status: (order.advertisement_id ? "ready_for_layout" : "planned") as
-        "planned" | "ready_for_layout",
-      placement_status: "not_placed" as const,
-      payment_status: "unpaid" as const,
-    })),
+    data: items.map((i) => {
+      const advertisementId = i.advertisement_id ?? order.advertisement_id ?? null;
+      return {
+        business_id: order.business_id,
+        order_id: order.id,
+        order_item_id: i.id,
+        customer_id: order.customer_id,
+        newspaper_id: i.newspaper_id,
+        ad_shape_id: i.ad_shape_id,
+        publication_date: i.publication_date,
+        // The NET amount. A publication is a debt, and everything that reads
+        // this number has to be right about what is owed without knowing that
+        // packages exist. The list price stays on the order item.
+        price: discountedPrice(Number(i.price), Number(i.discount_percent ?? 0)),
+        discount_percent: Number(i.discount_percent ?? 0),
+        source: order.source,
+        advertisement_id: advertisementId,
+        // The state machine's answer for AD_LINKED on a valid, customer-owned
+        // file — the ad on an order always belongs to that order's customer, so
+        // there is no case where it would stop at `ad_received`.
+        status: (advertisementId ? "ready_for_layout" : "planned") as
+          "planned" | "ready_for_layout",
+        placement_status: "not_placed" as const,
+        payment_status: "unpaid" as const,
+      };
+    }),
     skipDuplicates: true,
   });
   return result.count;

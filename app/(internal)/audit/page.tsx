@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { auditLogFor } from "@/lib/data/audit";
+import { auditActionLabel } from "@/lib/domain/audit-labels";
 import { EmptyState } from "@/components/states";
 import { Ltr } from "@/components/ui/ltr";
 
@@ -39,7 +40,9 @@ export default async function AuditPage() {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id} className="border-t border-outline-variant">
-                  <td className="p-3">{r.action}</td>
+                  <td className="p-3" data-action={r.action}>
+                    {auditActionLabel(r.action)}
+                  </td>
                   <td className="p-3">{r.user.name}</td>
                   <td className="p-3">
                     <Link href={`/audit/${r.id}`} className="text-primary-container underline">

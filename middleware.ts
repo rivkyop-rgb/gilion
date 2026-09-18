@@ -15,18 +15,39 @@ const gate = authEdge((req) => {
 
   const isAuthRoute = path === "/login";
   const isPicker = path === "/select-business";
-  const isPortalOnly = path === "/portal-only";
+  const isPortal = path === "/portal" || path.startsWith("/portal/");
+  // /p/<slug> is a business's own portal door (backlog 21) — a sign-in page,
+  // so it belongs with /portal/login in every rule below.
+  const isPortalLogin = path === "/portal/login" || /^\/p\/[^/]+\/?$/.test(path);
 
   if (!session?.user) {
-    if (isAuthRoute) return NextResponse.next();
-    return NextResponse.redirect(new URL("/login", nextUrl));
+    if (isAuthRoute || isPortalLogin) return NextResponse.next();
+    // A business's logo on its own portal door, before sign-in. The route
+    // decides which keys that covers — this only lets the request reach it.
+    if (path.startsWith("/api/files/") && nextUrl.searchParams.has("portal")) {
+      return NextResponse.next();
+    }
+    // Each side has its own door, so someone following a portal link is sent
+    // to the portal's sign-in rather than the staff one.
+    return NextResponse.redirect(new URL(isPortal ? "/portal/login" : "/login", nextUrl));
   }
 
-  // FR-9: a customer-portal user has no business inside the internal app.
-  // The portal itself arrives in stage 09.
-  if (session.user.userType === "customer") {
-    if (isPortalOnly) return NextResponse.next();
-    return NextResponse.redirect(new URL("/portal-only", nextUrl));
+  // FR-9, both directions, by user_type OR role — either one alone marks a
+  // portal user. The portal's own guard (getCustomerScope) then requires BOTH,
+  // so a record where the two disagree gets neither side.
+  const isCustomer = session.user.userType === "customer" || session.user.role === "customer";
+  if (isCustomer) {
+    // Stored files are served to customers too — their own artwork only; the
+    // route checks ownership (app/api/files).
+    if (path.startsWith("/api/files/")) return NextResponse.next();
+    if (isPortal && !isPortalLogin) return NextResponse.next();
+    return NextResponse.redirect(new URL("/portal", nextUrl));
+  }
+
+  if (isPortal || isPortalLogin) {
+    return NextResponse.redirect(
+      new URL(session.user.businessId ? "/dashboard" : "/select-business", nextUrl),
+    );
   }
 
   if (isAuthRoute) {

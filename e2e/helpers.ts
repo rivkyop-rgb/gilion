@@ -20,6 +20,8 @@ export const USERS = {
   betaAdmin: "beta@gilion.test",
   /** user_type = customer — must never reach an internal screen (FR-9). */
   customer: "customer@gilion.test",
+  /** A second portal login, at a different customer of the same business. */
+  customer2: "customer2@gilion.test",
 } as const;
 
 export const BUSINESS = { alpha: "biz_alpha", beta: "biz_beta" } as const;
@@ -116,7 +118,7 @@ export async function login(page: Page, email: string) {
   await page.fill("#email", email);
   await page.fill("#password", PASSWORD);
   await page.click('button[type="submit"]');
-  await page.waitForURL(/\/(dashboard|select-business|portal-only)/, { timeout: 20_000 });
+  await page.waitForURL(/\/(dashboard|select-business|portal)/, { timeout: 20_000 });
 }
 
 export async function sessionOf(page: Page) {

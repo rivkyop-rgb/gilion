@@ -34,7 +34,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function InternalLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
-  if (session.user.userType === "customer") redirect("/portal-only");
+  if (session.user.userType === "customer") redirect("/portal");
   if (!session.user.businessId || !session.user.role) redirect("/select-business");
 
   // A super admin holds no membership rows, so the usual lookup would find no

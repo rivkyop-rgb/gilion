@@ -1,3 +1,4 @@
+import { Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   ORDER_TONE,
@@ -26,11 +27,19 @@ export function PublicationStatusBadge({ status }: { status: PublicationStatus }
   );
 }
 
-/** Where an order came from — internal desk or the customer portal (US-001). */
+/**
+ * Where an order came from — internal desk or the customer portal (US-001).
+ *
+ * A portal order is the one thing on this list nobody in the office typed, so
+ * it does not get a quiet grey pill next to the others (backlog 27): it says
+ * who sent it, in a colour of its own.
+ */
 export function SourceBadge({ source }: { source: "internal" | "customer_portal" }) {
+  if (source !== "customer_portal") return <Badge tone="neutral">פנימי</Badge>;
   return (
-    <Badge tone={source === "customer_portal" ? "debt" : "neutral"}>
-      {source === "customer_portal" ? "פורטל לקוח" : "פנימי"}
+    <Badge tone="accent" data-testid="source-portal" className="font-semibold">
+      <Send className="size-3" aria-hidden />
+      הלקוח שלח מהפורטל
     </Badge>
   );
 }

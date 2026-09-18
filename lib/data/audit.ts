@@ -24,7 +24,11 @@ export type AuditAction =
   | "generate_pdf"
   | "update_payment"
   | "override_duplicate_placement"
-  | "update_business_settings";
+  | "update_business_settings"
+  | "portal_sign_in"
+  | "portal_submit_request"
+  | "portal_upload_ad"
+  | "portal_cancel_request";
 
 export type AuditTarget = {
   action: AuditAction;

@@ -5,10 +5,18 @@
  * Tailwind v4 is CSS-first: this @theme block replaces tailwind.config.ts.
  * Every token is declared as var(--gilion-*, <default>) so that the admin
  * panel (docs/plan/11-admin-panel.md) can override it at runtime by setting
- * --gilion-* on <body>, with no rebuild. Tokens with no override fall back
- * to the default here automatically.
+ * --gilion-* on the shell's wrapper, with no rebuild. Tokens with no override
+ * fall back to the default here automatically.
+ *
+ * `inline` is what makes that true. Plain `@theme` emits
+ * `:root { --color-primary: var(--gilion-primary, …) }` and utilities read
+ * `var(--color-primary)` — resolved ONCE, at :root, where no override exists.
+ * The wrapper's --gilion-primary was set and never painted anything, in the
+ * internal shell and the portal alike, until 17/09/2026. `inline` writes the
+ * var() into each utility, so it resolves at the element and inherits the
+ * override from the wrapper above it.
  * ------------------------------------------------------------------------ */
-@theme {
+@theme inline {
   /* --- core --- */
   --color-primary: var(--gilion-primary, #000613);
   --color-on-primary: var(--gilion-on-primary, #ffffff);
