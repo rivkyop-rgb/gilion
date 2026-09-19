@@ -19,7 +19,10 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
       <aside className="hidden w-1/2 flex-col items-center justify-center gap-6 bg-primary p-12 lg:flex">
         <BrandMark slot="logo_full" keys={brand} width={240} height={160} className="max-h-40" />
         <div className="text-center">
-          <p data-testid="login-brand-name" className="font-serif text-4xl font-bold text-on-primary">
+          <p
+            data-testid="login-brand-name"
+            className="font-serif text-4xl font-bold text-on-primary"
+          >
             {brand.displayName || "Gilion"}
           </p>
           <p data-testid="login-subtitle" className="mt-2 text-sm text-brand-gold">

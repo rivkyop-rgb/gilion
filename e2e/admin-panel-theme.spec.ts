@@ -56,9 +56,7 @@ test.describe("the palette an admin owns", () => {
     // build step in between.
     await page.goto("/dashboard");
     const shell = page.getByTestId("sidebar-rail").locator("xpath=ancestor::div[1]");
-    await expect
-      .poll(() => colorOf(shell, "--gilion-primary"))
-      .toBe("#7b1fa2");
+    await expect.poll(() => colorOf(shell, "--gilion-primary")).toBe("#7b1fa2");
 
     // And PAINTED — the variable being set proves nothing on its own. Until
     // 17/09/2026 it was set here and never reached a pixel: `@theme` resolved
