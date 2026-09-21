@@ -325,9 +325,7 @@ export async function resetSettingAction(group: ResetGroup, key?: string): Promi
       }
 
       if (group === "branding") {
-        const slots = key
-          ? BRAND_SLOTS.filter((s) => s.slot === key)
-          : [...BRAND_SLOTS];
+        const slots = key ? BRAND_SLOTS.filter((s) => s.slot === key) : [...BRAND_SLOTS];
         for (const spec of slots) await data.setBrandAsset(tx, ctx.businessId, spec.slot, null);
         if (!key) await data.applyPatch(tx, ctx.businessId, { display_name: null, tagline: null });
         return {

@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { counted } from "@/lib/domain/hebrew-count";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, Info } from "lucide-react";
+import { ArrowRight, Info, Send } from "lucide-react";
 
-import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
+import { canReadArea, canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
+import { customerCredit, paidByOrder } from "@/lib/data/payments";
 import { getOrder, orderFormOptions, orderMoney } from "@/lib/data/orders";
 import { formatPercent } from "@/lib/domain/ad-package";
 import { itemsEditable, type OrderStatus } from "@/lib/domain/order-status";
@@ -12,11 +13,14 @@ import type { PublicationStatus } from "@/lib/domain/publication-status";
 import type { AdFileType } from "@/lib/domain/ad-file";
 import { Ltr } from "@/components/ui/ltr";
 import { OrderStatusBadge, PublicationStatusBadge, SourceBadge } from "../order-badges";
-import { formatDate, formatMoney, orderNumber } from "../format";
+import { formatDate, formatDateTime, formatMoney, orderNumber } from "../format";
 import { LinkAdCell } from "../../publications/link-ad";
 import { LineBuilder } from "./line-builder";
 import { OrderArtwork } from "./order-artwork";
+import { AdThumb } from "@/components/ads/ad-preview";
+import { portalSubmission } from "@/lib/data/portal-accounts";
 import { OrderActions } from "./order-actions";
+import { CreditPrompt } from "./credit-prompt";
 
 export const metadata: Metadata = { title: "הזמנה · Gilion" };
 
@@ -35,6 +39,20 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const mayEdit = canWriteArea(ctx, "orders") && itemsEditable(status);
   const papers = mayEdit ? await orderFormOptions(ctx.businessId) : [];
 
+  // The credit prompt (US-010 follow-up): a customer who overpaid once should
+  // not have that money quietly forgotten the next time they buy. Read only for
+  // roles that may see money at all — FR-8.
+  const maySeeMoney = canReadArea(ctx, "billing");
+  const credit = maySeeMoney ? await customerCredit(ctx.businessId, order.customer_id) : 0;
+  const openOnOrder =
+    credit > 0
+      ? Math.max(
+          0,
+          Number(order.total_price) -
+            ((await paidByOrder(ctx.businessId, [order.id])).get(order.id) ?? 0),
+        )
+      : 0;
+
   const approved = order.publications.length > 0;
   // The artwork column belongs to whoever may touch files, which is not the
   // same set as whoever may read the order (FR-8).
@@ -43,6 +61,11 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   // The strictest ceiling among the newspapers this order actually uses: one
   // file has to be printable by every line it will serve (FR-21).
   const orderPapers = order.items.map((i) => i.newspaper);
+  const submission =
+    order.source === "customer_portal" ? await portalSubmission(ctx.businessId, order.id) : null;
+  const portalFiles = new Set(
+    [order.advertisement_id, ...order.items.map((i) => i.advertisement_id)].filter(Boolean),
+  ).size;
   const strictest =
     orderPapers.length > 0
       ? orderPapers.reduce((a, b) =>
@@ -61,10 +84,47 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         חזרה להזמנות
       </Link>
 
+      {maySeeMoney ? (
+        <CreditPrompt
+          orderId={order.id}
+          credit={credit}
+          open={openOnOrder}
+          binding={status === "approved" || status === "completed"}
+          mayApply={canWriteArea(ctx, "billing")}
+        />
+      ) : null}
+
+      {order.source === "customer_portal" ? (
+        // Backlog 27: nobody in the office typed this order, and the screen
+        // says so first — who sent it, when, and with how many files.
+        <div
+          data-testid="portal-order-banner"
+          className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-status-accent-fg/30 bg-status-accent-bg px-4 py-3 text-sm text-status-accent-fg"
+        >
+          <Send className="size-5 shrink-0" aria-hidden />
+          <p>
+            <span className="font-semibold">הלקוח שלח את הבקשה הזאת מהפורטל</span>
+            {submission ? (
+              <>
+                {" "}
+                — {submission.user.name} (<Ltr>{submission.user.email}</Ltr>),{" "}
+                <Ltr>{formatDateTime(submission.created_at)}</Ltr>
+              </>
+            ) : null}
+            {portalFiles > 0 ? (
+              <>
+                {" "}
+                · {portalFiles === 1 ? "קובץ מודעה אחד צורף" : `${portalFiles} קבצי מודעה צורפו`}
+              </>
+            ) : null}
+          </p>
+        </div>
+      ) : null}
+
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="mb-2 font-serif text-3xl font-semibold">
-            <Ltr>{orderNumber(order.id)}</Ltr>
+            <Ltr data-testid="order-ref">{orderNumber(order.number)}</Ltr>
           </h1>
           <div className="flex flex-wrap items-center gap-3">
             <OrderStatusBadge status={status} />
@@ -184,7 +244,8 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                   <th className="p-3 text-start font-semibold">צורה</th>
                   <th className="p-3 text-start font-semibold">מחיר</th>
                   {approved ? <th className="p-3 text-start font-semibold">סטטוס</th> : null}
-                  {approved && mayAttachAds ? (
+                  {(approved && mayAttachAds) ||
+                  (!approved && order.items.some((i) => i.advertisement)) ? (
                     <th className="p-3 text-start font-semibold" data-testid="col-order-ad">
                       מודעה
                     </th>
@@ -253,6 +314,27 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                         <td className="p-3">
                           <Ltr>{formatMoney(Number(i.price))}</Ltr>
                         </td>
+                        {order.items.some((x) => x.advertisement) ? (
+                          <td className="p-3" data-testid="item-ad">
+                            {i.advertisement ? (
+                              <span className="inline-flex items-center gap-2">
+                                <AdThumb
+                                  ad={{
+                                    name: i.advertisement.name,
+                                    fileType: i.advertisement.file_type as AdFileType,
+                                    previewUrl: i.advertisement.preview_url,
+                                  }}
+                                  className="size-10"
+                                />
+                                <span className="max-w-40 truncate text-xs">
+                                  {i.advertisement.name}
+                                </span>
+                              </span>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                        ) : null}
                       </tr>
                     ))}
               </tbody>
@@ -264,7 +346,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       {canWriteArea(ctx, "orders") || ctx.role === "accounting" ? (
         <OrderActions
           orderId={order.id}
-          orderRef={orderNumber(order.id)}
+          orderRef={orderNumber(order.number)}
           status={status}
           canApprove={canWriteArea(ctx, "orders")}
           canComplete={ctx.role === "admin" || ctx.role === "accounting"}

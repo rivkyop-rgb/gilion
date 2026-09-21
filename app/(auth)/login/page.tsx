@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { loadLoginBrand } from "@/lib/data/business-settings";
 import { textFor } from "@/lib/domain/business-settings";
 import { LoginForm } from "./login-form";
@@ -12,11 +13,20 @@ export default async function LoginPage() {
 
   return (
     <>
-      <h1 data-testid="login-title" className="mb-1 font-serif text-3xl font-semibold text-on-surface">
+      <h1
+        data-testid="login-title"
+        className="mb-1 font-serif text-3xl font-semibold text-on-surface"
+      >
         {textFor("login_title", brand.texts)}
       </h1>
       <p className="mb-6 text-sm text-on-surface-variant">היכנסי עם המייל והסיסמה שקיבלת.</p>
       <LoginForm />
+      <p className="mt-6 text-center text-xs text-on-surface-variant">
+        מפרסמים?{" "}
+        <Link href="/portal/login" className="text-primary underline">
+          כניסת לקוחות
+        </Link>
+      </p>
     </>
   );
 }

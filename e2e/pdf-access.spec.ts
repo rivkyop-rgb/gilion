@@ -57,11 +57,11 @@ test.describe("the final PDF of a closed issue", () => {
     // A customer never reaches the route at all: the portal boundary (FR-9)
     // turns the request around in middleware, one layer before the permission
     // matrix would have. Asserting the STATUS alone would have been wrong in a
-    // way that reads as a pass — a followed redirect ends at /portal-only with
+    // way that reads as a pass — a followed redirect ends at /portal with
     // a perfectly good 200 on it. What matters is that no PDF came back.
     const response = await page.request.get(finalUrl);
     expect(response.headers()["content-type"] ?? "").not.toContain("application/pdf");
-    expect(response.url()).toContain("/portal-only");
+    expect(new URL(response.url()).pathname).toBe("/portal");
 
     // And with redirects off, the turn-around is visible for what it is.
     const raw = await page.request.get(finalUrl, { maxRedirects: 0 });

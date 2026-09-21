@@ -8,17 +8,17 @@ import { USERS, login } from "./helpers";
  * landed on the dashboard.
  */
 test.describe("customer accounts are kept out of the internal app (FR-9)", () => {
-  test("signing in lands on the portal notice, never the dashboard", async ({ page }) => {
+  test("signing in lands on the portal, never the dashboard", async ({ page }) => {
     await login(page, USERS.customer);
-    await expect(page).toHaveURL(/\/portal-only/);
-    await expect(page.getByRole("heading", { name: /פורטל הלקוחות/ })).toBeVisible();
+    await expect(page).toHaveURL(/\/portal$/);
+    await expect(page.getByRole("heading", { name: "הבקשות שלי" })).toBeVisible();
   });
 
   for (const path of ["/dashboard", "/billing", "/select-business"]) {
     test(`typing ${path} by hand does not get in`, async ({ page }) => {
       await login(page, USERS.customer);
       await page.goto(path);
-      await expect(page).toHaveURL(/\/portal-only/);
+      await expect(page).toHaveURL(/\/portal$/);
     });
   }
 

@@ -32,12 +32,16 @@ describe("active content is removed before anything is stored", () => {
   });
 
   it("strips onload= and onerror=, quoted any way", () => {
-    const result = scan(`<svg onload="steal()"><image onerror='go()' href="x"/><a onclick=go()></a></svg>`);
+    const result = scan(
+      `<svg onload="steal()"><image onerror='go()' href="x"/><a onclick=go()></a></svg>`,
+    );
     expect(result.svg).not.toMatch(/onload|onerror|onclick/i);
   });
 
   it("strips <foreignObject>, which is arbitrary HTML in disguise", () => {
-    const result = scan(`<svg><foreignObject><body><form action="/x"></form></body></foreignObject></svg>`);
+    const result = scan(
+      `<svg><foreignObject><body><form action="/x"></form></body></foreignObject></svg>`,
+    );
     expect(result.svg).not.toMatch(/foreignObject|form/i);
   });
 
@@ -71,7 +75,11 @@ describe("what is not an SVG at all", () => {
   });
 
   it("is refused when stripping leaves no drawing behind", () => {
-    expect(sanitizeSvg("<script>alert(1)</script><svg onload=x></svg>".replace("<svg onload=x></svg>", ""))).toHaveProperty("error");
+    expect(
+      sanitizeSvg(
+        "<script>alert(1)</script><svg onload=x></svg>".replace("<svg onload=x></svg>", ""),
+      ),
+    ).toHaveProperty("error");
   });
 });
 

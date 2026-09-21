@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { basePrisma } from "./db";
+import { nextOrderNumber } from "./orders";
 import { isExclusionViolation } from "./placements";
 
 /**
@@ -57,6 +58,7 @@ beforeAll(async () => {
       customer_id: "cust_alpha_1",
       status: "approved",
       approved_at: new Date(),
+      number: await nextOrderNumber(BUSINESS),
     },
   });
   orderId = order.id;

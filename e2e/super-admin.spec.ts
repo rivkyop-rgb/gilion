@@ -56,6 +56,31 @@ test.describe("super admin — access to every business", () => {
     await expect(page.getByTestId("business-switcher")).toContainText(BUSINESS_NAMES.beta);
   });
 
+  test("the platform list counts orders and portal requests, and opens a business", async ({
+    page,
+  }) => {
+    test.slow();
+    await login(page, USERS.superAdmin);
+    // /platform is inside the app shell, so it needs an active business like
+    // every other screen there — the flag opens the area, not the tenant.
+    await pickBusiness(page, BUSINESS.alpha);
+    await page.goto("/platform");
+
+    // Nothing is hidden from a super admin — but until 17/09/2026 the only
+    // door in was the sign-in picker, which read as though it were.
+    await expect(page.getByTestId(`business-orders-${BUSINESS.alpha}`)).toBeVisible();
+    await page.getByTestId(`enter-business-${BUSINESS.alpha}`).click();
+    await page.waitForURL(/\/orders$/, { timeout: 30_000 });
+    await expect(page.getByTestId("orders-table")).toBeVisible();
+    expect((await sessionOf(page)).user?.businessId).toBe(BUSINESS.alpha);
+
+    // And the count itself is a link into the same place.
+    await page.goto("/platform");
+    await page.getByTestId(`business-orders-${BUSINESS.beta}`).click();
+    await page.waitForURL(/\/orders$/, { timeout: 30_000 });
+    expect((await sessionOf(page)).user?.businessId).toBe(BUSINESS.beta);
+  });
+
   test("is labelled as a super admin, not as an admin", async ({ page }) => {
     await login(page, USERS.superAdmin);
     await pickBusiness(page, BUSINESS.alpha);

@@ -51,6 +51,7 @@ export default async function globalSetup() {
   // it.
   await deleteTestIssues(prisma);
   await deleteTestAdvertisements(prisma);
+  await deleteTestPayments(prisma);
   await deleteTestOrders(prisma);
   await deleteTestCustomers(prisma);
   await deleteTestNewspapers(prisma);
@@ -317,10 +318,45 @@ async function resetReminderWindow(prisma: PrismaClient) {
  * Reminders and payments cascade or are cleared alongside; AdOrderItem
  * cascades from AdOrder.
  */
+/**
+ * Every payment record (stage 08).
+ *
+ * prisma/seed.ts creates none, so anything here was typed by a spec. Three
+ * reasons this cannot be skipped, and only the first is obvious:
+ *
+ *  1. Payment → Customer is Restrict. A stray record makes the customer it
+ *     names undeletable, and `deleteTestCustomers` below fails with a foreign
+ *     key error in a file that never touched money.
+ *  2. The billing KPIs are SUMS over the whole business. A payment from last
+ *     run is silently added to every total a later run asserts on, and the
+ *     failure reads as arithmetic that is wrong by an amount nobody typed.
+ *  3. `AdOrder.payment_status` is DERIVED from these rows. A leftover payment
+ *     against the seeded fixture order leaves that order marked `paid` — so a
+ *     spec about debt starts from a state no spec chose.
+ */
+async function deleteTestPayments(prisma: PrismaClient) {
+  await prisma.payment.deleteMany({});
+  // And the derived answer goes back to what no-payments means. Done as a bulk
+  // write rather than through the domain function on purpose: this is a reset
+  // to a known start state, not a business event.
+  await prisma.adOrder.updateMany({ data: { payment_status: "unpaid" } });
+  await prisma.publication.updateMany({ data: { payment_status: "unpaid" } });
+}
+
 async function deleteTestOrders(prisma: PrismaClient) {
   await prisma.reminder.deleteMany({});
   await prisma.publication.deleteMany({});
   await prisma.adOrder.deleteMany({});
+
+  // The order counter too, or it is state a run changes and never gives back:
+  // every suite creates a few dozen orders, so the numbers climb for ever and
+  // the demo opens on ORD-0236 rather than ORD-0001. Safe here and only here —
+  // every order was just deleted, so nothing can collide with a fresh 1.
+  await prisma.business.updateMany({ data: { last_order_number: 0 } });
+  // Stage 09 (backlog 21): a spec that edits the portal address must not
+  // leave the next run's /p/merkaz pointing nowhere.
+  await prisma.business.update({ where: { id: "biz_alpha" }, data: { slug: "merkaz" } });
+  await prisma.business.update({ where: { id: "biz_beta" }, data: { slug: "tzafon" } });
 }
 
 /**
@@ -479,7 +515,13 @@ async function deleteTestBusinesses(prisma: PrismaClient) {
  * Same idea as resetShapeCatalogue below. The list mirrors the `people` array
  * in prisma/seed.ts; if a role changes there, it changes here.
  */
-const SEEDED_MEMBERSHIPS: Array<{ user: string; business: string; role: MembershipRole }> = [
+const SEEDED_MEMBERSHIPS: Array<{
+  user: string;
+  business: string;
+  role: MembershipRole;
+  /** Portal logins only — the CHECK constraint requires it for role = customer. */
+  customer?: string;
+}> = [
   { user: "usr_admin", business: "biz_alpha", role: "admin" },
   { user: "usr_multi", business: "biz_alpha", role: "admin" },
   { user: "usr_multi", business: "biz_beta", role: "admin" },
@@ -487,13 +529,17 @@ const SEEDED_MEMBERSHIPS: Array<{ user: string; business: string; role: Membersh
   { user: "usr_designer", business: "biz_alpha", role: "designer" },
   { user: "usr_accounting", business: "biz_alpha", role: "accounting" },
   { user: "usr_beta_admin", business: "biz_beta", role: "admin" },
+  // Stage 09: two portal logins at two customers of the same business, which
+  // portal-isolation.spec.ts depends on being exactly that.
+  { user: "usr_customer", business: "biz_alpha", role: "customer", customer: "cust_alpha_1" },
+  { user: "usr_customer_2", business: "biz_alpha", role: "customer", customer: "cust_alpha_3" },
 ];
 
 async function restoreSeededMemberships(prisma: PrismaClient) {
   for (const m of SEEDED_MEMBERSHIPS) {
     await prisma.userMembership.updateMany({
       where: { user_id: m.user, business_id: m.business },
-      data: { role: m.role, status: "active" },
+      data: { role: m.role, status: "active", customer_id: m.customer ?? null },
     });
   }
 }
@@ -670,6 +716,23 @@ async function seedIssueFixtures(prisma: PrismaClient) {
     });
   }
 
+  // Order numbers are a real per-business sequence with a CHECK that they are
+  // positive, so the fixture draws one like any other order — and only on the
+  // first run, or the counter would climb by one every time the suite starts.
+  const existingOrder = await prisma.adOrder.findUnique({
+    where: { id: ISSUE_FIXTURES.order },
+    select: { number: true },
+  });
+  const fixtureNumber =
+    existingOrder?.number ??
+    (
+      await prisma.business.update({
+        where: { id: "biz_alpha" },
+        data: { last_order_number: { increment: 1 } },
+        select: { last_order_number: true },
+      })
+    ).last_order_number;
+
   await prisma.adOrder.upsert({
     where: { id: ISSUE_FIXTURES.order },
     update: {},
@@ -681,6 +744,7 @@ async function seedIssueFixtures(prisma: PrismaClient) {
       status: "approved",
       total_price: 0,
       approved_at: new Date(),
+      number: fixtureNumber,
     },
   });
 

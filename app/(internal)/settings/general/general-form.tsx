@@ -24,13 +24,7 @@ function sampleFor(format: string): string {
   return `${dd}/${mm}/${yyyy}`;
 }
 
-export function GeneralForm({
-  settings,
-  zones,
-}: {
-  settings: BusinessSettings;
-  zones: string[];
-}) {
+export function GeneralForm({ settings, zones }: { settings: BusinessSettings; zones: string[] }) {
   return (
     <PanelForm action={updateGeneralAction} group="general" resetLabel="איפוס להגדרות ברירת המחדל">
       {/* Carried so the action can validate the whole shape at once; the two

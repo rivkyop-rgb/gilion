@@ -26,10 +26,12 @@ export const {
   pages: { signIn: "/login" },
   providers: [
     Credentials({
-      credentials: { email: {}, password: {} },
+      credentials: { email: {}, password: {}, portal: {} },
       async authorize(raw) {
         const email = typeof raw?.email === "string" ? raw.email.trim().toLowerCase() : "";
         const password = typeof raw?.password === "string" ? raw.password : "";
+        // The business's portal slug, when signing in through /p/<slug>.
+        const portal = typeof raw?.portal === "string" ? raw.portal.trim() : "";
         if (!email || !password) return null;
 
         const user = await basePrisma.user.findUnique({ where: { email } });
@@ -40,12 +42,33 @@ export const {
         const ok = await bcrypt.compare(password, hash);
         if (!user || !ok) return null;
 
+        // Through a business's portal door, a customer enters THAT business or
+        // nothing (backlog 21). Refused with the same silence as a wrong
+        // password: "right password, wrong newspaper" would confirm to a
+        // stranger that the address is a customer somewhere. Staff who use a
+        // portal link are not customers of it, and sign in as usual.
+        let portalBusinessId: string | undefined;
+        if (portal && user.user_type === "customer") {
+          const membership = await basePrisma.userMembership.findFirst({
+            where: {
+              user_id: user.id,
+              role: "customer",
+              status: "active",
+              business: { slug: portal, status: "active" },
+            },
+            select: { business_id: true },
+          });
+          if (!membership) return null;
+          portalBusinessId = membership.business_id;
+        }
+
         return {
           id: user.id,
           name: user.name,
           email: user.email,
           userType: user.user_type,
           isSuperAdmin: user.is_super_admin,
+          ...(portalBusinessId ? { portalBusinessId } : {}),
         };
       },
     }),
@@ -62,7 +85,13 @@ export const {
         // A super admin never skips it: every business is theirs to enter, so
         // there is no "only one" to fall into, and landing in an arbitrary
         // tenant would be worse than being asked which.
-        const memberships = token.isSuperAdmin ? [] : await activeMembershipsFor(user.id);
+        const all = token.isSuperAdmin ? [] : await activeMembershipsFor(user.id);
+        // A customer who came in through one business's portal is in that
+        // business, however many others they are also a customer of.
+        const portalBusinessId = (user as { portalBusinessId?: string }).portalBusinessId;
+        const memberships = portalBusinessId
+          ? all.filter((m) => m.businessId === portalBusinessId)
+          : all;
         token.membershipCount = memberships.length;
         const only = memberships.length === 1 ? memberships[0] : undefined;
         if (only) {

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { NEWSPAPERS, PAGE_TYPES, SHAPES, USERS, login } from "./helpers";
+import { NEWSPAPERS, PAGE_TYPES, SHAPES, USERS, login, orderRef } from "./helpers";
 
 /**
  * Success criterion 2 of prd.md §7, mapped here by docs/plan/README.md:
@@ -45,7 +45,7 @@ test("a sales rep builds, previews and approves 10 publications well inside 3 mi
   const started = Date.now();
 
   await login(page, USERS.sales);
-  const id = await openDraft(page);
+  await openDraft(page);
 
   await page.getByTestId("line-newspaper").selectOption(NEWSPAPERS.alpha);
   await page.getByTestId("line-page-type").selectOption(PAGE_TYPES.inner);
@@ -84,9 +84,12 @@ test("a sales rep builds, previews and approves 10 publications well inside 3 mi
   await expect(rows).toHaveCount(10);
   await expect(rows.first()).toContainText("500");
 
+  // Read while the order page is still open: the number is a real sequence
+  // now, so it comes off the screen rather than out of the id.
+  const ref = await orderRef(page);
+
   // And they are real: the publications list shows them under this order.
   await page.goto(`/publications?newspaper=${NEWSPAPERS.alpha}`);
-  const ref = `ORD-${id.slice(-6).toUpperCase()}`;
   await expect(page.getByRole("link", { name: ref })).toHaveCount(10);
 
   expect(Date.now() - started).toBeLessThan(BUDGET_MS);

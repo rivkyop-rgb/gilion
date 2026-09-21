@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { basePrisma } from "./db";
-import { createPublicationsForOrder } from "./orders";
+import { createPublicationsForOrder, nextOrderNumber } from "./orders";
 
 /**
  * FR-17 / conventions.md §7 rule 1, asserted against what is actually stored.
@@ -53,6 +53,7 @@ describe("an approved price is frozen (FR-17)", () => {
         // The marker rides on a column that exists, so cleanup can find it.
         rejection_reason: MARKER,
         total_price: 1500,
+        number: await nextOrderNumber(BUSINESS),
       },
     });
 
@@ -117,6 +118,7 @@ describe("an approved price is frozen (FR-17)", () => {
         status: "rejected",
         rejection_reason: MARKER,
         total_price: 700,
+        number: await nextOrderNumber(BUSINESS),
       },
     });
     const item = await basePrisma.adOrderItem.create({

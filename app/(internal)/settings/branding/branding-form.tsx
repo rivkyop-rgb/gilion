@@ -163,7 +163,9 @@ function Preview({
   // logo lives.
   if (src) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt="" style={{ width: size, height: size }} className="object-contain" />;
+    return (
+      <img src={src} alt="" style={{ width: size, height: size }} className="object-contain" />
+    );
   }
   return (
     <BrandMark

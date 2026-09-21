@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { loginAsAdmin, addOrderLine } from "./helpers";
+import { addOrderLine, loginAsAdmin, orderRef } from "./helpers";
 import { validPdf } from "./ad-fixtures";
 import { pngOfRoughly } from "./ad-fixtures";
 
@@ -19,7 +19,6 @@ async function approvedOrder(page: Page, dates: string[]): Promise<string> {
   await page.getByTestId("order-customer-list").getByRole("option").first().click();
   await page.getByTestId("create-order").click();
   await page.waitForURL(/\/orders\/c[a-z0-9]{20,}$/);
-  const id = new URL(page.url()).pathname.split("/").pop()!;
 
   for (const [index, date] of dates.entries()) {
     await addOrderLine(page, date, "1000", index + 1);
@@ -28,7 +27,7 @@ async function approvedOrder(page: Page, dates: string[]): Promise<string> {
   await page.getByTestId("submit-order").click();
   await page.getByTestId("approve-order").click();
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
-  return `ORD-${id.slice(-6).toUpperCase()}`;
+  return orderRef(page);
 }
 
 test("העלאת קובץ ישירות מהפרסום משייכת ללקוח ומחברת בצעד אחד", async ({ page }) => {
@@ -73,7 +72,6 @@ test("העלאה מהפרסום נמדדת מול העיתון של אותו פ�
   await page.getByTestId("order-customer-list").getByRole("option").first().click();
   await page.getByTestId("create-order").click();
   await page.waitForURL(/\/orders\/c[a-z0-9]{20,}$/);
-  const id = new URL(page.url()).pathname.split("/").pop()!;
 
   await page.getByTestId("line-newspaper").selectOption({ label: "קטלוג המרכז" });
   await addOrderLine(page, "2026-12-03", "1000", 1);
@@ -82,9 +80,9 @@ test("העלאה מהפרסום נמדדת מול העיתון של אותו פ�
   await page.getByTestId("approve-order").click();
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
 
-  const orderRef = `ORD-${id.slice(-6).toUpperCase()}`;
+  const ref = await orderRef(page);
   await page.goto("/publications");
-  const row = page.locator("tbody tr").filter({ hasText: orderRef }).first();
+  const row = page.locator("tbody tr").filter({ hasText: ref }).first();
   const pubId = (await row.getAttribute("data-testid"))!.replace("publication-row-", "");
 
   await page.getByTestId(`row-upload-${pubId}`).click();

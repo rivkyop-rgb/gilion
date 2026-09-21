@@ -33,4 +33,4 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 /** Stages that exist today. Everything above this renders disabled. */
-export const BUILT_THROUGH_STAGE = 6;
+export const BUILT_THROUGH_STAGE = 8;

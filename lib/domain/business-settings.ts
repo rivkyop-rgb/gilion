@@ -19,11 +19,7 @@ import { normalizeEmail, normalizePhone } from "./customer";
 /* --------------------------------------------------------------------- texts */
 
 export type TextKey =
-  | "login_title"
-  | "login_subtitle"
-  | "portal_intro"
-  | "pdf_footer"
-  | "reminder_template";
+  "login_title" | "login_subtitle" | "portal_intro" | "pdf_footer" | "reminder_template";
 
 export type TextField = {
   key: TextKey;
@@ -273,7 +269,8 @@ export function sniffBrandType(bytes: Uint8Array): BrandFileType | null {
   if (startsWith([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "png";
   if (startsWith([0xff, 0xd8, 0xff])) return "jpg";
   // RIFF....WEBP
-  if (startsWith([0x52, 0x49, 0x46, 0x46]) && startsWith([0x57, 0x45, 0x42, 0x50], 8)) return "webp";
+  if (startsWith([0x52, 0x49, 0x46, 0x46]) && startsWith([0x57, 0x45, 0x42, 0x50], 8))
+    return "webp";
   // The ICO header: reserved 0, type 1, then the image count.
   if (startsWith([0x00, 0x00, 0x01, 0x00])) return "ico";
 

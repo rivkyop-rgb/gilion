@@ -56,9 +56,22 @@ test.describe("the palette an admin owns", () => {
     // build step in between.
     await page.goto("/dashboard");
     const shell = page.getByTestId("sidebar-rail").locator("xpath=ancestor::div[1]");
-    await expect
-      .poll(() => colorOf(shell, "--gilion-primary"))
-      .toBe("#7b1fa2");
+    await expect.poll(() => colorOf(shell, "--gilion-primary")).toBe("#7b1fa2");
+
+    // And PAINTED — the variable being set proves nothing on its own. Until
+    // 17/09/2026 it was set here and never reached a pixel: `@theme` resolved
+    // --color-primary once at :root, above the element carrying the override,
+    // and this test passed the whole time. A `bg-primary` box inside the shell
+    // is what a person actually sees.
+    const painted = await shell.evaluate((el) => {
+      const probe = document.createElement("div");
+      probe.className = "bg-primary";
+      el.appendChild(probe);
+      const color = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return color;
+    });
+    expect(painted).toBe("rgb(123, 31, 162)");
   });
 
   test("a colour left alone keeps following the default, and is not stored", async ({ page }) => {

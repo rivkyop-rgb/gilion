@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { auditActionLabel } from "@/lib/domain/audit-labels";
+
 import { USERS, login, loginAsAdmin } from "./helpers";
 import { FIXTURE, ISSUE_FIXTURES, boardUrl, openView, resetFixtureIssue } from "./issue-helpers";
 
@@ -41,10 +43,14 @@ test.describe("placing the same publication twice", () => {
     await page.getByTestId(`board-cell-${FIXTURE.innerRightPage}-13-0`).click();
     await expect(page.locator('[data-testid^="placement-"]')).toHaveCount(2);
 
-    // And it is on the record (FR-10). The audit screen still prints the raw
-    // action name — a stage 01 screen, and not this stage's to translate.
+    // And it is on the record (FR-10). The audit screen printed the raw action
+    // name when this was written; stage 09 translated it, which closed the open
+    // item this test's stage left behind. Reading the label map rather than a
+    // literal keeps the assertion true through the next rewording.
     await page.goto("/audit");
-    await expect(page.getByRole("main")).toContainText("override_duplicate_placement");
+    await expect(page.getByRole("main")).toContainText(
+      auditActionLabel("override_duplicate_placement"),
+    );
   });
 
   test("a designer is not offered the exception at all", async ({ page }) => {

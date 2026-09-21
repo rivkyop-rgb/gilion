@@ -97,6 +97,24 @@ export const TONE_DOT: Record<Tone, string> = {
   muted: "bg-status-muted-fg",
 };
 
+/**
+ * The semantic edge on a KPI card (docs/design/screens/01-dashboard.md).
+ *
+ * `border-s-*` — inline-start, which is the RIGHT edge under `dir="rtl"`, so
+ * the colour lands where the eye enters the card (conventions.md §1).
+ */
+export const TONE_BORDER: Record<Tone, string> = {
+  success: "border-s-status-success-fg",
+  warning: "border-s-status-warning-fg",
+  error: "border-s-status-error-fg",
+  debt: "border-s-status-debt-fg",
+  neutral: "border-s-outline-variant",
+  info: "border-s-status-info-fg",
+  accent: "border-s-status-accent-fg",
+  done: "border-s-status-done-fg",
+  muted: "border-s-status-muted-fg",
+};
+
 /** The tinted row a status paints in a table, for the states worth spotting. */
 export const TONE_ROW: Record<Tone, string> = {
   success: "bg-status-success-bg/30",

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { USERS, login, loginAsAdmin } from "./helpers";
+import { USERS, login, loginAsAdmin, orderRef } from "./helpers";
 import { validPdf } from "./ad-fixtures";
 import { uploadFile } from "./ad-helpers";
 
@@ -97,14 +97,13 @@ async function approvedOrderOn(
   await (customer ? options.filter({ hasText: customer }).first() : options.first()).click();
   await page.getByTestId("create-order").click();
   await page.waitForURL(/\/orders\/c[a-z0-9]{20,}$/);
-  const id = new URL(page.url()).pathname.split("/").pop()!;
 
   const days = await addPrintableLine(page, minDays);
 
   await page.getByTestId("submit-order").click();
   await page.getByTestId("approve-order").click();
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
-  return { ref: `ORD-${id.slice(-6).toUpperCase()}`, days };
+  return { ref: await orderRef(page), days };
 }
 
 test("פרסום קרוב בלי מודעה נכנס לרשימה, ושום דבר לא נשלח לבד", async ({ page }) => {

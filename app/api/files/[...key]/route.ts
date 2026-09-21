@@ -24,13 +24,15 @@ import { getTenantContext, canReadArea } from "@/lib/auth/tenant";
 import { getAdvertisement } from "@/lib/data/advertisements";
 import { brandKeysFor, loginBrandKeys } from "@/lib/data/business-settings";
 import { isBrandKey } from "@/lib/domain/business-settings";
+import { portalBusiness } from "@/lib/data/portal-link";
 import { businessOfKey, contentTypeOfKey, getObjectStream, statObject } from "@/lib/storage/minio";
 
 const NOT_FOUND = new NextResponse("not found", { status: 404 });
 
-export async function GET(_request: Request, { params }: { params: Promise<{ key: string[] }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ key: string[] }> }) {
   const { key: segments } = await params;
   const key = segments.join("/");
+  const portalSlug = new URL(request.url).searchParams.get("portal");
 
   let ctx;
   try {
@@ -43,6 +45,19 @@ export async function GET(_request: Request, { params }: { params: Promise<{ key
     // else, including any other key under the same business, is still 404.
     if (isBrandKey(key) && (await loginBrandKeys()).includes(key)) {
       return serve(key, key.split("/").pop() ?? "brand");
+    }
+    // The same hole, for one business's portal door (/p/<slug>): that
+    // business's CURRENT brand keys and nothing else. The key must also name
+    // that business, so a slug cannot be used to fetch another's logo.
+    if (portalSlug && isBrandKey(key)) {
+      const business = await portalBusiness(portalSlug);
+      if (
+        business &&
+        businessOfKey(key) === business.id &&
+        (await brandKeysFor(business.id)).includes(key)
+      ) {
+        return serve(key, key.split("/").pop() ?? "brand");
+      }
     }
     return NOT_FOUND;
   }
@@ -64,9 +79,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ key
     if (!(await brandKeysFor(ctx.businessId)).includes(key)) return NOT_FOUND;
     fileName = key.split("/").pop() ?? "brand";
   } else {
+    // A portal customer reads the matrix as "none" for advertisements, and
+    // still has to see their own artwork on their own requests (stage 09).
+    // So they get a door of their own, narrower than staff's: the row must
+    // name THEIR customer, not merely their business. Brand assets above stay
+    // open to them — the portal wears the business's logo too.
+    const isCustomer = ctx.role === "customer";
     // FR-8: accounting has no operational need for artwork, so it has none
     // here either — the matrix is the same one the sidebar and the actions read.
-    if (!canReadArea(ctx, "advertisements")) return NOT_FOUND;
+    if (!isCustomer && !canReadArea(ctx, "advertisements")) return NOT_FOUND;
+    if (isCustomer && !ctx.customerId) return NOT_FOUND;
 
     // Second line: the key must belong to a row this tenant can actually see,
     // and the row must be the one that owns this exact object. A guessed adId
@@ -76,6 +98,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ key
 
     const ad = await getAdvertisement(ctx.businessId, adId);
     if (!ad) return NOT_FOUND;
+    if (isCustomer && ad.customer_id !== ctx.customerId) return NOT_FOUND;
 
     const owned = [ad.file_url, ad.original_file_url, ad.previous_file_url, ad.preview_url];
     if (!owned.includes(key)) return NOT_FOUND;

@@ -7,11 +7,13 @@ import { Label } from "@/components/ui/label";
 import { InlineError } from "@/components/states";
 import { loginAction, type LoginState } from "./actions";
 
-export function LoginForm() {
+/** `portal` — the business slug when this form sits on /p/<slug>. */
+export function LoginForm({ portal }: { portal?: string } = {}) {
   const [state, action, pending] = useActionState<LoginState, FormData>(loginAction, {});
 
   return (
     <form action={action} className="space-y-4">
+      {portal ? <input type="hidden" name="portal" value={portal} /> : null}
       <div>
         <Label htmlFor="email">כתובת מייל</Label>
         {/* dir=ltr: an email address is Latin text inside an RTL form */}

@@ -10,6 +10,8 @@
  * what to do about it.
  */
 
+import { jerusalemDayUtcMs } from "./calendar";
+
 export const REMINDER_STATUSES = ["needed", "approved_to_send", "sent", "failed"] as const;
 export type ReminderStatus = (typeof REMINDER_STATUSES)[number];
 
@@ -50,25 +52,6 @@ export type ReminderCandidate = {
 };
 
 /**
- * The publisher's calendar. Storage is UTC, display is Asia/Jerusalem
- * (conventions.md §1), and "how many days left" is a display question.
- */
-const PUBLISHER_ZONE = "Asia/Jerusalem";
-
-const DAY_PARTS = new Intl.DateTimeFormat("en-CA", {
-  timeZone: PUBLISHER_ZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-/** Midnight-of-that-day, as a UTC timestamp, for a moment read in Jerusalem. */
-function jerusalemDay(moment: Date): number {
-  const [year, month, day] = DAY_PARTS.format(moment).split("-").map(Number);
-  return Date.UTC(year!, month! - 1, day!);
-}
-
-/**
  * Whole days from `today` to the publication date.
  *
  * BOTH SIDES MUST BE READ IN THE SAME CALENDAR, and getting that wrong is not
@@ -82,7 +65,7 @@ function jerusalemDay(moment: Date): number {
  * to catch up.
  */
 export function daysUntil(publicationDate: Date, today: Date): number {
-  const from = jerusalemDay(today);
+  const from = jerusalemDayUtcMs(today);
   const to = Date.UTC(
     publicationDate.getUTCFullYear(),
     publicationDate.getUTCMonth(),

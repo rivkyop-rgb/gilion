@@ -7,19 +7,35 @@
  * requireSuperAdmin() at the action boundary.
  */
 import bcrypt from "bcryptjs";
+import { newBusinessSlug } from "@/lib/domain/portal-link";
 import { basePrisma } from "./db";
 
 export async function listBusinesses() {
-  return basePrisma.business.findMany({
-    orderBy: { name: "asc" },
-    select: {
-      id: true,
-      name: true,
-      status: true,
-      created_at: true,
-      _count: { select: { memberships: true, newspapers: true, customers: true } },
-    },
-  });
+  const [businesses, pending] = await Promise.all([
+    basePrisma.business.findMany({
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        status: true,
+        created_at: true,
+        _count: {
+          select: { memberships: true, newspapers: true, customers: true, ad_orders: true },
+        },
+      },
+    }),
+    // What is waiting for somebody, per business — the number a platform owner
+    // actually scans this list for.
+    basePrisma.adOrder.groupBy({
+      by: ["business_id"],
+      where: { source: "customer_portal", status: "pending_approval" },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const waiting = new Map(pending.map((row) => [row.business_id, row._count._all]));
+  return businesses.map((b) => ({ ...b, pendingFromPortal: waiting.get(b.id) ?? 0 }));
 }
 
 export async function businessNameTaken(name: string) {
@@ -54,7 +70,9 @@ export async function createBusinessWithAdmin(data: NewBusiness) {
   const hash = await bcrypt.hash(data.adminPassword, 10);
 
   return basePrisma.$transaction(async (tx) => {
-    const business = await tx.business.create({ data: { name: data.businessName.trim() } });
+    const business = await tx.business.create({
+      data: { name: data.businessName.trim(), slug: newBusinessSlug() },
+    });
 
     const user = await tx.user.create({
       data: {

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { NEWSPAPERS, PAGE_TYPES, SHAPES, USERS, login } from "./helpers";
+import { NEWSPAPERS, PAGE_TYPES, SHAPES, USERS, login, orderRef } from "./helpers";
 
 /**
  * US-004 and FR-17: approval is the moment an order stops being a proposal.
@@ -38,7 +38,7 @@ async function addLine(page: Page, date: string, price: string) {
 test.describe("approving an order (US-004)", () => {
   test("a draft creates no publications at all (US-003 AC-5)", async ({ page }) => {
     await login(page, USERS.sales);
-    const id = await newDraft(page);
+    await newDraft(page);
     await addLine(page, "2026-12-01", "1200");
 
     // The preview names what *would* be created, in the future tense.
@@ -48,9 +48,9 @@ test.describe("approving an order (US-004)", () => {
 
     // Assert on *this* draft rather than on an empty table: other specs leave
     // approved orders behind, and a global count would only measure them.
-    const orderRef = `ORD-${id.slice(-6).toUpperCase()}`;
+    const ref = await orderRef(page);
     await page.goto("/publications");
-    await expect(page.getByText(orderRef)).toHaveCount(0);
+    await expect(page.getByText(ref)).toHaveCount(0);
   });
 
   test("approval creates one publication per line and copies the price", async ({ page }) => {

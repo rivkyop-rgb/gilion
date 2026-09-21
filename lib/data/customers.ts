@@ -77,6 +77,21 @@ export async function listCustomers(businessId: string, filters: CustomerListFil
   return { rows, total, page, perPage, pages: Math.max(1, Math.ceil(total / perPage)) };
 }
 
+/**
+ * Every customer, as a picker option.
+ *
+ * Separate from `listCustomers` because that one paginates: a filter dropdown
+ * that silently stops at the twenty-fifth customer is a filter that cannot find
+ * the twenty-sixth, and nothing on the screen would say so.
+ */
+export async function customerOptions(businessId: string) {
+  return tenantDb(businessId).customer.findMany({
+    orderBy: [{ contact_name: "asc" }],
+    select: { id: true, business_name: true, contact_name: true },
+    take: 1000,
+  });
+}
+
 export async function getCustomer(businessId: string, id: string) {
   return tenantDb(businessId).customer.findUnique({ where: { id } });
 }

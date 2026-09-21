@@ -20,6 +20,8 @@ export const USERS = {
   betaAdmin: "beta@gilion.test",
   /** user_type = customer — must never reach an internal screen (FR-9). */
   customer: "customer@gilion.test",
+  /** A second portal login, at a different customer of the same business. */
+  customer2: "customer2@gilion.test",
 } as const;
 
 export const BUSINESS = { alpha: "biz_alpha", beta: "biz_beta" } as const;
@@ -116,7 +118,7 @@ export async function login(page: Page, email: string) {
   await page.fill("#email", email);
   await page.fill("#password", PASSWORD);
   await page.click('button[type="submit"]');
-  await page.waitForURL(/\/(dashboard|select-business|portal-only)/, { timeout: 20_000 });
+  await page.waitForURL(/\/(dashboard|select-business|portal)/, { timeout: 20_000 });
 }
 
 export async function sessionOf(page: Page) {
@@ -197,4 +199,21 @@ export async function addOrderLine(page: Page, date: string, price: string, expe
 
   await page.getByTestId("add-line").click();
   await expect(page.getByTestId("order-line-count")).toContainText(`${expectedDates} תאריכים`);
+}
+
+/**
+ * The order's reference as the PRODUCT prints it — `ORD-0042`.
+ *
+ * Read off the order page rather than computed. Until 16/09/2026 every spec
+ * built it with `ORD-${id.slice(-6).toUpperCase()}`, which worked only because
+ * the label was a slice of the id; the number is a real per-business sequence
+ * now and nothing about the id predicts it. A spec that recomputed the label
+ * would be asserting on its own arithmetic instead of on what the screen says.
+ *
+ * Call it while the order page is open — which is where every caller already
+ * is, having just approved the order.
+ */
+export async function orderRef(page: Page): Promise<string> {
+  const text = await page.getByTestId("order-ref").textContent();
+  return (text ?? "").trim();
 }
