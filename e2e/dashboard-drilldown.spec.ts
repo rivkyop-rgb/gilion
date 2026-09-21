@@ -86,8 +86,14 @@ test.describe("כל כרטיס מוביל לרשימה שממנה נספר", () 
   test("הווידג'ט אומר שתזכורות אינן נשלחות לבד", async ({ page }) => {
     // FR-11 on the card itself. "אישור שליחה" is a phrase that sounds like it
     // sends something, and the widget carries no send button for that reason.
+    //
+    // The claim is about a CONTROL, not about a substring: the banner asserted
+    // on the line above says "אינן נשלחות", which contains "שלח", so a text
+    // scan of the widget could never pass — it argued with its own setup.
     await page.goto("/dashboard");
     await expect(page.getByTestId("reminders-widget-banner")).toContainText("אינן נשלחות אוטומטית");
-    await expect(page.getByTestId("reminders-widget")).not.toContainText("שלח");
+    await expect(
+      page.getByTestId("reminders-widget").getByRole("button", { name: /שלח|שליחה/ }),
+    ).toHaveCount(0);
   });
 });

@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { auditActionLabel } from "@/lib/domain/audit-labels";
 import { loginAsAdmin } from "./helpers";
 import {
   BILLING_DATES,
@@ -69,9 +70,11 @@ test("הרישום עצמו נרשם ביומן, ונראה גם במסך לוג
   await expect(page.getByTestId("payment-history")).toContainText("רישום תשלום");
 
   // The same act, in the admin-only trail — one of the seven audited actions
-  // (conventions.md §6). The screen prints the action key itself.
+  // (conventions.md §6). Stage 09 gave that screen Hebrew labels, so asserting
+  // the raw key here checked a rendering that no longer exists; the label map
+  // is the one owner, and reading it keeps this test true through a rewording.
   await page.goto("/audit");
-  await expect(page.locator("body")).toContainText("update_payment");
+  await expect(page.locator("body")).toContainText(auditActionLabel("update_payment"));
 });
 
 test("ביטול רישום נרשם אף הוא — אין מחיקה שקטה", async ({ page }) => {

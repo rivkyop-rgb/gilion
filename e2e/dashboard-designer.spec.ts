@@ -46,8 +46,26 @@ test.describe("הדשבורד של גרפיקאית", () => {
     const body = (await response?.text()) ?? "";
 
     expect(body.length).toBeGreaterThan(0);
+
+    /*
+     * A CUSTOMER'S NAME IS NOT PAYMENT DATA.
+     *
+     * The status labels are ordinary Hebrew words, and the customer filter on
+     * this screen ships every name the designer is allowed to see — twice, once
+     * as <option> and once inside the flight payload. A fixture customer called
+     * "לקוח משולם" therefore failed this assertion while nothing had leaked:
+     * "משולם" contains "שולם". Scrubbing the names the screen is entitled to
+     * render leaves exactly the bytes this test is about, and does not depend on
+     * some other spec never naming a customer after a payment word.
+     */
+    const names = await page.getByTestId("filter-customer").locator("option").allTextContents();
+    let scrubbed = body;
+    for (const name of names.map((n) => n.trim()).filter(Boolean)) {
+      scrubbed = scrubbed.split(name).join("·");
+    }
+
     for (const label of Object.values(PAYMENT_STATUS_LABELS)) {
-      expect(body).not.toContain(label);
+      expect(scrubbed).not.toContain(label);
     }
     expect(body).not.toContain("payment_status");
     expect(body).not.toContain("סטטוס תשלום");

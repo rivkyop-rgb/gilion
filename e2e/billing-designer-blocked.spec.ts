@@ -31,13 +31,14 @@ test("גרפיקאית נחסמת מ־/billing, ו־payment_status לא נמצא
 
   await login(page, USERS.designer);
 
-  // Every body the designer's session receives, collected as it arrives.
-  const bodies: string[] = [];
+  // Every body the designer's session receives, collected as it arrives —
+  // with its content type, which decides how the bytes may be read.
+  const bodies: { code: boolean; text: string }[] = [];
   page.on("response", async (res) => {
     const type = res.headers()["content-type"] ?? "";
     if (!type.includes("text/") && !type.includes("json") && !type.includes("javascript")) return;
     try {
-      bodies.push(await res.text());
+      bodies.push({ code: type.includes("javascript"), text: await res.text() });
     } catch {
       // A response that was redirected or aborted has no body to read. Not a
       // gap in the check — there is nothing there to leak.
@@ -63,12 +64,25 @@ test("גרפיקאית נחסמת מ־/billing, ו־payment_status לא נמצא
   await expect(page.getByTestId("customer-account")).toHaveCount(0);
   await expect(page.getByTestId("customer-payments-section")).toHaveCount(0);
 
+  /*
+   * THE FIELD NAME IS CODE; THE FIGURES ARE DATA.
+   *
+   * `payment_status` is an identifier, and it appears in the SOURCE of
+   * lib/domain/payment-status.ts — which any route that imports the label map
+   * pulls into the client graph, and which the dev server serves with its
+   * comments intact. Matching it in a script bundle flagged a chunk every
+   * session gets, identical for every user, carrying no figure at all.
+   *
+   * So the field name is looked for where a value could ride along with it —
+   * the HTML and the flight payload — and the three figures, which only this
+   * customer's records could put on the wire, are looked for everywhere.
+   */
   const leaked = bodies.filter(
-    (b) =>
-      b.includes("payment_status") ||
-      b.includes("INV-SECRET-77") ||
-      b.includes("3,300") ||
-      b.includes("1,100"),
+    ({ code, text }) =>
+      (!code && text.includes("payment_status")) ||
+      text.includes("INV-SECRET-77") ||
+      text.includes("3,300") ||
+      text.includes("1,100"),
   );
   expect(
     leaked,
