@@ -4,6 +4,10 @@ import { Prisma, PrismaClient, type MembershipRole } from "@prisma/client";
 import { materializeBaseShapes } from "../lib/domain/base-shapes";
 import { deriveGrid } from "../lib/domain/grid";
 import { PrismaPg } from "@prisma/adapter-pg";
+import bcrypt from "bcryptjs";
+
+/** Must match prisma/seed.ts and e2e/helpers.ts. */
+const SEED_PASSWORD = "gilion1234";
 
 /**
  * Puts the database into the state every spec assumes, before the run starts.
@@ -57,6 +61,7 @@ export default async function globalSetup() {
   await deleteTestNewspapers(prisma);
   await deleteTestBusinesses(prisma);
   await deleteTestUsers(prisma);
+  await restoreSeededPasswords(prisma);
   await clearAuditTrail(prisma);
   await clearPermissionOverrides(prisma);
   await restoreSeededMemberships(prisma);
@@ -442,6 +447,28 @@ async function deleteTestNewspapers(prisma: PrismaClient) {
  */
 async function clearPermissionOverrides(prisma: PrismaClient) {
   await prisma.rolePermission.deleteMany({});
+}
+
+/**
+ * Puts every seeded person's password back to the one prisma/seed.ts set.
+ *
+ * Stage 12 gave people a way to change their own password and admins a way to
+ * reset somebody else's — which makes the password a thing a spec can now
+ * change, and a thing that nothing else here would put back. A run that
+ * changed `usr_admin`'s password and stopped before changing it back would
+ * leave EVERY later run unable to sign in at all, in every file, with a
+ * failure that says nothing about where it came from.
+ *
+ * Deliberately unconditional rather than "only if it differs": reading the
+ * hash to compare it costs the same as writing it, and a condition is one more
+ * thing that can be wrong.
+ */
+async function restoreSeededPasswords(prisma: PrismaClient) {
+  const hash = await bcrypt.hash(SEED_PASSWORD, 10);
+  await prisma.user.updateMany({
+    where: { id: { startsWith: "usr_" } },
+    data: { password_hash: hash },
+  });
 }
 
 /**

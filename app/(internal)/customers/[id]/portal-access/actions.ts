@@ -5,7 +5,9 @@ import { z } from "zod";
 
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { getCustomer } from "@/lib/data/customers";
+import { resetPasswordForMember } from "@/lib/data/account";
 import * as data from "@/lib/data/portal-accounts";
+import { validateNewPassword } from "@/lib/domain/password";
 import { emailTaken } from "@/lib/data/team";
 import { validatePortalAccount } from "@/lib/domain/portal-account";
 import { normalizeEmail } from "@/lib/domain/team";
@@ -75,4 +77,39 @@ export async function setPortalAccountStatusAction(
   if (!ok) return { message: "החשבון לא נמצא" };
   revalidatePath(`/customers/${customerId}/portal-access`);
   return {};
+}
+
+/**
+ * The same reset, for a portal login (stage 12's open item).
+ *
+ * A separate action from the staff one and not a shared one with a parameter:
+ * the two are reached from two screens with two different things in hand — a
+ * member of this business, or a login that belongs to THIS customer — and the
+ * scope is what keeps the customer card from being able to reset an admin.
+ */
+export async function resetPortalPasswordAction(
+  customerId: string,
+  userId: string,
+  next: string,
+  confirm: string,
+): Promise<{ message?: string; done?: boolean }> {
+  const ctx = await requireAdmin();
+
+  const customer = await getCustomer(ctx.businessId, customerId);
+  if (!customer) return { message: "הלקוח לא נמצא" };
+
+  // The login must be one of THIS customer's, not merely one in this business.
+  const accounts = await data.listPortalAccounts(ctx.businessId, customerId);
+  if (!accounts.some((a) => a.user.id === userId)) {
+    return { message: "החשבון אינו שייך ללקוח הזה" };
+  }
+
+  const errors = validateNewPassword(next, confirm);
+  if (errors.length) return { message: errors[0]!.message };
+
+  const result = await resetPasswordForMember(ctx, userId, next, "portal");
+  if (result !== "ok") return { message: "החשבון לא נמצא" };
+
+  revalidatePath(`/customers/${customerId}/portal-access`);
+  return { done: true, message: "הסיסמה אופסה. יש למסור אותה ללקוח." };
 }

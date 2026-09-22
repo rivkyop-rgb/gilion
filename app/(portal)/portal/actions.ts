@@ -19,8 +19,17 @@ import {
   portalOrderRecord,
   validatePortalRequest,
 } from "@/lib/domain/portal-request";
+import { changeOwnPassword } from "@/lib/data/account";
+import { CURRENT_WRONG, validatePasswordChange } from "@/lib/domain/password";
+import type { PasswordFormState } from "@/components/account/password-form";
 import { adKey, putObject } from "@/lib/storage/minio";
 import { inspectAdFile, renderPreview, storeAdFile } from "@/lib/storage/upload";
+
+const passwordSchema = z.object({
+  current: z.string(),
+  next: z.string(),
+  confirm: z.string(),
+});
 
 export type PortalUploadState = {
   message?: string;
@@ -259,4 +268,41 @@ export async function cancelOwnRequestAction(id: string): Promise<{ message?: st
 
 export async function portalSignOutAction() {
   await signOut({ redirectTo: "/portal/login" });
+}
+
+/**
+ * A customer changes their own portal password.
+ *
+ * The portal's own copy of the internal action, on purpose: `(portal)` does not
+ * import from `(internal)` — FR-9 keeps the two shells apart — and this is the
+ * adapter, not the rule. The rule is in lib/domain/password.ts and the write is
+ * in lib/data/account.ts, and both sides call exactly those.
+ *
+ * `getCustomerScope()` rather than `getTenantContext()` for the same reason it
+ * is used everywhere else here: it re-checks that the membership is still
+ * active, so an account the office closed an hour ago cannot set a new password
+ * and walk back in on a session that is still technically valid for 30 days.
+ */
+export async function changePortalPasswordAction(
+  _prev: PasswordFormState,
+  formData: FormData,
+): Promise<PasswordFormState> {
+  const scope = await getCustomerScope();
+
+  const parsed = passwordSchema.safeParse({
+    current: formData.get("current"),
+    next: formData.get("next"),
+    confirm: formData.get("confirm"),
+  });
+  if (!parsed.success) return { message: "הטופס לא נשלח כראוי" };
+
+  const errors = validatePasswordChange(parsed.data);
+  if (errors.length) {
+    return { errors: Object.fromEntries(errors.map((e) => [e.field, e.message])) };
+  }
+
+  const result = await changeOwnPassword(scope.userId, parsed.data.current, parsed.data.next);
+  if (result !== "ok") return { errors: { current: CURRENT_WRONG } };
+
+  return { done: true, message: "הסיסמה שונתה. בכניסה הבאה יש להשתמש בסיסמה החדשה." };
 }

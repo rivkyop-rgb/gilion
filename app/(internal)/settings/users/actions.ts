@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
+import { resetPasswordForMember } from "@/lib/data/account";
 import * as data from "@/lib/data/team";
+import { validateNewPassword } from "@/lib/domain/password";
 import {
   deactivationBlocked,
   isAssignableRole,
@@ -112,4 +114,30 @@ export async function setMemberStatusAction(
   await data.setMemberStatus(ctx.businessId, userId, status);
   revalidatePath("/settings/users");
   return {};
+}
+
+/**
+ * An admin hands a staff member a new password (stage 12's open item).
+ *
+ * `requireAdmin` is the same gate as the rest of this file, and the data layer
+ * resolves the target through a membership in THIS business — a user id from
+ * another tenant finds nothing and gets the same answer as one that does not
+ * exist. `scope: "staff"` is what stops this door from reaching a portal
+ * account, which belongs to the customer card and to a different screen.
+ */
+export async function resetMemberPasswordAction(
+  userId: string,
+  next: string,
+  confirm: string,
+): Promise<{ message?: string; done?: boolean }> {
+  const ctx = await requireAdmin();
+
+  const errors = validateNewPassword(next, confirm);
+  if (errors.length) return { message: errors[0]!.message };
+
+  const result = await resetPasswordForMember(ctx, userId, next, "staff");
+  if (result !== "ok") return { message: "המשתמש לא נמצא בעסק הזה" };
+
+  revalidatePath("/settings/users");
+  return { done: true, message: "הסיסמה אופסה. יש למסור אותה למשתמש." };
 }

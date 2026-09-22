@@ -25,6 +25,7 @@ export type AuditAction =
   | "update_payment"
   | "override_duplicate_placement"
   | "update_business_settings"
+  | "reset_user_password"
   | "portal_sign_in"
   | "portal_submit_request"
   | "portal_upload_ad"

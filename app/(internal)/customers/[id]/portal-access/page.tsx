@@ -10,6 +10,8 @@ import { auditActionLabel } from "@/lib/domain/audit-labels";
 import { Badge } from "@/components/ui/badge";
 import { Ltr } from "@/components/ui/ltr";
 import { formatDate } from "../../../orders/format";
+import { ResetPasswordDialog } from "@/components/account/reset-password-dialog";
+import { resetPortalPasswordAction } from "./actions";
 import { AccountStatusToggle } from "./account-status";
 import { PortalAccountForm } from "./portal-account-form";
 
@@ -110,11 +112,19 @@ export default async function PortalAccessPage({ params }: { params: Promise<{ i
                   </Badge>
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 text-end">
-                  <AccountStatusToggle
-                    customerId={customer.id}
-                    membershipId={a.id}
-                    active={a.status === "active"}
-                  />
+                  <span className="flex items-center justify-end gap-2">
+                    <AccountStatusToggle
+                      customerId={customer.id}
+                      membershipId={a.id}
+                      active={a.status === "active"}
+                    />
+                    <ResetPasswordDialog
+                      userId={a.user.id}
+                      name={a.user.name}
+                      onReset={resetPortalPasswordAction.bind(null, customer.id)}
+                      testId={`reset-portal-password-${a.user.id}`}
+                    />
+                  </span>
                 </td>
               </tr>
             ))}
