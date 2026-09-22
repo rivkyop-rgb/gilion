@@ -36,13 +36,13 @@ export const PORTAL_DATES = {
 export const PORTAL_PAPERS = { alpha: "paper_alpha", catalog: "paper_catalog" } as const;
 
 /** Signs in through the portal's own door and waits for the list. */
-export async function portalLogin(page: Page, email: string) {
+export async function portalLogin(page: Page, email: string, password: string = PASSWORD) {
   // about:blank first, for the reason recorded in CLAUDE.md and helpers.ts.
   await page.goto("about:blank");
   await page.context().clearCookies();
   await page.goto("/portal/login");
   await page.fill("#email", email);
-  await page.fill("#password", PASSWORD);
+  await page.fill("#password", password);
   await page.click('button[type="submit"]');
   await page.waitForURL(/\/portal$/, { timeout: 30_000 });
 }

@@ -113,12 +113,28 @@ export async function openSignIn(page: Page) {
 }
 
 /** Signs in and waits for the server-decided landing route. */
-export async function login(page: Page, email: string) {
+export async function login(page: Page, email: string, password: string = PASSWORD) {
   await openSignIn(page);
   await page.fill("#email", email);
-  await page.fill("#password", PASSWORD);
+  await page.fill("#password", password);
   await page.click('button[type="submit"]');
   await page.waitForURL(/\/(dashboard|select-business|portal)/, { timeout: 20_000 });
+}
+
+/**
+ * Signs in and expects to be REFUSED — the form, still on /login.
+ *
+ * A wrong password does not produce an error page; Auth.js re-renders the form
+ * with a message. So the assertion is that we did NOT leave, and it has to be
+ * an assertion rather than a bare check: without waiting for something, a
+ * successful sign-in that is still in flight looks exactly like a refusal.
+ */
+export async function loginExpectingRefusal(page: Page, email: string, password: string) {
+  await openSignIn(page);
+  await page.fill("#email", email);
+  await page.fill("#password", password);
+  await page.click('button[type="submit"]');
+  await expect(page.getByText("שם משתמש או סיסמה שגויים")).toBeVisible({ timeout: 15_000 });
 }
 
 export async function sessionOf(page: Page) {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { LogOut, Menu } from "lucide-react";
 import { useState } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -50,9 +51,18 @@ export function TopBar({
       </div>
 
       <div className="flex items-center gap-3">
-        <span className="hidden text-sm text-on-surface-variant sm:inline">
+        {/*
+         * The only route to "my account", and therefore to changing your own
+         * password. It is not under /settings on purpose: that area is admin
+         * only (FR-8), and a designer needs this screen as much as anyone.
+         */}
+        <Link
+          href="/account"
+          data-testid="account-link"
+          className="hidden rounded-sm px-2 py-1.5 text-sm text-on-surface-variant hover:bg-surface-container sm:inline"
+        >
           {userName} · {isSuperAdmin ? SUPER_ADMIN_LABEL : ROLE_LABELS[role]}
-        </span>
+        </Link>
         <form action={onSignOut}>
           <button
             type="submit"

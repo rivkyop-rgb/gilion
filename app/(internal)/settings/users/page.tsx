@@ -7,6 +7,8 @@ import { ROLE_LABELS } from "@/lib/auth/labels";
 import type { AssignableRole } from "@/lib/domain/team";
 import { formatDate } from "../../orders/format";
 import { AddMemberForm } from "./add-member-form";
+import { ResetPasswordDialog } from "@/components/account/reset-password-dialog";
+import { resetMemberPasswordAction } from "./actions";
 import { AccessButton, RoleSelect } from "./member-controls";
 
 export const metadata: Metadata = { title: "משתמשים · Gilion" };
@@ -78,14 +80,29 @@ export default async function UsersPage() {
                   <td className="p-3">
                     <Ltr>{formatDate(m.created_at)}</Ltr>
                   </td>
-                  <td className="p-3 text-end">
-                    {isSelf || (m.role === "admin" && active && activeAdmins === 1) ? (
-                      <span className="text-xs text-on-surface-variant">
-                        {isSelf ? "לא ניתן להסיר את עצמך" : "המנהל הפעיל האחרון"}
-                      </span>
-                    ) : (
-                      <AccessButton userId={m.user.id} name={m.user.name} active={active} />
-                    )}
+                  <td className="whitespace-nowrap p-3 text-end">
+                    {/*
+                     * Two controls, and the rules that guard the left one do
+                     * not apply to the right one: "you cannot remove your own
+                     * access" and "this is the last admin" are about who can
+                     * still get in, and neither is a reason to refuse anyone a
+                     * new password.
+                     */}
+                    <span className="flex items-center justify-end gap-2">
+                      {isSelf || (m.role === "admin" && active && activeAdmins === 1) ? (
+                        <span className="text-xs text-on-surface-variant">
+                          {isSelf ? "לא ניתן להסיר את עצמך" : "המנהל הפעיל האחרון"}
+                        </span>
+                      ) : (
+                        <AccessButton userId={m.user.id} name={m.user.name} active={active} />
+                      )}
+                      <ResetPasswordDialog
+                        userId={m.user.id}
+                        name={m.user.name}
+                        onReset={resetMemberPasswordAction}
+                        testId={`reset-password-${m.user.id}`}
+                      />
+                    </span>
                   </td>
                 </tr>
               );

@@ -18,7 +18,7 @@ export default async function AuditPage() {
     <>
       <h1 className="mb-1 font-serif text-3xl font-semibold">לוג ביקורת</h1>
       <p className="mb-6 text-sm text-on-surface-variant">
-        רישום בלתי הפיך של שבע הפעולות הרגישות. אין דרך לערוך או למחוק רשומה.
+        רישום בלתי הפיך של הפעולות הרגישות. אין דרך לערוך או למחוק רשומה.
       </p>
 
       {rows.length === 0 ? (

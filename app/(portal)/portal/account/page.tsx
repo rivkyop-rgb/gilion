@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 
+import { PasswordForm } from "@/components/account/password-form";
+import { MIN_PASSWORD_LENGTH } from "@/lib/domain/password";
 import { getCustomerScope } from "@/lib/auth/portal";
 import { portalAccount } from "@/lib/data/portal";
+import { changePortalPasswordAction } from "../actions";
 import { PUBLICATION_STATUS_LABELS, type PublicationStatus } from "@/lib/domain/publication-status";
 import { cn } from "@/lib/utils";
 import {
@@ -157,6 +160,20 @@ export default async function PortalAccountPage() {
             </table>
           </div>
         )}
+      </section>
+
+      {/*
+       * The portal's map is two places, not a menu (components/portal/portal-nav)
+       * — so the password lives on the screen already called "החשבון שלי" rather
+       * than becoming a third destination nobody was told about.
+       */}
+      <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-6">
+        <h2 className="mb-1 font-serif text-xl font-semibold">שינוי סיסמה</h2>
+        <p className="mb-5 text-sm text-on-surface-variant">
+          לפחות {MIN_PASSWORD_LENGTH} תווים. הסיסמה שקיבלת מהעיתון נמסרה בעל פה — כדאי להחליף אותה
+          בסיסמה שרק את יודעת.
+        </p>
+        <PasswordForm action={changePortalPasswordAction} />
       </section>
     </div>
   );

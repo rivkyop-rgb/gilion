@@ -59,7 +59,8 @@ enum BusinessStatus {
   inactive
 }
 
-/// The seven auditable actions from docs/erd.md. The enum is closed on
+/// The auditable actions. Seven came from docs/erd.md; the rest were added by
+/// the stages that needed them, each with its reason above it. The enum is closed on
 /// purpose: adding an action is a deliberate schema change, not a string typo.
 enum AuditAction {
   approve_order
@@ -85,6 +86,11 @@ enum AuditAction {
   portal_submit_request
   portal_upload_ad
   portal_cancel_request
+  /// An admin set somebody else's password, because there is no address to
+  /// mail a reset link to. Recorded with no value on either side: the point is
+  /// that a person other than the owner holds these credentials now, and the
+  /// value is the one thing a log must never be able to give back.
+  reset_user_password
 }
 
 /// An independent business in the multi-tenant system (FR-1, FR-2).

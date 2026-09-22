@@ -16,6 +16,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   update_payment: "עדכון תשלום",
   override_duplicate_placement: "אישור שיבוץ כפול",
   update_business_settings: "שינוי הגדרות",
+  reset_user_password: "איפוס סיסמה",
   portal_sign_in: "כניסה לפורטל",
   portal_submit_request: "בקשת פרסום מהפורטל",
   portal_upload_ad: "העלאת מודעה מהפורטל",
