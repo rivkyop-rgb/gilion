@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   assertConvertible,
+  contactsToStorage,
   deletionBlockedMessage,
   InvalidConversionError,
   normalizeEmail,
@@ -169,10 +170,54 @@ describe("toStorage", () => {
       contact_name: "נועה",
       phone: "0521234567",
       email: "noa@example.com",
+      notes: null,
     });
   });
 
   it("keeps a casual customer's optional business name as null when blank", () => {
     expect(toStorage({ ...base, businessName: "   " }).business_name).toBeNull();
+  });
+});
+
+describe("additional contacts", () => {
+  const base = { customerType: "casual" as const, contactName: "דנה", phone: "0521234567" };
+
+  it("drops a row left completely blank instead of refusing it", () => {
+    const contacts = [{ name: " ", role: "", phone: "", email: "" }];
+    expect(validateCustomer({ ...base, contacts })).toEqual([]);
+    expect(contactsToStorage(contacts)).toEqual([]);
+  });
+
+  it("requires a name on a row that has anything else", () => {
+    const errors = validateCustomer({ ...base, contacts: [{ name: "", role: "הנה״ח" }] });
+    expect(errors).toEqual([{ field: "contacts", message: "חסר שם באיש הקשר ה־1" }]);
+  });
+
+  it("checks phone and email the same way the main contact is checked", () => {
+    expect(
+      validateCustomer({ ...base, contacts: [{ name: "רון", phone: "123" }] })[0]?.message,
+    ).toBe("מספר טלפון לא תקין באיש הקשר ה־1");
+    expect(
+      validateCustomer({ ...base, contacts: [{ name: "רון", email: "x@" }] })[0]?.message,
+    ).toBe("כתובת מייל לא תקינה באיש הקשר ה־1");
+  });
+
+  it("stores normalised values, numbered in the order entered", () => {
+    expect(
+      contactsToStorage([
+        { name: " רון ", role: " הנהלת חשבונות ", phone: "052-123-4567", email: "RON@X.CO.IL" },
+        { name: "", role: "", phone: "", email: "" },
+        { name: "מיכל", role: "", phone: null, email: null },
+      ]),
+    ).toEqual([
+      {
+        name: "רון",
+        role: "הנהלת חשבונות",
+        phone: "0521234567",
+        email: "ron@x.co.il",
+        position: 0,
+      },
+      { name: "מיכל", role: null, phone: null, email: null, position: 1 },
+    ]);
   });
 });

@@ -93,7 +93,10 @@ export async function customerOptions(businessId: string) {
 }
 
 export async function getCustomer(businessId: string, id: string) {
-  return tenantDb(businessId).customer.findUnique({ where: { id } });
+  return tenantDb(businessId).customer.findUnique({
+    where: { id },
+    include: { contacts: { orderBy: { position: "asc" } } },
+  });
 }
 
 export async function createCustomer(
@@ -104,11 +107,23 @@ export async function createCustomer(
     contact_name: string;
     phone: string | null;
     email: string | null;
+    notes?: string | null;
   },
+  contacts: StoredContact[] = [],
 ) {
   // business_id is injected by the tenant extension — deliberately not passed here.
-  return tenantDb(businessId).customer.create({ data: data as never });
+  return tenantDb(businessId).customer.create({
+    data: { ...data, contacts: { create: contacts } } as never,
+  });
 }
+
+type StoredContact = {
+  name: string;
+  role: string | null;
+  phone: string | null;
+  email: string | null;
+  position: number;
+};
 
 export async function updateCustomer(
   businessId: string,
@@ -119,9 +134,17 @@ export async function updateCustomer(
     contact_name?: string;
     phone?: string | null;
     email?: string | null;
+    notes?: string | null;
   },
+  /** Given → the list is REPLACED by this one; omitted → contacts untouched. */
+  contacts?: StoredContact[],
 ) {
-  return tenantDb(businessId).customer.update({ where: { id }, data });
+  // One nested write, so the customer and its contacts change together or not
+  // at all — and through the customer, whose tenant scope covers them.
+  return tenantDb(businessId).customer.update({
+    where: { id },
+    data: contacts ? { ...data, contacts: { deleteMany: {}, create: contacts } } : data,
+  });
 }
 
 /**

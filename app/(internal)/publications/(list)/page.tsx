@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
-import { PAYMENT_TONE, PUBLICATION_TONE, TONE_ROW } from "@/components/status-tone";
+import { PAYMENT_TONE, PUBLICATION_TONE, TONE_ROW, type Tone } from "@/components/status-tone";
 import { cn } from "@/lib/utils";
 import { CancelPublication } from "../cancel-publication";
 import { LinkAdCell } from "../link-ad";
@@ -28,6 +28,16 @@ import { PublicationStatusBadge, SourceBadge, StatusChip } from "../../orders/or
 import { formatDate, formatMoney, orderNumber } from "../../orders/format";
 
 export const metadata: Metadata = { title: "פרסומים · Gilion" };
+
+/** The dashboard's two drill-downs (FR-20), as they read after "פרסומים". */
+const ATTENTION_LABELS: Record<string, string> = {
+  missing_ad: "חסרי מודעה",
+  not_placed: "שלא שובצו",
+};
+/** The chips carry the cards' own names. */
+const ATTENTION_CHIP: Record<string, string> = { missing_ad: "חסרי מודעה", not_placed: "לא שובצו" };
+/** The same colours as the two cards, so the chip is recognisably "that card". */
+const ATTENTION_TONE: Record<string, Tone> = { missing_ad: "error", not_placed: "accent" };
 
 export default async function PublicationsPage({
   searchParams,
@@ -70,7 +80,10 @@ export default async function PublicationsPage({
     const query = q.toString();
     return query ? `/publications?${query}` : "/publications";
   };
-  const hrefFor = (next: string) => hrefWith({ status: next });
+  // The chip row is ONE choice: a status, or one of the dashboard's two
+  // questions. Combining them ("שובץ" AND "לא שובצו") can only ever be empty.
+  const hrefFor = (next: string) => hrefWith({ status: next, attention: "all" });
+  const hrefForAttention = (next: string) => hrefWith({ status: "all", attention: next });
 
   // FR-8 again: accounting reads publications but has no access to artwork,
   // so it never receives the ad list and never sees the control.
@@ -141,7 +154,11 @@ export default async function PublicationsPage({
 
   return (
     <>
-      <h1 className="mb-1 font-serif text-3xl font-semibold">פרסומים</h1>
+      {/* The card that opened this list named a question; the title answers it.
+          "פרסומים" over a filtered list reads as the whole list. */}
+      <h1 className="mb-1 font-serif text-3xl font-semibold" data-testid="publications-title">
+        {ATTENTION_LABELS[attention] ? `פרסומים ${ATTENTION_LABELS[attention]}` : "פרסומים"}
+      </h1>
       <p className="mb-4 text-sm text-on-surface-variant">
         כל פרסום מחייב שנוצר מאישור הזמנה. פרסום בלי מודעה או בלי שיבוץ מסומן ברקע אדמדם.
       </p>
@@ -179,11 +196,14 @@ export default async function PublicationsPage({
 
       {/* Eight statuses, eight colours — the row is the legend for the table. */}
       <div className="mb-4 flex flex-wrap gap-2" data-testid="status-filters">
-        <Link href={hrefFor("all")} aria-current={status === "all" ? "page" : undefined}>
+        <Link
+          href={hrefFor("all")}
+          aria-current={status === "all" && attention === "all" ? "page" : undefined}
+        >
           <span
             className={cn(
               "inline-flex h-8 items-center rounded-full px-3 text-sm font-medium transition-colors",
-              status === "all"
+              status === "all" && attention === "all"
                 ? "bg-primary text-on-primary"
                 : "bg-surface-container-lowest text-on-surface-variant ring-1 ring-outline-variant hover:bg-surface-container",
             )}
@@ -191,6 +211,16 @@ export default async function PublicationsPage({
             כל הסטטוסים
           </span>
         </Link>
+        {Object.entries(ATTENTION_CHIP).map(([key, label]) => (
+          <Link
+            key={key}
+            href={hrefForAttention(key)}
+            data-testid={`attention-filter-${key}`}
+            aria-current={attention === key ? "page" : undefined}
+          >
+            <StatusChip tone={ATTENTION_TONE[key]!} label={label} active={attention === key} />
+          </Link>
+        ))}
         {PUBLICATION_STATUSES.map((s) => (
           <Link
             key={s}

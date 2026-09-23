@@ -16,7 +16,20 @@ export type CustomerInput = {
   contactName: string;
   phone?: string | null;
   email?: string | null;
+  notes?: string | null;
+  /** People beyond `contactName`, in the order they were entered. */
+  contacts?: ContactInput[];
 };
+
+export type ContactInput = {
+  name: string;
+  role?: string | null;
+  phone?: string | null;
+  email?: string | null;
+};
+
+export const NOTES_MAX = 2000;
+export const CONTACTS_MAX = 20;
 
 export type FieldError = { field: keyof CustomerInput; message: string };
 
@@ -76,7 +89,47 @@ export function validateCustomer(input: CustomerInput): FieldError[] {
     errors.push({ field: "email", message: "כתובת מייל לא תקינה" });
   }
 
+  if ((input.notes?.length ?? 0) > NOTES_MAX) {
+    errors.push({ field: "notes", message: `ההערות ארוכות מדי — עד ${NOTES_MAX} תווים` });
+  }
+
+  // 6. additional contacts. A row left completely blank is dropped, not
+  //    refused: "הוספת איש קשר" pressed once too often is not an error.
+  const contacts = (input.contacts ?? []).filter((c) => !isBlankContact(c));
+  if (contacts.length > CONTACTS_MAX) {
+    errors.push({ field: "contacts", message: `עד ${CONTACTS_MAX} אנשי קשר נוספים` });
+  }
+  contacts.forEach((c, i) => {
+    const which = `באיש הקשר ה־${i + 1}`;
+    const phone = normalizePhone(c.phone);
+    const email = normalizeEmail(c.email);
+    if (!c.name.trim()) {
+      errors.push({ field: "contacts", message: `חסר שם ${which}` });
+    } else if (phone && !PHONE_DIGITS.test(phone)) {
+      errors.push({ field: "contacts", message: `מספר טלפון לא תקין ${which}` });
+    } else if (email && !EMAIL.test(email)) {
+      errors.push({ field: "contacts", message: `כתובת מייל לא תקינה ${which}` });
+    }
+  });
+
   return errors;
+}
+
+function isBlankContact(c: ContactInput): boolean {
+  return !c.name.trim() && !c.role?.trim() && !c.phone?.trim() && !c.email?.trim();
+}
+
+/** Contacts as stored: blank rows dropped, the rest normalised and numbered. */
+export function contactsToStorage(contacts: ContactInput[] | undefined) {
+  return (contacts ?? [])
+    .filter((c) => !isBlankContact(c))
+    .map((c, position) => ({
+      name: c.name.trim(),
+      role: c.role?.trim() || null,
+      phone: normalizePhone(c.phone),
+      email: normalizeEmail(c.email),
+      position,
+    }));
 }
 
 /** The normalised shape that reaches the database. */
@@ -90,6 +143,7 @@ export function toStorage(input: CustomerInput) {
     contact_name: input.contactName.trim(),
     phone: normalizePhone(input.phone),
     email: normalizeEmail(input.email),
+    notes: input.notes?.trim() || null,
   };
 }
 

@@ -55,8 +55,23 @@ business_name string no
 contact_name string yes
 phone string no טלפון או מייל נדרשים ללקוח מזדמן
 email string no טלפון או מייל נדרשים ללקוח מזדמן
+notes string no הערות חופשיות (עד 2000 תווים) — נוסף 23/09/2026
 created_at datetime yes
 updated_at datetime yes
+CustomerContact
+
+Purpose: אנשי קשר נוספים אצל לקוח (הנהלת חשבונות, גרפיקאית…), מעבר ל־contact_name. נוסף 23/09/2026 לבקשת המשתמשת.
+Source: US-002
+
+Field Type Required Notes
+id string yes Primary key
+customer_id reference: Customer yes נמחק יחד עם הלקוח (Cascade); משויך לעסק דרך הלקוח
+name string yes
+role string no תפקיד — טקסט חופשי, לא enum
+phone string no
+email string no
+position int yes סדר ההצגה בכרטיס
+created_at datetime yes
 Newspaper
 
 Purpose: עיתון שמנוהל תחת עסק.
@@ -348,6 +363,7 @@ Description: משתמש יכול להשתייך לעסק אחד או יותר.
 Cascade: cascade
 Source: FR-2
 
+Customer → CustomerContact: one-to-many
 Customer → AdOrder: one-to-many
 
 Description: לקוח מבצע הזמנות או בקשות פרסום מהפורטל.

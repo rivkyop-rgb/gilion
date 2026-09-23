@@ -42,6 +42,7 @@ export const INDIRECT_TENANT_MODELS: Record<string, string> = {
   IssuePageReservation: "issue_page",
   Reminder: "publication",
   PdfGenerationLog: "issue",
+  CustomerContact: "customer",
 };
 
 /**

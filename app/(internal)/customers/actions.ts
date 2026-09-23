@@ -7,6 +7,7 @@ import { z } from "zod";
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import {
   assertConvertible,
+  contactsToStorage,
   deletionBlockedMessage,
   InvalidConversionError,
   toStorage,
@@ -28,7 +29,37 @@ const schema = z.object({
   contactName: z.string(),
   phone: z.string().optional().nullable(),
   email: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  contacts: z
+    .array(
+      z.object({
+        name: z.string(),
+        role: z.string().nullable().optional(),
+        phone: z.string().nullable().optional(),
+        email: z.string().nullable().optional(),
+      }),
+    )
+    .max(50),
 });
+
+/**
+ * The contacts editor repeats four named fields per row, so the rows arrive as
+ * four parallel lists in document order — uncontrolled inputs, no JSON copy of
+ * the values held in React state to disagree with the DOM.
+ */
+function readContacts(formData: FormData) {
+  const col = (name: string) => formData.getAll(name).map(String);
+  const names = col("contact_name");
+  const roles = col("contact_role");
+  const phones = col("contact_phone");
+  const emails = col("contact_email");
+  return names.map((name, i) => ({
+    name,
+    role: roles[i] ?? null,
+    phone: phones[i] ?? null,
+    email: emails[i] ?? null,
+  }));
+}
 
 function readForm(formData: FormData): CustomerInput | null {
   const parsed = schema.safeParse({
@@ -37,6 +68,8 @@ function readForm(formData: FormData): CustomerInput | null {
     contactName: formData.get("contactName"),
     phone: formData.get("phone"),
     email: formData.get("email"),
+    notes: formData.get("notes"),
+    contacts: readContacts(formData),
   });
   return parsed.success ? parsed.data : null;
 }
@@ -63,7 +96,11 @@ export async function createCustomerAction(
     return { errors: { email: "כתובת המייל כבר קיימת אצל לקוח אחר בעסק הזה" } };
   }
 
-  const created = await data.createCustomer(ctx.businessId, stored);
+  const created = await data.createCustomer(
+    ctx.businessId,
+    stored,
+    contactsToStorage(input.contacts),
+  );
   revalidatePath("/customers");
   redirect(`/customers/${created.id}`);
 }
@@ -96,7 +133,7 @@ export async function updateCustomerAction(
     return { errors: { email: "כתובת המייל כבר קיימת אצל לקוח אחר בעסק הזה" } };
   }
 
-  await data.updateCustomer(ctx.businessId, id, stored);
+  await data.updateCustomer(ctx.businessId, id, stored, contactsToStorage(input.contacts));
   revalidatePath("/customers");
   revalidatePath(`/customers/${id}`);
   redirect(`/customers/${id}`);

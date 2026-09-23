@@ -1,14 +1,14 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import Link from "next/link";
-import { Building2, User } from "lucide-react";
+import { Building2, Plus, Trash2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InlineError } from "@/components/states";
 import { cn } from "@/lib/utils";
-import type { CustomerType } from "@/lib/domain/customer";
+import { CONTACTS_MAX, NOTES_MAX, type CustomerType } from "@/lib/domain/customer";
 import type { FormState } from "./actions";
 
 export type CustomerFormValues = {
@@ -17,7 +17,11 @@ export type CustomerFormValues = {
   contactName: string;
   phone: string;
   email: string;
+  notes: string;
+  contacts: ContactRow[];
 };
+
+type ContactRow = { name: string; role: string; phone: string; email: string };
 
 const EMPTY: CustomerFormValues = {
   customerType: "casual",
@@ -25,6 +29,8 @@ const EMPTY: CustomerFormValues = {
   contactName: "",
   phone: "",
   email: "",
+  notes: "",
+  contacts: [],
 };
 
 export function CustomerForm({
@@ -130,6 +136,22 @@ export function CustomerForm({
 
       {err("phone") ? <InlineError>{err("phone")}</InlineError> : null}
       {err("email") ? <InlineError>{err("email")}</InlineError> : null}
+
+      <ContactsEditor initial={initial.contacts} error={err("contacts")} />
+
+      <div>
+        <Label htmlFor="notes">הערות</Label>
+        <textarea
+          id="notes"
+          name="notes"
+          rows={4}
+          maxLength={NOTES_MAX}
+          defaultValue={initial.notes}
+          data-testid="customer-notes"
+          className="w-full rounded-sm border border-outline-variant bg-surface-container px-3 py-2 text-sm outline-none focus:border-primary"
+        />
+        {err("notes") ? <InlineError>{err("notes")}</InlineError> : null}
+      </div>
       {state.message ? <InlineError>{state.message}</InlineError> : null}
 
       <div className="flex gap-3 border-t border-outline-variant pt-4">
@@ -141,5 +163,94 @@ export function CustomerForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * People beyond the main contact, each with a free-text role.
+ *
+ * Only the row KEYS live in state; every value stays in its (uncontrolled)
+ * input and reaches the server as four repeated fields in document order.
+ * Removing a row removes its inputs, so nothing needs re-indexing.
+ */
+function ContactsEditor({ initial, error }: { initial: ContactRow[]; error?: string }) {
+  const next = useRef(initial.length);
+  const [rows, setRows] = useState(() => initial.map((c, key) => ({ key, initial: c })));
+
+  return (
+    <fieldset className="space-y-3" data-testid="customer-contacts">
+      <legend className="mb-1 text-sm font-medium">אנשי קשר נוספים</legend>
+      {rows.length === 0 ? (
+        <p className="text-xs text-on-surface-variant">למשל הנהלת חשבונות או הגרפיקאית של הלקוח.</p>
+      ) : null}
+
+      {rows.map((row, i) => (
+        <div
+          key={row.key}
+          data-testid={`contact-row-${i}`}
+          className="grid gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest p-3 sm:grid-cols-2"
+        >
+          <Input
+            name="contact_name"
+            aria-label="שם"
+            placeholder="שם"
+            defaultValue={row.initial.name}
+          />
+          <Input
+            name="contact_role"
+            aria-label="תפקיד"
+            placeholder="תפקיד"
+            defaultValue={row.initial.role}
+          />
+          <Input
+            name="contact_phone"
+            aria-label="טלפון"
+            placeholder="טלפון"
+            dir="ltr"
+            inputMode="tel"
+            defaultValue={row.initial.phone}
+          />
+          <div className="flex gap-2">
+            <Input
+              name="contact_email"
+              aria-label="מייל"
+              placeholder="מייל"
+              dir="ltr"
+              type="email"
+              defaultValue={row.initial.email}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label="הסרת איש הקשר"
+              data-testid={`contact-remove-${i}`}
+              onClick={() => setRows((all) => all.filter((r) => r.key !== row.key))}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
+        </div>
+      ))}
+
+      {rows.length < CONTACTS_MAX ? (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          data-testid="contact-add"
+          onClick={() =>
+            setRows((all) => [
+              ...all,
+              { key: next.current++, initial: { name: "", role: "", phone: "", email: "" } },
+            ])
+          }
+        >
+          <Plus className="size-4" />
+          הוספת איש קשר
+        </Button>
+      ) : null}
+      {error ? <InlineError>{error}</InlineError> : null}
+    </fieldset>
   );
 }

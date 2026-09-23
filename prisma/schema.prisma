@@ -284,10 +284,14 @@ model Customer {
   /// At least one of phone/email is required, enforced by a CHECK constraint.
   phone         String?
   email         String?
+  /// Free text for whoever handles the customer next.
+  notes         String?
   created_at    DateTime     @default(now())
   updated_at    DateTime     @updatedAt
 
-  business       Business        @relation(fields: [business_id], references: [id], onDelete: Restrict)
+  business       Business          @relation(fields: [business_id], references: [id], onDelete: Restrict)
+  /// People beyond `contact_name`. Part of the customer, so they go with it.
+  contacts       CustomerContact[]
   ad_orders      AdOrder[]
   publications   Publication[]
   /// Restrict: a customer with files on record is not something to delete out
@@ -300,6 +304,27 @@ model Customer {
   @@index([business_id, business_name])
   @@index([business_id, customer_type])
   @@map("Customer")
+}
+
+/// Another person at a customer — the bookkeeper, the graphic designer.
+/// Tenant-scoped through `customer` (lib/data/tenant-models.ts).
+model CustomerContact {
+  id          String   @id @default(cuid())
+  customer_id String
+  name        String
+  /// Free text: "הנהלת חשבונות", "גרפיקאית". Not an enum — every customer
+  /// names its own people.
+  role        String?
+  phone       String?
+  email       String?
+  /// Order on the card, as entered.
+  position    Int
+  created_at  DateTime @default(now())
+
+  customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+
+  @@index([customer_id, position])
+  @@map("CustomerContact")
 }
 
 // ---------------------------------------------------------------------------

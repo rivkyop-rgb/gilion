@@ -269,6 +269,42 @@ export default async function CustomerPage({
         ) : null}
       </dl>
 
+      {customer.contacts.length > 0 || customer.notes ? (
+        <div className="mb-8 grid gap-4 lg:grid-cols-2">
+          {customer.contacts.length > 0 ? (
+            <section
+              className="rounded-lg border border-outline-variant bg-surface-container-lowest p-6"
+              data-testid="customer-contacts"
+            >
+              <h2 className="mb-3 text-sm font-semibold">אנשי קשר נוספים</h2>
+              <ul className="space-y-3">
+                {customer.contacts.map((c) => (
+                  <li key={c.id} className="text-sm">
+                    <span className="font-medium">{c.name}</span>
+                    {c.role ? <span className="text-on-surface-variant"> · {c.role}</span> : null}
+                    {c.phone || c.email ? (
+                      <span className="mt-0.5 flex flex-wrap gap-x-4 text-on-surface-variant">
+                        {c.phone ? <Ltr>{c.phone}</Ltr> : null}
+                        {c.email ? <Ltr>{c.email}</Ltr> : null}
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {customer.notes ? (
+            <section
+              className="rounded-lg border border-outline-variant bg-surface-container-lowest p-6"
+              data-testid="customer-notes"
+            >
+              <h2 className="mb-3 text-sm font-semibold">הערות</h2>
+              <p className="whitespace-pre-line text-sm">{customer.notes}</p>
+            </section>
+          ) : null}
+        </div>
+      ) : null}
+
       {maySeeMoney && maySeeOrders ? (
         <section className="mb-8" data-testid="customer-account">
           <h2 className="mb-3 font-serif text-xl font-semibold">מצב חשבון</h2>
