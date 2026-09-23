@@ -6,6 +6,7 @@ import { CloudUpload, ImageOff, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Ltr } from "@/components/ui/ltr";
@@ -414,7 +415,7 @@ function UploadDialog({
   const [publicationId, setPublicationId] = useState(
     initialPublication?.publicationId ?? waiting[0]?.publicationId ?? "",
   );
-  const [customerId, setCustomerId] = useState(customers[0]?.id ?? "");
+  const [customerId, setCustomerId] = useState("");
   const [contactName, setContactName] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [phone, setPhone] = useState("");
@@ -477,6 +478,10 @@ function UploadDialog({
       // then fails, the publication stays — with no artwork, listed as "אין
       // מודעה" — which is a real state somebody can retry into, not a loss.
       if (target !== "publication") {
+        if (target === "customer" && !customerId) {
+          setError("לא נבחר לקוח");
+          return;
+        }
         if (!page || !shape) {
           setError("אין עמוד פתוח לשבץ אליו");
           return;
@@ -605,20 +610,17 @@ function UploadDialog({
             {target === "customer" ? (
               <>
                 <Label htmlFor="upload-customer">לקוח</Label>
-                <select
-                  id="upload-customer"
-                  data-testid="upload-customer"
-                  value={customerId}
-                  onChange={(e) => setCustomerId(e.target.value)}
-                  className="mb-3 h-10 w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3 text-sm"
-                >
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.label}
-                      {c.hint ? ` · ${c.hint}` : ""}
-                    </option>
-                  ))}
-                </select>
+                <div className="mb-3">
+                  <Combobox
+                    id="upload-customer"
+                    name="upload-customer"
+                    testId="upload-customer"
+                    options={customers.map((c) => ({ value: c.id, label: c.label, hint: c.hint }))}
+                    defaultValue={customerId}
+                    onChange={setCustomerId}
+                    emptyText="אין לקוח בשם הזה — אפשר ״ללקוח חדש״"
+                  />
+                </div>
               </>
             ) : (
               <div className="mb-3 grid gap-2 sm:grid-cols-2">

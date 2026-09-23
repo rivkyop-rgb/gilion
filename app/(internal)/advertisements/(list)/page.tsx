@@ -13,6 +13,7 @@ import {
 } from "@/lib/domain/ad-file";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
@@ -166,20 +167,22 @@ export default async function AdvertisementsPage({
           <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="customer">
             לקוח
           </label>
-          <select
-            id="customer"
-            name="customer"
-            defaultValue={customer}
-            data-testid="filter-customer"
-            className="h-10 rounded-sm border border-outline-variant bg-surface-container px-3 text-start text-sm"
-          >
-            <option value="all">כל הלקוחות</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.business_name ?? c.contact_name}
-              </option>
-            ))}
-          </select>
+          <div className="w-56">
+            <Combobox
+              id="customer"
+              name="customer"
+              testId="filter-customer"
+              options={customers.map((c) => ({
+                value: c.id,
+                label: c.business_name ?? c.contact_name,
+                hint: c.phone ?? undefined,
+              }))}
+              // "" is "all": the data layer ignores an empty customer id.
+              defaultValue={customer === "all" ? "" : customer}
+              placeholder="כל הלקוחות"
+              emptyText="אין לקוח בשם הזה"
+            />
+          </div>
         </div>
 
         <div>

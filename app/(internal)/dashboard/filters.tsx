@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Filter, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 
 export type FilterOption = { id: string; name: string };
@@ -115,21 +116,19 @@ export function DashboardFilters({
       </Field>
 
       <Field label="לקוח" htmlFor="customer">
-        <select
-          key={values.customer}
-          id="customer"
-          name="customer"
-          defaultValue={values.customer}
-          data-testid="filter-customer"
-          className="h-10 max-w-48 rounded-sm border border-outline-variant bg-surface-container px-3 text-start text-sm"
-        >
-          <option value="all">כל הלקוחות</option>
-          {customers.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        {/* Re-keyed like its neighbours; "" is "all" — `onSubmit` maps it. */}
+        <div className="w-56">
+          <Combobox
+            key={values.customer}
+            id="customer"
+            name="customer"
+            testId="filter-customer"
+            options={customers.map((c) => ({ value: c.id, label: c.name }))}
+            defaultValue={values.customer === "all" ? "" : values.customer}
+            placeholder="כל הלקוחות"
+            emptyText="אין לקוח בשם הזה"
+          />
+        </div>
       </Field>
 
       <Field label="סטטוס" htmlFor="status">

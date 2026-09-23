@@ -45,7 +45,8 @@ test.describe("ארבעת המסננים", () => {
     const before = await rowCount(page);
     expect(before).toBeGreaterThan(0);
 
-    await page.getByTestId("filter-customer").selectOption(CUSTOMERS.alphaRegular);
+    await page.getByTestId("filter-customer").click();
+    await page.getByTestId(`option-${CUSTOMERS.alphaRegular}`).click();
     await page.getByTestId("apply-filters").click();
     await page.waitForURL(/customer=/);
 

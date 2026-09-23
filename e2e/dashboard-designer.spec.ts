@@ -58,7 +58,11 @@ test.describe("הדשבורד של גרפיקאית", () => {
      * render leaves exactly the bytes this test is about, and does not depend on
      * some other spec never naming a customer after a payment word.
      */
-    const names = await page.getByTestId("filter-customer").locator("option").allTextContents();
+    await page.getByTestId("filter-customer").click();
+    const names = await page
+      .getByTestId("filter-customer-list")
+      .getByRole("option")
+      .allTextContents();
     let scrubbed = body;
     for (const name of names.map((n) => n.trim()).filter(Boolean)) {
       scrubbed = scrubbed.split(name).join("·");
