@@ -32,8 +32,7 @@ import {
 async function ownCustomer(page: Page): Promise<{ id: string; name: string }> {
   const name = `לקוח חשבון ${Date.now()}`;
   await page.goto("/customers/new");
-  await page.getByTestId("type-casual").click();
-  await page.fill("#contactName", name);
+  await page.fill("#businessName", name);
   await page.fill("#phone", "050-7654321");
   await page.getByRole("button", { name: "שמירה" }).click();
   // The id pattern has to exclude "new": /customers/new matches a bare

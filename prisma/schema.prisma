@@ -21,11 +21,6 @@ datasource db {
 // Stage 01 — auth, tenancy, audit
 // ---------------------------------------------------------------------------
 
-enum CustomerType {
-  regular
-  casual
-}
-
 enum UserType {
   internal
   customer
@@ -275,22 +270,24 @@ model AuditLog {
 /// Deliberately has no company registration number: that field appeared in the
 /// Stitch mockups but is not in the ERD (docs/design/gaps.md §א).
 model Customer {
-  id            String       @id @default(cuid())
+  id            String   @id @default(cuid())
   business_id   String
-  customer_type CustomerType
-  /// Required for `regular`, optional for `casual` — enforced in the domain layer.
-  business_name String?
-  contact_name  String
+  /// Every customer is a business (decided 23/09/2026). The people at it
+  /// are `contacts`.
+  business_name String
+  /// ח.פ / ע.מ — 9 digits, optional, unique within the business.
+  tax_id        String?
   /// At least one of phone/email is required, enforced by a CHECK constraint.
   phone         String?
   email         String?
   /// Free text for whoever handles the customer next.
   notes         String?
-  created_at    DateTime     @default(now())
-  updated_at    DateTime     @updatedAt
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
 
   business       Business          @relation(fields: [business_id], references: [id], onDelete: Restrict)
-  /// People beyond `contact_name`. Part of the customer, so they go with it.
+  /// The people at the business, first one = main contact. Part of the
+  /// customer, so they go with it.
   contacts       CustomerContact[]
   ad_orders      AdOrder[]
   publications   Publication[]
@@ -300,13 +297,13 @@ model Customer {
   reminders      Reminder[]
   payments       Payment[]
 
-  @@index([business_id, contact_name])
+  @@unique([business_id, tax_id])
   @@index([business_id, business_name])
-  @@index([business_id, customer_type])
   @@map("Customer")
 }
 
-/// Another person at a customer — the bookkeeper, the graphic designer.
+/// A person at a customer — the owner, the bookkeeper, the graphic designer.
+/// `position` 0 is the main contact.
 /// Tenant-scoped through `customer` (lib/data/tenant-models.ts).
 model CustomerContact {
   id          String   @id @default(cuid())

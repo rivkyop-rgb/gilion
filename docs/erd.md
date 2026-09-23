@@ -44,23 +44,22 @@ created_at datetime yes
 updated_at datetime yes
 Customer
 
-Purpose: לקוח קבוע או מזדמן.
+Purpose: לקוח — תמיד עסק (הוכרע 23/09/2026; ההבחנה קבוע/מזדמן הוסרה).
 Source: US-002, US-005, US-009, US-010
 
 Field Type Required Notes
 id string yes Primary key
 business_id reference: Business yes
-customer_type enum: [regular, casual] yes
-business_name string no
-contact_name string yes
-phone string no טלפון או מייל נדרשים ללקוח מזדמן
-email string no טלפון או מייל נדרשים ללקוח מזדמן
-notes string no הערות חופשיות (עד 2000 תווים) — נוסף 23/09/2026
+business_name string yes שם העסק
+tax_id string no ח.פ / ע.מ — 9 ספרות, ייחודי בתוך העסק
+phone string no טלפון העסק. טלפון או מייל נדרשים (CHECK)
+email string no מייל העסק. ייחודי בתוך העסק
+notes string no הערות חופשיות (עד 2000 תווים)
 created_at datetime yes
 updated_at datetime yes
 CustomerContact
 
-Purpose: אנשי קשר נוספים אצל לקוח (הנהלת חשבונות, גרפיקאית…), מעבר ל־contact_name. נוסף 23/09/2026 לבקשת המשתמשת.
+Purpose: האנשים בעסק של הלקוח (בעלים, הנהלת חשבונות, גרפיקאית…) עם תפקיד. position 0 הוא איש הקשר הראשי. נוסף 23/09/2026; contact_name הישן הועבר לכאן.
 Source: US-002
 
 Field Type Required Notes

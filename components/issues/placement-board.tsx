@@ -88,7 +88,7 @@ export type BoardModel = {
   placements: CanvasPlacement[];
   candidates: BoardCandidate[];
   /** Existing customers, for selling a page to one of them from here. */
-  customers: Array<{ id: string; label: string; hint?: string; casual: boolean }>;
+  customers: Array<{ id: string; label: string; hint?: string }>;
   /**
    * `?page=` from the URL — the view to open on, rather than the first one.
    *

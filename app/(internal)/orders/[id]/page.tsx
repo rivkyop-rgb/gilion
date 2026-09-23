@@ -133,7 +133,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               href={`/customers/${order.customer_id}`}
               className="text-sm text-on-surface-variant underline"
             >
-              {order.customer.business_name ?? order.customer.contact_name}
+              {order.customer.business_name}
             </Link>
           </div>
         </div>
@@ -256,9 +256,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                 {approved
                   ? order.publications.map((p) => (
                       <tr key={p.id} className="border-t border-outline-variant">
-                        <td className="p-3">
-                          {order.customer.business_name ?? order.customer.contact_name}
-                        </td>
+                        <td className="p-3">{order.customer.business_name}</td>
                         <td className="p-3">{p.newspaper.name}</td>
                         <td className="p-3">
                           <Ltr>{formatDate(p.publication_date)}</Ltr>
@@ -303,9 +301,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                     ))
                   : order.items.map((i) => (
                       <tr key={i.id} className="border-t border-outline-variant">
-                        <td className="p-3">
-                          {order.customer.business_name ?? order.customer.contact_name}
-                        </td>
+                        <td className="p-3">{order.customer.business_name}</td>
                         <td className="p-3">{i.newspaper.name}</td>
                         <td className="p-3">
                           <Ltr>{formatDate(i.publication_date)}</Ltr>

@@ -349,11 +349,11 @@ export async function deletePortalAdvertisement(scope: CustomerScope, id: string
 export async function portalGreeting(scope: CustomerScope) {
   const [customer, user] = await Promise.all([
     customerDb(scope).customer.findFirst({
-      select: { contact_name: true, business_name: true },
+      select: { business_name: true },
     }),
     basePrisma.user.findUnique({ where: { id: scope.userId }, select: { name: true } }),
   ]);
-  return { userName: user?.name ?? customer?.contact_name ?? "", customer };
+  return { userName: user?.name ?? customer?.business_name ?? "", customer };
 }
 
 /**

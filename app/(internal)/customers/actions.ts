@@ -6,10 +6,8 @@ import { z } from "zod";
 
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import {
-  assertConvertible,
   contactsToStorage,
   deletionBlockedMessage,
-  InvalidConversionError,
   toStorage,
   validateCustomer,
   type CustomerInput,
@@ -24,9 +22,8 @@ export type FormState = {
 };
 
 const schema = z.object({
-  customerType: z.enum(["regular", "casual"]),
-  businessName: z.string().optional().nullable(),
-  contactName: z.string(),
+  businessName: z.string(),
+  taxId: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
   email: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
@@ -63,15 +60,30 @@ function readContacts(formData: FormData) {
 
 function readForm(formData: FormData): CustomerInput | null {
   const parsed = schema.safeParse({
-    customerType: formData.get("customerType"),
-    businessName: formData.get("businessName"),
-    contactName: formData.get("contactName"),
+    businessName: formData.get("businessName") ?? "",
+    taxId: formData.get("taxId"),
     phone: formData.get("phone"),
     email: formData.get("email"),
     notes: formData.get("notes"),
     contacts: readContacts(formData),
   });
   return parsed.success ? parsed.data : null;
+}
+
+/** Email and ח.פ are each unique within a business — said in Hebrew, per field. */
+async function uniquenessErrors(
+  businessId: string,
+  stored: { email: string | null; tax_id: string | null },
+  exceptId?: string,
+): Promise<Record<string, string> | null> {
+  const [emailTaken, taxIdTaken] = await Promise.all([
+    stored.email ? data.emailTaken(businessId, stored.email, exceptId) : false,
+    stored.tax_id ? data.taxIdTaken(businessId, stored.tax_id, exceptId) : false,
+  ]);
+  const errors: Record<string, string> = {};
+  if (emailTaken) errors.email = "כתובת המייל כבר קיימת אצל לקוח אחר בעסק הזה";
+  if (taxIdTaken) errors.taxId = "ח.פ / ע.מ הזה כבר רשום אצל לקוח אחר";
+  return Object.keys(errors).length > 0 ? errors : null;
 }
 
 function toErrorMap(errors: { field: string; message: string }[]) {
@@ -92,9 +104,8 @@ export async function createCustomerAction(
   if (errors.length > 0) return { errors: toErrorMap(errors) };
 
   const stored = toStorage(input);
-  if (stored.email && (await data.emailTaken(ctx.businessId, stored.email))) {
-    return { errors: { email: "כתובת המייל כבר קיימת אצל לקוח אחר בעסק הזה" } };
-  }
+  const taken = await uniquenessErrors(ctx.businessId, stored);
+  if (taken) return { errors: taken };
 
   const created = await data.createCustomer(
     ctx.businessId,
@@ -119,58 +130,17 @@ export async function updateCustomerAction(
   const existing = await data.getCustomer(ctx.businessId, id);
   if (!existing) return { message: "הלקוח לא נמצא" };
 
-  // Rule 6 lives in the domain layer, but the edit form must not become a
-  // back door around it: changing the type here is refused outright.
-  if (input.customerType !== existing.customer_type) {
-    return { message: "שינוי סוג לקוח נעשה דרך פעולת ההמרה, לא דרך העריכה" };
-  }
-
   const errors = validateCustomer(input);
   if (errors.length > 0) return { errors: toErrorMap(errors) };
 
   const stored = toStorage(input);
-  if (stored.email && (await data.emailTaken(ctx.businessId, stored.email, id))) {
-    return { errors: { email: "כתובת המייל כבר קיימת אצל לקוח אחר בעסק הזה" } };
-  }
+  const taken = await uniquenessErrors(ctx.businessId, stored, id);
+  if (taken) return { errors: taken };
 
   await data.updateCustomer(ctx.businessId, id, stored, contactsToStorage(input.contacts));
   revalidatePath("/customers");
   revalidatePath(`/customers/${id}`);
   redirect(`/customers/${id}`);
-}
-
-/**
- * casual → regular. The id is untouched, which is precisely what preserves the
- * customer's history (US-002 rule 7).
- */
-export async function convertToRegularAction(
-  id: string,
-  _prev: FormState,
-  formData: FormData,
-): Promise<FormState> {
-  const ctx = await getTenantContext();
-  requireArea(ctx, "customers", "write");
-
-  const existing = await data.getCustomer(ctx.businessId, id);
-  if (!existing) return { message: "הלקוח לא נמצא" };
-
-  const businessName = String(formData.get("businessName") ?? "");
-
-  try {
-    assertConvertible(existing.customer_type, "regular", businessName);
-  } catch (e) {
-    if (e instanceof InvalidConversionError) return { errors: { businessName: e.message } };
-    throw e;
-  }
-
-  await data.updateCustomer(ctx.businessId, id, {
-    customer_type: "regular",
-    business_name: businessName.trim(),
-  });
-
-  revalidatePath("/customers");
-  revalidatePath(`/customers/${id}`);
-  redirect(`/customers/${id}?converted=1`);
 }
 
 export async function deleteCustomerAction(id: string): Promise<FormState> {
@@ -192,9 +162,9 @@ export async function deleteCustomerAction(id: string): Promise<FormState> {
       // answer "who was removed" — the guard above has already proved there is
       // no history hanging off them to name.
       const snapshot = {
-        customer_type: existing.customer_type,
         business_name: existing.business_name,
-        contact_name: existing.contact_name,
+        tax_id: existing.tax_id,
+        contacts: existing.contacts.map((c) => c.name),
         phone: existing.phone,
         email: existing.email,
       };

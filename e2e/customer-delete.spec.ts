@@ -29,8 +29,7 @@ test.describe("the confirmation", () => {
     // A customer created for this test, so nothing else depends on it.
     await page.goto("/customers/new");
     const name = `לקוח למחיקה ${Date.now()}`;
-    await page.getByTestId("type-casual").click();
-    await page.fill("#contactName", name);
+    await page.fill("#businessName", name);
     await page.fill("#phone", "050-1234567");
     await page.getByRole("button", { name: "שמירה" }).click();
     await page.waitForURL(/\/customers\/[a-z0-9]+$/);

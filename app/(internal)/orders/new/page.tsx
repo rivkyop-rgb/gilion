@@ -22,7 +22,7 @@ export default async function NewOrderPage() {
       <NewOrderForm
         customers={rows.map((c) => ({
           value: c.id,
-          label: c.business_name ? `${c.business_name} — ${c.contact_name}` : c.contact_name,
+          label: c.business_name,
           // Searchable too: a customer is often remembered by phone, not name.
           hint: c.phone ?? undefined,
         }))}

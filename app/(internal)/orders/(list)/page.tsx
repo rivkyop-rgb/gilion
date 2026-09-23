@@ -159,7 +159,7 @@ export default async function OrdersPage({
                       <Ltr>{orderNumber(o.number)}</Ltr>
                     </Link>
                   </td>
-                  <td className="p-3">{o.customer.business_name ?? o.customer.contact_name}</td>
+                  <td className="p-3">{o.customer.business_name}</td>
                   <td className="p-3">
                     <SourceBadge source={o.source} />
                   </td>

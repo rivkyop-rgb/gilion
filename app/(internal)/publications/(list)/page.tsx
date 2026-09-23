@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
-import { PAYMENT_TONE, PUBLICATION_TONE, TONE_ROW, type Tone } from "@/components/status-tone";
+import { PAYMENT_TONE, PUBLICATION_TONE, TONE_ROW } from "@/components/status-tone";
 import { cn } from "@/lib/utils";
 import { CancelPublication } from "../cancel-publication";
 import { LinkAdCell } from "../link-ad";
@@ -34,10 +34,6 @@ const ATTENTION_LABELS: Record<string, string> = {
   missing_ad: "חסרי מודעה",
   not_placed: "שלא שובצו",
 };
-/** The chips carry the cards' own names. */
-const ATTENTION_CHIP: Record<string, string> = { missing_ad: "חסרי מודעה", not_placed: "לא שובצו" };
-/** The same colours as the two cards, so the chip is recognisably "that card". */
-const ATTENTION_TONE: Record<string, Tone> = { missing_ad: "error", not_placed: "accent" };
 
 export default async function PublicationsPage({
   searchParams,
@@ -80,10 +76,11 @@ export default async function PublicationsPage({
     const query = q.toString();
     return query ? `/publications?${query}` : "/publications";
   };
-  // The chip row is ONE choice: a status, or one of the dashboard's two
-  // questions. Combining them ("שובץ" AND "לא שובצו") can only ever be empty.
+  // A status chip leaves the dashboard's drill-down: "חסרה מודעה" AND "לא
+  // שובצו" can only ever be empty. The drill-down has no chip of its own —
+  // "חסרי מודעה" beside the status "חסרה מודעה" read as the same status twice;
+  // the title and the banner say what is shown.
   const hrefFor = (next: string) => hrefWith({ status: next, attention: "all" });
-  const hrefForAttention = (next: string) => hrefWith({ status: "all", attention: next });
 
   // FR-8 again: accounting reads publications but has no access to artwork,
   // so it never receives the ad list and never sees the control.
@@ -116,7 +113,7 @@ export default async function PublicationsPage({
     fileSize: ad.file_size,
     previewUrl: ad.preview_url,
     fileUrl: ad.file_url,
-    customerLabel: ad.customer?.business_name ?? ad.customer?.contact_name ?? null,
+    customerLabel: ad.customer?.business_name ?? null,
     uploadedBy: ad.uploaded_by.name,
     uploadedAt: ad.uploaded_at,
     publicationCount: ad._count.publications,
@@ -211,16 +208,6 @@ export default async function PublicationsPage({
             כל הסטטוסים
           </span>
         </Link>
-        {Object.entries(ATTENTION_CHIP).map(([key, label]) => (
-          <Link
-            key={key}
-            href={hrefForAttention(key)}
-            data-testid={`attention-filter-${key}`}
-            aria-current={attention === key ? "page" : undefined}
-          >
-            <StatusChip tone={ATTENTION_TONE[key]!} label={label} active={attention === key} />
-          </Link>
-        ))}
         {PUBLICATION_STATUSES.map((s) => (
           <Link
             key={s}
@@ -348,7 +335,7 @@ export default async function PublicationsPage({
                             "hover:bg-surface-container-low",
                     )}
                   >
-                    <td className="p-3">{p.customer.business_name ?? p.customer.contact_name}</td>
+                    <td className="p-3">{p.customer.business_name}</td>
                     <td className="p-3">{p.newspaper.name}</td>
                     <td className="p-3">
                       <Ltr>{formatDate(p.publication_date)}</Ltr>
@@ -431,7 +418,7 @@ export default async function PublicationsPage({
                         {p.status !== "canceled" && p.status !== "published" ? (
                           <CancelPublication
                             publicationId={p.id}
-                            label={p.customer.business_name ?? p.customer.contact_name}
+                            label={p.customer.business_name}
                             date={formatDate(p.publication_date)}
                           />
                         ) : null}

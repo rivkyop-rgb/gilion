@@ -15,8 +15,7 @@ import { uploadFile } from "./ad-helpers";
 async function ownCustomer(page: Page): Promise<{ id: string; name: string }> {
   const name = `בוחרת קבצים ${Date.now()}`;
   await page.goto("/customers/new");
-  await page.getByTestId("type-casual").click();
-  await page.fill("#contactName", name);
+  await page.fill("#businessName", name);
   await page.fill("#phone", "050-9998887");
   await page.getByRole("button", { name: "שמירה" }).click();
   await page.waitForURL(/\/customers\/c[a-z0-9]{20,}$/);

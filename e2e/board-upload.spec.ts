@@ -104,7 +104,7 @@ test.describe("selling a page from the board", () => {
     await page.getByTestId("upload-target-new").click();
 
     const walkIn = `זבולון מזדמן ${Date.now()}`;
-    await page.getByTestId("new-customer-contact").fill(walkIn);
+    await page.getByTestId("new-customer-business").fill(walkIn);
     await page.getByTestId("new-customer-phone").fill("050-1234567");
     // The price list fills this in; typing over it is the point of FR-17.
     await page.getByTestId("sale-price").fill("750");
@@ -115,7 +115,7 @@ test.describe("selling a page from the board", () => {
     await expect(page.getByTestId("unplaced-count")).not.toHaveText(before ?? "");
     await expect(page.getByTestId("unplaced-list")).toContainText(walkIn);
 
-    // The customer really exists, as a casual one (US-002).
+    // The customer really exists (US-002).
     await page.goto("/customers");
     await expect(page.getByRole("main")).toContainText(walkIn);
   });
@@ -124,7 +124,7 @@ test.describe("selling a page from the board", () => {
     await page.getByTestId("upload-new-ad").click();
     await page.getByTestId("board-upload-file").setInputFiles(await validPdf("ללא-קשר.pdf"));
     await page.getByTestId("upload-target-new").click();
-    await page.getByTestId("new-customer-contact").fill("בלי טלפון ובלי מייל");
+    await page.getByTestId("new-customer-business").fill("בלי טלפון ובלי מייל");
     await page.getByTestId("board-upload-submit").click();
 
     // The same rule the customers screen enforces — a customer nobody can

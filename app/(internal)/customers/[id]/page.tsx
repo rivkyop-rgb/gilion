@@ -25,6 +25,7 @@ import { AD_FILE_TYPE_LABELS, formatBytes, type AdFileType } from "@/lib/domain/
 import { PUBLICATION_STATUS_LABELS, type PublicationStatus } from "@/lib/domain/publication-status";
 import { DeleteCustomer } from "./delete-customer";
 import { getCustomer } from "@/lib/data/customers";
+import { EmailLink, PhoneLink } from "@/components/contact-links";
 import { AdQuickLook, AdThumb } from "@/components/ads/ad-preview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,6 @@ import { EmptyState } from "@/components/states";
 import { ORDER_TONE, PAYMENT_TONE, PUBLICATION_TONE } from "@/components/status-tone";
 import { OrderStatusBadge } from "../../orders/order-badges";
 import { formatDate, formatMoney, orderNumber } from "../../orders/format";
-import { ConvertToRegular } from "./convert-to-regular";
 import { CopyLink } from "@/components/portal/copy-link";
 import { businessSlug } from "@/lib/data/portal-link";
 import { portalUrl } from "@/lib/portal-origin";
@@ -52,7 +52,6 @@ export default async function CustomerPage({
 
   const { id } = await params;
   const query = await searchParams;
-  const converted = query["converted"];
 
   /**
    * One set of list parameters per section, namespaced by prefix.
@@ -85,7 +84,7 @@ export default async function CustomerPage({
   const baseHref = (prefix: string) => {
     const kept = new URLSearchParams();
     for (const [key, value] of Object.entries(query)) {
-      if (!value || key === "converted") continue;
+      if (!value) continue;
       if (key === `${prefix}_page` || key === `${prefix}_size` || key === `${prefix}_q`) continue;
       kept.set(key, value);
     }
@@ -172,40 +171,25 @@ export default async function CustomerPage({
   const net = account.outstanding - credit;
   // Backlog 21: the business's portal link, to send this customer.
   const portalLink = await portalUrl(await businessSlug(ctx.businessId));
+  const mainContact = customer.contacts[0];
 
   return (
     <>
-      {converted ? (
-        <p
-          role="status"
-          data-testid="converted-toast"
-          className="mb-4 rounded-sm bg-status-success-bg px-4 py-3 text-sm text-status-success-fg"
-        >
-          הלקוח הפך ללקוח קבוע. כל ההיסטוריה נשמרה.
-        </p>
-      ) : null}
-
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="mb-2 font-serif text-3xl font-semibold" data-testid="customer-name">
-            {customer.business_name ?? customer.contact_name}
+            {customer.business_name}
           </h1>
-          <div className="flex items-center gap-3">
-            <Badge
-              tone={customer.customer_type === "casual" ? "debt" : "neutral"}
-              data-testid="customer-type-badge"
-            >
-              {customer.customer_type === "casual" ? "מזדמן" : "קבוע"}
-            </Badge>
-            {customer.business_name ? (
-              <span className="text-sm text-on-surface-variant">{customer.contact_name}</span>
-            ) : null}
-          </div>
+          {mainContact ? (
+            <p className="text-sm text-on-surface-variant" data-testid="customer-main-contact">
+              {mainContact.name}
+              {mainContact.role ? ` · ${mainContact.role}` : null}
+            </p>
+          ) : null}
         </div>
 
         {mayEdit ? (
           <div className="flex gap-2">
-            {customer.customer_type === "casual" ? <ConvertToRegular id={customer.id} /> : null}
             <CopyLink url={portalLink} label="העתקת קישור לפורטל" testId="customer-portal-link" />
             {canWriteArea(ctx, "settings") ? (
               <Button variant="secondary" asChild>
@@ -232,7 +216,7 @@ export default async function CustomerPage({
         <div className="mb-6 flex flex-wrap items-center gap-3">
           <DeleteCustomer
             id={customer.id}
-            name={customer.business_name ?? customer.contact_name}
+            name={customer.business_name}
             phone={customer.phone}
             email={customer.email}
             blocked={blockedReason}
@@ -240,14 +224,20 @@ export default async function CustomerPage({
         </div>
       ) : null}
 
-      <dl className="mb-8 grid gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-6 sm:grid-cols-3">
+      <dl className="mb-8 grid gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-6 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <dt className="text-xs text-on-surface-variant">טלפון</dt>
-          <dd className="mt-1">{customer.phone ? <Ltr>{customer.phone}</Ltr> : "—"}</dd>
+          <dt className="text-xs text-on-surface-variant">טלפון העסק</dt>
+          <dd className="mt-1">{customer.phone ? <PhoneLink phone={customer.phone} /> : "—"}</dd>
         </div>
         <div>
-          <dt className="text-xs text-on-surface-variant">מייל</dt>
-          <dd className="mt-1">{customer.email ? <Ltr>{customer.email}</Ltr> : "—"}</dd>
+          <dt className="text-xs text-on-surface-variant">מייל העסק</dt>
+          <dd className="mt-1">{customer.email ? <EmailLink email={customer.email} /> : "—"}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-on-surface-variant">ח.פ / ע.מ</dt>
+          <dd className="mt-1" data-testid="customer-tax-id">
+            {customer.tax_id ? <Ltr>{customer.tax_id}</Ltr> : "—"}
+          </dd>
         </div>
         {maySeeMoney ? (
           <div data-testid="customer-debt">
@@ -276,7 +266,7 @@ export default async function CustomerPage({
               className="rounded-lg border border-outline-variant bg-surface-container-lowest p-6"
               data-testid="customer-contacts"
             >
-              <h2 className="mb-3 text-sm font-semibold">אנשי קשר נוספים</h2>
+              <h2 className="mb-3 text-sm font-semibold">אנשי קשר</h2>
               <ul className="space-y-3">
                 {customer.contacts.map((c) => (
                   <li key={c.id} className="text-sm">
@@ -284,8 +274,8 @@ export default async function CustomerPage({
                     {c.role ? <span className="text-on-surface-variant"> · {c.role}</span> : null}
                     {c.phone || c.email ? (
                       <span className="mt-0.5 flex flex-wrap gap-x-4 text-on-surface-variant">
-                        {c.phone ? <Ltr>{c.phone}</Ltr> : null}
-                        {c.email ? <Ltr>{c.email}</Ltr> : null}
+                        {c.phone ? <PhoneLink phone={c.phone} /> : null}
+                        {c.email ? <EmailLink email={c.email} /> : null}
                       </span>
                     ) : null}
                   </li>
@@ -734,7 +724,7 @@ export default async function CustomerPage({
                         fileType: ad.file_type as AdFileType,
                         fileSize: ad.file_size,
                         previewUrl: ad.preview_url,
-                        customerLabel: customer.business_name ?? customer.contact_name,
+                        customerLabel: customer.business_name,
                         uploadedAt: ad.uploaded_at,
                         publicationCount: ad._count.publications,
                         invalid: ad.validation_status === "failed",

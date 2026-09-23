@@ -55,7 +55,7 @@ export default async function PortalAccessPage({ params }: { params: Promise<{ i
     listPortalAccounts(ctx.businessId, customer.id),
     portalActivity(ctx.businessId, customer.id),
   ]);
-  const label = customer.business_name || customer.contact_name;
+  const label = customer.business_name;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">
@@ -171,7 +171,7 @@ export default async function PortalAccessPage({ params }: { params: Promise<{ i
 
       <PortalAccountForm
         customerId={customer.id}
-        defaults={{ name: customer.contact_name, email: customer.email ?? "" }}
+        defaults={{ name: customer.contacts[0]?.name ?? "", email: customer.email ?? "" }}
       />
     </div>
   );

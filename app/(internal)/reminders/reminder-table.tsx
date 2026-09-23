@@ -7,7 +7,7 @@ import { Check, RefreshCw, Send, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Ltr } from "@/components/ui/ltr";
+import { EmailLink, PhoneLink } from "@/components/contact-links";
 import { InlineError } from "@/components/states";
 import {
   daysLabel,
@@ -212,13 +212,9 @@ export function ReminderTable({ rows, mayAct }: { rows: ReminderRow[]; mayAct: b
                 </td>
                 <td className="p-3">
                   {r.phone ? (
-                    <a href={`tel:${r.phone}`} className="underline">
-                      <Ltr className="font-mono text-xs">{r.phone}</Ltr>
-                    </a>
+                    <PhoneLink phone={r.phone} className="font-mono text-xs" />
                   ) : r.email ? (
-                    <a href={`mailto:${r.email}`} className="underline">
-                      <Ltr className="font-mono text-xs">{r.email}</Ltr>
-                    </a>
+                    <EmailLink email={r.email} className="font-mono text-xs" />
                   ) : (
                     <span className="text-xs text-on-surface-variant">אין פרטי קשר</span>
                   )}

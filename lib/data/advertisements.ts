@@ -17,7 +17,7 @@ export type AdFilters = {
 };
 
 const AD_INCLUDE = {
-  customer: { select: { id: true, contact_name: true, business_name: true } },
+  customer: { select: { id: true, business_name: true } },
   uploaded_by: { select: { id: true, name: true } },
   _count: { select: { publications: true } },
 };
@@ -72,7 +72,7 @@ export async function getAdvertisement(businessId: string, id: string) {
           publication_date: true,
           status: true,
           newspaper: { select: { name: true } },
-          customer: { select: { contact_name: true, business_name: true } },
+          customer: { select: { business_name: true } },
         },
         orderBy: { publication_date: "asc" },
       },
@@ -250,7 +250,7 @@ export async function placeableAds(businessId: string) {
       preview_url: true,
       uploaded_at: true,
       uploaded_by: { select: { name: true } },
-      customer: { select: { contact_name: true, business_name: true } },
+      customer: { select: { business_name: true } },
       _count: { select: { publications: true } },
     },
   });

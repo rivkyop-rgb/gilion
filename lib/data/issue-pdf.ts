@@ -84,7 +84,7 @@ const PRINT_INCLUDE = {
     where: { status: { in: ON_PAGE_STATES } },
     include: {
       publication: {
-        select: { customer: { select: { contact_name: true, business_name: true } } },
+        select: { customer: { select: { business_name: true } } },
       },
       advertisement: { select: { name: true, file_url: true, file_type: true } },
     },
@@ -166,7 +166,7 @@ export async function toPrintModel(
         .map((p): PrintBox => ({
           rect: { col: p.col, row: p.row, cols: p.cols, rows: p.rows },
           artwork: artworkByPlacement.get(p.id) ?? null,
-          label: p.publication.customer.business_name ?? p.publication.customer.contact_name,
+          label: p.publication.customer.business_name,
         })),
     })),
   };

@@ -2,8 +2,9 @@ import { expect, test } from "@playwright/test";
 import { USERS, login } from "./helpers";
 
 /**
- * US-002 acceptance criteria for creating a customer. The two validation rules
- * are the ones the story calls out explicitly (AC-3, AC-4).
+ * Creating a customer (US-002). Every customer is a business (23/09/2026): a
+ * business name, the business's phone or email, an optional ח.פ / ע.מ, and the
+ * people at it as contacts with roles.
  */
 test.describe("creating a customer (US-002)", () => {
   test.beforeEach(async ({ page }) => {
@@ -11,57 +12,63 @@ test.describe("creating a customer (US-002)", () => {
     await page.goto("/customers/new");
   });
 
-  test("creates a casual customer with only a phone", async ({ page }) => {
-    const name = `מזדמן ${Date.now()}`;
-    await page.getByTestId("type-casual").click();
-    await page.fill("#contactName", name);
+  test("creates a business with only a phone", async ({ page }) => {
+    const name = `עסק ${Date.now()}`;
+    await page.fill("#businessName", name);
     await page.fill("#phone", "052-999-8877");
     await page.getByRole("button", { name: "שמירה" }).click();
 
     await expect(page).toHaveURL(/\/customers\/[a-z0-9]+$/);
     await expect(page.getByTestId("customer-name")).toHaveText(name);
-    await expect(page.getByTestId("customer-type-badge")).toHaveText("מזדמן");
   });
 
-  test("creates a regular customer with a business name", async ({ page }) => {
-    const business = `עסק ${Date.now()}`;
-    await page.getByTestId("type-regular").click();
-    await page.fill("#businessName", business);
-    await page.fill("#contactName", "איש קשר");
+  test("saves ח.פ, contacts with roles and notes, and shows them on the card", async ({
+    page,
+  }) => {
+    const name = `עסק ${Date.now()}`;
+    await page.fill("#businessName", name);
+    await page.fill("#taxId", "51-555555-5");
     await page.fill("#email", `c${Date.now()}@example.com`);
+    const first = page.getByTestId("contact-row-0");
+    await first.getByLabel("שם").fill("רון לוי");
+    await first.getByLabel("תפקיד").fill("הנהלת חשבונות");
+    await page.getByTestId("contact-add").click();
+    await page.getByTestId("contact-row-1").getByLabel("שם").fill("מיכל");
+    await page.getByTestId("customer-notes").fill("משלמים בהעברה בנקאית");
     await page.getByRole("button", { name: "שמירה" }).click();
 
-    await expect(page.getByTestId("customer-name")).toHaveText(business);
-    await expect(page.getByTestId("customer-type-badge")).toHaveText("קבוע");
+    await expect(page.getByTestId("customer-name")).toHaveText(name);
+    await expect(page.getByTestId("customer-tax-id")).toHaveText("515555555");
+    await expect(page.getByTestId("customer-main-contact")).toHaveText("רון לוי · הנהלת חשבונות");
+    await expect(page.getByTestId("customer-contacts")).toContainText("מיכל");
+    await expect(page.getByTestId("customer-notes")).toContainText("משלמים בהעברה בנקאית");
   });
 
-  test("AC-3: refuses to save without a contact name", async ({ page }) => {
-    await page.getByTestId("type-casual").click();
+  test("refuses to save without a business name", async ({ page }) => {
     // The field is `required`, so remove the attribute to reach the server rule —
     // client validation is UX, never the security boundary (conventions.md §9).
-    await page.locator("#contactName").evaluate((el) => el.removeAttribute("required"));
+    await page.locator("#businessName").evaluate((el) => el.removeAttribute("required"));
     await page.fill("#phone", "0521234567");
     await page.getByRole("button", { name: "שמירה" }).click();
 
-    await expect(page.getByTestId("form-error").first()).toHaveText("שם איש קשר הוא שדה חובה");
+    await expect(page.getByTestId("form-error").first()).toHaveText("שם העסק הוא שדה חובה");
   });
 
-  test("AC-4: refuses to save with neither phone nor email", async ({ page }) => {
-    await page.getByTestId("type-casual").click();
-    await page.fill("#contactName", "בלי דרך ליצור קשר");
-    await page.getByRole("button", { name: "שמירה" }).click();
-
-    await expect(page.getByTestId("form-error").first()).toHaveText("יש להזין טלפון או כתובת מייל");
-  });
-
-  test("a regular customer without a business name is refused", async ({ page }) => {
-    await page.getByTestId("type-regular").click();
-    await page.fill("#contactName", "איש קשר");
-    await page.fill("#phone", "0521234567");
+  test("refuses to save with neither phone nor email", async ({ page }) => {
+    await page.fill("#businessName", "בלי דרך ליצור קשר");
     await page.getByRole("button", { name: "שמירה" }).click();
 
     await expect(page.getByTestId("form-error").first()).toHaveText(
-      "שם העסק הוא שדה חובה ללקוח קבוע",
+      "יש להזין טלפון או מייל של העסק",
     );
+  });
+
+  test("refuses a ח.פ / ע.מ that is not nine digits", async ({ page }) => {
+    await page.fill("#businessName", `עסק ${Date.now()}`);
+    await page.fill("#phone", "0521234567");
+    await page.fill("#taxId", "12345");
+    await page.getByRole("button", { name: "שמירה" }).click();
+
+    await expect(page.getByTestId("form-error").first()).toHaveText("ח.פ / ע.מ צריך להיות 9 ספרות");
   });
 });

@@ -41,8 +41,7 @@ export async function createCustomer(
 }> {
   const name = `${prefix} ${Date.now()}`;
   await page.goto("/customers/new");
-  await page.getByTestId("type-casual").click();
-  await page.fill("#contactName", name);
+  await page.fill("#businessName", name);
   await page.fill("#phone", "050-1112233");
   await page.getByRole("button", { name: "שמירה" }).click();
   // The id pattern must exclude "new": a bare [a-z0-9]+ matches /customers/new

@@ -39,7 +39,7 @@ export default async function RemindersPage({
     id: r.id,
     status: r.status as ReminderStatus,
     sentAt: r.sent_at,
-    customerName: r.customer.business_name ?? r.customer.contact_name,
+    customerName: r.customer.business_name,
     phone: r.customer.phone,
     email: r.customer.email,
     publicationId: r.publication.id,

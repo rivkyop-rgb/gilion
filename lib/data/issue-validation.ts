@@ -50,7 +50,7 @@ const VALIDATION_INCLUDE = {
         select: {
           id: true,
           customer_id: true,
-          customer: { select: { contact_name: true, business_name: true } },
+          customer: { select: { business_name: true } },
         },
       },
       advertisement: {
@@ -75,8 +75,7 @@ export async function loadIssueForValidation(businessId: string, issueId: string
   });
 }
 
-const nameOf = (c: { contact_name: string; business_name: string | null }) =>
-  c.business_name ?? c.contact_name;
+const nameOf = (c: { business_name: string }) => c.business_name;
 
 /**
  * Turns loaded rows into the pure input.

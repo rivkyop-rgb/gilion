@@ -1,5 +1,5 @@
 /**
- * Customer validation and conversion rules (US-002).
+ * Customer validation (US-002).
  *
  * Pure module: no Prisma, no React (conventions.md §9). Everything here is
  * enforced on the server; the client form re-uses it only to render friendlier
@@ -8,16 +8,20 @@
 
 import { counted } from "./hebrew-count";
 
-export type CustomerType = "regular" | "casual";
-
+/**
+ * A customer is a BUSINESS: its name, its own phone and email, an optional
+ * ח.פ / ע.מ, and the people at it as `contacts`. Until 23/09/2026 there were
+ * two types — `regular` (a business) and `casual` (one person) — and the user
+ * decided every customer is a business; the migration moved each old contact
+ * person to the head of the contacts list.
+ */
 export type CustomerInput = {
-  customerType: CustomerType;
-  businessName?: string | null;
-  contactName: string;
+  businessName: string;
+  taxId?: string | null;
   phone?: string | null;
   email?: string | null;
   notes?: string | null;
-  /** People beyond `contactName`, in the order they were entered. */
+  /** The people at the business, in the order entered; the first is the main one. */
   contacts?: ContactInput[];
 };
 
@@ -55,28 +59,37 @@ export function normalizeEmail(raw: string | null | undefined): string | null {
   return trimmed ? trimmed : null;
 }
 
+
+/** ח.פ / ע.מ as stored: digits only. Null for an empty input. */
+export function normalizeTaxId(raw: string | null | undefined): string | null {
+  const digits = raw?.replace(/[\s\-./]/g, "") ?? "";
+  return digits === "" ? null : digits;
+}
+
+const TAX_ID = /^\d{9}$/;
+
 /** Returns every problem at once, so the form can mark all bad fields in one pass. */
 export function validateCustomer(input: CustomerInput): FieldError[] {
   const errors: FieldError[] = [];
 
-  const contactName = input.contactName?.trim() ?? "";
   const businessName = input.businessName?.trim() ?? "";
+  const taxId = normalizeTaxId(input.taxId);
   const phone = normalizePhone(input.phone);
   const email = normalizeEmail(input.email);
 
-  // 1. contact name is always required
-  if (!contactName) {
-    errors.push({ field: "contactName", message: "שם איש קשר הוא שדה חובה" });
+  // 1. the business name is always required
+  if (!businessName) {
+    errors.push({ field: "businessName", message: "שם העסק הוא שדה חובה" });
   }
 
-  // 2. reachable by phone or email — for both customer types
+  // 2. reachable by phone or email
   if (!phone && !email) {
-    errors.push({ field: "phone", message: "יש להזין טלפון או כתובת מייל" });
+    errors.push({ field: "phone", message: "יש להזין טלפון או מייל של העסק" });
   }
 
-  // 3. a regular customer must carry a business name
-  if (input.customerType === "regular" && !businessName) {
-    errors.push({ field: "businessName", message: "שם העסק הוא שדה חובה ללקוח קבוע" });
+  // 3. ח.פ / ע.מ is optional, but one that is there must be one
+  if (taxId && !TAX_ID.test(taxId)) {
+    errors.push({ field: "taxId", message: "ח.פ / ע.מ צריך להיות 9 ספרות" });
   }
 
   // 4. phone format, only when one was supplied
@@ -93,11 +106,11 @@ export function validateCustomer(input: CustomerInput): FieldError[] {
     errors.push({ field: "notes", message: `ההערות ארוכות מדי — עד ${NOTES_MAX} תווים` });
   }
 
-  // 6. additional contacts. A row left completely blank is dropped, not
+  // 6. contacts. A row left completely blank is dropped, not
   //    refused: "הוספת איש קשר" pressed once too often is not an error.
   const contacts = (input.contacts ?? []).filter((c) => !isBlankContact(c));
   if (contacts.length > CONTACTS_MAX) {
-    errors.push({ field: "contacts", message: `עד ${CONTACTS_MAX} אנשי קשר נוספים` });
+    errors.push({ field: "contacts", message: `עד ${CONTACTS_MAX} אנשי קשר` });
   }
   contacts.forEach((c, i) => {
     const which = `באיש הקשר ה־${i + 1}`;
@@ -135,47 +148,12 @@ export function contactsToStorage(contacts: ContactInput[] | undefined) {
 /** The normalised shape that reaches the database. */
 export function toStorage(input: CustomerInput) {
   return {
-    customer_type: input.customerType,
-    business_name:
-      input.customerType === "regular"
-        ? (input.businessName?.trim() ?? null)
-        : input.businessName?.trim() || null,
-    contact_name: input.contactName.trim(),
+    business_name: input.businessName.trim(),
+    tax_id: normalizeTaxId(input.taxId),
     phone: normalizePhone(input.phone),
     email: normalizeEmail(input.email),
     notes: input.notes?.trim() || null,
   };
-}
-
-export class InvalidConversionError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "InvalidConversionError";
-  }
-}
-
-/**
- * Conversion is one-way (rule 6) and never touches the id (rule 7) — which is
- * what preserves the customer's whole history, the point of US-002.
- *
- * regular → casual is refused: orders and publications already reference this
- * customer as a business, and downgrading would strip the business name that
- * invoices and reports were produced against.
- */
-export function assertConvertible(
-  current: CustomerType,
-  target: CustomerType,
-  businessName: string | null | undefined,
-): void {
-  if (current === target) {
-    throw new InvalidConversionError("הלקוח כבר מסוג זה");
-  }
-  if (current === "regular" && target === "casual") {
-    throw new InvalidConversionError("לא ניתן להפוך לקוח קבוע ללקוח מזדמן");
-  }
-  if (!businessName?.trim()) {
-    throw new InvalidConversionError("כדי להפוך לקוח קבוע יש להזין שם עסק");
-  }
 }
 
 /**

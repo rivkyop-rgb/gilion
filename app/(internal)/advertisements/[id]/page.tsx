@@ -166,7 +166,7 @@ export default async function AdvertisementPage({ params }: { params: Promise<{ 
                 locked={ad.publications.length > 0}
                 customers={customers.map((c) => ({
                   value: c.id,
-                  label: c.business_name ?? c.contact_name,
+                  label: c.business_name,
                   hint: c.phone ?? undefined,
                 }))}
               />

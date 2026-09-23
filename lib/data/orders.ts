@@ -14,7 +14,7 @@ import { packagesByNewspaper } from "./newspapers";
 export type OrderFilters = { status?: string; source?: string };
 
 const ORDER_INCLUDE = {
-  customer: { select: { id: true, contact_name: true, business_name: true } },
+  customer: { select: { id: true, business_name: true } },
   /// Artwork attached to the order as a whole — see AdOrder.advertisement_id.
   advertisement: { select: { id: true, name: true } },
   items: {

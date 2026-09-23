@@ -122,7 +122,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const rows: WeekRow[] = table.rows.map((p) => ({
     id: p.id,
     customerId: p.customer_id,
-    customerName: p.customer.business_name ?? p.customer.contact_name,
+    customerName: p.customer.business_name,
     newspaperName: p.newspaper.name,
     date: p.publication_date,
     shapeName: p.ad_shape.name,
@@ -198,7 +198,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               total={reminders.total}
               reminders={reminders.rows.map((r) => ({
                 id: r.id,
-                customerName: r.customer.business_name ?? r.customer.contact_name,
+                customerName: r.customer.business_name,
                 newspaperName: r.publication.newspaper.name,
                 date: r.publication.publication_date,
                 daysLeft: daysUntil(r.publication.publication_date, today),
@@ -245,7 +245,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               newspapers={papers.map((p) => ({ id: p.id, name: p.name }))}
               customers={customers.map((c) => ({
                 id: c.id,
-                name: c.business_name ?? c.contact_name,
+                name: c.business_name,
               }))}
               statuses={PUBLICATION_STATUSES.map((s) => ({
                 value: s,

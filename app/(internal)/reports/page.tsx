@@ -264,12 +264,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
             testId="report-customer"
             options={customers.map((c) => ({
               value: c.id,
-              label: c.business_name ?? c.contact_name,
-              // Searchable as well as shown: a business is often looked up by
-              // the person who answers the phone there.
-              ...(c.business_name && c.business_name !== c.contact_name
-                ? { hint: c.contact_name }
-                : {}),
+              label: c.business_name,
             }))}
             // "" and not "all": an empty combobox IS "no filter", and giving
             // that state a sentinel value would need a fake option to select.

@@ -789,7 +789,7 @@ export async function billingCustomers(
       total_price: true,
       payment_status: true,
       external_invoice_number: true,
-      customer: { select: { id: true, business_name: true, contact_name: true } },
+      customer: { select: { id: true, business_name: true } },
     },
   });
 
@@ -817,7 +817,7 @@ export async function billingCustomers(
 
   const byCustomer = new Map<string, BillingCustomerRow>();
   for (const order of orders) {
-    const label = order.customer.business_name ?? order.customer.contact_name;
+    const label = order.customer.business_name;
     const row = byCustomer.get(order.customer_id) ?? {
       customerId: order.customer_id,
       label,
@@ -856,12 +856,12 @@ export async function billingCustomers(
     if (credit <= 0 || byCustomer.has(customerId)) continue;
     const customer = await db.customer.findUnique({
       where: { id: customerId },
-      select: { business_name: true, contact_name: true },
+      select: { business_name: true },
     });
     if (!customer) continue;
     byCustomer.set(customerId, {
       customerId,
-      label: customer.business_name ?? customer.contact_name,
+      label: customer.business_name,
       billed: 0,
       paid: 0,
       outstanding: 0,
@@ -1038,7 +1038,7 @@ export async function billingReport(businessId: string, filters: ReportFilters) 
       order_id: true,
       price: true,
       status: true,
-      customer: { select: { business_name: true, contact_name: true } },
+      customer: { select: { business_name: true } },
     },
     take: 5000,
   });
@@ -1057,7 +1057,7 @@ export async function billingReport(businessId: string, filters: ReportFilters) 
 
   const rows: ReportPublication[] = publications.map((p) => ({
     customerId: p.customer_id,
-    customerLabel: p.customer.business_name ?? p.customer.contact_name,
+    customerLabel: p.customer.business_name,
     newspaperId: p.newspaper_id,
     orderId: p.order_id,
     price: Number(p.price),
@@ -1122,7 +1122,7 @@ export async function publicationReport(
       advertisement_id: true,
       order_id: true,
       order: { select: { number: true } },
-      customer: { select: { id: true, business_name: true, contact_name: true } },
+      customer: { select: { id: true, business_name: true } },
       newspaper: { select: { name: true } },
       ad_shape: { select: { name: true } },
     },
@@ -1133,7 +1133,7 @@ export async function publicationReport(
     id: r.id,
     date: r.publication_date,
     customerId: r.customer.id,
-    customerLabel: r.customer.business_name ?? r.customer.contact_name,
+    customerLabel: r.customer.business_name,
     newspaper: r.newspaper.name,
     shape: r.ad_shape.name,
     status: r.status,

@@ -4,20 +4,16 @@
  */
 import { Prisma } from "@prisma/client";
 import { tenantDb } from "./db";
-import type { CustomerType } from "@/lib/domain/customer";
 
 export type CustomerListFilters = {
   search?: string;
-  type?: CustomerType | "all";
   page?: number;
   perPage?: number;
 };
 
 export type CustomerRow = {
   id: string;
-  customerType: CustomerType;
-  businessName: string | null;
-  contactName: string;
+  businessName: string;
   phone: string | null;
   email: string | null;
 };
@@ -39,8 +35,8 @@ export type CustomerRow = {
  */
 export async function listCustomerOptions(businessId: string) {
   return tenantDb(businessId).customer.findMany({
-    orderBy: [{ contact_name: "asc" }],
-    select: { id: true, contact_name: true, business_name: true, phone: true },
+    orderBy: [{ business_name: "asc" }],
+    select: { id: true, business_name: true, phone: true },
   });
 }
 
@@ -51,12 +47,14 @@ export async function listCustomers(businessId: string, filters: CustomerListFil
   const search = filters.search?.trim();
 
   const where: Prisma.CustomerWhereInput = {
-    ...(filters.type && filters.type !== "all" ? { customer_type: filters.type } : {}),
     ...(search
       ? {
           OR: [
-            { contact_name: { contains: search, mode: "insensitive" } },
             { business_name: { contains: search, mode: "insensitive" } },
+            // The person who answers the phone is often how a business is
+            // remembered, so the people at it are searchable too.
+            { contacts: { some: { name: { contains: search, mode: "insensitive" } } } },
+            { tax_id: { contains: search.replace(/[\s\-./]/g, "") } },
             { phone: { contains: search } },
             { email: { contains: search, mode: "insensitive" } },
           ],
@@ -67,7 +65,8 @@ export async function listCustomers(businessId: string, filters: CustomerListFil
   const [rows, total] = await Promise.all([
     db.customer.findMany({
       where,
-      orderBy: [{ contact_name: "asc" }],
+      orderBy: [{ business_name: "asc" }],
+      include: { contacts: { orderBy: { position: "asc" }, take: 1 } },
       skip: (page - 1) * perPage,
       take: perPage,
     }),
@@ -86,8 +85,8 @@ export async function listCustomers(businessId: string, filters: CustomerListFil
  */
 export async function customerOptions(businessId: string) {
   return tenantDb(businessId).customer.findMany({
-    orderBy: [{ contact_name: "asc" }],
-    select: { id: true, business_name: true, contact_name: true },
+    orderBy: [{ business_name: "asc" }],
+    select: { id: true, business_name: true },
     take: 1000,
   });
 }
@@ -102,12 +101,11 @@ export async function getCustomer(businessId: string, id: string) {
 export async function createCustomer(
   businessId: string,
   data: {
-    customer_type: CustomerType;
-    business_name: string | null;
-    contact_name: string;
+    business_name: string;
+    tax_id: string | null;
     phone: string | null;
     email: string | null;
-    notes?: string | null;
+    notes: string | null;
   },
   contacts: StoredContact[] = [],
 ) {
@@ -129,9 +127,8 @@ export async function updateCustomer(
   businessId: string,
   id: string,
   data: {
-    customer_type?: CustomerType;
-    business_name?: string | null;
-    contact_name?: string;
+    business_name?: string;
+    tax_id?: string | null;
     phone?: string | null;
     email?: string | null;
     notes?: string | null;
@@ -189,6 +186,16 @@ export async function emailTaken(businessId: string, email: string, exceptId?: s
       email: { equals: email, mode: "insensitive" },
       ...(exceptId ? { NOT: { id: exceptId } } : {}),
     },
+    select: { id: true },
+  });
+  return found !== null;
+}
+
+/** ח.פ / ע.מ is unique within a business; checked here for a Hebrew refusal
+    rather than a unique-index error. */
+export async function taxIdTaken(businessId: string, taxId: string, exceptId?: string) {
+  const found = await tenantDb(businessId).customer.findFirst({
+    where: { tax_id: taxId, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
     select: { id: true },
   });
   return found !== null;

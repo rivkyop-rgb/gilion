@@ -119,7 +119,7 @@ const BOARD_INCLUDE = {
       publication: {
         select: {
           id: true,
-          customer: { select: { id: true, contact_name: true, business_name: true } },
+          customer: { select: { id: true, business_name: true } },
         },
       },
       advertisement: {
@@ -227,7 +227,7 @@ export async function publicationsForIssue(
     },
     orderBy: [{ created_at: "asc" }],
     include: {
-      customer: { select: { id: true, contact_name: true, business_name: true } },
+      customer: { select: { id: true, business_name: true } },
       ad_shape: {
         select: {
           id: true,
@@ -439,7 +439,7 @@ export async function issueReport(
           publication: {
             select: {
               id: true,
-              customer: { select: { business_name: true, contact_name: true } },
+              customer: { select: { business_name: true } },
             },
           },
           ad_shape: { select: { name: true } },
@@ -463,9 +463,7 @@ export async function issueReport(
       grid: gridOfIssue(issue),
       placements: issue.placements.map((placement) => ({
         id: placement.id,
-        customerName:
-          placement.publication.customer.business_name ??
-          placement.publication.customer.contact_name,
+        customerName: placement.publication.customer.business_name,
         shapeName: placement.ad_shape.name,
         cols: placement.cols,
         rows: placement.rows,

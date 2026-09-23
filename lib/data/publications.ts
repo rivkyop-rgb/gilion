@@ -43,7 +43,7 @@ export function attentionWhere(attention: string): Prisma.PublicationWhereInput 
 }
 
 const PUBLICATION_INCLUDE = {
-  customer: { select: { id: true, contact_name: true, business_name: true } },
+  customer: { select: { id: true, business_name: true } },
   newspaper: { select: { id: true, name: true } },
   ad_shape: { select: { id: true, name: true, cols: true, rows: true } },
   order: { select: { id: true, number: true } },

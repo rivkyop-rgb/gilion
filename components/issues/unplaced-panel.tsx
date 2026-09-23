@@ -34,7 +34,7 @@ export type BoardCandidate = {
   needsArtwork: boolean;
 };
 
-export type CustomerOption = { id: string; label: string; hint?: string; casual: boolean };
+export type CustomerOption = { id: string; label: string; hint?: string };
 
 export type OpenPage = {
   id: string;
@@ -381,7 +381,7 @@ type Target = "publication" | "customer" | "new";
  * A publication that is already waiting settles everything by itself. A
  * customer settles who is buying but not what — so a shape, a page and a price
  * are asked for, and confirming creates the order and the publication. A
- * walk-in settles nothing, so the customer is created too, as `casual`.
+ * walk-in settles nothing, so the customer is created too.
  *
  * One dialog for all three, deliberately: the upload rules are identical and
  * three dialogs would be three places for them to drift apart.
@@ -495,8 +495,8 @@ function UploadDialog({
           newCustomer:
             target === "new"
               ? {
-                  contactName: contactName.trim(),
-                  businessName: businessName.trim() === "" ? null : businessName.trim(),
+                  businessName: businessName.trim(),
+                  contactName: contactName.trim() === "" ? null : contactName.trim(),
                   phone: phone.trim() === "" ? null : phone.trim(),
                   email: email.trim() === "" ? null : email.trim(),
                 }
@@ -625,21 +625,21 @@ function UploadDialog({
             ) : (
               <div className="mb-3 grid gap-2 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor="nc-contact">שם איש קשר</Label>
-                  <Input
-                    id="nc-contact"
-                    data-testid="new-customer-contact"
-                    value={contactName}
-                    onChange={(e) => setContactName(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="nc-business">שם עסק (רשות)</Label>
+                  <Label htmlFor="nc-business">שם העסק</Label>
                   <Input
                     id="nc-business"
                     data-testid="new-customer-business"
                     value={businessName}
                     onChange={(e) => setBusinessName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="nc-contact">איש קשר (רשות)</Label>
+                  <Input
+                    id="nc-contact"
+                    data-testid="new-customer-contact"
+                    value={contactName}
+                    onChange={(e) => setContactName(e.target.value)}
                   />
                 </div>
                 <div>
@@ -663,8 +663,8 @@ function UploadDialog({
                   />
                 </div>
                 <p className="text-xs text-on-surface-variant sm:col-span-2">
-                  צריך טלפון או מייל — אחד מהם מספיק. הלקוח נשמר כמזדמן, וניתן להפוך אותו לקבוע
-                  בכרטיס הלקוח בלי לאבד את ההזמנה הזאת.
+                  צריך טלפון או מייל — אחד מהם מספיק. שאר הפרטים (ח.פ, אנשי קשר נוספים) אפשר להשלים
+                  אחר כך בכרטיס הלקוח.
                 </p>
               </div>
             )}

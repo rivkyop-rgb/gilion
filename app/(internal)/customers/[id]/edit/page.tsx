@@ -4,7 +4,6 @@ import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { getCustomer } from "@/lib/data/customers";
 import { CustomerForm } from "../../customer-form";
 import { updateCustomerAction } from "../../actions";
-import type { CustomerType } from "@/lib/domain/customer";
 
 export const metadata: Metadata = { title: "עריכת לקוח · Gilion" };
 
@@ -26,16 +25,12 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ i
   return (
     <div className="max-w-[500px]">
       <h1 className="mb-1 font-serif text-3xl font-semibold">עריכת לקוח</h1>
-      <p className="mb-6 text-sm text-on-surface-variant">
-        שינוי סוג הלקוח נעשה דרך פעולת ההמרה בכרטיס, לא מכאן.
-      </p>
+      <div className="mb-6" />
       <CustomerForm
         action={updateCustomerAction.bind(null, id)}
-        lockType
         initial={{
-          customerType: customer.customer_type as CustomerType,
-          businessName: customer.business_name ?? "",
-          contactName: customer.contact_name,
+          businessName: customer.business_name,
+          taxId: customer.tax_id ?? "",
           phone: customer.phone ?? "",
           email: customer.email ?? "",
           notes: customer.notes ?? "",

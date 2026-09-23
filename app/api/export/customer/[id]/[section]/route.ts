@@ -82,7 +82,7 @@ export async function GET(
   // like any other. Refused here rather than merely unlinked in the page.
   const maySeeMoney = ctx.role !== "designer";
 
-  const label = customer.business_name ?? customer.contact_name;
+  const label = customer.business_name;
   let body: string;
   let name: string;
 

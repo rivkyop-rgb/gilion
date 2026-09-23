@@ -113,8 +113,7 @@ export default async function BoardPage({
       row: placement.row,
       cols: placement.cols,
       rows: placement.rows,
-      customerName:
-        placement.publication.customer.business_name ?? placement.publication.customer.contact_name,
+      customerName: placement.publication.customer.business_name,
       shapeId: placement.ad_shape_id,
       shapeName: placement.ad_shape.name,
       shapePositions: shapeOf(placement.ad_shape).positions,
@@ -138,7 +137,7 @@ export default async function BoardPage({
     // nobody can be granted an exception to.
     candidates: publications.map((pub) => ({
       publicationId: pub.id,
-      customerName: pub.customer.business_name ?? pub.customer.contact_name,
+      customerName: pub.customer.business_name,
       shape: shapeOf(pub.ad_shape),
       previewUrl: pub.advertisement?.preview_url ?? null,
       adName: pub.advertisement?.name ?? null,

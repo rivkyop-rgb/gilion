@@ -1,42 +1,44 @@
 import { describe, expect, it } from "vitest";
 import {
-  assertConvertible,
   contactsToStorage,
   deletionBlockedMessage,
-  InvalidConversionError,
   normalizeEmail,
   normalizePhone,
+  normalizeTaxId,
   toStorage,
   validateCustomer,
   type CustomerInput,
 } from "./customer";
 
 const base: CustomerInput = {
-  customerType: "casual",
-  contactName: "נועה כהן",
+  businessName: "מרכז הרפואה",
   phone: "052-123-4567",
 };
 
 const errorFor = (input: Partial<CustomerInput>) =>
   validateCustomer({ ...base, ...input }).map((e) => e.message);
 
-describe("rule 1 — contact name is required (US-002)", () => {
-  it("rejects an empty name", () => {
-    expect(errorFor({ contactName: "" })).toContain("שם איש קשר הוא שדה חובה");
+describe("rule 1 — every customer is a business with a name", () => {
+  it("rejects an empty business name", () => {
+    expect(errorFor({ businessName: "" })).toContain("שם העסק הוא שדה חובה");
   });
 
   it("rejects whitespace only", () => {
-    expect(errorFor({ contactName: "   " })).toContain("שם איש קשר הוא שדה חובה");
+    expect(errorFor({ businessName: "   " })).toContain("שם העסק הוא שדה חובה");
   });
 
   it("accepts a Hebrew name", () => {
     expect(validateCustomer(base)).toEqual([]);
   });
+
+  it("needs no contact person", () => {
+    expect(validateCustomer({ ...base, contacts: [] })).toEqual([]);
+  });
 });
 
-describe("rule 2 — phone or email is required (US-002)", () => {
+describe("rule 2 — the business's phone or email is required", () => {
   it("rejects when both are missing", () => {
-    expect(errorFor({ phone: null, email: null })).toContain("יש להזין טלפון או כתובת מייל");
+    expect(errorFor({ phone: null, email: null })).toContain("יש להזין טלפון או מייל של העסק");
   });
 
   it("accepts phone alone", () => {
@@ -46,23 +48,20 @@ describe("rule 2 — phone or email is required (US-002)", () => {
   it("accepts email alone", () => {
     expect(validateCustomer({ ...base, phone: null, email: "noa@example.com" })).toEqual([]);
   });
-
-  it("applies to regular customers too, not just casual", () => {
-    expect(
-      errorFor({ customerType: "regular", businessName: "מרכז הרפואה", phone: null, email: null }),
-    ).toContain("יש להזין טלפון או כתובת מייל");
-  });
 });
 
-describe("rule 3 — a regular customer needs a business name", () => {
-  it("rejects a regular customer without one", () => {
-    expect(errorFor({ customerType: "regular", businessName: "" })).toContain(
-      "שם העסק הוא שדה חובה ללקוח קבוע",
-    );
+describe("rule 3 — ח.פ / ע.מ is optional, and nine digits when given", () => {
+  it("accepts no number at all", () => {
+    expect(validateCustomer({ ...base, taxId: "" })).toEqual([]);
   });
 
-  it("does not require it for a casual customer", () => {
-    expect(validateCustomer({ ...base, businessName: "" })).toEqual([]);
+  it.each(["515555555", "51-555555-5", "515 555 555"])("accepts %s as 515555555", (raw) => {
+    expect(normalizeTaxId(raw)).toBe("515555555");
+    expect(validateCustomer({ ...base, taxId: raw })).toEqual([]);
+  });
+
+  it.each(["12345", "1234567890", "abc"])("rejects %s", (raw) => {
+    expect(errorFor({ taxId: raw })).toContain("ח.פ / ע.מ צריך להיות 9 ספרות");
   });
 });
 
@@ -95,36 +94,9 @@ describe("rule 5 — email format and normalisation", () => {
 });
 
 describe("reports every problem at once", () => {
-  it("returns three errors for a fully empty regular customer", () => {
-    const errors = validateCustomer({
-      customerType: "regular",
-      contactName: "",
-      businessName: "",
-      phone: null,
-      email: null,
-    });
-    expect(errors).toHaveLength(3);
-    expect(errors.map((e) => e.field).sort()).toEqual(["businessName", "contactName", "phone"]);
-  });
-});
-
-describe("rule 6 — conversion is one-way", () => {
-  it("allows casual → regular with a business name", () => {
-    expect(() => assertConvertible("casual", "regular", "מרכז הרפואה")).not.toThrow();
-  });
-
-  it("refuses casual → regular without a business name", () => {
-    expect(() => assertConvertible("casual", "regular", "  ")).toThrow(InvalidConversionError);
-  });
-
-  it("refuses regular → casual — the history was produced against a business", () => {
-    expect(() => assertConvertible("regular", "casual", "x")).toThrow(
-      "לא ניתן להפוך לקוח קבוע ללקוח מזדמן",
-    );
-  });
-
-  it("refuses converting to the type it already is", () => {
-    expect(() => assertConvertible("casual", "casual", "x")).toThrow("הלקוח כבר מסוג זה");
+  it("returns every error for an empty customer with a bad number", () => {
+    const errors = validateCustomer({ businessName: "", taxId: "1", phone: null, email: null });
+    expect(errors.map((e) => e.field).sort()).toEqual(["businessName", "phone", "taxId"]);
   });
 });
 
@@ -158,30 +130,22 @@ describe("toStorage", () => {
   it("normalises phone and email on the way to the database", () => {
     expect(
       toStorage({
-        customerType: "regular",
         businessName: "  מרכז הרפואה  ",
-        contactName: "  נועה  ",
+        taxId: "51-555555-5",
         phone: "052-123-4567",
         email: " Noa@Example.com ",
       }),
     ).toEqual({
-      customer_type: "regular",
       business_name: "מרכז הרפואה",
-      contact_name: "נועה",
+      tax_id: "515555555",
       phone: "0521234567",
       email: "noa@example.com",
       notes: null,
     });
   });
-
-  it("keeps a casual customer's optional business name as null when blank", () => {
-    expect(toStorage({ ...base, businessName: "   " }).business_name).toBeNull();
-  });
 });
 
-describe("additional contacts", () => {
-  const base = { customerType: "casual" as const, contactName: "דנה", phone: "0521234567" };
-
+describe("contacts", () => {
   it("drops a row left completely blank instead of refusing it", () => {
     const contacts = [{ name: " ", role: "", phone: "", email: "" }];
     expect(validateCustomer({ ...base, contacts })).toEqual([]);

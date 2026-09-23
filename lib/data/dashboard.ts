@@ -111,7 +111,7 @@ export async function reminderWidget(businessId: string, take = 5) {
       select: {
         id: true,
         status: true,
-        customer: { select: { id: true, contact_name: true, business_name: true } },
+        customer: { select: { id: true, business_name: true } },
         publication: {
           select: {
             id: true,

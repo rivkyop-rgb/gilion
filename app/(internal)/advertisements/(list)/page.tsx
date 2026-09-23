@@ -83,7 +83,7 @@ export default async function AdvertisementsPage({
     status: ad.status as AdCardModel["status"],
     validationStatus: ad.validation_status as AdCardModel["validationStatus"],
     validationError: ad.validation_error,
-    customerLabel: ad.customer ? (ad.customer.business_name ?? ad.customer.contact_name) : null,
+    customerLabel: ad.customer ? ad.customer.business_name : null,
     uploadedBy: ad.uploaded_by.name,
     uploadedAt: ad.uploaded_at,
     publicationCount: ad._count.publications,
@@ -121,7 +121,7 @@ export default async function AdvertisementsPage({
             newspapers={papers}
             customers={customers.map((c) => ({
               id: c.id,
-              label: c.business_name ?? c.contact_name,
+              label: c.business_name,
               hint: c.phone ?? undefined,
             }))}
           />
@@ -174,7 +174,7 @@ export default async function AdvertisementsPage({
               testId="filter-customer"
               options={customers.map((c) => ({
                 value: c.id,
-                label: c.business_name ?? c.contact_name,
+                label: c.business_name,
                 hint: c.phone ?? undefined,
               }))}
               // "" is "all": the data layer ignores an empty customer id.

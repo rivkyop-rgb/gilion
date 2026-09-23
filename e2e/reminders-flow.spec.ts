@@ -78,8 +78,7 @@ async function addPrintableLine(page: Page, minDays: number): Promise<number> {
 async function ownCustomer(page: Page): Promise<string> {
   const name = `ממתין למודעה ${Date.now()}`;
   await page.goto("/customers/new");
-  await page.getByTestId("type-casual").click();
-  await page.fill("#contactName", name);
+  await page.fill("#businessName", name);
   await page.fill("#phone", "050-1112223");
   await page.getByRole("button", { name: "שמירה" }).click();
   await page.waitForURL(/\/customers\/c[a-z0-9]{20,}$/);

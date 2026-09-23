@@ -149,47 +149,50 @@ async function main() {
   // UserMembership refuses role = customer without a customer_id.
 
   // Customers in BOTH businesses — tenant isolation cannot be tested with one.
+  // Every customer is a business; the people at it are contacts.
   const customers = [
     {
       id: "cust_alpha_1",
       business_id: alpha.id,
-      customer_type: "regular" as const,
       business_name: "מרכז הרפואה",
-      contact_name: "יעל אבידן",
       phone: "0521234567",
       email: "yael@refua.test",
+      contact: "יעל אבידן",
     },
     {
       id: "cust_alpha_2",
       business_id: alpha.id,
-      customer_type: "casual" as const,
-      business_name: null,
-      contact_name: "משה לוי",
+      business_name: "משה לוי",
       phone: "0539876543",
       email: null,
+      contact: null,
     },
     {
       id: "cust_alpha_3",
       business_id: alpha.id,
-      customer_type: "regular" as const,
       business_name: "אולמי הדר",
-      contact_name: "דוד הדר",
       phone: null,
       email: "david@hadar.test",
+      contact: "דוד הדר",
     },
     {
       id: "cust_beta_1",
       business_id: beta.id,
-      customer_type: "regular" as const,
       business_name: "צפון תיירות",
-      contact_name: "רונית שפירא",
       phone: "0501112222",
       email: "ronit@tzafon.test",
+      contact: "רונית שפירא",
     },
   ];
 
-  for (const c of customers) {
+  for (const { contact, ...c } of customers) {
     await prisma.customer.upsert({ where: { id: c.id }, update: c, create: c });
+    await prisma.customerContact.deleteMany({ where: { customer_id: c.id } });
+    if (contact) {
+      await prisma.customerContact.create({
+        data: { customer_id: c.id, name: contact, position: 0 },
+      });
+    }
   }
 
   // Two portal logins at two DIFFERENT customers of the same business — the

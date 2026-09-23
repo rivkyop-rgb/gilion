@@ -278,8 +278,8 @@ export async function setIssueStatusAction(issueId: string, status: string): Pro
 /* ------------------------------------------------ selling from the board */
 
 const newCustomerSchema = z.object({
-  contactName: z.string().min(1),
-  businessName: z.string().nullable(),
+  businessName: z.string().min(1),
+  contactName: z.string().nullable(),
   phone: z.string().nullable(),
   email: z.string().nullable(),
 });
@@ -324,14 +324,12 @@ export async function createBoardSaleAction(
         : {
             kind: "new",
             input: {
-              // A walk-in bought one ad; `casual` is the type US-002 keeps for
-              // exactly that, and it converts to `regular` later without losing
-              // this order.
-              customerType: "casual",
-              contactName: newCustomer!.contactName,
+              // Every customer is a business; the person at the counter is
+              // its first contact.
               businessName: newCustomer!.businessName,
               phone: newCustomer!.phone,
               email: newCustomer!.email,
+              contacts: newCustomer!.contactName ? [{ name: newCustomer!.contactName }] : [],
             },
           },
     });

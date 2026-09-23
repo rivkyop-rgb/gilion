@@ -30,11 +30,16 @@ import { basePrisma, tenantDb } from "./db";
 import { nextOrderNumber } from "./orders";
 import { createPublicationsForOrder } from "./orders";
 
-import { toStorage, validateCustomer, type CustomerInput } from "@/lib/domain/customer";
+import {
+  contactsToStorage,
+  toStorage,
+  validateCustomer,
+  type CustomerInput,
+} from "@/lib/domain/customer";
 
 export type BoardCustomer =
   | { kind: "existing"; customerId: string }
-  /** A walk-in. Stored as `casual` — the type US-002 keeps for one-off buyers. */
+  /** A walk-in: created on the spot, the person as its first contact. */
   | { kind: "new"; input: CustomerInput };
 
 export type BoardSaleInput = {
@@ -72,14 +77,13 @@ export async function boardPriceSuggestion(
 export async function boardCustomerOptions(businessId: string) {
   const rows = await tenantDb(businessId).customer.findMany({
     orderBy: [{ created_at: "desc" }],
-    select: { id: true, contact_name: true, business_name: true, customer_type: true },
+    select: { id: true, business_name: true, phone: true },
     take: 200,
   });
   return rows.map((c) => ({
     id: c.id,
-    label: c.business_name ?? c.contact_name,
-    hint: c.business_name ? c.contact_name : undefined,
-    casual: c.customer_type === "casual",
+    label: c.business_name,
+    hint: c.phone ?? undefined,
   }));
 }
 
@@ -208,7 +212,7 @@ export async function createBoardSale(
   });
 }
 
-/** An existing customer is used as-is; a walk-in is created as `casual`. */
+/** An existing customer is used as-is; a walk-in is created on the spot. */
 async function resolveCustomer(businessId: string, customer: BoardCustomer): Promise<string> {
   if (customer.kind === "existing") {
     const found = await tenantDb(businessId).customer.findUnique({
@@ -225,7 +229,10 @@ async function resolveCustomer(businessId: string, customer: BoardCustomer): Pro
   if (errors.length > 0) throw new BoardSaleRejected(errors[0]!.message);
 
   const created = await tenantDb(businessId).customer.create({
-    data: toStorage(customer.input) as never,
+    data: {
+      ...toStorage(customer.input),
+      contacts: { create: contactsToStorage(customer.input.contacts) },
+    } as never,
   });
   return created.id;
 }
