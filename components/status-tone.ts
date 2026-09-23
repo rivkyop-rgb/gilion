@@ -40,7 +40,6 @@ export const PUBLICATION_TONE: Record<PublicationStatus, Tone> = {
   placed: "success",
   published: "done",
   canceled: "muted",
-  billed: "debt",
 };
 
 /**

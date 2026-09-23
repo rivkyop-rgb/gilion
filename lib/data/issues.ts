@@ -223,7 +223,7 @@ export async function publicationsForIssue(
     where: {
       newspaper_id: newspaperId,
       publication_date: issueDate,
-      status: { notIn: ["canceled", "billed"] },
+      status: { notIn: ["canceled"] },
     },
     orderBy: [{ created_at: "asc" }],
     include: {
@@ -258,7 +258,7 @@ export async function plannedCountFor(businessId: string, newspaperId: string, i
     where: {
       newspaper_id: newspaperId,
       publication_date: issueDate,
-      status: { notIn: ["canceled", "billed"] },
+      status: { notIn: ["canceled"] },
     },
   });
 }
@@ -813,7 +813,7 @@ export async function moveIssueDate(
           business_id: ctx.businessId,
           newspaper_id: issue.newspaper_id,
           publication_date: issue.issue_date,
-          status: { notIn: ["canceled", "billed"] },
+          status: { notIn: ["canceled"] },
         },
         select: { id: true, order_item_id: true },
       });

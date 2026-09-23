@@ -138,6 +138,19 @@ describe("rule 8 — deletion is blocked by history", () => {
     expect(msg).toContain("12 פרסומים");
     expect(msg).not.toContain("מודעות");
   });
+
+  // Exactly one is the count a fixture built from three of everything never
+  // produces — and the count a customer someone actually tries to delete has.
+  it("says הזמנה אחת, never 1 הזמנות", () => {
+    const msg = deletionBlockedMessage({ orders: 1 });
+    expect(msg).toContain("הזמנה אחת");
+    expect(msg).not.toContain("1 ");
+  });
+
+  it("blocks on an advertisement or a payment alone — both are onDelete: Restrict", () => {
+    expect(deletionBlockedMessage({ advertisements: 1 })).toContain("מודעה אחת");
+    expect(deletionBlockedMessage({ payments: 2 })).toContain("2 רישומי תשלום");
+  });
 });
 
 describe("toStorage", () => {

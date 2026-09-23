@@ -12,15 +12,12 @@ import { PortalLinkPanel } from "./portal-link-panel";
 export const metadata: Metadata = { title: "כללי · Gilion" };
 
 /**
- * The time-zone list comes from the runtime, never from a hand-written array
- * (stage 11 §כללי ולידציה). Resolved on the server so the browser is not sent
- * six hundred strings it will mostly not use — the field is a datalist.
+ * The publisher's own details, and the portal link for this business.
+ *
+ * There was a "display" block here too — time zone, date format, currency —
+ * removed on 23/09/2026 because nothing read it (conventions.md §1 fixes all
+ * three product-wide). See lib/domain/business-settings.ts.
  */
-function timezones(): string[] {
-  const supported = Intl.supportedValuesOf?.("timeZone");
-  return supported && supported.length > 0 ? supported : ["Asia/Jerusalem", "UTC"];
-}
-
 export default async function GeneralSettingsPage() {
   const ctx = await getTenantContext();
   requireArea(ctx, "settings", "write");
@@ -49,7 +46,7 @@ export default async function GeneralSettingsPage() {
 
       <PortalLinkPanel url={url} slug={slug} />
 
-      <GeneralForm settings={settings} zones={timezones()} />
+      <GeneralForm settings={settings} />
     </>
   );
 }

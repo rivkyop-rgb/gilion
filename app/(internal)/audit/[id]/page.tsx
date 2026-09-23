@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { tenantDb } from "@/lib/data/db";
+import { auditActionLabel } from "@/lib/domain/audit-labels";
 import { Ltr } from "@/components/ui/ltr";
 
 export const metadata: Metadata = { title: "רשומת ביקורת · Gilion" };
@@ -19,7 +20,10 @@ export default async function AuditRecordPage({ params }: { params: Promise<{ id
   requireArea(ctx, "audit");
 
   const { id } = await params;
-  const row = await tenantDb(ctx.businessId).auditLog.findUnique({ where: { id } });
+  const row = await tenantDb(ctx.businessId).auditLog.findUnique({
+    where: { id },
+    include: { user: { select: { name: true } } },
+  });
   if (!row) notFound();
 
   return (
@@ -29,7 +33,7 @@ export default async function AuditRecordPage({ params }: { params: Promise<{ id
         <div>
           <dt className="text-on-surface-variant">פעולה</dt>
           <dd data-testid="audit-action" className="font-medium">
-            {row.action}
+            {auditActionLabel(row.action)}
           </dd>
         </div>
         <div>
@@ -50,7 +54,57 @@ export default async function AuditRecordPage({ params }: { params: Promise<{ id
             <Ltr className="font-mono text-xs">{row.target_id}</Ltr>
           </dd>
         </div>
+        <div>
+          <dt className="text-on-surface-variant">מי</dt>
+          <dd className="font-medium">{row.user.name}</dd>
+        </div>
+        <div>
+          <dt className="text-on-surface-variant">מתי</dt>
+          <dd>
+            <Ltr>{WHEN.format(row.created_at)}</Ltr>
+          </dd>
+        </div>
       </dl>
+
+      {/*
+        The two values ARE the record: without them the screen says that
+        something changed and refuses to say what, which is the one question a
+        person opens an audit row to answer (FR-10). A row with neither — a
+        password an admin set for somebody else — says so in words rather than
+        rendering two empty boxes.
+      */}
+      <h2 className="mt-8 mb-3 font-serif text-xl font-semibold">מה השתנה</h2>
+      {row.old_value === null && row.new_value === null ? (
+        <p data-testid="audit-no-values" className="text-sm text-on-surface-variant">
+          לרשומה הזאת אין ערכים שמורים — היא מתעדת שהפעולה בוצעה, ולא מה היה בה.
+        </p>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <ValueBlock title="לפני" testId="audit-old" value={row.old_value} />
+          <ValueBlock title="אחרי" testId="audit-new" value={row.new_value} />
+        </div>
+      )}
     </>
+  );
+}
+
+const WHEN = new Intl.DateTimeFormat("he-IL", {
+  dateStyle: "short",
+  timeStyle: "short",
+  timeZone: "Asia/Jerusalem",
+});
+
+function ValueBlock({ title, testId, value }: { title: string; testId: string; value: unknown }) {
+  return (
+    <div className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
+      <h3 className="mb-2 text-sm text-on-surface-variant">{title}</h3>
+      <pre
+        data-testid={testId}
+        dir="ltr"
+        className="overflow-x-auto font-mono text-xs whitespace-pre-wrap"
+      >
+        {value === null || value === undefined ? "—" : JSON.stringify(value, null, 2)}
+      </pre>
+    </div>
   );
 }

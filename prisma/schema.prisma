@@ -86,6 +86,11 @@ enum AuditAction {
   portal_submit_request
   portal_upload_ad
   portal_cancel_request
+  /// Stage 12 — somebody was added to the business, given a different role, or
+  /// had their access removed. One action for the three: they are all "the
+  /// admin changed who works here", and old/new name which one it was. The
+  /// password a new member is given is never in the log.
+  update_membership
   /// An admin set somebody else's password, because there is no address to
   /// mail a reset link to. Recorded with no value on either side: the point is
   /// that a person other than the owner holds these credentials now, and the
@@ -324,6 +329,10 @@ enum PaymentStatus {
 }
 
 /// The eight publication states from conventions.md §3.
+/// FR-4. `billed` was dropped on 23/09/2026: nothing ever set it, because
+/// stage 08 derives whether a publication is paid for from the payment rows on
+/// its order and forbids any screen from setting that by hand. See
+/// lib/domain/publication-status.ts for the full reasoning.
 enum PublicationStatus {
   planned
   missing_ad
@@ -332,7 +341,6 @@ enum PublicationStatus {
   placed
   published
   canceled
-  billed
 }
 
 /// Derived field: `placed` exactly while an active Placement exists.
@@ -357,8 +365,6 @@ model Newspaper {
   /// a dpi picker: dpi/CMYK/bleed were Stitch inventions (design/gaps.md §א).
   margin           Decimal  @db.Decimal(6, 2)
   print_quality    String
-  logo_url         String?
-  fixed_banner_url String?
   /// Bytes. The single source of truth for the upload limit (FR-21) — there is
   /// no hard-coded size anywhere in the code.
   max_ad_file_size Int
@@ -1178,9 +1184,12 @@ model BusinessSettings {
   contact_email   String?
   contact_address String?
 
-  timezone    String @default("Asia/Jerusalem")
-  date_format String @default("dd/MM/yyyy")
-  currency    String @default("ILS")
+  /// Time zone, date format and currency lived here until 23/09/2026. They
+  /// were saved and read by nothing: conventions.md §1 fixes display to
+  /// he-IL / Asia/Jerusalem / dd/MM/yyyy and money to ILS, in a dozen
+  /// module-level formatters, so the panel was offering three controls that
+  /// contradicted a cross-cutting decision and changed no pixel. See
+  /// lib/domain/business-settings.ts for what making them real would cost.
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt

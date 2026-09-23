@@ -118,25 +118,24 @@ export function readSubmittedTexts(
 
 /* ------------------------------------------------------------------- general */
 
-export const DEFAULT_TIMEZONE = "Asia/Jerusalem";
-export const DEFAULT_DATE_FORMAT = "dd/MM/yyyy";
-export const DEFAULT_CURRENCY = "ILS";
-
-/**
- * The formats offered, and no free-text field.
+/*
+ * ── Time zone, date format and currency were REMOVED on 23/09/2026 ──────────
  *
- * A date format is a parser contract, not a preference: an admin who types
- * `DD-MMM-YY` gets either a crash or a date nobody can read back, and the one
- * place it would show up is a printed newspaper. conventions.md §1 fixes
- * dd/MM/yyyy as the default; these are the alternatives that stay unambiguous.
+ * All three were offered here, validated, stored — and read by nothing. Every
+ * date in the product is formatted `he-IL` in `Asia/Jerusalem` and every amount
+ * in `ILS`, in about a dozen module-level `Intl` formatters, because
+ * conventions.md §1 fixes exactly that: storage in UTC, display in Jerusalem,
+ * dd/MM/yyyy. The panel was offering three controls that contradicted a
+ * cross-cutting decision and changed nothing — and a control that saves and
+ * does nothing is worse than no control, because the next person to look reads
+ * the screen and believes it.
+ *
+ * Making them real is not a wiring job: the formatters are module constants
+ * imported by client components, so a per-business format needs a request-level
+ * context and a pass over every screen that shows money or a date. That is a
+ * decision with a cost, and it belongs to whoever decides the product sells
+ * outside Israel. Until then the honest screen is one without the fields.
  */
-export const DATE_FORMATS = ["dd/MM/yyyy", "dd.MM.yyyy", "yyyy-MM-dd"] as const;
-export type DateFormat = (typeof DATE_FORMATS)[number];
-
-export const CURRENCIES = ["ILS", "USD", "EUR"] as const;
-export type Currency = (typeof CURRENCIES)[number];
-
-export const CURRENCY_SYMBOLS: Record<Currency, string> = { ILS: "₪", USD: "$", EUR: "€" };
 
 export type GeneralInput = {
   displayName: string;
@@ -144,31 +143,9 @@ export type GeneralInput = {
   contactPhone: string;
   contactEmail: string;
   contactAddress: string;
-  timezone: string;
-  dateFormat: string;
-  currency: string;
 };
 
 export type FieldError = { field: keyof GeneralInput; message: string };
-
-/**
- * A time zone is valid if the runtime says it is — never a hand-written list.
- *
- * `Intl.supportedValuesOf` is the authority the plan names, and the try/catch
- * around the formatter is the fallback for a runtime that predates it: asking
- * Intl to format in an unknown zone throws, which is the same question asked a
- * slower way.
- */
-export function isValidTimezone(value: string): boolean {
-  const zone = value.trim();
-  if (!zone) return false;
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: zone }).format(new Date());
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /** Every problem at once, so the form can mark all the bad fields in one pass. */
 export function validateGeneral(input: GeneralInput): FieldError[] {
@@ -182,8 +159,7 @@ export function validateGeneral(input: GeneralInput): FieldError[] {
   }
 
   // Contact details are OPTIONAL here, unlike on a customer: a business that
-  // has not filled them in is a business that has not got to it yet, and
-  // blocking the timezone field over a missing phone number would be absurd.
+  // has not filled them in is a business that has not got to it yet.
   const phone = normalizePhone(input.contactPhone);
   if (phone && !/^\d{7,10}$/.test(phone)) {
     errors.push({ field: "contactPhone", message: "מספר טלפון לא תקין" });
@@ -196,16 +172,6 @@ export function validateGeneral(input: GeneralInput): FieldError[] {
 
   if (input.contactAddress.trim().length > 200) {
     errors.push({ field: "contactAddress", message: "הכתובת ארוכה מדי — עד 200 תווים" });
-  }
-
-  if (!isValidTimezone(input.timezone)) {
-    errors.push({ field: "timezone", message: "אזור זמן לא מוכר" });
-  }
-  if (!(DATE_FORMATS as readonly string[]).includes(input.dateFormat)) {
-    errors.push({ field: "dateFormat", message: "פורמט תאריך לא נתמך" });
-  }
-  if (!(CURRENCIES as readonly string[]).includes(input.currency)) {
-    errors.push({ field: "currency", message: "מטבע לא נתמך" });
   }
 
   return errors;

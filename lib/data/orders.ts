@@ -153,6 +153,28 @@ export type LineWrite = {
  * order is still a draft. A discount that only appeared at approval would mean
  * quoting one number and charging another.
  */
+/**
+ * The one place an order's status is written outside a transaction.
+ *
+ * Exists so the actions do not reach for `basePrisma` themselves: a write with
+ * `where: { id }` and no business id is correct only for as long as every
+ * caller remembers to look the order up through the scoped client first, and
+ * "did I remember" is the question conventions.md §2 exists to delete. The
+ * caller still decides WHAT the next status is — `transition()` is the only
+ * door to that (conventions.md §3).
+ */
+export async function setOrderStatus(
+  businessId: string,
+  orderId: string,
+  status: string,
+  extra: { completed_at?: Date } = {},
+) {
+  return tenantDb(businessId).adOrder.update({
+    where: { id: orderId },
+    data: { status: status as never, ...extra },
+  });
+}
+
 export async function refreshTotal(businessId: string, orderId: string) {
   const items = await tenantDb(businessId).adOrderItem.findMany({
     where: { order_id: orderId },

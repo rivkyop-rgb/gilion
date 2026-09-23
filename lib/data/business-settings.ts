@@ -11,13 +11,7 @@ import type { Prisma } from "@prisma/client";
 
 import { basePrisma, tenantDb } from "./db";
 import type { ColorOverrides } from "@/lib/domain/theme-tokens";
-import {
-  DEFAULT_CURRENCY,
-  DEFAULT_DATE_FORMAT,
-  DEFAULT_TIMEZONE,
-  type BrandSlot,
-  type TextOverrides,
-} from "@/lib/domain/business-settings";
+import { type BrandSlot, type TextOverrides } from "@/lib/domain/business-settings";
 
 /** What every consumer receives, whether or not a row exists. */
 export type BusinessSettings = {
@@ -31,9 +25,6 @@ export type BusinessSettings = {
   contactPhone: string | null;
   contactEmail: string | null;
   contactAddress: string | null;
-  timezone: string;
-  dateFormat: string;
-  currency: string;
 };
 
 /**
@@ -54,9 +45,6 @@ export const UNSET: BusinessSettings = {
   contactPhone: null,
   contactEmail: null,
   contactAddress: null,
-  timezone: DEFAULT_TIMEZONE,
-  dateFormat: DEFAULT_DATE_FORMAT,
-  currency: DEFAULT_CURRENCY,
 };
 
 /** Json from the database is `unknown` shaped; anything not a flat map is dropped. */
@@ -80,9 +68,6 @@ type Row = {
   contact_phone: string | null;
   contact_email: string | null;
   contact_address: string | null;
-  timezone: string;
-  date_format: string;
-  currency: string;
 };
 
 function toSettings(row: Row): BusinessSettings {
@@ -97,9 +82,6 @@ function toSettings(row: Row): BusinessSettings {
     contactPhone: row.contact_phone,
     contactEmail: row.contact_email,
     contactAddress: row.contact_address,
-    timezone: row.timezone,
-    dateFormat: row.date_format,
-    currency: row.currency,
   };
 }
 
@@ -148,9 +130,6 @@ export type SettingsPatch = {
   contact_phone?: string | null;
   contact_email?: string | null;
   contact_address?: string | null;
-  timezone?: string;
-  date_format?: string;
-  currency?: string;
 };
 
 /**

@@ -231,3 +231,46 @@ describe("the press sheet", () => {
     expect(reader).not.toContain('class="fold"');
   });
 });
+
+/**
+ * The business's footer line (stage 11's `pdf_footer`).
+ *
+ * It was a field in the admin panel that described exactly where it would
+ * appear — "at the foot of every page of the press file" — and reached nothing
+ * at all until 23/09/2026. Empty stays empty: this is ink on a finished
+ * newspaper page, so nothing is printed that nobody asked for.
+ */
+describe("the business footer line", () => {
+  it("prints nothing at all when the business has not set one", () => {
+    const html = buildPrintHtml(model([page(1), page(2)]));
+    // The class is always in the stylesheet; what must be absent is an element
+    // wearing it.
+    expect(html).not.toContain('class="page-footer"');
+  });
+
+  it("appears once per page when it is set", () => {
+    const html = buildPrintHtml({
+      ...model([page(1), page(2)]),
+      footer: "הוצאת המרכז · 03-1234567",
+    });
+    expect(html.match(/class="page-footer"/g)).toHaveLength(2);
+    expect(html).toContain("הוצאת המרכז · 03-1234567");
+  });
+
+  it("appears once per PAGE on a press sheet, not once per sheet", () => {
+    // A press side carries two folios, so it carries two footers — the same
+    // rule the page number follows.
+    const html = buildPrintHtml({
+      ...model([page(1), page(2), page(3), page(4)], false),
+      layout: "press",
+      footer: "קו תחתון",
+    });
+    expect(html.match(/class="page-footer"/g)).toHaveLength(4);
+  });
+
+  it("escapes what the admin typed", () => {
+    const html = buildPrintHtml({ ...model([page(1)]), footer: "<script>x</script>" });
+    expect(html).not.toContain("<script>x</script>");
+    expect(html).toContain("&lt;script&gt;");
+  });
+});

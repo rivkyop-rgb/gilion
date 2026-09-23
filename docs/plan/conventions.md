@@ -29,6 +29,7 @@
 - **אין מודלים global. `AdShape` שייך לעיתון** — היפוך מודע של החלטה קודמת, 24/08/2026: קטלוג הצורות נקבע על ידי כל עיתון בנפרד (US-006 AC-4), ולכן `AdShape.newspaper_id` ו־tenant-scoping בעקיפין דרך `Newspaper`. עיתון חדש נזרע בהעתק של קטלוג הבסיס (`lib/domain/base-shapes.ts`) ולא בהפניה למשהו משותף — כדי שעריכה בעיתון אחד לא תשנה אחר. `GLOBAL_MODELS` נשאר ריק ב־`lib/data/tenant-models.ts`, וכל תוספת אליו היא החלטה שדורשת עדכון של הסעיף הזה.
 - **טבלאות קישור נסגרות ב־FK מורכב, לא בבדיקה בקוד.** ל־`Newspaper`, `PageType` ו־`AdShape` יש `@@unique([id, newspaper_id])`, ו־`AllowedAdShape`/`PriceRule` מפנים אליהם בזוג `(id, newspaper_id)`. כך שורה שמצליבה סוג עמוד של עיתון אחד עם צורה של עיתון אחר אינה ניתנת לייצוג במסד — לא "נדחית בוולידציה".
 - **גישה ישירה ל־`prisma` נאסרת מחוץ ל־`lib/data/`** ונאכפת ב־ESLint (`no-restricted-imports`). כל השאר משתמש ב־`db` המורחב.
+  **הורחב 23/09/2026:** הכלל חסם את החבילה `@prisma/client` בלבד, ולכן `basePrisma` — הלקוח **הלא־מוגבל**, שמיוצא מ־`lib/data/db` — היה ניתן לייבוא מכל מקום, ושלוש Server Actions כתבו דרכו ל־`AdOrder` עם `where: { id }` בלי `business_id`. הכלל מונה עכשיו גם את השם הזה. `lib/auth/` פטור במפורש: כל מה שקורה שם רץ **לפני** שיש עסק פעיל, וזו השאלה היחידה שה־extension לא יכול לעזור בה.
 - **Postgres RLS מחוץ ל־MVP**, אבל כל טבלה נשמרת עם `business_id` לא־null (או נתיב ברור אל אחת כזו) כדי שאפשר יהיה להוסיף policies בלי שינוי סכימה.
 
 ## 3. מכונות מצבים
@@ -37,7 +38,9 @@
 
 ### `lib/domain/publication-status.ts` (FR-4, FR-5)
 
-8 מצבים: `planned` · `missing_ad` · `ad_received` · `ready_for_layout` · `placed` · `published` · `canceled` · `billed`.
+7 מצבים: `planned` · `missing_ad` · `ad_received` · `ready_for_layout` · `placed` · `published` · `canceled`.
+
+**`billed` הוסר ב־23/09/2026.** הוא היה כאן וב־FR-4 מהיום הראשון, ושום קוד לא הפעיל את האירוע שמגיע אליו: שלב 08 הפך את "שולם" ל**נגזר** מסכום התשלומים מול ההזמנה ואסר על כל מסך לקבוע אותו ביד (כלל 7 שם), וסטטוס שני שאומר אותו דבר ידנית הוא בדיוק מה שהכלל ההוא מונע. ראה `prd.md` §10 היפוך 6.
 
 | אירוע                     | מעבר                                                                                           |
 | ------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -48,8 +51,8 @@
 | `PLACED`                  | `ready_for_layout` → `placed`                                                                  |
 | `PLACEMENT_REMOVED`       | `placed` → `ready_for_layout`                                                                  |
 | `ISSUE_CLOSED`            | `placed` → `published`                                                                         |
+| `ISSUE_REOPENED`          | `published` → `placed` (מנהל שפותח גיליון סגור, שלב 07)                                        |
 | `CANCELED`                | כל מצב פרט ל־`published` → `canceled`                                                          |
-| `BILLED`                  | `published` → `billed`                                                                         |
 
 `placement_status` הוא שדה נגזר: `placed` כאשר קיים `Placement` פעיל, אחרת `not_placed`. הוא מתעדכן באותה טרנזקציה של השיבוץ ולעולם לא בנפרד.
 
@@ -101,7 +104,8 @@ CREATE UNIQUE INDEX placement_publication_unique
 ## 5. קבצים פרטיים (FR-15)
 
 - **MinIO bucket פרטי אחד.** שום URL של קובץ לא נחשף ללקוח — לא ב־HTML, לא ב־API response, לא ב־PDF.
-- הגישה דרך Route Handler בשרת: `GET /api/files/[...key]` → בודק tenant + role + בעלות → מחזיר redirect ל־presigned URL בתוקף **5 דקות**.
+- הגישה דרך Route Handler בשרת: `GET /api/files/[...key]` → בודק tenant + role + בעלות → **זורם את הבתים בעצמו**.
+  **תוקן 23/09/2026.** הסעיף הזה אמר "מחזיר redirect ל־presigned URL בתוקף 5 דקות", וזה מה שנבנה — והתוצאה הייתה **הבאג החמור ביותר בפרויקט**: `presignedGetObject` חתם על `localhost:9100`, שם שקיים במכונה של השרת ולא במכונה של המשתמשת, ולכן כל תצוגה מקדימה במוצר הייתה ריבוע ריק לכל מי שלא יושב על השרת — בלי שורה אחת בלוג, כי `<img>` שנכשל לא מדווח וההפניה נשלחה בהצלחה. הזרמה שומרת בדיוק על מה שהסעיף הזה קיים בשבילו (הבתים עוברים רק אחרי בדיקת ההרשאה) ומוותרת על החיסרון היחיד שלה — עומס על האפליקציה — שלא נמדד כבעיה. ראה CLAUDE.md §מלכודות.
 - **מבנה מפתחות:** `{businessId}/ads/{adId}/{original|current|previous}.{ext}` · `{businessId}/ads/{adId}/preview.png` · `{businessId}/issues/{issueId}/final.pdf`.
 - ה־`businessId` בתחילת המפתח הוא שכבת הגנה שנייה: ה־route משווה אותו ל־`businessId` שבסשן לפני שהוא חותם משהו.
 - PDF טיוטה **לא נכתב ל־MinIO** — הוא נשלח ישירות ל־stream בתגובה (FR-22).

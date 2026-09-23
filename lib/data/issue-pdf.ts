@@ -28,6 +28,8 @@ import { basePrisma, tenantDb } from "./db";
 import { ON_PAGE_STATES } from "@/lib/domain/placement";
 import { withAudit } from "./audit";
 import { recalcOrdersForPublications } from "./payments";
+import { loadSettings } from "./business-settings";
+import { textFor } from "@/lib/domain/business-settings";
 import { publicationsForIssue, gridOfIssue } from "./issues";
 import { checkIssue, loadIssueForValidation, toValidationInput } from "./issue-validation";
 import { validateIssue } from "@/lib/domain/issue-validation";
@@ -139,12 +141,18 @@ export async function toPrintModel(
     ),
   );
 
+  // The business's own footer line (stage 11). Read here rather than passed in
+  // because every caller of this function would otherwise have to remember to,
+  // and the one that forgot would print an issue without it and say nothing.
+  const settings = await loadSettings(issue.business_id);
+
   return {
     newspaperName: issue.newspaper.name,
     issueDate: DATE.format(issue.issue_date),
     grid,
     draft,
     layout,
+    footer: textFor("pdf_footer", settings.texts),
     pages: issue.pages.map((page) => ({
       number: page.page_number,
       pageTypeName: page.page_type.name,

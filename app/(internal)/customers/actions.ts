@@ -13,6 +13,7 @@ import {
   validateCustomer,
   type CustomerInput,
 } from "@/lib/domain/customer";
+import { withAudit } from "@/lib/data/audit";
 import * as data from "@/lib/data/customers";
 
 /** Field-level errors keyed the way the form renders them. */
@@ -146,7 +147,27 @@ export async function deleteCustomerAction(id: string): Promise<FormState> {
   const blocked = deletionBlockedMessage(await data.customerHistoryCounts(ctx.businessId, id));
   if (blocked) return { message: blocked };
 
-  await data.deleteCustomer(ctx.businessId, id);
+  await withAudit(
+    { businessId: ctx.businessId, userId: ctx.userId },
+    { action: "delete_customer", targetType: "Customer", targetId: id },
+    async (tx) => {
+      // The log row is all that survives the delete, so it carries enough to
+      // answer "who was removed" — the guard above has already proved there is
+      // no history hanging off them to name.
+      const snapshot = {
+        customer_type: existing.customer_type,
+        business_name: existing.business_name,
+        contact_name: existing.contact_name,
+        phone: existing.phone,
+        email: existing.email,
+      };
+      // deleteMany, not delete: the raw transaction client is outside the
+      // tenant extension, so the business id is carried by hand here.
+      await tx.customer.deleteMany({ where: { id, business_id: ctx.businessId } });
+      return { old: snapshot, new: null };
+    },
+  );
+
   revalidatePath("/customers");
   redirect("/customers");
 }

@@ -7,7 +7,10 @@ import { listReminders, refreshReminders, reminderWindow } from "@/lib/data/remi
 import { daysUntil, type ReminderStatus } from "@/lib/domain/reminders";
 import { EmptyState } from "@/components/states";
 import { cn } from "@/lib/utils";
+import { loadSettings } from "@/lib/data/business-settings";
+import { textFor } from "@/lib/domain/business-settings";
 import { ReminderTable, type ReminderRow } from "./reminder-table";
+import { ReminderWording } from "./reminder-wording";
 
 export const metadata: Metadata = { title: "תזכורות · Gilion" };
 
@@ -25,9 +28,10 @@ export default async function RemindersPage({
   // brought up to date when someone looks at it.
   await refreshReminders(ctx.businessId);
 
-  const [rows, window] = await Promise.all([
+  const [rows, window, settings] = await Promise.all([
     listReminders(ctx.businessId, status),
     reminderWindow(ctx.businessId),
+    loadSettings(ctx.businessId),
   ]);
 
   const today = new Date();
@@ -102,6 +106,10 @@ export default async function RemindersPage({
           </Link>
         ))}
       </div>
+
+      {model.length > 0 ? (
+        <ReminderWording text={textFor("reminder_template", settings.texts)} />
+      ) : null}
 
       {model.length === 0 ? (
         <div data-testid="reminders-empty">

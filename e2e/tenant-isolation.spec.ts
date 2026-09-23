@@ -8,7 +8,7 @@ import {
   pickBusiness,
   sessionOf,
 } from "./helpers";
-import { ALPHA_AUDIT_ID, BETA_AUDIT_ID } from "./global-setup";
+import { ALPHA_AUDIT_ID, BETA_AUDIT_ID, ISSUE_FIXTURES } from "./global-setup";
 
 /**
  * The most important test in stage 01 (docs/plan/01-auth-multitenancy.md).
@@ -82,5 +82,49 @@ test.describe("tenant isolation (FR-1)", () => {
 
     await page.goto(`/audit/${hidden}`);
     await expect(page.getByTestId("audit-action")).toBeVisible();
+  });
+});
+
+/**
+ * The repeat the suite above asks for, one entity per stage — and which was
+ * never actually written: until 23/09/2026 the only record type checked across
+ * the tenant boundary was the audit row from stage 01, while orders (04),
+ * advertisements (05) and issues (06) were each addressed by an id in a URL and
+ * never tested from the other side of the fence.
+ *
+ * Every row here runs in BOTH directions on purpose. The negative alone would
+ * pass just as happily against a typo in the path, a renamed route or a screen
+ * that 404s for everybody — so each one first proves the URL opens for the
+ * business that owns it.
+ */
+const CROSS_TENANT = [
+  { what: "הזמנה", url: `/orders/${ISSUE_FIXTURES.order}`, open: "order-ref" },
+  { what: "מודעה", url: `/advertisements/${ISSUE_FIXTURES.adOk}`, open: "ad-publications" },
+  { what: "לוח שיבוץ", url: `/issues/${ISSUE_FIXTURES.issue}/board`, open: "board-status" },
+  { what: "בדיקת גיליון", url: `/issues/${ISSUE_FIXTURES.issue}/validate`, open: "check-message" },
+] as const;
+
+test.describe("every entity with an id in its URL is scoped (FR-1)", () => {
+  for (const row of CROSS_TENANT) {
+    test(`${row.what} — נפתחת לבעליה ומחזירה 404 לעסק השני`, async ({ page }) => {
+      await login(page, USERS.admin); // alpha, who owns every fixture below
+      const mine = await page.goto(row.url);
+      expect(mine?.status()).toBe(200);
+      await expect(page.getByTestId(row.open)).toBeVisible();
+
+      await login(page, USERS.betaAdmin);
+      const theirs = await page.goto(row.url);
+      // The status, not just the screen: a rendered "not found" served with a
+      // 200 is a refusal only a human can see.
+      expect(theirs?.status()).toBe(404);
+    });
+  }
+
+  test("רשימת הפרסומים של עסק אחד אינה מכילה שורה של השני", async ({ page }) => {
+    // Publications have no [id] screen — the list IS the exposure, so the
+    // assertion is on what it does not contain.
+    await login(page, USERS.betaAdmin);
+    await page.goto("/publications");
+    await expect(page.locator("body")).not.toContainText("מרכז הרפואה");
   });
 });

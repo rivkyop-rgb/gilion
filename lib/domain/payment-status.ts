@@ -42,7 +42,7 @@ export type PaymentRecord = {
  * not one that blocks: it is excluded from the question entirely by
  * `everythingRan` below.
  */
-const RAN_STATES = ["published", "billed"];
+const RAN_STATES = ["published"];
 
 export type OrderForStatus = {
   totalPrice: number;

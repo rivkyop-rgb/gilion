@@ -97,7 +97,7 @@ describe("line items are editable only before anything binding exists (rule 6)",
 
 describe("completion is blocked while publications are still live (rule 9)", () => {
   it("allows completion when every publication has run or been cancelled", () => {
-    expect(completionBlockedMessage(["published", "canceled", "billed"])).toBeNull();
+    expect(completionBlockedMessage(["published", "canceled", "published"])).toBeNull();
   });
 
   it("allows completion for an order with no publications at all", () => {

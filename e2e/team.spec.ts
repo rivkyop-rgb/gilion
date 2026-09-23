@@ -60,6 +60,40 @@ test.describe("adding a user", () => {
     await expect(page.getByRole("heading", { name: "אין לך הרשאה לעמוד הזה" })).toBeVisible();
   });
 
+  /**
+   * FR-10. Handing somebody a role is the most consequential thing an admin
+   * does to another person, and until 23/09/2026 all three membership writes
+   * were silent: the log could show which cells of the permission matrix had
+   * moved and not who had been put into them.
+   */
+  test("every membership change reaches the audit log, and the password never does", async ({
+    page,
+  }) => {
+    const email = `audited${Date.now()}@gilion.test`;
+
+    await login(page, USERS.admin);
+    await page.goto("/settings/users");
+    await addMember(page, "נועה ביקורת", email, "sales");
+    await expect(page.getByTestId("members-table")).toContainText(email);
+
+    const row = page.locator('[data-testid^="member-row-"]', { hasText: email });
+    const userId = (await row.getAttribute("data-testid"))!.replace("member-row-", "");
+    await page.getByTestId(`role-${userId}`).selectOption("accounting");
+    await expect(page.getByTestId(`role-${userId}`)).toHaveValue("accounting");
+
+    await page.goto("/audit");
+    const entries = page.locator('tr:has([data-action="update_membership"])');
+    // The creation and the role change are two rows, not one.
+    expect(await entries.count()).toBeGreaterThanOrEqual(2);
+    await expect(entries.first()).toContainText("שינוי גישת משתמש");
+
+    await entries.first().getByRole("link").first().click();
+    const values = page.getByTestId("audit-new");
+    await expect(values).toContainText("accounting");
+    // The password a new member is handed is never written to the log.
+    await expect(page.locator("body")).not.toContainText("sup3rsecret");
+  });
+
   test("refuses an email already in the system, and keeps the other fields", async ({ page }) => {
     await login(page, USERS.admin);
     await page.goto("/settings/users");

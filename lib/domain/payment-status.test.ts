@@ -89,8 +89,8 @@ describe("everythingRan", () => {
     expect(everythingRan(["canceled"])).toBe(false);
   });
 
-  it("counts billed as having run — it only follows published", () => {
-    expect(everythingRan(["billed", "published"])).toBe(true);
+  it("counts a published publication as having run", () => {
+    expect(everythingRan(["published", "published"])).toBe(true);
   });
 
   it("is false while anything is still in layout", () => {

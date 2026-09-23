@@ -7,6 +7,7 @@
  * that has already been scoped, never queried on its own.
  */
 import bcrypt from "bcryptjs";
+import { withAudit, type AuditContext } from "./audit";
 import { basePrisma, tenantDb } from "./db";
 import type { AssignableRole } from "@/lib/domain/team";
 
@@ -53,6 +54,24 @@ export async function emailTaken(email: string) {
 }
 
 /**
+ * All three writes below are audited (FR-10), under one action.
+ *
+ * Handing somebody the `admin` role is the most consequential thing an admin
+ * does to another person, and until 23/09/2026 none of the three left a trace:
+ * the business could see WHICH cells of the permission matrix had been moved
+ * (`update_role_permissions`) and not who had been let in to move them.
+ *
+ * One action rather than three, for the same reason stage 11 settled on one:
+ * they are all "the admin changed who works here", the target is always the
+ * membership, and old/new already name what moved. The password is never in
+ * the log — `reset_user_password` makes the same point at greater length.
+ */
+const MEMBERSHIP: Omit<Parameters<typeof withAudit>[1], "targetId"> = {
+  action: "update_membership",
+  targetType: "UserMembership",
+};
+
+/**
  * Creates the person and their membership in one transaction.
  *
  * Same reason as creating a business with its admin: a user with no membership
@@ -60,12 +79,15 @@ export async function emailTaken(email: string) {
  * that can rescue them.
  */
 export async function createMember(
-  businessId: string,
+  ctx: AuditContext,
   data: { name: string; email: string; password: string; role: AssignableRole },
 ) {
   const hash = await bcrypt.hash(data.password, 10);
 
-  return basePrisma.$transaction(async (tx) => {
+  // Addressed by email, not by id: the row does not exist yet when the target
+  // is declared, and the email is the one thing about a person that is unique
+  // across the system anyway.
+  return withAudit(ctx, { ...MEMBERSHIP, targetType: "User", targetId: data.email }, async (tx) => {
     const user = await tx.user.create({
       data: {
         name: data.name.trim(),
@@ -76,25 +98,50 @@ export async function createMember(
     });
 
     await tx.userMembership.create({
-      data: { user_id: user.id, business_id: businessId, role: data.role, status: "active" },
+      data: {
+        user_id: user.id,
+        business_id: ctx.businessId,
+        role: data.role,
+        status: "active",
+      },
     });
 
-    return user;
+    return {
+      old: null,
+      new: { name: user.name, email: user.email, role: data.role, status: "active" },
+      result: user,
+    };
   });
 }
 
-export async function setMemberRole(businessId: string, userId: string, role: AssignableRole) {
-  const m = await getMember(businessId, userId);
+export async function setMemberRole(ctx: AuditContext, userId: string, role: AssignableRole) {
+  const m = await getMember(ctx.businessId, userId);
   if (!m) return null;
-  return basePrisma.userMembership.update({ where: { id: m.id }, data: { role } });
+
+  return withAudit(ctx, { ...MEMBERSHIP, targetId: m.id }, async (tx) => {
+    const updated = await tx.userMembership.update({ where: { id: m.id }, data: { role } });
+    return {
+      old: { email: m.user.email, role: m.role },
+      new: { email: m.user.email, role },
+      result: updated,
+    };
+  });
 }
 
 export async function setMemberStatus(
-  businessId: string,
+  ctx: AuditContext,
   userId: string,
   status: "active" | "inactive",
 ) {
-  const m = await getMember(businessId, userId);
+  const m = await getMember(ctx.businessId, userId);
   if (!m) return null;
-  return basePrisma.userMembership.update({ where: { id: m.id }, data: { status } });
+
+  return withAudit(ctx, { ...MEMBERSHIP, targetId: m.id }, async (tx) => {
+    const updated = await tx.userMembership.update({ where: { id: m.id }, data: { status } });
+    return {
+      old: { email: m.user.email, status: m.status },
+      new: { email: m.user.email, status },
+      result: updated,
+    };
+  });
 }

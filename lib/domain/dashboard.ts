@@ -60,8 +60,8 @@ export const READY_TO_PLACE_STATES: Array<"ad_received" | "ready_for_layout"> = 
 
 /** Publications that are still real commitments — everything but a cancellation. */
 export const LIVE_PUBLICATION_STATES: Array<
-  "planned" | "missing_ad" | "ad_received" | "ready_for_layout" | "placed" | "published" | "billed"
-> = ["planned", "missing_ad", "ad_received", "ready_for_layout", "placed", "published", "billed"];
+  "planned" | "missing_ad" | "ad_received" | "ready_for_layout" | "placed" | "published"
+> = ["planned", "missing_ad", "ad_received", "ready_for_layout", "placed", "published"];
 
 export const DASHBOARD_CARD_KEYS = [
   "week",
@@ -176,7 +176,7 @@ export type AttentionInput = {
  * is ten seconds on the board.
  */
 export function attentionReason(row: AttentionInput): "missing_ad" | "not_placed" | null {
-  if (row.status === "canceled" || row.status === "published" || row.status === "billed") {
+  if (row.status === "canceled" || row.status === "published") {
     return null;
   }
   // AND, never OR. The two halves are the same fact seen twice — a status of

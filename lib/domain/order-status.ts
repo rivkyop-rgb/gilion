@@ -70,7 +70,7 @@ export function itemsEditable(status: OrderStatus): boolean {
  * Rule 9 (US-004 AC-5): an order is only complete once every publication it
  * created has either run or been cancelled. Anything still in flight blocks it.
  */
-const SETTLED_PUBLICATION_STATUSES = ["published", "canceled", "billed"] as const;
+const SETTLED_PUBLICATION_STATUSES = ["published", "canceled"] as const;
 
 export function completionBlockedMessage(publicationStatuses: readonly string[]): string | null {
   const outstanding = publicationStatuses.filter(

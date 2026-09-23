@@ -673,7 +673,7 @@ async function planAutoPlacement(ctx: ActorContext, issueId: string, seed: numbe
       where: {
         newspaper_id: issue.newspaper_id,
         publication_date: issue.issue_date,
-        status: { notIn: ["canceled", "billed"] },
+        status: { notIn: ["canceled"] },
         id: { notIn: [...placedPublicationIds] },
       },
       orderBy: { created_at: "asc" },

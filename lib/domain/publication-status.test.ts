@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   afterAdLinked,
   availableEvents,
-  canTransition,
   InvalidPublicationTransitionError,
   placementStatusFor,
   PUBLICATION_EVENTS,
@@ -30,9 +29,8 @@ const EXPECTED: Record<PublicationStatus, Partial<Record<PublicationEvent, Publi
   // ISSUE_REOPENED is the one way back out of `published`, added by stage 07:
   // an admin reopening a closed issue takes its publications with it. Anything
   // else out of `published` stays refused, rule 17 included.
-  published: { BILLED: "billed", ISSUE_REOPENED: "placed" },
+  published: { ISSUE_REOPENED: "placed" },
   canceled: {},
-  billed: {},
 };
 
 describe("every state × event pair is decided", () => {
@@ -57,10 +55,6 @@ describe("a published publication cannot be cancelled (rule 17)", () => {
     );
   });
 
-  it("refuses it after billing too", () => {
-    expect(canTransition("billed", "CANCELED")).toBe(false);
-  });
-
   it("allows it from every state before publication", () => {
     for (const s of [
       "planned",
@@ -75,7 +69,7 @@ describe("a published publication cannot be cancelled (rule 17)", () => {
 });
 
 describe("the full lifecycle", () => {
-  it("walks planned → missing_ad → ad_received → ready_for_layout → placed → published → billed", () => {
+  it("walks planned → missing_ad → ad_received → ready_for_layout → placed → published", () => {
     let s: PublicationStatus = "planned";
     s = transition(s, "REMINDER_WINDOW_ENTERED");
     expect(s).toBe("missing_ad");
@@ -87,8 +81,6 @@ describe("the full lifecycle", () => {
     expect(s).toBe("placed");
     s = transition(s, "ISSUE_CLOSED");
     expect(s).toBe("published");
-    s = transition(s, "BILLED");
-    expect(s).toBe("billed");
   });
 
   it("can bounce back and forth between placed and ready_for_layout", () => {
@@ -135,7 +127,8 @@ describe("terminal states", () => {
     expect(availableEvents("canceled")).toEqual([]);
   });
 
-  it("billed accepts nothing", () => {
-    expect(availableEvents("billed")).toEqual([]);
+  // `published` is terminal too, apart from the admin reopening its issue.
+  it("published accepts only the reopen", () => {
+    expect(availableEvents("published")).toEqual(["ISSUE_REOPENED"]);
   });
 });

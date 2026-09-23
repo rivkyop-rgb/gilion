@@ -118,6 +118,6 @@ describe("attentionReason — US-001 AC-5", () => {
 
   it("stays quiet on one that already ran", () => {
     expect(row({ status: "published", placementStatus: "not_placed" })).toBeNull();
-    expect(row({ status: "billed", placementStatus: "not_placed" })).toBeNull();
+    expect(row({ status: "canceled", placementStatus: "not_placed" })).toBeNull();
   });
 });

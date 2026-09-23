@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { loginAsAdmin } from "./helpers";
+import { USERS, login, loginAsAdmin } from "./helpers";
 
 /**
  * US-001 AC-3: every publication in the list shows all nine facts.
@@ -69,5 +69,32 @@ test.describe("תשע העמודות של US-001", () => {
     await expect(link).toBeVisible();
     await link.click();
     await page.waitForURL(/\/issues\/.+\/board/, { timeout: 20_000 });
+  });
+});
+
+/**
+ * The same nine facts on the list the cards drill down INTO (US-001 AC-3).
+ *
+ * The AC is about "the list", and the dashboard's week table was the only one
+ * tested — while /publications, which every card links to, showed a price
+ * where the payment status should be. Two screens answering one question must
+ * answer it the same way.
+ */
+test.describe("רשימת הפרסומים נושאת את אותן עובדות", () => {
+  test("סטטוס תשלום מופיע כעמודה", async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto("/publications");
+    await expect(page.getByTestId("col-payment")).toHaveText("סטטוס תשלום");
+    await expect(page.getByTestId("col-status")).toHaveText("סטטוס פרסום");
+    await expect(page.getByTestId("col-source")).toHaveText("מקור פרסום");
+  });
+
+  test("ולגרפיקאית הוא אינו נשלח בכלל (FR-8)", async ({ page }) => {
+    await login(page, USERS.designer);
+    await page.goto("/publications");
+    await expect(page.getByTestId("publications-table")).toBeVisible();
+    // Not hidden — absent. The price column goes with it, for the same reason.
+    await expect(page.getByTestId("col-payment")).toHaveCount(0);
+    await expect(page.getByTestId("col-price")).toHaveCount(0);
   });
 });

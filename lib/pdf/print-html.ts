@@ -23,12 +23,14 @@
  * quietly move a box that was positioned in absolute millimetres.
  *
  * ── What is NOT drawn ────────────────────────────────────────────────────────
- * `Newspaper.logo_url` and `Newspaper.fixed_banner_url` are deliberately absent.
- * Neither carries any geometry, so drawing them would mean this file inventing
- * a position — and the model already has the mechanism for "an image that
- * always sits here on this kind of page": a reserved area, which has a
- * rectangle AND an asset, and which the issue snapshots page by page. Stage 07's
- * plan text predates that feature (backlog item 14) and is superseded by it.
+ * A newspaper-wide logo or fixed banner. Neither carries any geometry, so
+ * drawing one would mean this file inventing a position — and the model already
+ * has the mechanism for "an image that always sits here on this kind of page":
+ * a reserved area, which has a rectangle AND an asset, and which the issue
+ * snapshots page by page. Stage 07's plan text predates that feature (backlog
+ * item 14) and is superseded by it. The two columns that carried the older idea
+ * — `Newspaper.logo_url` and `fixed_banner_url` — were never written or read by
+ * anything and were dropped on 23/09/2026.
  */
 import type { DerivedGrid } from "@/lib/domain/grid";
 import { impose, sideLabel, type PrintedSide } from "@/lib/domain/imposition";
@@ -57,6 +59,21 @@ export type PrintModel = {
   pages: PrintPage[];
   /** Draws the diagonal "טיוטה" watermark (US-008 AC-3, FR-22). */
   draft: boolean;
+  /**
+   * The business's own line along the foot of every page — the `pdf_footer`
+   * text of the admin panel (stage 11).
+   *
+   * Empty by default and drawn only when it is not: this is ink on a finished
+   * newspaper page, so the product does not put words there that nobody asked
+   * for. It sits inside the bottom margin, which is the one band of the sheet
+   * the grid never sells — no position is being invented, which is why the
+   * newspaper logo is NOT here (see the note at the top of this file).
+   *
+   * Until 23/09/2026 the field existed in the panel, described itself as
+   * appearing "at the foot of every page of the press file", and reached
+   * nothing at all.
+   */
+  footer?: string;
   /**
    * `reader` — one page per sheet of PDF, in reading order. For proofing.
    * `press`  — one printed SIDE per sheet of PDF, twice as wide, two pages on
@@ -182,6 +199,22 @@ export function buildPrintHtml(model: PrintModel): string {
     font-size: 3mm;
     color: #666;
   }
+  /* The business line, inside the bottom margin and ABOVE the folio, so the
+     two never sit on each other — on a press sheet the sheet label is down at
+     1mm as well. Small and grey: it is a credit, not a headline, and it must
+     not compete with an ad somebody paid for. Direction is rtl for the same
+     reason as the side label: it is text, not geometry. (No backticks in this
+     stylesheet — it is inside a template literal and one would end it.) */
+  .page-footer {
+    position: absolute;
+    bottom: ${mm(Math.max(grid.marginMm / 2, 2) + 3.4)};
+    text-align: center;
+    direction: rtl;
+    font-size: 2.6mm;
+    color: #999;
+    overflow: hidden;
+    white-space: nowrap;
+  }
   /* The draft mark sits ABOVE everything and is not a background: a watermark
      an ad can cover is a watermark that stops being on the page that matters. */
   .draft-mark {
@@ -223,8 +256,16 @@ function renderPage(page: PrintPage, grid: DerivedGrid, model: PrintModel): stri
   return `<section class="page" data-page="${page.number}" data-page-type="${escapeHtml(page.pageTypeName)}">
 ${boxes.join("\n")}
 <div class="folio" style="left:0;width:${mm(grid.pageWidthMm)}">${page.number}</div>
+${renderFooter(model, grid, 0)}
 ${model.draft ? `<div class="draft-mark"><span>טיוטה</span></div>` : ""}
 </section>`;
+}
+
+/** The business line at the foot of one page, or nothing when unset. */
+function renderFooter(model: PrintModel, grid: DerivedGrid, offsetMm: number): string {
+  const text = model.footer?.trim();
+  if (!text) return "";
+  return `<div class="page-footer" style="left:${mm(offsetMm)};width:${mm(grid.pageWidthMm)}">${escapeHtml(text)}</div>`;
 }
 
 /**
@@ -251,6 +292,9 @@ function renderSide(
       ...page.reserved.map((box) => renderBox(box, grid, "reserved", offsetMm)),
       ...page.placements.map((box) => renderBox(box, grid, "ad", offsetMm)),
       `<div class="folio" style="left:${mm(offsetMm)};width:${mm(grid.pageWidthMm)}">${page.number}</div>`,
+      // Per half, like the folio: the footer belongs to a PAGE, and a press
+      // sheet carries two of them. The side label below is the sheet's.
+      renderFooter(model, grid, offsetMm),
     ].join("\n");
   };
 

@@ -6,7 +6,6 @@ import { z } from "zod";
 
 import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { withAudit } from "@/lib/data/audit";
-import { basePrisma } from "@/lib/data/db";
 import * as data from "@/lib/data/orders";
 import * as pubs from "@/lib/data/publications";
 import {
@@ -257,7 +256,7 @@ export async function submitOrderAction(orderId: string): Promise<FormState> {
 
   try {
     const next = transition(order.status as OrderStatus, "SUBMIT");
-    await basePrisma.adOrder.update({ where: { id: orderId }, data: { status: next } });
+    await data.setOrderStatus(ctx.businessId, orderId, next);
   } catch (e) {
     if (e instanceof InvalidTransitionError) return { message: e.message };
     throw e;
@@ -385,7 +384,7 @@ export async function cancelOrderAction(orderId: string): Promise<FormState> {
 
   try {
     const next = transition(order.status as OrderStatus, "CANCEL");
-    await basePrisma.adOrder.update({ where: { id: orderId }, data: { status: next } });
+    await data.setOrderStatus(ctx.businessId, orderId, next);
   } catch (e) {
     if (e instanceof InvalidTransitionError) return { message: e.message };
     throw e;
@@ -413,10 +412,7 @@ export async function completeOrderAction(orderId: string): Promise<FormState> {
 
   try {
     const next = transition(order.status as OrderStatus, "COMPLETE");
-    await basePrisma.adOrder.update({
-      where: { id: orderId },
-      data: { status: next, completed_at: new Date() },
-    });
+    await data.setOrderStatus(ctx.businessId, orderId, next, { completed_at: new Date() });
   } catch (e) {
     if (e instanceof InvalidTransitionError) return { message: e.message };
     throw e;

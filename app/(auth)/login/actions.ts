@@ -4,8 +4,8 @@ import { redirect } from "next/navigation";
 import { AuthError } from "next-auth";
 import { z } from "zod";
 import { signIn } from "@/lib/auth/config";
+import { userForSignInRouting } from "@/lib/auth/memberships";
 import { withAudit } from "@/lib/data/audit";
-import { basePrisma } from "@/lib/data/db";
 
 const schema = z.object({
   email: z.string().email(),
@@ -53,23 +53,7 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
 
 /** Where a freshly signed-in user belongs. Mirrors the middleware rules. */
 async function destinationFor(email: string, portal: string | undefined): Promise<string> {
-  const user = await basePrisma.user.findUnique({
-    where: { email },
-    select: {
-      id: true,
-      user_type: true,
-      memberships: {
-        where: { status: "active" },
-        select: {
-          id: true,
-          business_id: true,
-          role: true,
-          customer_id: true,
-          business: { select: { slug: true } },
-        },
-      },
-    },
-  });
+  const user = await userForSignInRouting(email);
 
   if (!user) return "/login";
   if (user.user_type === "customer") {

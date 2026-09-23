@@ -132,10 +132,13 @@ export async function updateCustomer(
  * on a real customer reached the database and failed there on a foreign key
  * instead of being refused with an explanation.
  *
- * Only tables that exist are counted. Advertisements (stage 05) and payments
- * (stage 08) are deliberately absent rather than counted as zero: a zero here
- * is indistinguishable from "checked and found none", and that is exactly the
- * confusion that produced the stub.
+ * EVERY table that points here with onDelete: Restrict must be counted, or the
+ * guard hands the delete to the database and the refusal comes back as a raw
+ * foreign-key error instead of a sentence. Advertisements (stage 05) and
+ * payments (stage 08) were left out when their stages were built — stage 02
+ * §deviation 4 said they would be added and they were not — so a customer
+ * carrying only an uploaded ad, or only a payment recorded with no order,
+ * passed the guard and blew up in Prisma. Added 23/09/2026.
  *
  * Portal users are counted by hand because UserMembership.customer_id carries
  * no foreign key — nothing in the database would stop a customer being deleted
@@ -146,16 +149,14 @@ export async function customerHistoryCounts(
   id: string,
 ): Promise<Record<string, number>> {
   const db = tenantDb(businessId);
-  const [orders, publications, portalUsers] = await Promise.all([
+  const [orders, publications, advertisements, payments, portalUsers] = await Promise.all([
     db.adOrder.count({ where: { customer_id: id } }),
     db.publication.count({ where: { customer_id: id } }),
+    db.advertisement.count({ where: { customer_id: id } }),
+    db.payment.count({ where: { customer_id: id } }),
     db.userMembership.count({ where: { customer_id: id } }),
   ]);
-  return { orders, publications, portalUsers };
-}
-
-export async function deleteCustomer(businessId: string, id: string) {
-  return tenantDb(businessId).customer.delete({ where: { id } });
+  return { orders, publications, advertisements, payments, portalUsers };
 }
 
 /** True when the email is already taken by a *different* customer in this business. */

@@ -78,3 +78,30 @@ export async function activeMembership(
     ...(row.customer_id ? { customerId: row.customer_id } : {}),
   };
 }
+
+/**
+ * The signed-in user, with the memberships that decide where they land.
+ *
+ * Lives here rather than in the login action because it runs BEFORE a business
+ * is active: the unscoped client is correct, and it is confined to this layer
+ * on purpose (conventions.md §2, enforced in eslint.config.mjs).
+ */
+export async function userForSignInRouting(email: string) {
+  return basePrisma.user.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      user_type: true,
+      memberships: {
+        where: { status: "active" },
+        select: {
+          id: true,
+          business_id: true,
+          role: true,
+          customer_id: true,
+          business: { select: { slug: true } },
+        },
+      },
+    },
+  });
+}

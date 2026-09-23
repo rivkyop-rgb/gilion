@@ -9,9 +9,6 @@ import {
   BRAND_SLOTS,
   brandKey,
   brandSlotSpec,
-  DEFAULT_CURRENCY,
-  DEFAULT_DATE_FORMAT,
-  DEFAULT_TIMEZONE,
   readSubmittedTexts,
   TEXT_FIELDS,
   validateGeneral,
@@ -241,9 +238,6 @@ export async function updateGeneralAction(
     contactPhone: String(formData.get("contactPhone") ?? ""),
     contactEmail: String(formData.get("contactEmail") ?? ""),
     contactAddress: String(formData.get("contactAddress") ?? ""),
-    timezone: String(formData.get("timezone") ?? DEFAULT_TIMEZONE),
-    dateFormat: String(formData.get("dateFormat") ?? DEFAULT_DATE_FORMAT),
-    currency: String(formData.get("currency") ?? DEFAULT_CURRENCY),
   };
 
   const errors = validateGeneral(input);
@@ -253,9 +247,6 @@ export async function updateGeneralAction(
     contact_phone: normalizePhone(input.contactPhone),
     contact_email: normalizeEmail(input.contactEmail),
     contact_address: input.contactAddress.trim() || null,
-    timezone: input.timezone.trim(),
-    date_format: input.dateFormat,
-    currency: input.currency,
   };
 
   const before = await data.loadSettings(ctx.businessId);
@@ -270,9 +261,6 @@ export async function updateGeneralAction(
           contact_phone: before.contactPhone,
           contact_email: before.contactEmail,
           contact_address: before.contactAddress,
-          timezone: before.timezone,
-          date_format: before.dateFormat,
-          currency: before.currency,
         },
         new: patch,
       };
@@ -338,9 +326,6 @@ export async function resetSettingAction(group: ResetGroup, key?: string): Promi
         contact_phone: null,
         contact_email: null,
         contact_address: null,
-        timezone: DEFAULT_TIMEZONE,
-        date_format: DEFAULT_DATE_FORMAT,
-        currency: DEFAULT_CURRENCY,
       };
       await data.applyPatch(tx, ctx.businessId, patch);
       return {
@@ -348,9 +333,6 @@ export async function resetSettingAction(group: ResetGroup, key?: string): Promi
           contact_phone: before.contactPhone,
           contact_email: before.contactEmail,
           contact_address: before.contactAddress,
-          timezone: before.timezone,
-          date_format: before.dateFormat,
-          currency: before.currency,
         },
         new: patch,
       };

@@ -53,6 +53,13 @@ const eslintConfig = defineConfig([
       ],
 
       // 2. Layering: only lib/data/ may touch Prisma directly.
+      //
+      // Two entries, because the rule had a hole for a year: blocking the
+      // package alone let `basePrisma` — the UNSCOPED client, re-exported from
+      // lib/data/db — be imported anywhere, and three Server Actions were
+      // writing orders through it with `where: { id }` and no business id. The
+      // tenant extension is the guarantee here (conventions.md §2), so the one
+      // export that bypasses it is named explicitly.
       "no-restricted-imports": [
         "error",
         {
@@ -61,6 +68,12 @@ const eslintConfig = defineConfig([
               name: "@prisma/client",
               message:
                 "גישה ישירה ל־Prisma מותרת רק ב־lib/data/. השתמשי ב־db המורחב. ראה conventions.md §2.",
+            },
+            {
+              name: "@/lib/data/db",
+              importNames: ["basePrisma"],
+              message:
+                "basePrisma עוקף את אכיפת ה־tenancy. מחוץ ל־lib/data/ משתמשים בפונקציה משכבת הנתונים, שמקבלת businessId. ראה conventions.md §2.",
             },
           ],
         },
@@ -74,7 +87,12 @@ const eslintConfig = defineConfig([
   {
     // `.mts` too: a standalone repair script has to be ESM to use top-level
     // await, and the extension is a module-format detail, not a layer.
-    files: ["lib/data/**/*.ts", "prisma/**/*.{ts,mts}", "e2e/**/*.ts"],
+    //
+    // lib/auth/ is here for the unscoped client only: everything it does runs
+    // BEFORE a business is active — finding which tenants an email may enter is
+    // the one question the tenant extension cannot help with — so the layer
+    // that establishes the tenant is allowed to reach past it.
+    files: ["lib/data/**/*.ts", "lib/auth/**/*.ts", "prisma/**/*.{ts,mts}", "e2e/**/*.ts"],
     rules: { "no-restricted-imports": "off" },
   },
 

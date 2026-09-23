@@ -62,10 +62,10 @@ export async function addMemberAction(_prev: FormState, formData: FormData): Pro
     return { errors: { email: "כתובת המייל הזאת כבר רשומה במערכת" }, values };
   }
 
-  await data.createMember(ctx.businessId, {
-    ...input,
-    role: input.role as AssignableRole,
-  });
+  await data.createMember(
+    { businessId: ctx.businessId, userId: ctx.userId },
+    { ...input, role: input.role as AssignableRole },
+  );
 
   revalidatePath("/settings/users");
   return {};
@@ -87,7 +87,7 @@ export async function setMemberRoleAction(userId: string, role: string): Promise
   if (blocked) return { message: blocked };
   if (!isAssignableRole(role)) return { message: "תפקיד לא מוכר" };
 
-  await data.setMemberRole(ctx.businessId, userId, role);
+  await data.setMemberRole({ businessId: ctx.businessId, userId: ctx.userId }, userId, role);
   revalidatePath("/settings/users");
   return {};
 }
@@ -111,7 +111,7 @@ export async function setMemberStatusAction(
     if (blocked) return { message: blocked };
   }
 
-  await data.setMemberStatus(ctx.businessId, userId, status);
+  await data.setMemberStatus({ businessId: ctx.businessId, userId: ctx.userId }, userId, status);
   revalidatePath("/settings/users");
   return {};
 }

@@ -6,6 +6,8 @@
  * messages, never as the security boundary.
  */
 
+import { counted } from "./hebrew-count";
+
 export type CustomerType = "regular" | "casual";
 
 export type CustomerInput = {
@@ -122,19 +124,28 @@ export function assertConvertible(
   }
 }
 
-/** Blocking message for a delete attempt on a customer with history (rule 8). */
+/**
+ * Blocking message for a delete attempt on a customer with history (rule 8).
+ *
+ * Each noun is a singular/plural pair rather than one word after a digit:
+ * "1 הזמנות" is not Hebrew, and a customer with exactly one order is precisely
+ * the customer someone tries to delete (lib/domain/hebrew-count.ts).
+ */
 export function deletionBlockedMessage(counts: Record<string, number>): string | null {
-  const labels: Record<string, string> = {
-    orders: "הזמנות",
-    publications: "פרסומים",
-    advertisements: "מודעות",
-    payments: "תשלומים",
-    portalUsers: "משתמשי פורטל",
+  const labels: Record<string, [one: string, many: string]> = {
+    orders: ["הזמנה אחת", "הזמנות"],
+    publications: ["פרסום אחד", "פרסומים"],
+    advertisements: ["מודעה אחת", "מודעות"],
+    payments: ["רישום תשלום אחד", "רישומי תשלום"],
+    portalUsers: ["משתמש פורטל אחד", "משתמשי פורטל"],
   };
 
   const parts = Object.entries(counts)
     .filter(([, n]) => n > 0)
-    .map(([key, n]) => `${n} ${labels[key] ?? key}`);
+    .map(([key, n]) => {
+      const pair = labels[key];
+      return pair ? counted(n, pair[0], pair[1]) : `${n} ${key}`;
+    });
 
   if (parts.length === 0) return null;
   return `לא ניתן למחוק את הלקוח — יש לו ${parts.join(", ")}. לקוח עם היסטוריה נשמר במערכת.`;

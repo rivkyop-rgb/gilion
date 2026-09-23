@@ -14,12 +14,13 @@ import {
   PUBLICATION_STATUS_LABELS,
   type PublicationStatus,
 } from "@/lib/domain/publication-status";
+import { PAYMENT_STATUS_LABELS, type PaymentStatus } from "@/lib/domain/payment-status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
-import { PUBLICATION_TONE, TONE_ROW } from "@/components/status-tone";
+import { PAYMENT_TONE, PUBLICATION_TONE, TONE_ROW } from "@/components/status-tone";
 import { cn } from "@/lib/utils";
 import { CancelPublication } from "../cancel-publication";
 import { LinkAdCell } from "../link-ad";
@@ -285,6 +286,17 @@ export default async function PublicationsPage({
                     מחיר
                   </th>
                 ) : null}
+                {/* US-001 AC-3 names nine facts per publication IN THE LIST,
+                    and this one was missing here while the dashboard table
+                    carried it — the two screens answer the same question, and
+                    this is the one a card drills down INTO. Behind the same
+                    gate as the price: a payment status is payment data (FR-8),
+                    and a designer's response must not carry it at all. */}
+                {maySeeMoney ? (
+                  <th className="p-3 text-start font-semibold" data-testid="col-payment">
+                    סטטוס תשלום
+                  </th>
+                ) : null}
                 <th className="p-3 text-start font-semibold">הזמנה</th>
                 {mayCancel ? <th className="p-3 text-start font-semibold" /> : null}
               </tr>
@@ -370,6 +382,13 @@ export default async function PublicationsPage({
                     {maySeeMoney ? (
                       <td className="p-3">
                         <Ltr>{formatMoney(Number(p.price))}</Ltr>
+                      </td>
+                    ) : null}
+                    {maySeeMoney ? (
+                      <td className="p-3">
+                        <Badge tone={PAYMENT_TONE[p.payment_status as PaymentStatus]}>
+                          {PAYMENT_STATUS_LABELS[p.payment_status as PaymentStatus]}
+                        </Badge>
                       </td>
                     ) : null}
                     <td className="p-3">

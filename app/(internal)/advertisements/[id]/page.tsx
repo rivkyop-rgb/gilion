@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, Download, FileText } from "lucide-react";
 
@@ -12,7 +13,6 @@ import { PUBLICATION_STATUS_LABELS, type PublicationStatus } from "@/lib/domain/
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Ltr } from "@/components/ui/ltr";
-import { NotFoundState } from "@/components/states";
 import { PUBLICATION_TONE } from "@/components/status-tone";
 import { fileHref } from "../ad-card";
 import { formatDateTime } from "../format";
@@ -38,7 +38,11 @@ export default async function AdvertisementPage({ params }: { params: Promise<{ 
 
   const { id } = await params;
   const ad = await getAdvertisement(ctx.businessId, id);
-  if (!ad) return <NotFoundState />;
+  // notFound(), not a rendered not-found state: the refusal has to reach the
+  // HTTP status as well, the way every other [id] screen answers (stage 01
+  // DoD). Rendering the state returned 200 with a 404 page inside it, which
+  // reads as "found" to anything that is not a pair of eyes.
+  if (!ad) notFound();
 
   const mayWrite = ctx.role !== "accounting" && ctx.role !== "customer";
   const mayArchive = ctx.isSuperAdmin || ctx.role === "admin" || ctx.role === "sales";

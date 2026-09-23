@@ -33,7 +33,7 @@ export type { PaymentStatus };
 const BINDING_ORDER_STATUSES = ["approved", "completed"];
 
 /** Publication states that mean the ad has already appeared in print. */
-const RAN_STATES = ["published", "billed"];
+const RAN_STATES = ["published"];
 
 /** A cancelled publication is not a charge. */
 const NOT_BILLABLE = ["canceled"];

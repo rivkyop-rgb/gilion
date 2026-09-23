@@ -40,7 +40,7 @@ export type ReportablePublication = {
 };
 
 /** Publication states that mean the ad has already appeared in print. */
-const RAN = ["published", "billed"];
+const RAN = ["published"];
 
 /**
  * Whether one publication belongs under one chip.

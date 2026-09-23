@@ -1,9 +1,20 @@
 /**
  * The publication state machine (FR-4, FR-5, conventions.md §3).
  *
- * Eight states and nine events. As with orders, nothing writes `status`
+ * Seven states and nine events. As with orders, nothing writes `status`
  * directly — `transition()` is the only door, so an impossible state cannot be
  * reached by a forgotten branch.
+ *
+ * ── `billed` was removed on 23/09/2026 ──────────────────────────────────────
+ * It was in FR-4's list and in this machine from the first day, and no code
+ * ever fired the event that reached it: stage 08 made whether a publication is
+ * paid for a DERIVED answer, computed from the sum of the payment rows against
+ * the order (lib/domain/payment-status.ts), and forbade any screen from setting
+ * it by hand. A second status saying the same thing, set by hand, is precisely
+ * what that rule exists to prevent — so the value was an eighth state that
+ * could never be entered, carrying a Hebrew label that could never be shown.
+ * Removed in prisma/migrations/20260923083000_*, and recorded in
+ * docs/plan/04-orders-publications.md §סטיות and docs/prd.md FR-4.
  */
 
 export const PUBLICATION_STATUSES = [
@@ -14,7 +25,6 @@ export const PUBLICATION_STATUSES = [
   "placed",
   "published",
   "canceled",
-  "billed",
 ] as const;
 
 export type PublicationStatus = (typeof PUBLICATION_STATUSES)[number];
@@ -29,7 +39,6 @@ export const PUBLICATION_EVENTS = [
   "ISSUE_CLOSED",
   "ISSUE_REOPENED",
   "CANCELED",
-  "BILLED",
 ] as const;
 export type PublicationEvent = (typeof PUBLICATION_EVENTS)[number];
 
@@ -61,15 +70,14 @@ const TRANSITIONS: Record<
    * branch. It is deliberately NOT symmetric with everything else: the issue's
    * own transition is already admin-only and audited, and this follows it.
    */
-  published: { BILLED: "billed", ISSUE_REOPENED: "placed" },
+  published: { ISSUE_REOPENED: "placed" },
   canceled: {},
-  billed: {},
 };
 
 /**
  * CANCELED is legal from every state except `published` (rule 17): once a
  * publication has actually run in a printed issue there is nothing left to
- * cancel — it happened. `billed` is likewise past the point of cancelling.
+ * cancel — it happened.
  */
 const CANCELLABLE: readonly PublicationStatus[] = [
   "planned",
@@ -125,7 +133,6 @@ export const PUBLICATION_STATUS_LABELS: Record<PublicationStatus, string> = {
   placed: "שובץ",
   published: "פורסם",
   canceled: "בוטל",
-  billed: "חויב",
 };
 
 /** Which statuses the dashboard and lists paint as needing attention. */

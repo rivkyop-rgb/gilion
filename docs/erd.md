@@ -71,8 +71,6 @@ custom_width_mm decimal no נדרש רק כאשר page_size = custom
 custom_height_mm decimal no נדרש רק כאשר page_size = custom
 margin decimal yes מ״מ
 print_quality string yes
-logo_url string no
-fixed_banner_url string no
 max_ad_file_size integer yes מוגדר לכל עיתון בנפרד
 columns integer yes חלוקת העמוד — מספר עמודות הגריד
 row_height_mm decimal yes גובה שורת גריד במ״מ
@@ -180,7 +178,7 @@ advertisement_id reference: Advertisement no ריק כאשר חסרה מודעה
 publication_date date yes
 price decimal yes מחיר בפועל בזמן אישור ההזמנה
 source enum: [internal, customer_portal] yes
-status enum: [planned, missing_ad, ad_received, ready_for_layout, placed, published, canceled, billed] yes
+status enum: [planned, missing_ad, ad_received, ready_for_layout, placed, published, canceled] yes
 placement_status enum: [not_placed, placed] yes
 payment_status enum: [unpaid, partially_paid, paid, debt] yes
 created_at datetime yes
@@ -532,3 +530,11 @@ FR-22 Issue, PdfGenerationLog
 | `Payment` | `status` — **צומצם** מ־`[unpaid, partially_paid, paid, debt, canceled]` ל־`[recorded, canceled]` | שלושת הערכים שירדו הם תכונה של הזמנה ולא של קבלה: שורה כאן קיימת מפני שהתקבל כסף. "שולם חלקית" ו"חוב" נגזרים מ**סכום** השורות ויושבים על `AdOrder.payment_status`. השארתם כאן הייתה מציעה ערכים שאסור לכתוב, ומזמינה מסך לקבוע ביד את מה שכלל 7 אוסר. | [`plan/08-payments-reports.md`](plan/08-payments-reports.md) §סטיות 1 |
 
 **אזור RBAC נוסף שאינו במסמך:** `reminders`. לא פינה של `publications`, כי הקהל שונה — גרפיקאית חייבת לראות מי לא שלח קובץ, אבל הרדיפה אחרי הלקוח אינה תפקידה, ולהנהלת חשבונות אין בזה חלק כלל.
+
+## שדות שהוסרו במימוש
+
+| ישות | שדה | למה | מתי |
+| --- | --- | --- | --- |
+| `Newspaper` | `logo_url`, `fixed_banner_url` | לא נכתבו ולא נקראו מעולם. לשניהם אין גיאומטריה, ולכן ציור שלהם היה מחייב את `print-html.ts` להמציא מיקום. המנגנון שכן קיים הוא **אזור שמור** על סוג העמוד, שיש לו גם מלבן וגם נכס, והגיליון מצלם אותו עמוד־עמוד. `prd.md` §10 היפוך 7 | 23/09/2026 |
+| `Publication` | `status = billed` | לא נכתב מעולם. שלב 08 הפך את "שולם" לנגזר מסכום התשלומים ואסר לקבוע אותו ביד; סטטוס שני שאומר אותו דבר ידנית הוא מה שהכלל ההוא מונע. `prd.md` §10 היפוך 6 | 23/09/2026 |
+| `BusinessSettings` | `timezone`, `date_format`, `currency` | נשמרו ונקראו ע"י אף מסך: `conventions.md` §1 מקבע תצוגה ל־he-IL / Asia/Jerusalem / dd/MM/yyyy ומטבע ל־ILS, בתריסר פורמטרים ברמת מודול. פקד שנשמר ולא משנה פיקסל גרוע מהיעדר פקד | 23/09/2026 |

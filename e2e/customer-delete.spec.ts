@@ -57,6 +57,17 @@ test.describe("the confirmation", () => {
 
     await page.goto(`/customers/${id}`);
     await expect(page.getByTestId("customer-name")).toHaveCount(0);
+
+    // FR-10: the row is gone, so the log is the only thing left that can say
+    // who removed it. Until 23/09/2026 nothing wrote it, although the action
+    // `delete_customer` existed in the enum and had a Hebrew label waiting.
+    await page.goto("/audit");
+    const row = page.locator('tr:has([data-action="delete_customer"])').first();
+    await expect(row).toContainText("מחיקת לקוח");
+    await row.getByRole("link").first().click();
+    await expect(page.getByTestId("audit-action")).toHaveText("מחיקת לקוח");
+    await expect(page.getByTestId("audit-old")).toContainText(name);
+    await expect(page.getByTestId("audit-new")).toHaveText("—");
   });
 });
 
@@ -83,6 +94,9 @@ test.describe("a customer with history is protected", () => {
     await expect(page.getByTestId("delete-customer")).toHaveCount(0);
     const reason = page.getByTestId("delete-blocked");
     await expect(reason).toContainText("לא ניתן למחוק");
-    await expect(reason).toContainText("הזמנות");
+    // Either form is correct — the count decides. Asserting the plural alone
+    // would fail the day this customer has exactly one order left, which is
+    // the run right after a fixture reset (lib/domain/hebrew-count.ts).
+    await expect(reason).toContainText(/הזמנה אחת|הזמנות/);
   });
 });

@@ -3,10 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   brandKey,
   checkBrandFile,
-  DATE_FORMATS,
-  DEFAULT_TIMEZONE,
   isBrandKey,
-  isValidTimezone,
   readSubmittedTexts,
   sniffBrandType,
   textFor,
@@ -20,9 +17,6 @@ const general: GeneralInput = {
   contactPhone: "",
   contactEmail: "",
   contactAddress: "",
-  timezone: DEFAULT_TIMEZONE,
-  dateFormat: "dd/MM/yyyy",
-  currency: "ILS",
 };
 
 const fieldsOf = (input: Partial<GeneralInput>) =>
@@ -85,26 +79,10 @@ describe("general settings", () => {
     }
   });
 
-  it("asks the runtime whether a time zone exists, not a hand-written list", () => {
-    expect(isValidTimezone("Europe/Paris")).toBe(true);
-    expect(isValidTimezone("Middle/Earth")).toBe(false);
-    expect(fieldsOf({ timezone: "Middle/Earth" })).toContain("timezone");
-  });
-
-  it("refuses a date format outside the offered set", () => {
-    expect(fieldsOf({ dateFormat: "DD-MMM-YY" })).toContain("dateFormat");
-    for (const format of DATE_FORMATS) expect(fieldsOf({ dateFormat: format })).toEqual([]);
-  });
-
-  it("refuses an unsupported currency", () => {
-    expect(fieldsOf({ currency: "BTC" })).toContain("currency");
-  });
-
   it("reports every bad field at once", () => {
-    expect(fieldsOf({ currency: "BTC", timezone: "Nowhere", dateFormat: "x" }).sort()).toEqual([
-      "currency",
-      "dateFormat",
-      "timezone",
+    expect(fieldsOf({ contactPhone: "12", contactEmail: "nope" }).sort()).toEqual([
+      "contactEmail",
+      "contactPhone",
     ]);
   });
 });

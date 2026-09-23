@@ -58,9 +58,9 @@ describe("summariseAccount", () => {
     expect(a.upcomingOpen).toBe(200);
   });
 
-  it("counts a billed publication as having run", () => {
+  it("counts a published publication as having run", () => {
     // `billed` only ever follows `published`, so it has certainly appeared.
-    const a = summariseAccount([pub(300, "billed")], paid());
+    const a = summariseAccount([pub(300, "published")], paid());
     expect(a.ranOpen).toBe(300);
     expect(a.upcomingOpen).toBe(0);
   });
