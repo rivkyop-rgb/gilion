@@ -4,11 +4,13 @@ import { Plus, Search } from "lucide-react";
 
 import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { listCustomers } from "@/lib/data/customers";
+import { netByCustomer } from "@/lib/data/payments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Ltr } from "@/components/ui/ltr";
 import { EmailLink, PhoneLink } from "@/components/contact-links";
 import { EmptyState } from "@/components/states";
+import { formatMoney } from "../../orders/format";
 
 export const metadata: Metadata = { title: "לקוחות · Gilion" };
 
@@ -36,6 +38,12 @@ export default async function CustomersPage({
   const { rows, total } = await listCustomers(ctx.businessId, {
     search: q,
   });
+  const nets = maySeeMoney
+    ? await netByCustomer(
+        ctx.businessId,
+        rows.map((c) => c.id),
+      )
+    : new Map<string, number>();
 
   return (
     <>
@@ -127,8 +135,8 @@ export default async function CustomersPage({
                   <td className="p-3">{c.phone ? <PhoneLink phone={c.phone} /> : "—"}</td>
                   <td className="p-3">{c.email ? <EmailLink email={c.email} /> : "—"}</td>
                   {maySeeMoney ? (
-                    <td className="p-3 text-on-surface-variant">
-                      <Ltr>₪0</Ltr>
+                    <td className="p-3" data-testid={`customer-net-${c.id}`}>
+                      <NetCell net={nets.get(c.id) ?? 0} />
                     </td>
                   ) : null}
                 </tr>
@@ -138,5 +146,26 @@ export default async function CustomersPage({
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * The same number and wording as the card's headline (`positionLabel`): a
+ * debt in the ordinary colour, money held for the customer marked as credit,
+ * and a settled customer quiet rather than a column of zeros shouting.
+ */
+function NetCell({ net }: { net: number }) {
+  if (net === 0) return <span className="text-on-surface-variant">מאוזן</span>;
+  if (net < 0) {
+    return (
+      <span className="text-status-info-fg">
+        <Ltr>{formatMoney(-net)}</Ltr> לזכות
+      </span>
+    );
+  }
+  return (
+    <span className="font-semibold">
+      <Ltr>{formatMoney(net)}</Ltr>
+    </span>
   );
 }

@@ -751,6 +751,61 @@ export async function customerAccount(businessId: string, customerId: string) {
   return { account, ...monthly };
 }
 
+/**
+ * The card's headline number — outstanding less credit — for a page of
+ * customers at once, for the customer list's "יתרת חוב" column.
+ *
+ * The SAME computation as the card (`summariseAccount` over the customer's
+ * publications, then the unassigned credit taken off), batched: one read of
+ * publications, one of payments. A list that computed its own figure would
+ * sooner or later disagree with the card one click away, and the user would
+ * see the contradiction before we did. Until 23/09/2026 the column was a
+ * hard-coded ₪0 on every row.
+ */
+export async function netByCustomer(
+  businessId: string,
+  customerIds: string[],
+): Promise<Map<string, number>> {
+  if (customerIds.length === 0) return new Map();
+  const rows = await tenantDb(businessId).publication.findMany({
+    where: { customer_id: { in: customerIds } },
+    select: {
+      customer_id: true,
+      price: true,
+      order_id: true,
+      status: true,
+      order: { select: { status: true } },
+    },
+  });
+
+  const [orderPaid, credits] = await Promise.all([
+    paidByOrder(businessId, [...new Set(rows.map((r) => r.order_id))]),
+    creditByCustomer(businessId),
+  ]);
+
+  const byCustomer = new Map<string, typeof rows>();
+  for (const r of rows) {
+    const list = byCustomer.get(r.customer_id) ?? [];
+    list.push(r);
+    byCustomer.set(r.customer_id, list);
+  }
+
+  const net = new Map<string, number>();
+  for (const id of customerIds) {
+    const account = summariseAccount(
+      (byCustomer.get(id) ?? []).map((r) => ({
+        orderId: r.order_id,
+        orderStatus: r.order.status,
+        status: r.status,
+        price: Number(r.price),
+      })),
+      orderPaid,
+    );
+    net.set(id, positionOf(account.outstanding, credits.get(id) ?? 0).net);
+  }
+  return net;
+}
+
 /** Orders that charge anything. Mirrors lib/domain/customer-account.ts. */
 const BINDING_ORDER_STATUSES = ["approved", "completed"];
 
