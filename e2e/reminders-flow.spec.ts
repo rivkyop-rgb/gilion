@@ -118,6 +118,18 @@ test("פרסום קרוב בלי מודעה נכנס לרשימה, ושום דב
   // The promise the screen makes, permanently on display (FR-11).
   await expect(page.getByTestId("reminders-banner")).toContainText("אינה שולחת תזכורות בעצמה");
 
+  /*
+   * The wording the admin set in the panel (`reminder_template`, stage 11).
+   *
+   * The field described itself as "the wording copied when contacting the
+   * customer" and until 23/09/2026 appeared in no screen at all. Copy, not
+   * send: FR-11 keeps the MVP out of the sending business, so the clipboard is
+   * the whole of what the product can honestly offer.
+   */
+  const wording = page.getByTestId("reminder-wording");
+  await expect(wording).toContainText("טרם קיבלנו את המודעה");
+  await expect(page.getByTestId("copy-reminder-wording")).toBeVisible();
+
   const table = page.getByTestId("reminders-table");
   await expect(table).toBeVisible();
   // Addressed by ITS OWN customer, not by position: the list is sorted by date
