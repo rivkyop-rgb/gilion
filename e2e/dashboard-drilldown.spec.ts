@@ -46,6 +46,16 @@ test.describe("כל כרטיס מוביל לרשימה שממנה נספר", () 
     await expect(page.getByTestId("attention-banner")).toContainText("אין להם קובץ מודעה");
   });
 
+  test("'פרסומים השבוע' פותח רשימה שאומרת שהיא של השבוע", async ({ page }) => {
+    // The link always carried from/to — and the page still read as the whole
+    // list: title "פרסומים", "כל הסטטוסים" lit, the dates only in two fields.
+    await page.goto("/dashboard");
+    await page.getByTestId("kpi-week").click();
+    await page.waitForURL(/from=.*&to=/);
+    await expect(page.getByTestId("publications-title")).toHaveText("פרסומים השבוע");
+    await expect(page.getByTestId("attention-banner")).toContainText("של השבוע הנוכחי");
+  });
+
   test("המספר על הכרטיס שווה למספר ברשימה שהוא פותח", async ({ page }) => {
     /*
      * The whole point of the pairing. Until the two were built from one

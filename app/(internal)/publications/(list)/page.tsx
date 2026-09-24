@@ -7,6 +7,8 @@ import { placeableAds } from "@/lib/data/advertisements";
 import type { AdPreviewModel } from "@/components/ads/ad-preview";
 import type { AdFileType } from "@/lib/domain/ad-file";
 import { listNewspapers } from "@/lib/data/newspapers";
+import { getCustomer } from "@/lib/data/customers";
+import { isoDay, weekRange } from "@/lib/domain/calendar";
 import { issuesForPublications } from "@/lib/data/issues";
 import {
   NEEDS_ATTENTION,
@@ -28,6 +30,9 @@ import { PublicationStatusBadge, SourceBadge, StatusChip } from "../../orders/or
 import { formatDate, formatMoney, orderNumber } from "../../orders/format";
 
 export const metadata: Metadata = { title: "פרסומים · Gilion" };
+
+const isPublicationStatus = (v: string): v is PublicationStatus =>
+  (PUBLICATION_STATUSES as readonly string[]).includes(v);
 
 /** The dashboard's two drill-downs (FR-20), as they read after "פרסומים". */
 const ATTENTION_LABELS: Record<string, string> = {
@@ -90,7 +95,7 @@ export default async function PublicationsPage({
   const mayCancel = canWriteArea(ctx, "orders");
   const mayOpenIssues = canWriteArea(ctx, "issues");
 
-  const [page, papers, ads] = await Promise.all([
+  const [page, papers, ads, customerRow] = await Promise.all([
     listPublicationsPage(ctx.businessId, {
       newspaperId: newspaper,
       status,
@@ -101,7 +106,9 @@ export default async function PublicationsPage({
     }),
     listNewspapers(ctx.businessId),
     mayLinkAds ? placeableAds(ctx.businessId) : Promise.resolve([]),
+    customer !== "all" ? getCustomer(ctx.businessId, customer) : Promise.resolve(null),
   ]);
+  const customerName = customerRow?.business_name ?? null;
   const { rows, total } = page;
 
   // One query for the whole table, grouped here: an ad may only be offered to
@@ -149,29 +156,53 @@ export default async function PublicationsPage({
       .filter((entry): entry is readonly [string, string] => entry !== null),
   );
 
+  // What the list is narrowed to, in words — for the title and the banner.
+  const week = weekRange(new Date());
+  const isThisWeek = from === isoDay(week.from) && to === isoDay(week.to);
+  const day = (iso: string) => formatDate(new Date(`${iso}T00:00:00Z`));
+  const filterParts: string[] = [];
+  if (attention === "missing_ad") filterParts.push("שנמכרו ועדיין אין להם קובץ מודעה");
+  if (attention === "not_placed") filterParts.push("שיש להם מודעה ועדיין לא שובצו על עמוד");
+  if (status !== "all" && isPublicationStatus(status)) {
+    filterParts.push(`בסטטוס "${PUBLICATION_STATUS_LABELS[status]}"`);
+  }
+  if (isThisWeek) filterParts.push("של השבוע הנוכחי");
+  else if (from && to) filterParts.push(`בין ${day(from)} ל־${day(to)}`);
+  else if (from) filterParts.push(`מ־${day(from)} והלאה`);
+  else if (to) filterParts.push(`עד ${day(to)}`);
+  const paperName = papers.find((n) => n.id === newspaper)?.name;
+  if (paperName) filterParts.push(`בעיתון ${paperName}`);
+  if (customerName) filterParts.push(`של ${customerName}`);
+
+  const title =
+    (ATTENTION_LABELS[attention]
+      ? `פרסומים ${ATTENTION_LABELS[attention]}`
+      : status !== "all" && isPublicationStatus(status)
+        ? `פרסומים · ${PUBLICATION_STATUS_LABELS[status]}`
+        : "פרסומים") + (isThisWeek ? " השבוע" : "");
+
   return (
     <>
-      {/* The card that opened this list named a question; the title answers it.
-          "פרסומים" over a filtered list reads as the whole list. */}
+      {/* Every drill-down names what it opened. "פרסומים" over a filtered list
+          reads as the whole list — which makes the card that opened it look
+          wrong (FR-20). */}
       <h1 className="mb-1 font-serif text-3xl font-semibold" data-testid="publications-title">
-        {ATTENTION_LABELS[attention] ? `פרסומים ${ATTENTION_LABELS[attention]}` : "פרסומים"}
+        {title}
       </h1>
       <p className="mb-4 text-sm text-on-surface-variant">
         כל פרסום מחייב שנוצר מאישור הזמנה. פרסום בלי מודעה או בלי שיבוץ מסומן ברקע אדמדם.
       </p>
 
-      {/* Somebody who arrived from a KPI card is looking at a SUBSET, and a
-          filtered list that does not say what it is filtered by reads as the
-          whole list — which makes the card above it look wrong. */}
-      {attention !== "all" ? (
+      {/* Somebody who arrived from a dashboard card is looking at a SUBSET, and
+          a filtered list that does not say what it is filtered by reads as the
+          whole list. Every active filter is named, not only the two drill-downs. */}
+      {filterParts.length > 0 ? (
         <p
           data-testid="attention-banner"
           className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-status-info-bg px-4 py-3 text-sm text-status-info-fg"
         >
-          {attention === "missing_ad"
-            ? "מוצגים רק פרסומים שנמכרו ועדיין אין להם קובץ מודעה."
-            : "מוצגים רק פרסומים שיש להם מודעה ועדיין לא שובצו על עמוד."}
-          <Link href={hrefWith({ attention: "all" })} className="underline">
+          <span>מוצגים רק פרסומים {filterParts.join(", ")}.</span>
+          <Link href="/publications" className="underline" data-testid="clear-filters">
             הצגת כל הפרסומים
           </Link>
         </p>
