@@ -16,15 +16,24 @@ function Shell({
   body,
   action,
   tone = "neutral",
+  bare = false,
 }: {
   icon: React.ReactNode;
   title: string;
   body: string;
   action?: React.ReactNode;
   tone?: "neutral" | "error";
+  /** Inside a card that already draws the frame: a card in a card is noise. */
+  bare?: boolean;
 }) {
   return (
-    <div className="flex min-h-64 flex-col items-center justify-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-10 text-center">
+    <div
+      className={cn(
+        "flex min-h-64 flex-col items-center justify-center gap-3 p-10 text-center",
+        !bare &&
+          "rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1",
+      )}
+    >
       <div
         className={cn(
           "flex size-12 items-center justify-center rounded-full",
@@ -58,12 +67,22 @@ export function EmptyState({
   title,
   body,
   action,
+  bare,
 }: {
   title: string;
   body: string;
   action?: React.ReactNode;
+  bare?: boolean;
 }) {
-  return <Shell icon={<Inbox className="size-6" />} title={title} body={body} action={action} />;
+  return (
+    <Shell
+      icon={<Inbox className="size-6" />}
+      title={title}
+      body={body}
+      action={action}
+      bare={bare}
+    />
+  );
 }
 
 export function ErrorState({ retry }: { retry?: () => void }) {

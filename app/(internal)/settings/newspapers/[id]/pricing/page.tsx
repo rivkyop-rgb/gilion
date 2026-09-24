@@ -40,7 +40,9 @@ export default async function PricingPage({ params }: { params: Promise<{ id: st
 
   return (
     <>
-      <h1 className="mb-4 page-title font-serif text-headline-lg font-semibold">{data.newspaper.name}</h1>
+      <h1 className="mb-4 page-title font-serif text-headline-lg font-semibold">
+        {data.newspaper.name}
+      </h1>
       <NewspaperTabs id={id} />
 
       <h2 className="mb-1 font-serif text-xl font-semibold">מחירון</h2>

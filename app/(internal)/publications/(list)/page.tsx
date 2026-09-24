@@ -186,7 +186,10 @@ export default async function PublicationsPage({
       {/* Every drill-down names what it opened. "פרסומים" over a filtered list
           reads as the whole list — which makes the card that opened it look
           wrong (FR-20). */}
-      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold" data-testid="publications-title">
+      <h1
+        className="mb-1 page-title font-serif text-headline-lg font-semibold"
+        data-testid="publications-title"
+      >
         {title}
       </h1>
       <p className="mb-4 text-sm text-on-surface-variant">

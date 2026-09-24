@@ -177,7 +177,10 @@ export default async function CustomerPage({
     <>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="mb-2 page-title font-serif text-headline-lg font-semibold" data-testid="customer-name">
+          <h1
+            className="mb-2 page-title font-serif text-headline-lg font-semibold"
+            data-testid="customer-name"
+          >
             {customer.business_name}
           </h1>
           {mainContact ? (

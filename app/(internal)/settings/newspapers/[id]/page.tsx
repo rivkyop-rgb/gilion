@@ -38,7 +38,10 @@ export default async function NewspaperPage({ params }: { params: Promise<{ id: 
 
   return (
     <>
-      <h1 className="mb-4 page-title font-serif text-headline-lg font-semibold" data-testid="newspaper-name">
+      <h1
+        className="mb-4 page-title font-serif text-headline-lg font-semibold"
+        data-testid="newspaper-name"
+      >
         {paper.name}
       </h1>
       <NewspaperTabs id={paper.id} />

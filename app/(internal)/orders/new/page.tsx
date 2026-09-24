@@ -13,11 +13,10 @@ export default async function NewOrderPage() {
   const rows = await listCustomerOptions(ctx.businessId);
 
   return (
-    <div className="max-w-[560px]">
+    <div className="max-w-[1100px]">
       <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">הזמנה חדשה</h1>
       <p className="mb-6 text-sm text-on-surface-variant">
-        בחרי לקוח כדי לפתוח טיוטה. שורות הפרסום מתווספות בשלב הבא, וההזמנה לא תיצור שום פרסום מחייב
-        עד שתאושר.
+        בחרי לקוח כדי לפתוח טיוטה. שורות הפרסום מתווספות בשלב הבא.
       </p>
       <NewOrderForm
         customers={rows.map((c) => ({

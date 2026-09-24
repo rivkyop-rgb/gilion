@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { countOpenReminders, refreshReminders, reminderWindow } from "@/lib/data/reminders";
@@ -20,15 +18,6 @@ export default async function ReminderSettingsPage() {
 
   return (
     <>
-      <Link
-        href="/settings"
-        className="mb-3 inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-on-surface"
-      >
-        {/* RTL: ArrowRight points back toward the start of the line in Hebrew */}
-        <ArrowRight className="size-4" />
-        חזרה להגדרות
-      </Link>
-
       <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">תזכורות ללקוחות</h1>
       <p className="mb-6 max-w-2xl text-sm text-on-surface-variant">
         פרסום שתאריכו מתקרב ועדיין אין לו מודעה נכנס לרשימת התזכורות. כאן נקבע כמה ימים לפני הפרסום

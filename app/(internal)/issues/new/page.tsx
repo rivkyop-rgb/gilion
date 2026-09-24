@@ -49,7 +49,9 @@ export default async function NewIssuePage() {
 
   return (
     <>
-      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">פתיחת גיליון חדש</h1>
+      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">
+        פתיחת גיליון חדש
+      </h1>
       <p className="mb-4 text-sm text-on-surface-variant">
         בחרי עיתון ותאריך, והרכיבי את העמודים. חלוקת העמוד של העיתון מצולמת אל הגיליון ברגע הפתיחה,
         ומאותו רגע שינוי בהגדרות העיתון אינו משפיע עליו.

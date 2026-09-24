@@ -41,9 +41,12 @@ export type WeekRow = {
  * the week, who should reach the row's own screen to act rather than act here.
  */
 export function WeekTable({ rows, showsMoney }: { rows: WeekRow[]; showsMoney: boolean }) {
+  // The panel around it draws the card (design 01: header, filters and table
+  // are one card), so neither the table nor its empty state frames itself.
   if (rows.length === 0) {
     return (
       <EmptyState
+        bare
         title="אין פרסומים בטווח הזה"
         body="פרסומים נוצרים כשהזמנה מאושרת. אפשר להרחיב את טווח התאריכים למעלה כדי לראות תאריכים אחרים."
       />
@@ -51,7 +54,7 @@ export function WeekTable({ rows, showsMoney }: { rows: WeekRow[]; showsMoney: b
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
+    <div className="overflow-x-auto">
       <table className="w-full text-sm" data-testid="week-table">
         <thead className="bg-surface-container">
           <tr>

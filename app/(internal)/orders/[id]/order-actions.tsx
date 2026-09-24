@@ -31,6 +31,7 @@ export function OrderActions({
   publicationCount,
   lineCount,
   total,
+  layout = "bar",
 }: {
   orderId: string;
   orderRef: string;
@@ -40,6 +41,11 @@ export function OrderActions({
   publicationCount: number;
   lineCount: number;
   total: string;
+  /**
+   * `bar` — the sticky strip along the bottom of the page. `card` — stacked,
+   * full width, inside the order summary card (design 03).
+   */
+  layout?: "bar" | "card";
 }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
@@ -49,13 +55,19 @@ export function OrderActions({
     startTransition(async () => setError((await fn()).message ?? null));
 
   return (
-    <div className="sticky bottom-0 -mx-4 mt-8 border-t border-outline-variant bg-surface-container-lowest px-4 py-4 lg:-mx-8 lg:px-8">
+    <div
+      className={
+        layout === "bar"
+          ? "sticky bottom-0 -mx-4 mt-8 border-t border-outline-variant bg-surface-container-lowest px-4 py-4 lg:-mx-8 lg:px-8"
+          : ""
+      }
+    >
       {error ? <InlineError>{error}</InlineError> : null}
 
       {rejecting ? (
         <RejectForm orderId={orderId} onCancel={() => setRejecting(false)} />
       ) : (
-        <div className="flex flex-wrap gap-3">
+        <div className={layout === "bar" ? "flex flex-wrap gap-3" : "flex flex-col gap-2"}>
           {status === "draft" ? (
             <Button
               disabled={busy}
@@ -89,7 +101,7 @@ export function OrderActions({
           ) : null}
 
           {status === "approved" && canComplete ? (
-            <span className="flex items-center gap-2">
+            <span className={layout === "bar" ? "flex items-center gap-2" : "flex flex-col gap-2"}>
               <Button
                 variant="secondary"
                 disabled={busy}

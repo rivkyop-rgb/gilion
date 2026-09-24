@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { AlertTriangle, ArrowRight, Download, FileText } from "lucide-react";
+import { AlertTriangle, Download, FileText } from "lucide-react";
 
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { getAdvertisement, linkablePublications, newspaperLimits } from "@/lib/data/advertisements";
@@ -62,15 +61,6 @@ export default async function AdvertisementPage({ params }: { params: Promise<{ 
 
   return (
     <>
-      <Link
-        href="/advertisements"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-on-surface-variant hover:underline"
-      >
-        {/* RTL: ArrowRight points towards the start of the line in Hebrew. */}
-        <ArrowRight className="size-4" />
-        חזרה לספריית המודעות
-      </Link>
-
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4">
           <div className="flex h-[420px] items-center justify-center rounded-lg bg-surface-container">

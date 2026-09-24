@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { loadSettings } from "@/lib/data/business-settings";
@@ -16,14 +14,6 @@ export default async function TextsPage() {
 
   return (
     <>
-      <Link
-        href="/settings"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-on-surface"
-      >
-        <ArrowRight className="size-4" />
-        חזרה להגדרות
-      </Link>
-
       <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">טקסטים</h1>
       <p className="mb-8 text-sm text-on-surface-variant">
         המשפטים שהמשתמשים והלקוחות קוראים. שדה ריק מציג את נוסח ברירת המחדל — הוא כתוב באפור בתוך

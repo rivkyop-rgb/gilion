@@ -67,7 +67,9 @@ export default async function PortalAccessPage({ params }: { params: Promise<{ i
         לכרטיס הלקוח
       </Link>
       <div>
-        <h1 className="page-title font-serif text-headline-lg font-semibold">גישה לפורטל — {label}</h1>
+        <h1 className="page-title font-serif text-headline-lg font-semibold">
+          גישה לפורטל — {label}
+        </h1>
         <p className="mt-1 text-sm text-on-surface-variant">
           מי שיש לו חשבון כאן נכנס לפורטל הלקוחות, שולח בקשות פרסום ורואה רק את הבקשות של {label}.
           בלי מחירים ובלי מידע תשלום.

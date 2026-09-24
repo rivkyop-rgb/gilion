@@ -220,50 +220,58 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
 
         {mayReadPublications ? (
-          <section aria-label="פרסומים בטווח הנבחר" data-testid="week-panel">
-            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="font-serif text-xl font-semibold" data-testid="week-heading">
-                {showingThisWeek ? (
-                  "פרסומים השבוע"
-                ) : (
-                  <>
-                    פרסומים בטווח{" "}
-                    <span className="text-base font-normal text-on-surface-variant">
-                      <Ltr>
-                        {filters.from || "…"} – {filters.to || "…"}
-                      </Ltr>
-                    </span>
-                  </>
-                )}
-              </h2>
-              <p className="text-xs text-on-surface-variant" data-testid="week-count">
-                {/* A truncated list that does not say so reads as a full answer. */}
-                {table.total > rows.length ? (
-                  <>
-                    מוצגים <Ltr>{rows.length}</Ltr> מתוך <Ltr>{table.total}</Ltr>
-                  </>
-                ) : (
-                  <>
-                    <Ltr>{table.total}</Ltr> פרסומים
-                  </>
-                )}
-              </p>
-            </div>
+          <section
+            aria-label="פרסומים בטווח הנבחר"
+            data-testid="week-panel"
+            className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1"
+          >
+            {/* Design 01: the heading and the filters are the card's own header,
+                on the tinted band, and the table is the card's body. */}
+            <div className="border-b border-outline-variant bg-surface-container-low px-5 pt-4">
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="font-serif text-xl font-semibold" data-testid="week-heading">
+                  {showingThisWeek ? (
+                    "פרסומים השבוע"
+                  ) : (
+                    <>
+                      פרסומים בטווח{" "}
+                      <span className="text-base font-normal text-on-surface-variant">
+                        <Ltr>
+                          {filters.from || "…"} – {filters.to || "…"}
+                        </Ltr>
+                      </span>
+                    </>
+                  )}
+                </h2>
+                <p className="text-xs text-on-surface-variant" data-testid="week-count">
+                  {/* A truncated list that does not say so reads as a full answer. */}
+                  {table.total > rows.length ? (
+                    <>
+                      מוצגים <Ltr>{rows.length}</Ltr> מתוך <Ltr>{table.total}</Ltr>
+                    </>
+                  ) : (
+                    <>
+                      <Ltr>{table.total}</Ltr> פרסומים
+                    </>
+                  )}
+                </p>
+              </div>
 
-            <DashboardFilters
-              baseHref="/dashboard"
-              values={filters}
-              dirty={Object.keys(params).length > 0}
-              newspapers={papers.map((p) => ({ id: p.id, name: p.name }))}
-              customers={customers.map((c) => ({
-                id: c.id,
-                name: c.business_name,
-              }))}
-              statuses={PUBLICATION_STATUSES.map((s) => ({
-                value: s,
-                label: PUBLICATION_STATUS_LABELS[s],
-              }))}
-            />
+              <DashboardFilters
+                baseHref="/dashboard"
+                values={filters}
+                dirty={Object.keys(params).length > 0}
+                newspapers={papers.map((p) => ({ id: p.id, name: p.name }))}
+                customers={customers.map((c) => ({
+                  id: c.id,
+                  name: c.business_name,
+                }))}
+                statuses={PUBLICATION_STATUSES.map((s) => ({
+                  value: s,
+                  label: PUBLICATION_STATUS_LABELS[s],
+                }))}
+              />
+            </div>
 
             <WeekTable rows={rows} showsMoney={money} />
           </section>

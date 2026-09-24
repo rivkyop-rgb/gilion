@@ -110,7 +110,9 @@ export default async function AdvertisementsPage({
     <>
       <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="page-title font-serif text-headline-lg font-semibold">ניהול קבצים ומודעות</h1>
+          <h1 className="page-title font-serif text-headline-lg font-semibold">
+            ניהול קבצים ומודעות
+          </h1>
           <p className="mt-1 text-sm text-on-surface-variant">
             הגודל המותר נקבע לכל עיתון בנפרד בהגדרות. מודעה ללא לקוח, או שלא עברה בדיקה, אינה זמינה
             לשיבוץ.
