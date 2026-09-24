@@ -152,7 +152,7 @@ export function NewspaperForm({
           name="pageSize"
           value={pageSize}
           onChange={(e) => setPageSize(e.target.value as PageSizeKey)}
-          className="h-10 w-full rounded-sm border border-outline-variant bg-surface-container px-3 text-start text-sm"
+          className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container px-3 text-start text-sm"
         >
           {PAGE_SIZE_KEYS.map((k) => (
             <option key={k} value={k}>
@@ -276,7 +276,7 @@ export function NewspaperForm({
         {plan && (plan.rescaled.length > 0 || plan.warnings.length > 0) ? (
           <div
             data-testid="rescale-preview"
-            className="mt-3 rounded-md border border-status-warning-fg/40 bg-status-warning-bg/40 p-3 text-sm"
+            className="mt-3 rounded-lg border border-status-warning-fg/40 bg-status-warning-bg/40 p-3 text-sm"
           >
             <p className="mb-2 font-medium">שינוי החלוקה משנה גם את קטלוג הצורות</p>
 

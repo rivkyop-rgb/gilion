@@ -63,7 +63,7 @@ export function OrderArtwork({
     return (
       <div
         data-testid="order-artwork-attached"
-        className="mb-8 flex flex-wrap items-center gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest p-4"
+        className="mb-8 flex flex-wrap items-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4"
       >
         <FileCheck2 className="size-5 text-status-success-fg" />
         <div className="min-w-0 flex-1">

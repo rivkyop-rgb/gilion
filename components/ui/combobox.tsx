@@ -146,7 +146,7 @@ export function Combobox({
           onChange={(e) => search(e.target.value)}
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
-          className="h-10 w-full rounded-sm border border-outline-variant bg-surface-container pe-16 ps-3 text-start text-sm outline-none focus:border-primary"
+          className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container pe-16 ps-3 text-start text-sm outline-none focus:border-primary"
         />
         <div className="pointer-events-none absolute inset-y-0 end-2 flex items-center gap-1">
           {value ? (
@@ -172,7 +172,7 @@ export function Combobox({
           id={listId}
           role="listbox"
           data-testid={testId ? `${testId}-list` : undefined}
-          className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-sm border border-outline-variant bg-surface-container-lowest py-1 shadow-lg"
+          className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-outline-variant bg-surface-container-lowest py-1 shadow-elevation-2"
         >
           {filtered.length === 0 ? (
             <li className="px-3 py-2 text-sm text-on-surface-variant">{emptyText}</li>

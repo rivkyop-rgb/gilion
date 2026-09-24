@@ -52,7 +52,7 @@ export type ExistingLine = {
 const usable = (p: PaperOption) => p.pageTypes.some((pt) => pt.shapes.length > 0);
 
 const selectClass =
-  "h-10 w-full rounded-sm border border-outline-variant bg-surface-container px-3 text-start text-sm";
+  "h-10 w-full rounded-lg border border-outline-variant bg-surface-container px-3 text-start text-sm";
 
 export function LineBuilder({
   orderId,
@@ -169,7 +169,7 @@ export function LineBuilder({
         </p>
       ) : (
         <>
-          <div className="mb-4 overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest">
+          <div className="mb-4 overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
             {/*
             One row per THING ORDERED, not per date. Nobody orders "a full page
             on the 1st" and then "a full page on the 8th" — they order a full
@@ -301,7 +301,7 @@ export function LineBuilder({
       {editable && papers.length > 0 ? (
         <form
           action={action}
-          className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4"
+          className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4"
         >
           {/* One line per chosen date, all submitted together. */}
           {dates.map((d) => (

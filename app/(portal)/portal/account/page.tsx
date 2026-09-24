@@ -36,7 +36,7 @@ export default async function PortalAccountPage() {
   return (
     <div className="space-y-8">
       <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-8">
-        <h1 className="mb-6 font-serif text-3xl font-semibold">החשבון שלי</h1>
+        <h1 className="mb-6 page-title font-serif text-headline-lg font-semibold">החשבון שלי</h1>
         <dl className="grid gap-6 sm:grid-cols-2">
           <div>
             <dt className="text-sm text-on-surface-variant">

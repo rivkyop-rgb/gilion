@@ -104,7 +104,7 @@ export function DashboardFilters({
           name="newspaper"
           defaultValue={values.newspaper}
           data-testid="filter-newspaper"
-          className="h-10 rounded-sm border border-outline-variant bg-surface-container px-3 text-start text-sm"
+          className="h-10 rounded-lg border border-outline-variant bg-surface-container px-3 text-start text-sm"
         >
           <option value="all">כל העיתונים</option>
           {newspapers.map((n) => (
@@ -138,7 +138,7 @@ export function DashboardFilters({
           name="status"
           defaultValue={values.status}
           data-testid="filter-status"
-          className="h-10 rounded-sm border border-outline-variant bg-surface-container px-3 text-start text-sm"
+          className="h-10 rounded-lg border border-outline-variant bg-surface-container px-3 text-start text-sm"
         >
           <option value="all">כל הסטטוסים</option>
           {statuses.map((s) => (

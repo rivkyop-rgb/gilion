@@ -107,7 +107,7 @@ export function NewIssueForm({
   const canSubmit = Boolean(newspaperId && date && pages.length > 0) && !info?.exists;
 
   return (
-    <div className="max-w-2xl space-y-5 rounded-lg border border-outline-variant bg-surface-container-lowest p-5">
+    <div className="max-w-2xl space-y-5 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <Label htmlFor="newspaperId">עיתון</Label>
@@ -116,7 +116,7 @@ export function NewIssueForm({
             data-testid="issue-newspaper"
             value={newspaperId}
             onChange={(e) => chooseNewspaper(e.target.value)}
-            className="h-10 w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3 text-sm"
+            className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-sm"
           >
             {newspapers.map((n) => (
               <option key={n.id} value={n.id}>
@@ -148,7 +148,7 @@ export function NewIssueForm({
         </p>
 
         {paper && paper.pageTypes.length === 0 ? (
-          <p className="flex items-center gap-2 rounded-md bg-status-warning-bg p-3 text-sm text-status-warning-fg">
+          <p className="flex items-center gap-2 rounded-lg bg-status-warning-bg p-3 text-sm text-status-warning-fg">
             <AlertTriangle className="size-4 shrink-0" />
             לעיתון הזה אין סוגי עמודים, ולכן אי אפשר להרכיב לו גיליון. אפשר להוסיף אותם בהגדרות
             העיתון.
@@ -168,7 +168,7 @@ export function NewIssueForm({
                   onChange={(e) =>
                     setPages(pages.map((p, i) => (i === index ? e.target.value : p)))
                   }
-                  className="h-9 flex-1 rounded-md border border-outline-variant bg-surface-container-lowest px-3 text-sm"
+                  className="h-9 flex-1 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-sm"
                 >
                   {paper?.pageTypes.map((pt) => (
                     <option key={pt.id} value={pt.id}>
@@ -207,7 +207,7 @@ export function NewIssueForm({
       </fieldset>
 
       <div
-        className="rounded-md border border-outline-variant bg-surface-container p-3 text-sm"
+        className="rounded-lg border border-outline-variant bg-surface-container p-3 text-sm"
         data-testid="issue-preview"
       >
         <p>

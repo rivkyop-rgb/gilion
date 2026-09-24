@@ -67,7 +67,7 @@ export function Packages({
             <li
               key={pkg.id}
               data-testid={`package-${pkg.id}`}
-              className="flex flex-wrap items-center gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest p-3"
+              className="flex flex-wrap items-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3"
             >
               <span className="min-w-0 flex-1">
                 <span className="block font-medium">

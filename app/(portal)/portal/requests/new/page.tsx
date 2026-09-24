@@ -32,7 +32,7 @@ export default async function NewRequestPage() {
       </Link>
       <div className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest">
         <div className="bg-linear-to-b from-status-info-bg/60 to-surface-container-lowest px-8 pt-8 pb-4">
-          <h1 className="mb-2 font-serif text-3xl font-semibold">בקשת פרסום חדשה</h1>
+          <h1 className="mb-2 page-title font-serif text-headline-lg font-semibold">בקשת פרסום חדשה</h1>
           <p className="text-on-surface-variant">
             ממלאים עיתון, תאריך, גודל וקובץ — והבקשה עוברת לאישור העיתון.
           </p>

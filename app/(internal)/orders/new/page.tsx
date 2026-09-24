@@ -14,7 +14,7 @@ export default async function NewOrderPage() {
 
   return (
     <div className="max-w-[560px]">
-      <h1 className="mb-1 font-serif text-3xl font-semibold">הזמנה חדשה</h1>
+      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">הזמנה חדשה</h1>
       <p className="mb-6 text-sm text-on-surface-variant">
         בחרי לקוח כדי לפתוח טיוטה. שורות הפרסום מתווספות בשלב הבא, וההזמנה לא תיצור שום פרסום מחייב
         עד שתאושר.

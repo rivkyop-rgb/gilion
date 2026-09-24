@@ -28,7 +28,7 @@ export function PortalAccountForm({
     <form
       action={action}
       data-testid="portal-account-form"
-      className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4"
+      className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4"
     >
       <h2 className="mb-3 font-serif text-lg font-semibold">חשבון חדש לפורטל</h2>
       <div className="grid gap-3 sm:grid-cols-3">

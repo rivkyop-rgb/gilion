@@ -11,7 +11,7 @@ export default async function NewNewspaperPage() {
 
   return (
     <>
-      <h1 className="mb-1 font-serif text-3xl font-semibold">עיתון חדש</h1>
+      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">עיתון חדש</h1>
       <p className="mb-6 text-sm text-on-surface-variant">
         קטלוג צורות הבסיס ייווצר אוטומטית לפי החלוקה שתגדירי. אחרי היצירה אפשר להוסיף סוגי עמודים
         ומחירון.

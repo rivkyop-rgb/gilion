@@ -24,7 +24,7 @@ function Shell({
   tone?: "neutral" | "error";
 }) {
   return (
-    <div className="flex min-h-64 flex-col items-center justify-center gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest p-10 text-center">
+    <div className="flex min-h-64 flex-col items-center justify-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-10 text-center">
       <div
         className={cn(
           "flex size-12 items-center justify-center rounded-full",

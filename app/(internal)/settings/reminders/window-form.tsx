@@ -37,7 +37,7 @@ export function ReminderWindowForm({ current, affected }: { current: number; aff
     });
 
   return (
-    <div className="max-w-md rounded-lg border border-outline-variant bg-surface-container-lowest p-6">
+    <div className="max-w-md rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-6">
       <Label htmlFor="days">כמה ימים לפני הפרסום להתחיל להזכיר</Label>
       <div className="mt-1 flex gap-2">
         <Input

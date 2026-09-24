@@ -92,7 +92,7 @@ export function MultiDatePicker({
   const lead = days[0]?.weekday ?? 0;
 
   return (
-    <div className="rounded-lg border border-outline-variant bg-surface-container-lowest p-3">
+    <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         {/* RTL: "previous" sits at the start of the line, which is the right. */}
         <button

@@ -110,7 +110,7 @@ export function IssueCheckPanel({
         <p
           data-testid="check-message"
           className={cn(
-            "mb-4 rounded-md p-3 text-sm",
+            "mb-4 rounded-lg p-3 text-sm",
             notice.ok
               ? "bg-status-success-bg text-status-success-fg"
               : "bg-status-error-bg text-status-error-fg",
@@ -135,7 +135,7 @@ export function IssueCheckPanel({
               key={kind}
               data-testid={`finding-${kind}`}
               data-severity="clear"
-              className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest p-3 text-sm"
+              className="flex items-center gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3 text-sm"
             >
               <CheckCircle2 className="size-4 shrink-0 text-status-success-fg" />
               <span className="text-on-surface-variant">{FINDING_TITLES[kind]}</span>
@@ -268,7 +268,7 @@ function Kpi({
   tone?: "error" | "success";
 }) {
   return (
-    <div className="rounded-lg border border-outline-variant bg-surface-container-lowest p-3">
+    <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3">
       <p className="text-xs text-on-surface-variant">{label}</p>
       <p
         data-testid={testId}
@@ -355,7 +355,7 @@ function ClosedCard({
   return (
     <div
       data-testid="final-pdf-card"
-      className="mb-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-4"
+      className="mb-4 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4"
     >
       <div className="flex flex-wrap items-center gap-3">
         <Lock className="size-5 text-status-done-fg" />
@@ -470,7 +470,7 @@ function CloseIssueDialog({
         <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-primary/40" />
         <DialogPrimitive.Content
           data-testid="close-issue-dialog"
-          className="fixed inset-x-0 top-1/2 z-50 mx-auto w-[min(31.25rem,calc(100vw-2rem))] -translate-y-1/2 rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-lg"
+          className="fixed inset-x-0 top-1/2 z-50 mx-auto w-[min(31.25rem,calc(100vw-2rem))] -translate-y-1/2 rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-2"
         >
           <DialogPrimitive.Title className="mb-2 flex items-center gap-2 font-serif text-lg font-semibold">
             <AlertTriangle className="size-5 text-status-error-fg" />

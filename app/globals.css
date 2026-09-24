@@ -99,6 +99,15 @@
   --radius-lg: 8px;
   --radius-xl: 12px;
 
+  /* --- type scale — design-system.md §2 --- */
+  --text-headline-lg: 32px;
+  --text-headline-lg--line-height: 40px;
+
+  /* --- depth — design-system.md §5: tonal layers and hairlines, with only a
+     whisper of shadow, to keep the feel of print --- */
+  --shadow-elevation-1: 0 2px 4px rgba(0, 31, 63, 0.05);
+  --shadow-elevation-2: 0 8px 16px rgba(0, 31, 63, 0.1);
+
   /* --- spacing — 4px base unit --- */
   --spacing-gutter: 16px;
   --spacing-margin-desktop: 32px;
@@ -118,6 +127,17 @@ h1,
 h2,
 h3 {
   font-family: var(--font-serif);
+}
+
+/* Page title — headline-lg with the short gold rule under it (app-shell.md §3).
+   Drawn as a background so it works on a flex heading too, where an ::after
+   would become a row item. The rule sits at the START edge: right, in Hebrew. */
+.page-title {
+  padding-bottom: 10px;
+  background-image: linear-gradient(var(--color-brand-gold), var(--color-brand-gold));
+  background-repeat: no-repeat;
+  background-size: 56px 3px;
+  background-position: right bottom;
 }
 
 /* Latin metadata (invoice ids, dimensions) inside RTL flow — conventions.md §1 */

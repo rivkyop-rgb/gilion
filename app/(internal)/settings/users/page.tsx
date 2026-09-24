@@ -22,14 +22,14 @@ export default async function UsersPage() {
 
   return (
     <>
-      <h1 className="mb-1 font-serif text-3xl font-semibold">משתמשים</h1>
+      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">משתמשים</h1>
       <p className="mb-6 text-sm text-on-surface-variant">
         האנשים שיכולים להיכנס לעסק הזה. משתמש שייך לעסק אחד בלבד, ואינו רואה שום נתון מעסק אחר.
       </p>
 
       <AddMemberForm />
 
-      <div className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest">
+      <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
         <table className="w-full text-sm" data-testid="members-table">
           <thead className="bg-surface-container">
             <tr>

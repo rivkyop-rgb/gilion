@@ -103,7 +103,7 @@ export function ShapePositionPicker({
           <div
             role="radiogroup"
             aria-label="מה לחיצה על העמוד עושה"
-            className="inline-flex gap-1 rounded-md border border-outline-variant bg-surface-container p-1"
+            className="inline-flex gap-1 rounded-lg border border-outline-variant bg-surface-container p-1"
           >
             {(
               [
@@ -121,7 +121,7 @@ export function ShapePositionPicker({
                 className={cn(
                   "flex items-center gap-2 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors",
                   mode === m
-                    ? "bg-surface-container-lowest text-on-surface shadow-sm ring-1 ring-outline-variant"
+                    ? "bg-surface-container-lowest text-on-surface shadow-elevation-1 ring-1 ring-outline-variant"
                     : "text-on-surface-variant hover:text-on-surface",
                 )}
               >

@@ -56,7 +56,7 @@ export default async function ValidateIssuePage({ params }: { params: Promise<{ 
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="mb-1 flex items-center gap-2 font-serif text-3xl font-semibold">
+          <h1 className="mb-1 flex items-center gap-2 page-title font-serif text-headline-lg font-semibold">
             <ClipboardCheck className="size-7" />
             בדיקה וסגירה
           </h1>

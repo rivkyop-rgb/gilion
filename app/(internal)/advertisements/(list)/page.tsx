@@ -110,7 +110,7 @@ export default async function AdvertisementsPage({
     <>
       <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-serif text-3xl font-semibold">ניהול קבצים ומודעות</h1>
+          <h1 className="page-title font-serif text-headline-lg font-semibold">ניהול קבצים ומודעות</h1>
           <p className="mt-1 text-sm text-on-surface-variant">
             הגודל המותר נקבע לכל עיתון בנפרד בהגדרות. מודעה ללא לקוח, או שלא עברה בדיקה, אינה זמינה
             לשיבוץ.
@@ -194,7 +194,7 @@ export default async function AdvertisementsPage({
             name="status"
             defaultValue={status}
             data-testid="filter-status"
-            className="h-10 rounded-sm border border-outline-variant bg-surface-container px-3 text-start text-sm"
+            className="h-10 rounded-lg border border-outline-variant bg-surface-container px-3 text-start text-sm"
           >
             <option value="all">כל הסטטוסים</option>
             {Object.entries(AD_STATUS_LABELS).map(([value, label]) => (
@@ -214,7 +214,7 @@ export default async function AdvertisementsPage({
             name="type"
             defaultValue={type}
             data-testid="filter-type"
-            className="h-10 rounded-sm border border-outline-variant bg-surface-container px-3 text-start text-sm"
+            className="h-10 rounded-lg border border-outline-variant bg-surface-container px-3 text-start text-sm"
           >
             <option value="all">כל הסוגים</option>
             {AD_FILE_TYPES.map((t) => (
@@ -286,7 +286,7 @@ function AdCollection({ ads, view }: { ads: AdCardModel[]; view: string }) {
 
 function AdTable({ ads }: { ads: AdCardModel[] }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest">
+    <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
       <table className="w-full text-sm" data-testid="ads-table">
         <thead className="bg-surface-container">
           <tr>

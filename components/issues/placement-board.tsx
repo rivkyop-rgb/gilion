@@ -445,7 +445,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                  fine. This message used to be orange while hovering and red
                  after the click — the same sentence in two colours, which
                  taught the reader that the colour means nothing. */
-              className="absolute inset-0 overflow-y-auto rounded-md bg-status-error-bg p-2 text-sm text-status-error-fg"
+              className="absolute inset-0 overflow-y-auto rounded-lg bg-status-error-bg p-2 text-sm text-status-error-fg"
             >
               {verdict.message}
             </p>
@@ -456,7 +456,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
               data-kind="notice"
               data-ok={notice.ok}
               className={cn(
-                "absolute inset-0 flex flex-wrap items-center gap-2 overflow-y-auto rounded-md p-2 text-sm",
+                "absolute inset-0 flex flex-wrap items-center gap-2 overflow-y-auto rounded-lg p-2 text-sm",
                 notice.ok
                   ? "bg-status-success-bg text-status-success-fg"
                   : "bg-status-error-bg text-status-error-fg",
@@ -497,7 +497,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
           ) : unfinished.length > 0 ? (
             <p
               data-testid="unfinished-alert"
-              className="absolute inset-0 flex flex-wrap items-center gap-2 overflow-y-auto rounded-md bg-status-warning-bg p-2 text-sm text-status-warning-fg"
+              className="absolute inset-0 flex flex-wrap items-center gap-2 overflow-y-auto rounded-lg bg-status-warning-bg p-2 text-sm text-status-warning-fg"
             >
               <AlertTriangle className="size-4 shrink-0" />
               <span>
@@ -566,7 +566,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
           {locked ? (
             <div
               data-testid="lock-overlay"
-              className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-md bg-surface-dim/80 text-on-surface"
+              className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-surface-dim/80 text-on-surface"
             >
               <Lock className="size-8" />
               <p className="font-medium">{locked}</p>
@@ -734,7 +734,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
       {/* ── End panel: the selection ─────────────────────────────────────────── */}
       <section
         aria-label="פרטי השיבוץ הנבחר"
-        className="max-h-[calc(100dvh-12.5rem)] overflow-y-auto rounded-lg border border-outline-variant bg-surface-container-lowest p-3"
+        className="max-h-[calc(100dvh-12.5rem)] overflow-y-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3"
       >
         <h2 className="mb-2 font-serif text-lg font-semibold">פרטים</h2>
 
@@ -853,7 +853,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                  silently adds one to every count. */
               data-testid="can-place"
               className={cn(
-                "mb-2 rounded-md p-2 text-xs",
+                "mb-2 rounded-lg p-2 text-xs",
                 editable
                   ? "bg-status-success-bg text-status-success-fg"
                   : "bg-status-neutral-bg text-status-neutral-fg",
@@ -969,7 +969,7 @@ function DuplicateDialog({
       data-testid="duplicate-dialog"
       className="fixed inset-0 z-50 flex items-center justify-center bg-primary/40 p-4"
     >
-      <div className="w-full max-w-[500px] rounded-lg bg-surface-container-lowest p-5 shadow-xl">
+      <div className="w-full max-w-[500px] rounded-lg bg-surface-container-lowest p-5 shadow-elevation-2">
         <h2 className="mb-2 flex items-center gap-2 font-serif text-xl font-semibold">
           <AlertTriangle className="size-5 text-status-warning-fg" />
           הפרסום כבר משובץ בגיליון

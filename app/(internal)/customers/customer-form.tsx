@@ -106,7 +106,7 @@ export function CustomerForm({
           maxLength={NOTES_MAX}
           defaultValue={initial.notes}
           data-testid="customer-notes"
-          className="w-full rounded-sm border border-outline-variant bg-surface-container px-3 py-2 text-sm outline-none focus:border-primary"
+          className="w-full rounded-lg border border-outline-variant bg-surface-container px-3 py-2 text-sm outline-none focus:border-primary"
         />
         {err("notes") ? <InlineError>{err("notes")}</InlineError> : null}
       </div>
@@ -147,7 +147,7 @@ function ContactsEditor({ initial, error }: { initial: ContactRow[]; error?: str
         <div
           key={row.key}
           data-testid={`contact-row-${i}`}
-          className="grid gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest p-3 sm:grid-cols-2"
+          className="grid gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3 sm:grid-cols-2"
         >
           <Input
             name="contact_name"

@@ -30,7 +30,7 @@ export default async function BrandingPage() {
         חזרה להגדרות
       </Link>
 
-      <h1 className="mb-1 font-serif text-3xl font-semibold">מותג</h1>
+      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">מותג</h1>
       <p className="mb-8 text-sm text-on-surface-variant">
         הלוגו, ה־favicon והשם שמופיעים בסרגל הצד, בלשונית הדפדפן ובמסך ההתחברות. מה שלא הועלה כאן —
         מוצג בקובץ ברירת המחדל של המערכת.

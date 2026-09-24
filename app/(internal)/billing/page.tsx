@@ -139,7 +139,7 @@ export default async function BillingPage({
 
   return (
     <>
-      <h1 className="mb-1 font-serif text-3xl font-semibold">גבייה ותשלומים</h1>
+      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">גבייה ותשלומים</h1>
       <p className="mb-6 text-sm text-on-surface-variant">
         רישום ידני של מה שהתקבל. סטטוס התשלום נגזר מהסכומים ואינו נקבע ביד; &quot;חוב&quot; הוא
         פרסום שכבר יצא ולא שולם.
@@ -155,7 +155,7 @@ export default async function BillingPage({
           tone="text-status-debt-fg"
           progress={totals.billed > 0 ? totals.paid / totals.billed : 1}
         />
-        <div className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
+        <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4">
           <p className="text-xs text-on-surface-variant">לקוחות עם יתרה</p>
           <p className="mt-1 font-serif text-3xl font-semibold" data-testid="kpi-debtors">
             <Ltr>{totals.customersInDebt}</Ltr>
@@ -236,7 +236,7 @@ export default async function BillingPage({
           body="רק הזמנות מאושרות נספרות כאן. הזמנה בטיוטה עוד לא חייבה אף אחד."
         />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest">
+        <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
           <table className="w-full text-sm" data-testid="billing-table">
             <thead className="bg-surface-container">
               <tr>
@@ -388,7 +388,7 @@ function Kpi({
   progress?: number;
 }) {
   return (
-    <div className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
+    <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4">
       <p className="text-xs text-on-surface-variant">{label}</p>
       <p className={cn("mt-1 font-serif text-3xl font-semibold", tone)} data-testid={testId}>
         <Ltr>{formatMoney(value)}</Ltr>

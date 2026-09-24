@@ -23,7 +23,7 @@ export function ReminderWording({ text }: { text: string }) {
   return (
     <div
       data-testid="reminder-wording"
-      className="mb-6 rounded-lg border border-outline-variant bg-surface-container-lowest p-4"
+      className="mb-6 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4"
     >
       <div className="mb-2 flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold">הנוסח שלך לפנייה</h2>

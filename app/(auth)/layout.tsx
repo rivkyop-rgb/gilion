@@ -32,7 +32,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
       </aside>
 
       <main className="flex w-full items-center justify-center bg-surface p-6 lg:w-1/2">
-        <div className="w-full max-w-sm rounded-xl border border-outline-variant bg-surface-container-lowest p-8 shadow-sm">
+        <div className="w-full max-w-sm rounded-xl border border-outline-variant bg-surface-container-lowest p-8 shadow-elevation-1">
           {children}
         </div>
       </main>

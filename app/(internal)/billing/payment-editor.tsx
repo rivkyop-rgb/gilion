@@ -427,7 +427,7 @@ function HistoryDialog({ entries, months }: { entries: HistoryEntry[]; months: n
           // needs no RTL special case and no `left-`/`right-` utility. The
           // translate pair this replaced had to name both directions and was a
           // second way of doing something the codebase had already settled.
-          className="fixed inset-x-0 top-1/2 z-50 mx-auto max-h-[80dvh] w-[min(40rem,calc(100vw-2rem))] -translate-y-1/2 overflow-y-auto rounded-lg border border-outline-variant bg-surface-container-lowest p-6 shadow-xl"
+          className="fixed inset-x-0 top-1/2 z-50 mx-auto max-h-[80dvh] w-[min(40rem,calc(100vw-2rem))] -translate-y-1/2 overflow-y-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-6 shadow-elevation-2"
         >
           <DialogPrimitive.Title className="mb-1 font-serif text-xl font-semibold">
             היסטוריית עדכונים
@@ -517,7 +517,7 @@ function OrderPicker({
       data-testid={testId}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="h-10 w-full rounded-sm border border-outline-variant bg-surface-container px-3 text-start text-sm"
+      className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container px-3 text-start text-sm"
     >
       {/* Rule 5, and the answer to "he paid several orders at once": one sum,
           split across what is open, oldest first. */}
@@ -601,7 +601,7 @@ function NewPaymentForm({
         e.preventDefault();
         onSubmit({ orderId, amount, paymentDate, externalInvoiceNumber: invoice }, reset);
       }}
-      className="rounded-sm border border-outline-variant bg-surface-container-low p-4"
+      className="rounded-lg border border-outline-variant bg-surface-container-low p-4"
     >
       <h4 className="mb-3 text-sm font-semibold">רישום תשלום</h4>
       {/* Two columns and not four. Four fitted the old expanded row, where the

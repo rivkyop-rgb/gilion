@@ -77,7 +77,7 @@ export function PageStrip({
               aria-current={index === activeIndex}
               onClick={() => onSelectView(index)}
               className={cn(
-                "flex flex-col gap-1 rounded-md border p-2 text-xs transition-colors",
+                "flex flex-col gap-1 rounded-lg border p-2 text-xs transition-colors",
                 index === activeIndex
                   ? "border-primary bg-status-accent-bg font-medium"
                   : "border-outline-variant hover:bg-surface-container",
@@ -147,7 +147,7 @@ export function PageStrip({
                 aria-label={`הוספת עמוד אחרי עמוד ${view.pages[view.pages.length - 1]!.number}`}
                 title={`הוספת עמוד אחרי עמוד ${view.pages[view.pages.length - 1]!.number}`}
                 onClick={() => onInsertAfter(view.pages[view.pages.length - 1]!.id)}
-                className="flex w-6 shrink-0 items-center justify-center rounded-md border border-dashed border-outline-variant text-on-surface-variant transition-colors hover:border-primary hover:bg-status-accent-bg hover:text-primary"
+                className="flex w-6 shrink-0 items-center justify-center rounded-lg border border-dashed border-outline-variant text-on-surface-variant transition-colors hover:border-primary hover:bg-status-accent-bg hover:text-primary"
               >
                 <Plus className="size-3.5" />
               </button>
@@ -164,7 +164,7 @@ export function PageStrip({
             data-testid="new-page-type"
             value={newPageTypeId}
             onChange={(e) => onNewPageTypeChange(e.target.value)}
-            className="h-8 rounded-sm border border-outline-variant bg-surface-container-lowest px-2 text-sm"
+            className="h-8 rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-sm"
           >
             {pageTypes.map((pt) => (
               <option key={pt.id} value={pt.id}>

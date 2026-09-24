@@ -177,7 +177,7 @@ export default async function CustomerPage({
     <>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="mb-2 font-serif text-3xl font-semibold" data-testid="customer-name">
+          <h1 className="mb-2 page-title font-serif text-headline-lg font-semibold" data-testid="customer-name">
             {customer.business_name}
           </h1>
           {mainContact ? (
@@ -224,7 +224,7 @@ export default async function CustomerPage({
         </div>
       ) : null}
 
-      <dl className="mb-8 grid gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-6 sm:grid-cols-2 lg:grid-cols-4">
+      <dl className="mb-8 grid gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-6 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <dt className="text-xs text-on-surface-variant">טלפון העסק</dt>
           <dd className="mt-1">{customer.phone ? <PhoneLink phone={customer.phone} /> : "—"}</dd>
@@ -263,7 +263,7 @@ export default async function CustomerPage({
         <div className="mb-8 grid gap-4 lg:grid-cols-2">
           {customer.contacts.length > 0 ? (
             <section
-              className="rounded-lg border border-outline-variant bg-surface-container-lowest p-6"
+              className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-6"
               data-testid="customer-contacts"
             >
               <h2 className="mb-3 text-sm font-semibold">אנשי קשר</h2>
@@ -285,7 +285,7 @@ export default async function CustomerPage({
           ) : null}
           {customer.notes ? (
             <section
-              className="rounded-lg border border-outline-variant bg-surface-container-lowest p-6"
+              className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-6"
               data-testid="customer-notes"
             >
               <h2 className="mb-3 text-sm font-semibold">הערות</h2>
@@ -309,7 +309,7 @@ export default async function CustomerPage({
             actually ask the customer for, and the caption on the fourth says
             which arithmetic got it there so the match never looks like a bug.
           */}
-          <dl className="grid gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-6 sm:grid-cols-2 lg:grid-cols-5">
+          <dl className="grid gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-6 sm:grid-cols-2 lg:grid-cols-5">
             {/* Two BUCKETS, not a total and one of its halves. Each answers
                 "how much debt" for its own stage, and the total tile further
                 along is the two of them together less any credit. */}
@@ -425,7 +425,7 @@ export default async function CustomerPage({
                 searchLabel="חודש"
                 exportHref={exportHref("months", monthsParams)}
               />
-              <div className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest p-3">
+              <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3">
                 <MonthTable customerId={customer.id} months={shownMonths} collapseSettled={false} />
               </div>
             </div>
@@ -461,7 +461,7 @@ export default async function CustomerPage({
               body="רישום תשלום נעשה במסך הגבייה, ומופיע כאן מיד."
             />
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest">
+            <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
               <table className="w-full text-sm" data-testid="customer-payments">
                 <thead className="bg-surface-container">
                   <tr>
@@ -544,7 +544,7 @@ export default async function CustomerPage({
               body="כל הזמנה שתיפתח ללקוח הזה תופיע כאן, עם הסכום וסטטוס התשלום שלה."
             />
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest">
+            <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
               <table className="w-full text-sm" data-testid="customer-orders">
                 <thead className="bg-surface-container">
                   <tr>
@@ -624,7 +624,7 @@ export default async function CustomerPage({
             body="פרסומים נוצרים כשהזמנה מאושרת. טיוטה אינה יוצרת פרסומים."
           />
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest">
+          <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
             <table className="w-full text-sm" data-testid="customer-publications">
               <thead className="bg-surface-container">
                 <tr>
@@ -734,7 +734,7 @@ export default async function CustomerPage({
                   <Link
                     href={`/advertisements/${ad.id}`}
                     data-testid={`customer-ad-${ad.id}`}
-                    className="flex gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest p-3 hover:bg-surface-container-low"
+                    className="flex gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3 hover:bg-surface-container-low"
                   >
                     <AdThumb
                       ad={{

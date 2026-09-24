@@ -143,7 +143,7 @@ export function NextIssueOffer({ issueId, onClose }: { issueId: string; onClose:
       data-testid="next-issue-offer"
       className="fixed inset-0 z-50 flex items-center justify-center bg-primary/40 p-4"
     >
-      <div className="w-full max-w-[32rem] rounded-lg bg-surface-container-lowest p-5 shadow-xl">
+      <div className="w-full max-w-[32rem] rounded-lg bg-surface-container-lowest p-5 shadow-elevation-2">
         <div className="mb-3 flex items-start justify-between gap-2">
           <h2 className="flex items-center gap-2 font-serif text-xl font-semibold">
             <CalendarDays className="size-5" />
@@ -178,7 +178,7 @@ export function NextIssueOffer({ issueId, onClose }: { issueId: string; onClose:
                 <li key={option.date}>
                   <label
                     className={cn(
-                      "flex cursor-pointer items-start gap-2 rounded-md border p-2 text-sm",
+                      "flex cursor-pointer items-start gap-2 rounded-lg border p-2 text-sm",
                       chosen === option.date
                         ? "border-primary bg-status-accent-bg"
                         : "border-outline-variant hover:bg-surface-container",
@@ -298,9 +298,9 @@ export function ChangeIssueDate({
       data-testid="change-date-dialog"
       className="fixed inset-0 z-50 flex items-center justify-center bg-primary/40 p-4"
     >
-      <div className="w-full max-w-[30rem] rounded-lg bg-surface-container-lowest p-5 shadow-xl">
+      <div className="w-full max-w-[30rem] rounded-lg bg-surface-container-lowest p-5 shadow-elevation-2">
         <h2 className="mb-2 font-serif text-xl font-semibold">שינוי תאריך הגיליון</h2>
-        <p className="mb-3 rounded-md bg-status-warning-bg p-2 text-xs text-status-warning-fg">
+        <p className="mb-3 rounded-lg bg-status-warning-bg p-2 text-xs text-status-warning-fg">
           הפרסומים של הגיליון יעברו לתאריך החדש יחד איתו, והשיבוצים יישמרו. זה משנה את התאריך שהלקוח
           קנה על הזמנות מאושרות, והפעולה תירשם ביומן הביקורת.
         </p>

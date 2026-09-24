@@ -72,7 +72,7 @@ export default async function AdvertisementPage({ params }: { params: Promise<{ 
       </Link>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
+        <section className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4">
           <div className="flex h-[420px] items-center justify-center rounded-lg bg-surface-container">
             {ad.preview_url ? (
               // eslint-disable-next-line @next/next/no-img-element -- see ad-card.tsx
@@ -116,7 +116,7 @@ export default async function AdvertisementPage({ params }: { params: Promise<{ 
         </section>
 
         <aside className="space-y-4">
-          <div className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
+          <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4">
             <h1 className="mb-1 break-all font-serif text-xl font-semibold">{ad.name}</h1>
             <p className="font-mono text-xs text-on-surface-variant">
               <Ltr>
@@ -159,7 +159,7 @@ export default async function AdvertisementPage({ params }: { params: Promise<{ 
           </div>
 
           {mayWrite ? (
-            <div className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
+            <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4">
               <CustomerAssigner
                 adId={ad.id}
                 current={ad.customer_id}
@@ -174,7 +174,7 @@ export default async function AdvertisementPage({ params }: { params: Promise<{ 
           ) : null}
 
           {mayWrite ? (
-            <div className="space-y-3 rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
+            <div className="space-y-3 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4">
               <ReplaceFile adId={ad.id} newspapers={papers} />
 
               {/* One previous version only (US-005 AC-5). */}
@@ -212,7 +212,7 @@ export default async function AdvertisementPage({ params }: { params: Promise<{ 
         </aside>
       </div>
 
-      <section className="mt-6 rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
+      <section className="mt-6 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-serif text-xl font-semibold">פרסומים שמשתמשים במודעה</h2>
           {mayWrite ? (

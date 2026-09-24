@@ -21,12 +21,12 @@ export default async function AccountPage() {
 
   return (
     <div className="max-w-lg">
-      <h1 className="mb-1 font-serif text-3xl font-semibold">החשבון שלי</h1>
+      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">החשבון שלי</h1>
       <p className="mb-6 text-sm text-on-surface-variant" data-testid="account-role">
         {ctx.isSuperAdmin ? SUPER_ADMIN_LABEL : ROLE_LABELS[ctx.role]}
       </p>
 
-      <section className="rounded-lg border border-outline-variant bg-surface-container-lowest p-6">
+      <section className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-6">
         <h2 className="mb-1 font-serif text-lg font-semibold">שינוי סיסמה</h2>
         <p className="mb-5 text-sm text-on-surface-variant">
           לפחות {MIN_PASSWORD_LENGTH} תווים. הסיסמה שקיבלת בהקמת החשבון נמסרה בעל פה ונראתה גם למי

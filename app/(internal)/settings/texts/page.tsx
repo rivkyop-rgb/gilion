@@ -24,7 +24,7 @@ export default async function TextsPage() {
         חזרה להגדרות
       </Link>
 
-      <h1 className="mb-1 font-serif text-3xl font-semibold">טקסטים</h1>
+      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">טקסטים</h1>
       <p className="mb-8 text-sm text-on-surface-variant">
         המשפטים שהמשתמשים והלקוחות קוראים. שדה ריק מציג את נוסח ברירת המחדל — הוא כתוב באפור בתוך
         השדה, כך שברור מה יופיע אם לא תכתבי כלום.

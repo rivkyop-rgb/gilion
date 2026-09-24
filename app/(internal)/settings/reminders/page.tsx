@@ -29,7 +29,7 @@ export default async function ReminderSettingsPage() {
         חזרה להגדרות
       </Link>
 
-      <h1 className="mb-1 font-serif text-3xl font-semibold">תזכורות ללקוחות</h1>
+      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">תזכורות ללקוחות</h1>
       <p className="mb-6 max-w-2xl text-sm text-on-surface-variant">
         פרסום שתאריכו מתקרב ועדיין אין לו מודעה נכנס לרשימת התזכורות. כאן נקבע כמה ימים לפני הפרסום
         זה קורה. <strong>המערכת אינה שולחת דבר בעצמה</strong> — היא מכינה את הרשימה, והפנייה ללקוח

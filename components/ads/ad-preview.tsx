@@ -112,7 +112,7 @@ export function AdPreviewDialog({
           data-testid={testId ?? `ad-preview-dialog-${ad.id}`}
           // Centred with inset-x-0 + mx-auto rather than a translate, so it
           // lands in the middle in both directions with no RTL special case.
-          className="fixed inset-x-0 top-1/2 z-50 mx-auto flex max-h-[90vh] w-[min(56rem,calc(100vw-2rem))] -translate-y-1/2 flex-col rounded-xl border border-outline-variant bg-surface-container-lowest shadow-lg"
+          className="fixed inset-x-0 top-1/2 z-50 mx-auto flex max-h-[90vh] w-[min(56rem,calc(100vw-2rem))] -translate-y-1/2 flex-col rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-2"
         >
           <div className="flex items-start justify-between gap-3 border-b border-outline-variant p-4">
             <div className="min-w-0">
@@ -206,7 +206,7 @@ export function AdQuickLook({ ad }: { ad: AdPreviewModel }) {
           aria-label={`תצוגה מקדימה של ${ad.name}`}
           data-testid={`quick-look-${ad.id}`}
           onClick={(e) => e.stopPropagation()}
-          className="rounded-full bg-surface-container-lowest/90 p-1.5 text-on-surface-variant shadow-sm hover:bg-surface-container-high"
+          className="rounded-full bg-surface-container-lowest/90 p-1.5 text-on-surface-variant shadow-elevation-1 hover:bg-surface-container-high"
         >
           <Expand className="size-4" />
         </button>

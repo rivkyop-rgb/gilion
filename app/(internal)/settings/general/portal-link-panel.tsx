@@ -19,7 +19,7 @@ export function PortalLinkPanel({ url, slug }: { url: string; slug: string }) {
   return (
     <section
       data-testid="portal-link-panel"
-      className="mb-8 rounded-lg border border-outline-variant bg-surface-container-lowest p-6"
+      className="mb-8 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-6"
     >
       <h2 className="mb-1 font-serif text-xl font-semibold">קישור לפורטל הלקוחות</h2>
       <p className="mb-4 text-sm text-on-surface-variant">

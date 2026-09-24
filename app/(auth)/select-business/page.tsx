@@ -53,7 +53,7 @@ export default async function SelectBusinessPage() {
               <button
                 type="submit"
                 data-testid={`pick-business-${m.businessId}`}
-                className="flex w-full items-center justify-between gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 text-start transition hover:border-brand-gold hover:shadow-md"
+                className="flex w-full items-center justify-between gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 text-start transition hover:border-brand-gold hover:shadow-elevation-1"
               >
                 <span className="flex flex-col gap-1">
                   <span className="text-lg font-semibold text-on-surface">{m.businessName}</span>

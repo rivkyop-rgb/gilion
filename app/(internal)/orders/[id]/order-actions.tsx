@@ -175,7 +175,7 @@ function RejectForm({ orderId, onCancel }: { orderId: string; onCancel: () => vo
           name="reason"
           rows={3}
           data-testid="reject-reason"
-          className="w-full rounded-sm border border-outline-variant bg-surface-container p-3 text-start text-sm"
+          className="w-full rounded-lg border border-outline-variant bg-surface-container p-3 text-start text-sm"
         />
         {/* FR-19: the reason is optional, and saying so prevents a stuck user. */}
         <p className="mt-1 text-xs text-on-surface-variant">

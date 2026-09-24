@@ -147,7 +147,7 @@ export function SidebarRail(props: NavProps) {
           "h-full bg-surface-container-lowest p-3",
           // Only the peeking state leaves the rail's own box.
           collapsed && peeking
-            ? "absolute inset-y-0 start-0 z-30 w-70 border-e border-outline-variant shadow-lg"
+            ? "absolute inset-y-0 start-0 z-30 w-70 border-e border-outline-variant shadow-elevation-2"
             : "",
         )}
       >
@@ -252,24 +252,32 @@ function SidebarNav({
               aria-disabled="true"
               title={title ?? `ייבנה בשלב ${String(item.stage).padStart(2, "0")}`}
               className={cn(
-                "flex cursor-not-allowed items-center gap-3 rounded-sm py-2 text-sm text-outline opacity-60",
+                "flex cursor-not-allowed items-center gap-3 rounded-lg py-2.5 text-sm text-outline opacity-60",
                 collapsed ? "justify-center px-0" : "px-3",
               )}
             >
-              <Icon className="size-4 shrink-0" />
+              <Icon className="size-5 shrink-0" />
               {collapsed ? <span className="sr-only">{label}</span> : label}
             </span>
           );
         }
 
-        return (
+        // The working screens above, the administration below — one hairline
+        // between them, as in app-shell.md §1.
+        const divider =
+          item.area === "settings" ? (
+            <hr key="divider" className="my-2 border-outline-variant" aria-hidden />
+          ) : null;
+
+        return [
+          divider,
           <Link
             key={item.area}
             href={item.href}
             title={title}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex items-center gap-3 rounded-sm py-2 text-sm transition-colors",
+              "flex items-center gap-3 rounded-lg py-2.5 text-sm transition-colors",
               collapsed ? "justify-center px-0" : "px-3",
               // RTL: the active marker is a border on the start edge (border-s),
               // which renders on the right in Hebrew.
@@ -278,10 +286,10 @@ function SidebarNav({
                 : "text-on-surface-variant hover:bg-surface-container-low",
             )}
           >
-            <Icon className="size-4 shrink-0" />
+            <Icon className="size-5 shrink-0" />
             {collapsed ? <span className="sr-only">{label}</span> : label}
-          </Link>
-        );
+          </Link>,
+        ];
       })}
     </nav>
   );

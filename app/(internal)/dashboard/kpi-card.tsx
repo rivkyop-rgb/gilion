@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { Ltr } from "@/components/ui/ltr";
-import { TONE_BORDER, type Tone } from "@/components/status-tone";
+import { TONE_BORDER, TONE_TEXT, type Tone } from "@/components/status-tone";
 import { cn } from "@/lib/utils";
 
 /**
@@ -24,6 +24,7 @@ export function KpiCard({
   tone,
   href,
   testId,
+  icon: Icon,
 }: {
   label: string;
   hint: string;
@@ -31,6 +32,8 @@ export function KpiCard({
   tone: Tone;
   href: string;
   testId: string;
+  /** The same icon the menu gives the screen this card opens. */
+  icon: React.ComponentType<{ className?: string }>;
 }) {
   return (
     <Link
@@ -38,16 +41,27 @@ export function KpiCard({
       data-testid={testId}
       data-value={value}
       className={cn(
-        "group flex flex-col justify-between rounded-lg border border-outline-variant border-s-4 bg-surface-container-lowest p-4 transition-colors hover:bg-surface-container",
+        "group flex flex-col justify-between rounded-xl border border-outline-variant border-s-4 bg-surface-container-lowest p-4 shadow-elevation-1 transition-all hover:bg-surface-container-low hover:shadow-elevation-2",
         TONE_BORDER[tone],
       )}
     >
       <p className="flex items-center justify-between gap-2 text-sm font-medium text-on-surface">
-        {label}
+        <span className="flex items-center gap-2">
+          <Icon className={cn("size-4 shrink-0", TONE_TEXT[tone])} aria-hidden />
+          {label}
+        </span>
         {/* RTL: the arrow pointing left is the one that means "onwards". */}
         <ArrowLeft className="size-4 shrink-0 text-on-surface-variant opacity-0 transition-opacity group-hover:opacity-100" />
       </p>
-      <p className="mt-2 font-serif text-4xl font-semibold" data-testid={`${testId}-value`}>
+      {/* Zero is quiet: a red "0" under "חסרי מודעה" reads as an alarm about
+          nothing. The colour arrives with something to act on. */}
+      <p
+        className={cn(
+          "mt-2 font-serif text-4xl font-semibold",
+          value === 0 ? "text-on-surface-variant" : TONE_TEXT[tone],
+        )}
+        data-testid={`${testId}-value`}
+      >
         <Ltr>{value}</Ltr>
       </p>
       <p className="mt-1 text-xs text-on-surface-variant">{hint}</p>

@@ -66,7 +66,7 @@ export function PaymentDialog({
           // Centred with inset-x-0 + mx-auto rather than a translate, so it
           // lands in the middle in both directions with no RTL special case and
           // no `left-`/`right-` utility, which the lint bans (confirm-dialog).
-          className="fixed inset-x-0 top-1/2 z-50 mx-auto flex max-h-[88dvh] w-[min(56rem,calc(100vw-2rem))] -translate-y-1/2 flex-col rounded-xl border border-outline-variant bg-surface-container-lowest shadow-lg"
+          className="fixed inset-x-0 top-1/2 z-50 mx-auto flex max-h-[88dvh] w-[min(56rem,calc(100vw-2rem))] -translate-y-1/2 flex-col rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-2"
         >
           <div className="flex items-start justify-between gap-4 border-b border-outline-variant p-5">
             <div>

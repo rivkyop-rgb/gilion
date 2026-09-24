@@ -79,7 +79,7 @@ export function LinkAdCell({
     <form
       action={uploadAction}
       data-testid={`row-upload-form-${publicationId}`}
-      className="absolute z-20 mt-1 w-72 rounded-sm border border-outline-variant bg-surface-container-lowest p-3 shadow-lg"
+      className="absolute z-20 mt-1 w-72 rounded-lg border border-outline-variant bg-surface-container-lowest p-3 shadow-elevation-2"
     >
       {/* The only fields the server reads besides the file itself. */}
       <input type="hidden" name="publicationId" value={publicationId} />

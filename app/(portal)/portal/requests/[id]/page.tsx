@@ -111,7 +111,7 @@ export default async function PortalRequestPage({
                     src={`/api/files/${first.advertisement.preview_url}`}
                     alt={`תצוגה מקדימה של ${first.advertisement.name}`}
                     data-testid="request-ad-preview"
-                    className="h-40 w-auto rounded-sm border border-outline-variant bg-surface-container object-contain"
+                    className="h-40 w-auto rounded-lg border border-outline-variant bg-surface-container object-contain"
                   />
                 ) : (
                   <AdThumb

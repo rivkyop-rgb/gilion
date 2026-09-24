@@ -40,7 +40,7 @@ export default async function PortalHomePage() {
   return (
     <div className="space-y-8">
       <section className="rounded-xl border border-outline-variant bg-linear-to-b from-status-info-bg/60 to-surface-container-lowest p-8">
-        <h1 className="mb-2 font-serif text-3xl font-semibold">הבקשות שלי</h1>
+        <h1 className="mb-2 page-title font-serif text-headline-lg font-semibold">הבקשות שלי</h1>
         <p data-testid="portal-intro" className="mb-6 whitespace-pre-line text-on-surface-variant">
           {textFor("portal_intro", settings.texts)}
         </p>

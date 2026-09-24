@@ -36,7 +36,7 @@ export function RoleSelect({
             setError(res.message ?? null);
           })
         }
-        className="h-9 rounded-sm border border-outline-variant bg-surface-container px-2 text-start text-sm"
+        className="h-9 rounded-lg border border-outline-variant bg-surface-container px-2 text-start text-sm"
       >
         {ASSIGNABLE_ROLES.map((r) => (
           <option key={r} value={r}>

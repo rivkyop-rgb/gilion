@@ -1,3 +1,4 @@
+import { Breadcrumbs } from "@/components/shell/breadcrumbs";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth/config";
@@ -81,7 +82,10 @@ export default async function InternalLayout({ children }: { children: React.Rea
           onSignOut={signOutAction}
         />
         <main className="flex-1 p-4 lg:p-8">
-          <div className="mx-auto max-w-[1440px]">{children}</div>
+          <div className="mx-auto max-w-[1440px]">
+            <Breadcrumbs />
+            {children}
+          </div>
         </main>
       </div>
     </div>

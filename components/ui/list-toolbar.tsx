@@ -153,7 +153,7 @@ export function ListToolbar({
           // Changing the size applies at once. A separate "apply" button was a
           // second click for a choice that has no other meaning.
           onChange={(e) => go(hrefFor({ size: Number(e.target.value), page: 1 }))}
-          className="h-8 rounded-sm border border-outline-variant bg-surface-container px-2 text-start text-xs"
+          className="h-8 rounded-lg border border-outline-variant bg-surface-container px-2 text-start text-xs"
         >
           {PAGE_SIZES.map((n) => (
             <option key={n} value={n}>

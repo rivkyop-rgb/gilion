@@ -53,7 +53,7 @@ export default async function RemindersPage({
 
   return (
     <>
-      <h1 className="mb-1 flex items-center gap-2 font-serif text-3xl font-semibold">
+      <h1 className="mb-1 flex items-center gap-2 page-title font-serif text-headline-lg font-semibold">
         <BellRing className="size-7" />
         תזכורות ללקוחות
       </h1>

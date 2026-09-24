@@ -19,7 +19,7 @@ export function DropdownMenuContent({
         // hanging off a right-hand trigger needs.
         align="end"
         className={cn(
-          "z-50 min-w-56 rounded-lg border border-outline-variant bg-surface-container-lowest p-1 shadow-md",
+          "z-50 min-w-56 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-1 shadow-elevation-1",
           className,
         )}
         {...props}

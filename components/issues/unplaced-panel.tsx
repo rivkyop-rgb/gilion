@@ -106,7 +106,7 @@ export function UnplacedPanel({
   return (
     <section
       aria-label="פרסומים שלא שובצו"
-      className="flex max-h-[calc(100dvh-12.5rem)] min-h-0 flex-col rounded-lg border border-outline-variant bg-surface-container-lowest p-3"
+      className="flex max-h-[calc(100dvh-12.5rem)] min-h-0 flex-col rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3"
     >
       {/* Two tabs, because the panel answers two different questions: what is
           left to do, and what has already been done. The second one used to be
@@ -114,7 +114,7 @@ export function UnplacedPanel({
       <div
         role="tablist"
         aria-label="פרסומים בגיליון"
-        className="mb-2 flex gap-1 rounded-md border border-outline-variant bg-surface-container p-1"
+        className="mb-2 flex gap-1 rounded-lg border border-outline-variant bg-surface-container p-1"
       >
         <button
           type="button"
@@ -125,7 +125,7 @@ export function UnplacedPanel({
           className={cn(
             "flex-1 rounded-sm px-2 py-1.5 text-sm font-medium transition-colors",
             tab === "unplaced"
-              ? "bg-surface-container-lowest text-on-surface shadow-sm ring-1 ring-outline-variant"
+              ? "bg-surface-container-lowest text-on-surface shadow-elevation-1 ring-1 ring-outline-variant"
               : "text-on-surface-variant hover:text-on-surface",
           )}
         >
@@ -140,7 +140,7 @@ export function UnplacedPanel({
           className={cn(
             "flex-1 rounded-sm px-2 py-1.5 text-sm font-medium transition-colors",
             tab === "placed"
-              ? "bg-surface-container-lowest text-on-surface shadow-sm ring-1 ring-outline-variant"
+              ? "bg-surface-container-lowest text-on-surface shadow-elevation-1 ring-1 ring-outline-variant"
               : "text-on-surface-variant hover:text-on-surface",
           )}
         >
@@ -209,9 +209,9 @@ export function UnplacedPanel({
                         onPick(item);
                       }}
                       className={cn(
-                        "flex w-full items-center gap-2 rounded-md border p-2 text-start text-sm transition-colors",
+                        "flex w-full items-center gap-2 rounded-lg border p-2 text-start text-sm transition-colors",
                         held
-                          ? "border-primary bg-status-accent-bg shadow-sm"
+                          ? "border-primary bg-status-accent-bg shadow-elevation-1"
                           : "border-outline-variant hover:bg-surface-container",
                         item.blockedReason ? "cursor-not-allowed opacity-60" : "cursor-grab",
                       )}
@@ -307,7 +307,7 @@ function PlacedList({
         <li
           key={placement.id}
           data-testid={`placed-item-${placement.id}`}
-          className="flex items-center gap-2 rounded-md border border-outline-variant p-2 text-sm"
+          className="flex items-center gap-2 rounded-lg border border-outline-variant p-2 text-sm"
         >
           <AdPreviewDialog
             ad={placement.ad}
@@ -528,7 +528,7 @@ function UploadDialog({
       data-testid="board-upload-dialog"
       className="fixed inset-0 z-50 flex items-center justify-center bg-primary/40 p-4"
     >
-      <div className="max-h-[90dvh] w-full max-w-[32rem] overflow-y-auto rounded-lg bg-surface-container-lowest p-5 shadow-xl">
+      <div className="max-h-[90dvh] w-full max-w-[32rem] overflow-y-auto rounded-lg bg-surface-container-lowest p-5 shadow-elevation-2">
         <div className="mb-3 flex items-start justify-between gap-2">
           <h2 className="font-serif text-xl font-semibold">העלאת מודעה מהמחשב</h2>
           <button
@@ -548,7 +548,7 @@ function UploadDialog({
           data-testid="board-upload-file"
           accept={AD_ACCEPT_ATTRIBUTE}
           onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
-          className="mb-1 block w-full text-sm file:me-3 file:rounded-md file:border-0 file:bg-surface-container file:px-3 file:py-2 file:text-sm"
+          className="mb-1 block w-full text-sm file:me-3 file:rounded-lg file:border-0 file:bg-surface-container file:px-3 file:py-2 file:text-sm"
         />
         {fileName ? (
           <p className="mb-3 text-xs text-on-surface-variant">
@@ -559,7 +559,7 @@ function UploadDialog({
         <div
           role="radiogroup"
           aria-label="למי לשייך את המודעה"
-          className="my-3 flex flex-wrap gap-1 rounded-md border border-outline-variant bg-surface-container p-1"
+          className="my-3 flex flex-wrap gap-1 rounded-lg border border-outline-variant bg-surface-container p-1"
         >
           {(
             [
@@ -579,7 +579,7 @@ function UploadDialog({
               className={cn(
                 "rounded-sm px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-40",
                 target === value
-                  ? "bg-surface-container-lowest text-on-surface shadow-sm ring-1 ring-outline-variant"
+                  ? "bg-surface-container-lowest text-on-surface shadow-elevation-1 ring-1 ring-outline-variant"
                   : "text-on-surface-variant hover:text-on-surface",
               )}
             >
@@ -596,7 +596,7 @@ function UploadDialog({
               data-testid="upload-target"
               value={publicationId}
               onChange={(e) => setPublicationId(e.target.value)}
-              className="mb-3 h-10 w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3 text-sm"
+              className="mb-3 h-10 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-sm"
             >
               {waiting.map((t) => (
                 <option key={t.publicationId} value={t.publicationId}>
@@ -681,7 +681,7 @@ function UploadDialog({
                     const next = openPages.find((p) => p.id === e.target.value);
                     setShapeId(next?.allowedShapes[0]?.id ?? "");
                   }}
-                  className="h-10 w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3 text-sm"
+                  className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-sm"
                 >
                   {openPages.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -697,7 +697,7 @@ function UploadDialog({
                   data-testid="sale-shape"
                   value={shapeId}
                   onChange={(e) => setShapeId(e.target.value)}
-                  className="h-10 w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3 text-sm"
+                  className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-sm"
                 >
                   {(page?.allowedShapes ?? []).map((s) => (
                     <option key={s.id} value={s.id}>
@@ -731,7 +731,7 @@ function UploadDialog({
                 </>
               )}
             </p>
-            <p className="mb-3 rounded-md bg-status-warning-bg p-2 text-xs text-status-warning-fg">
+            <p className="mb-3 rounded-lg bg-status-warning-bg p-2 text-xs text-status-warning-fg">
               אישור ייצור הזמנה <strong>מאושרת</strong> ופרסום לתאריך הגיליון, והפעולה תירשם ביומן
               הביקורת.
             </p>

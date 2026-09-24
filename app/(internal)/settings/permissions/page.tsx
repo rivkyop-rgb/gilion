@@ -14,7 +14,7 @@ export default async function PermissionsPage() {
 
   return (
     <>
-      <h1 className="mb-1 font-serif text-3xl font-semibold">הרשאות תפקידים</h1>
+      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">הרשאות תפקידים</h1>
       <p className="mb-4 text-sm text-on-surface-variant">
         מה כל תפקיד יכול לראות ולערוך בעסק הזה. השינויים חלים על העסק שלך בלבד.
       </p>

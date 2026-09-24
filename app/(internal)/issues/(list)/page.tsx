@@ -48,7 +48,7 @@ export default async function IssuesPage({
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="mb-1 flex items-center gap-2 font-serif text-3xl font-semibold">
+          <h1 className="mb-1 flex items-center gap-2 page-title font-serif text-headline-lg font-semibold">
             <Newspaper className="size-7" />
             גיליונות ושיבוץ
           </h1>
@@ -138,7 +138,7 @@ export default async function IssuesPage({
               <li
                 key={issue.id}
                 data-testid={`issue-card-${issue.id}`}
-                className="flex flex-col gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest p-4"
+                className="flex flex-col gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>

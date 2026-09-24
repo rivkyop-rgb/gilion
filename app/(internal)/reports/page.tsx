@@ -114,7 +114,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <h1 className="mb-1 font-serif text-3xl font-semibold">דוחות</h1>
+      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">דוחות</h1>
       <p className="mb-6 text-sm text-on-surface-variant">
         התקופה נקבעת לפי <strong>תאריך הפרסום</strong>, ולא לפי מתי ההזמנה נפתחה — הזמנה שנמכרה במרץ
         לארבעה שבועות באפריל מופיעה בדוח של אפריל.
@@ -235,7 +235,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
             name="newspaper"
             defaultValue={newspaperId}
             data-testid="report-newspaper"
-            className="h-10 rounded-sm border border-outline-variant bg-surface-container px-3 text-start text-sm"
+            className="h-10 rounded-lg border border-outline-variant bg-surface-container px-3 text-start text-sm"
           >
             {/* US-010 AC-1 asks for both, and "all" is the default question. */}
             <option value="all">כל העיתונים</option>
@@ -352,7 +352,7 @@ async function PaymentsTab({ businessId, filters }: { businessId: string; filter
           testId="report-total-outstanding"
           tone="text-status-debt-fg"
         />
-        <div className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
+        <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4">
           <p className="text-xs text-on-surface-variant">פרסומים בתקופה</p>
           <p className="mt-1 font-serif text-3xl font-semibold" data-testid="report-total-count">
             <Ltr>{totals.publicationCount}</Ltr>
@@ -363,7 +363,7 @@ async function PaymentsTab({ businessId, filters }: { businessId: string; filter
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest">
+      <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
         <table className="w-full text-sm" data-testid="payments-report-table">
           <thead className="bg-surface-container">
             <tr>
@@ -487,7 +487,7 @@ async function PublicationsTab({
           body="אפשר לבחור צ׳יפ אחר או להרחיב את התקופה."
         />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest">
+        <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
           <table className="w-full text-sm" data-testid="publications-report-table">
             <thead className="bg-surface-container">
               <tr>
@@ -567,7 +567,7 @@ function Total({
   tone?: string;
 }) {
   return (
-    <div className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
+    <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4">
       <p className="text-xs text-on-surface-variant">{label}</p>
       <p className={cn("mt-1 font-serif text-3xl font-semibold", tone)} data-testid={testId}>
         <Ltr>{formatMoney(value)}</Ltr>

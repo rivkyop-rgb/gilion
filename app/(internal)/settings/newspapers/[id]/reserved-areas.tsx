@@ -94,7 +94,7 @@ export function ReservedAreas({
             <li
               key={area.id}
               data-testid={`reserved-row-${area.id}`}
-              className="flex flex-wrap items-center gap-3 rounded-md border border-outline-variant bg-surface-container-lowest p-2"
+              className="flex flex-wrap items-center gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest p-2"
             >
               <span className="size-10 shrink-0 overflow-hidden rounded border border-outline-variant bg-surface-container">
                 {area.assetKey ? (
@@ -202,7 +202,7 @@ function ReservedAreaForm({
   );
 
   return (
-    <form action={action} className="rounded-md border border-outline-variant p-3">
+    <form action={action} className="rounded-lg border border-outline-variant p-3">
       {area ? <input type="hidden" name="id" value={area.id} /> : null}
       <input type="hidden" name="col" value={rect?.col ?? ""} />
       <input type="hidden" name="row" value={rect?.row ?? ""} />

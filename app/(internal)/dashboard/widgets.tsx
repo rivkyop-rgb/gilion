@@ -26,7 +26,7 @@ function Panel({
     <section
       aria-label={title}
       data-testid={testId}
-      className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4"
+      className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4"
     >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 font-serif text-lg font-semibold">
@@ -92,7 +92,7 @@ export function OpenIssuesWidget({ issues, mayOpen }: { issues: OpenIssue[]; may
                 <Link
                   href={`/issues/${issue.id}/board`}
                   data-testid={`open-issue-${issue.id}`}
-                  className="block rounded-md border border-outline-variant p-3 transition-colors hover:bg-surface-container"
+                  className="block rounded-lg border border-outline-variant p-3 transition-colors hover:bg-surface-container"
                 >
                   <span className="flex items-center justify-between gap-2">
                     <span className="truncate font-medium">{issue.newspaperName}</span>
@@ -177,7 +177,7 @@ export function RemindersWidget({
                 <li
                   key={reminder.id}
                   data-testid={`reminder-preview-${reminder.id}`}
-                  className="rounded-md border border-outline-variant p-3"
+                  className="rounded-lg border border-outline-variant p-3"
                 >
                   <p className="truncate font-medium">{reminder.customerName}</p>
                   <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-on-surface-variant">

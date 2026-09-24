@@ -77,7 +77,7 @@ export function PermissionMatrix({ overrides }: { overrides: PermissionOverrides
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest">
+      <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
         <table className="w-full text-sm" data-testid="permission-matrix">
           <thead className="bg-surface-container">
             <tr>

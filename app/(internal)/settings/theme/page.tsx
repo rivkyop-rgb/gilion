@@ -24,7 +24,7 @@ export default async function ThemePage() {
         חזרה להגדרות
       </Link>
 
-      <h1 className="mb-1 font-serif text-3xl font-semibold">צבעים</h1>
+      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">צבעים</h1>
       <p className="mb-8 text-sm text-on-surface-variant">
         השינוי נכנס לתוקף בכל המערכת מיד אחרי השמירה — בלי בנייה מחדש ובלי גרסה חדשה. צבע שלא נגעת
         בו ממשיך לעקוב אחרי ברירת המחדל גם אם היא תשתנה.

@@ -89,7 +89,7 @@ export function UploadPanel({
       <form
         action={formAction}
         data-testid="upload-panel"
-        className="mt-4 w-full rounded-lg border border-outline-variant bg-surface-container-lowest p-4 lg:w-[500px]"
+        className="mt-4 w-full rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4 lg:w-[500px]"
       >
         <h2 className="mb-4 font-serif text-xl font-semibold">העלאת קובץ חדש</h2>
 
@@ -164,7 +164,7 @@ export function UploadPanel({
               data-testid="upload-newspaper"
               value={newspaperId}
               onChange={(e) => setNewspaperId(e.target.value)}
-              className="h-10 w-full rounded-sm border border-outline-variant bg-surface-container px-3 text-start text-sm"
+              className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container px-3 text-start text-sm"
             >
               <option value="">ללא עיתון מסוים</option>
               {newspapers.map((n) => (

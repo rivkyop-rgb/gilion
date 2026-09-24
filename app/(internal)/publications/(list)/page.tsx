@@ -186,7 +186,7 @@ export default async function PublicationsPage({
       {/* Every drill-down names what it opened. "פרסומים" over a filtered list
           reads as the whole list — which makes the card that opened it look
           wrong (FR-20). */}
-      <h1 className="mb-1 font-serif text-3xl font-semibold" data-testid="publications-title">
+      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold" data-testid="publications-title">
         {title}
       </h1>
       <p className="mb-4 text-sm text-on-surface-variant">
@@ -265,7 +265,7 @@ export default async function PublicationsPage({
             name="newspaper"
             defaultValue={newspaper}
             data-testid="filter-newspaper"
-            className="h-10 rounded-sm border border-outline-variant bg-surface-container px-3 text-start text-sm"
+            className="h-10 rounded-lg border border-outline-variant bg-surface-container px-3 text-start text-sm"
           >
             <option value="all">כל העיתונים</option>
             {papers.map((p) => (
@@ -308,7 +308,7 @@ export default async function PublicationsPage({
           body="פרסומים נוצרים כשהזמנה מאושרת. טיוטה אינה יוצרת פרסומים."
         />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest">
+        <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
           <table className="w-full text-sm" data-testid="publications-table">
             <thead className="bg-surface-container">
               <tr>

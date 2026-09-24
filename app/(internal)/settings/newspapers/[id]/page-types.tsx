@@ -64,7 +64,7 @@ export function PageTypes({
         {pageTypes.map((pt) => (
           <li
             key={pt.id}
-            className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4"
+            className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4"
             data-testid={`page-type-${pt.id}`}
           >
             <div className="mb-3 flex items-center justify-between gap-3">

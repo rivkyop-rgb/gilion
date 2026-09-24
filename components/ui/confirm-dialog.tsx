@@ -62,7 +62,7 @@ export function ConfirmDialog({
           // Centred with inset-x-0 + mx-auto rather than a translate, so the
           // panel lands in the middle in both directions with no RTL special
           // case — and with no `left-`/`right-` utility, which the lint bans.
-          className="fixed inset-x-0 top-1/2 z-50 mx-auto w-[min(28rem,calc(100vw-2rem))] -translate-y-1/2 rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-lg"
+          className="fixed inset-x-0 top-1/2 z-50 mx-auto w-[min(28rem,calc(100vw-2rem))] -translate-y-1/2 rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-2"
         >
           <DialogPrimitive.Title className="mb-2 flex items-center gap-2 font-serif text-lg font-semibold">
             <AlertTriangle className="size-5 text-status-error-fg" />

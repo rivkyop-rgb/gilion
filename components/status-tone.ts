@@ -70,6 +70,23 @@ export const PAYMENT_TONE: Record<"unpaid" | "partially_paid" | "paid" | "debt",
   debt: "debt",
 };
 
+/**
+ * A figure in the tone's ink — the KPI numbers (design 01: the number carries
+ * the colour, not only the stripe). Neutral reads as plain text: it has no
+ * meaning to add, and grey would make a live number look disabled.
+ */
+export const TONE_TEXT: Record<Tone, string> = {
+  success: "text-status-success-fg",
+  warning: "text-status-warning-fg",
+  error: "text-error",
+  debt: "text-status-debt-fg",
+  neutral: "text-primary",
+  info: "text-status-info-fg",
+  accent: "text-status-accent-fg",
+  done: "text-status-done-fg",
+  muted: "text-status-muted-fg",
+};
+
 /** The filled swatch — badges, and the selected filter chip. */
 export const TONE_SOLID: Record<Tone, string> = {
   success: "bg-status-success-bg text-status-success-fg",

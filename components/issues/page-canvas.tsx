@@ -244,7 +244,7 @@ export function PageCanvas({
                 // swallows the drop and the designer gets no answer at all.
                 holding ? "pointer-events-none" : "",
                 selected
-                  ? "border-2 border-primary shadow-lg"
+                  ? "border-2 border-primary shadow-elevation-2"
                   : placement.duplicate
                     ? "border-2 border-dashed border-status-accent-fg"
                     : "border-outline",

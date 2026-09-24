@@ -123,7 +123,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="mb-2 font-serif text-3xl font-semibold">
+          <h1 className="mb-2 page-title font-serif text-headline-lg font-semibold">
             <Ltr data-testid="order-ref">{orderNumber(order.number)}</Ltr>
           </h1>
           <div className="flex flex-wrap items-center gap-3">
@@ -234,7 +234,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         </p>
 
         {(approved ? order.publications.length : order.items.length) > 0 ? (
-          <div className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest">
+          <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
             <table className="w-full text-sm" data-testid="publications-preview">
               <thead className="bg-surface-container">
                 <tr>

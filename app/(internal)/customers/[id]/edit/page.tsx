@@ -24,7 +24,7 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ i
 
   return (
     <div className="max-w-[500px]">
-      <h1 className="mb-1 font-serif text-3xl font-semibold">עריכת לקוח</h1>
+      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">עריכת לקוח</h1>
       <div className="mb-6" />
       <CustomerForm
         action={updateCustomerAction.bind(null, id)}

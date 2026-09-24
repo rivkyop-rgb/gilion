@@ -68,7 +68,7 @@ export default async function IssueReportPage({
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="mb-1 flex items-center gap-2 font-serif text-3xl font-semibold">
+          <h1 className="mb-1 flex items-center gap-2 page-title font-serif text-headline-lg font-semibold">
             <ClipboardList className="size-7" />
             מעקב גיליונות
           </h1>
@@ -111,7 +111,7 @@ export default async function IssueReportPage({
             <section
               key={issue.id}
               data-testid={`report-issue-${issue.id}`}
-              className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4"
+              className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4"
             >
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h2 className="flex flex-wrap items-center gap-2 font-serif text-lg font-semibold">

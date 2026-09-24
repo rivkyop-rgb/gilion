@@ -83,7 +83,7 @@ export function ShapeCatalog({
             <li
               key={s.id}
               data-testid={`shape-row-${s.id}`}
-              className="flex items-center gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest p-4"
+              className="flex items-center gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4"
             >
               <ShapePreview cols={s.cols} rows={s.rows} grid={grid} />
 

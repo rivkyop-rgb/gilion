@@ -25,6 +25,7 @@ import type { PaymentStatus } from "@/lib/domain/payment-status";
 import { ROLE_LABELS } from "@/lib/auth/labels";
 import { Ltr } from "@/components/ui/ltr";
 import { KpiCard } from "./kpi-card";
+import { BellRing, CalendarDays, FileWarning, LayoutGrid, Newspaper, Wallet } from "lucide-react";
 import { DashboardFilters } from "./filters";
 import { WeekTable, type WeekRow } from "./week-table";
 import { OpenIssuesWidget, RemindersWidget } from "./widgets";
@@ -53,6 +54,16 @@ type Search = {
  * makes FR-8 hold against a reader of the payload and not only against a
  * reader of the screen.
  */
+/** Each card borrows the icon of the screen it opens (components/shell/nav-items.ts). */
+const KPI_ICON: Record<DashboardCardKey, React.ComponentType<{ className?: string }>> = {
+  week: CalendarDays,
+  missingAd: FileWarning,
+  notPlaced: LayoutGrid,
+  debt: Wallet,
+  reminders: BellRing,
+  openIssues: Newspaper,
+};
+
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<Search> }) {
   const ctx = await getTenantContext();
   requireArea(ctx, "dashboard");
@@ -160,7 +171,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   return (
     <>
-      <h1 className="mb-1 font-serif text-3xl font-semibold">לוח בקרה</h1>
+      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">לוח בקרה</h1>
       <p className="mb-6 text-sm text-on-surface-variant">
         נכנסת כ־{ROLE_LABELS[ctx.role]}. השבוע הנוכחי הוא{" "}
         <Ltr>
@@ -182,6 +193,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             tone={card.tone}
             href={hrefFor[card.key]}
             testId={`kpi-${card.key}`}
+            icon={KPI_ICON[card.key]}
           />
         ))}
       </div>

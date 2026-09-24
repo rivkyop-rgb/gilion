@@ -23,7 +23,7 @@ export function SheetContent({
         // RTL: the drawer slides in from the start edge, which is the right in
         // Hebrew. inset-inline-start is the logical property for that.
         className={cn(
-          "fixed inset-y-0 start-0 z-50 w-72 border-e border-outline-variant bg-surface-container-lowest p-4 shadow-lg",
+          "fixed inset-y-0 start-0 z-50 w-72 border-e border-outline-variant bg-surface-container-lowest p-4 shadow-elevation-2",
           className,
         )}
         {...props}

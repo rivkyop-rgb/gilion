@@ -67,7 +67,7 @@ export default async function PortalAccessPage({ params }: { params: Promise<{ i
         לכרטיס הלקוח
       </Link>
       <div>
-        <h1 className="font-serif text-3xl font-semibold">גישה לפורטל — {label}</h1>
+        <h1 className="page-title font-serif text-headline-lg font-semibold">גישה לפורטל — {label}</h1>
         <p className="mt-1 text-sm text-on-surface-variant">
           מי שיש לו חשבון כאן נכנס לפורטל הלקוחות, שולח בקשות פרסום ורואה רק את הבקשות של {label}.
           בלי מחירים ובלי מידע תשלום.
@@ -75,12 +75,12 @@ export default async function PortalAccessPage({ params }: { params: Promise<{ i
       </div>
 
       {accounts.length === 0 ? (
-        <p className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4 text-sm text-on-surface-variant">
+        <p className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4 text-sm text-on-surface-variant">
           ללקוח הזה עדיין אין חשבון בפורטל.
         </p>
       ) : (
         <table
-          className="w-full overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest text-sm"
+          className="w-full overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 text-sm"
           data-testid="portal-accounts"
         >
           <thead className="bg-surface-container text-on-surface-variant">
@@ -140,7 +140,7 @@ export default async function PortalAccessPage({ params }: { params: Promise<{ i
           </p>
         ) : (
           <table
-            className="w-full overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest text-sm"
+            className="w-full overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 text-sm"
             data-testid="portal-activity"
           >
             <thead className="bg-surface-container text-on-surface-variant">

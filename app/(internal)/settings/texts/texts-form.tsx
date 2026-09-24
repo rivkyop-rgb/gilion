@@ -43,7 +43,7 @@ export function TextsForm({ texts }: { texts: TextOverrides }) {
                      makes an empty field readable as a choice rather than as
                      something nobody filled in. */
                   placeholder={field.default || "בלי טקסט"}
-                  className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest p-3 text-sm"
+                  className="w-full rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3 text-sm"
                 />
               ) : (
                 <Input

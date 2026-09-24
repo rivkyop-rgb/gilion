@@ -20,7 +20,7 @@ export function AddMemberForm() {
   return (
     <form
       action={action}
-      className="mb-8 rounded-lg border border-outline-variant bg-surface-container-lowest p-4"
+      className="mb-8 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4"
       data-testid="add-member-form"
     >
       <h2 className="mb-3 font-serif text-lg font-semibold">הוספת משתמש</h2>
@@ -63,7 +63,7 @@ export function AddMemberForm() {
             name="role"
             defaultValue={was("role") || "sales"}
             data-testid="member-role"
-            className="h-10 w-full rounded-sm border border-outline-variant bg-surface-container px-3 text-start text-sm"
+            className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container px-3 text-start text-sm"
           >
             {ASSIGNABLE_ROLES.map((r) => (
               <option key={r} value={r}>

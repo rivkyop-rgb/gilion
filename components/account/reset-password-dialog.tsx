@@ -80,7 +80,7 @@ export function ResetPasswordDialog({
         <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-primary/40" />
         <DialogPrimitive.Content
           data-testid={`${testId}-dialog`}
-          className="fixed inset-x-0 top-1/2 z-50 mx-auto w-[min(28rem,calc(100vw-2rem))] -translate-y-1/2 rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-lg"
+          className="fixed inset-x-0 top-1/2 z-50 mx-auto w-[min(28rem,calc(100vw-2rem))] -translate-y-1/2 rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-2"
         >
           <DialogPrimitive.Title className="mb-2 flex items-center gap-2 font-serif text-lg font-semibold">
             <KeyRound className="size-5 text-primary" />

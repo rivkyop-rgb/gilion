@@ -309,7 +309,7 @@ function LineEditor({
           ref={adoptNewspaper}
           value={line.newspaperId}
           onChange={(e) => onChange({ newspaperId: e.target.value, shapeId: "", dates: [] })}
-          className="h-11 w-full rounded-sm border border-outline-variant bg-surface-container-lowest px-3"
+          className="h-11 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3"
           data-testid="line-newspaper"
         >
           <option value="">בחרי מהרשימה…</option>
@@ -601,7 +601,7 @@ function DatesPicker({
   const atCurrentMonth = cursor.year === now.getFullYear() && cursor.month === now.getMonth();
 
   return (
-    <div className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
+    <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4">
       <div className="mb-3 flex items-center justify-between">
         <button
           type="button"

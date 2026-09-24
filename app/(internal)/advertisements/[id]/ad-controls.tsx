@@ -142,7 +142,7 @@ export function ReplaceFile({
     <form
       action={formAction}
       data-testid="replace-form"
-      className="rounded-lg border border-outline-variant bg-surface-container-lowest p-3"
+      className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3"
     >
       <p className="mb-2 text-sm font-medium">החלפת קובץ</p>
       <p className="mb-3 text-xs text-on-surface-variant">
@@ -159,7 +159,7 @@ export function ReplaceFile({
         name="newspaperId"
         data-testid="replace-newspaper"
         defaultValue=""
-        className="mt-3 h-10 w-full rounded-sm border border-outline-variant bg-surface-container px-3 text-start text-sm"
+        className="mt-3 h-10 w-full rounded-lg border border-outline-variant bg-surface-container px-3 text-start text-sm"
       >
         <option value="">בדיקת גודל לפי העיתון המחמיר</option>
         {newspapers.map((n) => (
@@ -271,7 +271,7 @@ export function LinkPublication({
       {open ? (
         <div
           data-testid="link-panel"
-          className="mt-2 rounded-lg border border-outline-variant bg-surface-container-lowest p-3"
+          className="mt-2 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3"
         >
           <div className="mb-2 flex items-center gap-2 rounded-sm border border-outline-variant px-2">
             <Search className="size-4 text-on-surface-variant" />

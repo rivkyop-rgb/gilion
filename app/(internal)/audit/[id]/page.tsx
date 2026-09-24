@@ -28,8 +28,8 @@ export default async function AuditRecordPage({ params }: { params: Promise<{ id
 
   return (
     <>
-      <h1 className="mb-6 font-serif text-3xl font-semibold">רשומת ביקורת</h1>
-      <dl className="grid gap-3 rounded-lg border border-outline-variant bg-surface-container-lowest p-6 text-sm sm:grid-cols-2">
+      <h1 className="mb-6 page-title font-serif text-headline-lg font-semibold">רשומת ביקורת</h1>
+      <dl className="grid gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-6 text-sm sm:grid-cols-2">
         <div>
           <dt className="text-on-surface-variant">פעולה</dt>
           <dd data-testid="audit-action" className="font-medium">
@@ -96,7 +96,7 @@ const WHEN = new Intl.DateTimeFormat("he-IL", {
 
 function ValueBlock({ title, testId, value }: { title: string; testId: string; value: unknown }) {
   return (
-    <div className="rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
+    <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4">
       <h3 className="mb-2 text-sm text-on-surface-variant">{title}</h3>
       <pre
         data-testid={testId}

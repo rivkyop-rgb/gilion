@@ -30,7 +30,7 @@ export default async function NewspapersPage() {
     <>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="mb-1 font-serif text-3xl font-semibold">עיתונים</h1>
+          <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">עיתונים</h1>
           <p className="text-sm text-on-surface-variant">
             לכל עיתון גודל עמוד, חלוקת עמוד לגריד, סוגי עמודים, צורות פרסום ומחירון משלו.
           </p>
@@ -63,7 +63,7 @@ export default async function NewspapersPage() {
             <Link
               key={p.id}
               href={`/settings/newspapers/${p.id}`}
-              className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 transition hover:border-brand-gold hover:shadow-md"
+              className="rounded-xl border border-outline-variant bg-surface-container-lowest p-5 transition hover:border-brand-gold hover:shadow-elevation-1"
             >
               <h2 className="mb-2 font-serif text-xl font-semibold">{p.name}</h2>
               <p className="font-mono text-xs tracking-[0.05em] text-on-surface-variant">

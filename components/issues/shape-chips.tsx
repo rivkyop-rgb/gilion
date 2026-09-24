@@ -54,7 +54,7 @@ export function ShapeChips({
             data-fits={usable}
             title={`${shape.name} · ${sizeLabel(shape, grid)}${usable ? "" : " · אין מקום פנוי כרגע"}`}
             className={cn(
-              "flex items-center gap-1.5 rounded-md border px-1.5 py-1",
+              "flex items-center gap-1.5 rounded-lg border px-1.5 py-1",
               usable
                 ? "border-outline-variant bg-surface-container-lowest"
                 : "border-outline-variant/60 bg-surface-container opacity-45",

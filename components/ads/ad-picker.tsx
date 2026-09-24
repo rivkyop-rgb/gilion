@@ -64,7 +64,7 @@ export function AdPicker({
         <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-primary/50" />
         <DialogPrimitive.Content
           data-testid={testId ?? "ad-picker"}
-          className="fixed inset-x-0 top-1/2 z-50 mx-auto flex max-h-[85vh] w-[min(52rem,calc(100vw-2rem))] -translate-y-1/2 flex-col rounded-xl border border-outline-variant bg-surface-container-lowest shadow-lg"
+          className="fixed inset-x-0 top-1/2 z-50 mx-auto flex max-h-[85vh] w-[min(52rem,calc(100vw-2rem))] -translate-y-1/2 flex-col rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-2"
         >
           <div className="flex items-center justify-between gap-3 border-b border-outline-variant p-4">
             <DialogPrimitive.Title className="font-serif text-lg font-semibold">
@@ -117,7 +117,7 @@ export function AdPicker({
                   <li
                     key={ad.id}
                     className={cn(
-                      "relative flex flex-col overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest",
+                      "relative flex flex-col overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1",
                       busy && "opacity-60",
                     )}
                   >
@@ -160,7 +160,7 @@ export function AdPicker({
                             type="button"
                             aria-label={`תצוגה מקדימה של ${ad.name}`}
                             data-testid={`ad-picker-look-${ad.id}`}
-                            className="rounded-full bg-surface-container-lowest/90 p-1.5 text-on-surface-variant shadow-sm hover:bg-surface-container-high"
+                            className="rounded-full bg-surface-container-lowest/90 p-1.5 text-on-surface-variant shadow-elevation-1 hover:bg-surface-container-high"
                           >
                             <Search className="size-3.5" />
                           </button>

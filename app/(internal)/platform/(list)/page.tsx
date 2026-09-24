@@ -25,7 +25,7 @@ export default async function PlatformPage() {
     <>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="mb-1 font-serif text-3xl font-semibold">ניהול עסקים</h1>
+          <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">ניהול עסקים</h1>
           <p className="text-sm text-on-surface-variant">
             כל עסק הוא מערכת סגורה: לקוחות, עיתונים, הזמנות ומשתמשים משלו. אף עסק אינו רואה את
             הנתונים של אחר. כמנהלת־על את נכנסת לכל אחד מהם ורואה בו בדיוק מה שמנהלת העסק רואה —
@@ -43,7 +43,7 @@ export default async function PlatformPage() {
       {businesses.length === 0 ? (
         <EmptyState title="אין עדיין עסקים" body="עסק ראשון נוצר יחד עם המנהל שלו." />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest">
+        <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
           <table className="w-full text-sm" data-testid="businesses-table">
             <thead className="bg-surface-container">
               <tr>

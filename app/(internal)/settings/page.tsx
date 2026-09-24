@@ -80,7 +80,7 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <h1 className="mb-1 font-serif text-3xl font-semibold">הגדרות</h1>
+      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">הגדרות</h1>
       <p className="mb-8 text-sm text-on-surface-variant">
         מה שמוגדר כאן קובע מה מותר לשבץ, איפה, ובכמה.
       </p>
@@ -92,7 +92,7 @@ export default async function SettingsPage() {
             <Link
               key={s.href}
               href={s.href}
-              className="rounded-xl border border-outline-variant bg-surface-container-lowest p-6 transition hover:border-brand-gold hover:shadow-md"
+              className="rounded-xl border border-outline-variant bg-surface-container-lowest p-6 transition hover:border-brand-gold hover:shadow-elevation-1"
             >
               <Icon className="mb-3 size-6 text-primary-container" />
               <h2 className="mb-1 font-serif text-xl font-semibold">{s.title}</h2>

@@ -11,7 +11,7 @@ export default async function NewCustomerPage() {
 
   return (
     <div className="max-w-[500px]">
-      <h1 className="mb-1 font-serif text-3xl font-semibold">לקוח חדש</h1>
+      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">לקוח חדש</h1>
       <p className="mb-6 text-sm text-on-surface-variant">
         פרטי העסק, ואנשי הקשר בו עם התפקיד של כל אחד.
       </p>
