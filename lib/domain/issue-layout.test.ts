@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { deriveGrid, type DerivedGrid } from "./grid";
 import {
   defaultPageTypeIds,
+  innerPageTypeId,
   pageFill,
   pageLabel,
   seamsOf,
@@ -153,8 +154,12 @@ describe("what a new issue opens with", () => {
     { id: "t_back", name: "גב" },
   ];
 
-  it("guesses cover, two inner pages and a back", () => {
-    expect(defaultPageTypeIds(types)).toEqual(["t_cover", "t_inner", "t_inner", "t_back"]);
+  it("opens eight pages — cover, six inner, back — a multiple of four", () => {
+    expect(defaultPageTypeIds(types)).toEqual([
+      "t_cover",
+      ...Array(6).fill("t_inner"),
+      "t_back",
+    ]);
   });
 
   it("falls back to the first type when the names say nothing", () => {
@@ -162,16 +167,17 @@ describe("what a new issue opens with", () => {
       { id: "a", name: "סוג א" },
       { id: "b", name: "סוג ב" },
     ];
-    expect(defaultPageTypeIds(vague)).toEqual(["a", "b", "b", "a"]);
+    expect(defaultPageTypeIds(vague)).toEqual(["a", ...Array(6).fill("b"), "a"]);
   });
 
   it("survives a newspaper with a single page type", () => {
-    expect(defaultPageTypeIds([{ id: "only", name: "רגיל" }])).toEqual([
-      "only",
-      "only",
-      "only",
-      "only",
-    ]);
+    expect(defaultPageTypeIds([{ id: "only", name: "רגיל" }])).toEqual(Array(8).fill("only"));
+  });
+
+  it("a page added later is an inner page, whatever was created first", () => {
+    // The board used to default to pageTypes[0] — the cover, on every newspaper.
+    expect(innerPageTypeId(types)).toBe("t_inner");
+    expect(innerPageTypeId([{ id: "c", name: "שער" }, { id: "x", name: "מוסף" }])).toBe("x");
   });
 
   it("has nothing to guess when the newspaper has no page types", () => {

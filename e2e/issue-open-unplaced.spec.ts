@@ -25,9 +25,9 @@ test.describe("opening an issue", () => {
 
     await setIssueDate(page, OPEN_DATE);
 
-    // The form opens on the smallest thing anyone prints: one folded sheet.
-    await expect(page.getByTestId("page-list").getByRole("listitem")).toHaveCount(4);
-    await expect(page.getByTestId("issue-preview")).toContainText("4");
+    // The form opens on cover, six inner, back — two folded sheets (25/09/2026).
+    await expect(page.getByTestId("page-list").getByRole("listitem")).toHaveCount(8);
+    await expect(page.getByTestId("issue-preview")).toContainText("8");
 
     // And it knows what is waiting for that date before anything exists.
     await expect(page.getByTestId("issue-preview")).toContainText("2 פרסומים כבר מתוכננים");
@@ -39,11 +39,12 @@ test.describe("opening an issue", () => {
     await expect(page.getByTestId("unplaced-count")).toHaveText("(2)");
     await expect(page.getByTestId("unplaced-list").getByRole("listitem")).toHaveCount(2);
 
-    // Three views: the cover alone, the inner pages together, the back alone.
+    // Five views: the cover alone, three inner spreads, the back alone.
     await expect(page.getByTestId("pager-label")).toContainText("שער");
     await expect(page.getByTestId("view-tab-0")).toBeVisible();
     await expect(page.getByTestId("view-tab-1")).toContainText("עמודים 2-3");
-    await expect(page.getByTestId("view-tab-2")).toContainText("גב");
+    await expect(page.getByTestId("view-tab-3")).toContainText("עמודים 6-7");
+    await expect(page.getByTestId("view-tab-4")).toContainText("גב");
 
     // The snapshot: the newspaper's 26 x 41 grid, on the cover.
     await expect(page.getByTestId("page-canvas-1")).toBeVisible();

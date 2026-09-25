@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { ArrowUpDown, Plus } from "lucide-react";
 
 import type { IssueView, PageFill } from "@/lib/domain/issue-layout";
 import { Ltr } from "@/components/ui/ltr";
@@ -34,6 +34,7 @@ export function PageStrip({
   onSelectView,
   onInsertAfter,
   onReorder,
+  onOpenOrder,
 }: {
   views: IssueView[];
   fills: Map<string, PageFill>;
@@ -44,7 +45,9 @@ export function PageStrip({
   onNewPageTypeChange: (id: string) => void;
   onSelectView: (index: number) => void;
   onInsertAfter: (pageId: string) => void;
+  /** A drag is a PROPOSAL: it opens the ordering dialog, which confirms it. */
   onReorder: (orderedPageIds: string[]) => void;
+  onOpenOrder: () => void;
 }) {
   const [draggingPageId, setDraggingPageId] = useState<string | null>(null);
   const [overPageId, setOverPageId] = useState<string | null>(null);
@@ -172,7 +175,15 @@ export function PageStrip({
               </option>
             ))}
           </select>
-          <span>· גררי מיניאטורה כדי לשנות את סדר העמודים</span>
+          <button
+            type="button"
+            data-testid="open-page-order"
+            onClick={onOpenOrder}
+            className="ms-auto inline-flex items-center gap-1 rounded-lg border border-outline-variant px-2 py-1 font-medium text-on-surface hover:bg-surface-container"
+          >
+            <ArrowUpDown className="size-3.5" aria-hidden />
+            שינוי סדר העמודים
+          </button>
         </div>
       ) : null}
     </div>

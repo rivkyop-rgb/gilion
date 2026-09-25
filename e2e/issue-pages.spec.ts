@@ -62,6 +62,28 @@ test.describe("the pages of an issue", () => {
     await expect(page.getByTestId("pager-label")).toContainText("עמודים 2-3");
   });
 
+  test("reorders by number only after two confirmations, and never before", async ({ page }) => {
+    // The back page's TYPE ("אחורי" in the seed) is what makes the move visible on the strip: the
+    // thumb's title carries it, and every inner page shares one type.
+    await expect(page.getByTestId("page-thumb-2")).not.toHaveAttribute("title", /אחורי/);
+
+    await page.getByTestId("open-page-order").click();
+    await page.getByTestId("order-number-4").fill("2");
+    await page.getByTestId("order-number-4").press("Enter");
+    await expect(page.getByTestId("page-order-moved")).toContainText("עמודים זזו");
+
+    // Proposed, not written: the strip under the dialog has not moved.
+    await expect(page.getByTestId("page-thumb-2")).not.toHaveAttribute("title", /אחורי/);
+
+    await page.getByTestId("apply-page-order").click();
+    await expect(page.getByTestId("confirm-page-order")).toContainText("לשנות את סדר העמודים?");
+    await page.getByTestId("confirm-page-order-confirm").click();
+
+    // Wait for the dialog to go — it stays open for the whole write (CLAUDE.md).
+    await expect(page.getByTestId("page-order-dialog")).toHaveCount(0);
+    await expect(page.getByTestId("page-thumb-2")).toHaveAttribute("title", /אחורי/);
+  });
+
   test("names the outside pages instead of numbering them", async ({ page }) => {
     // A seller asked which pages still have room wants to hear "the cover".
     //

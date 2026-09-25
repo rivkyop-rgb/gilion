@@ -26,6 +26,7 @@ import {
   type IssueStatus,
 } from "@/lib/domain/issue-status";
 import {
+  innerPageTypeId,
   pageFill,
   pageLabel,
   unfinishedPages,
@@ -57,6 +58,7 @@ import { PageCanvas, type CanvasPlacement } from "./page-canvas";
 import { ShapeChips } from "./shape-chips";
 import { ChangeIssueDate } from "./issue-calendar";
 import { PageStrip } from "./page-strip";
+import { PageOrderDialog } from "./page-order-dialog";
 import { UnplacedPanel, type BoardCandidate } from "./unplaced-panel";
 import { useFittedSpread } from "./use-fitted-spread";
 
@@ -150,8 +152,11 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
   const fail = (text: string) => setNotice({ text, ok: false });
   const say = (text: string) => setNotice({ text, ok: true });
   const [duplicateFor, setDuplicateFor] = useState<BoardCandidate | null>(null);
-  const [newPageType, setNewPageType] = useState(model.pageTypes[0]?.id ?? "");
+  // A page added mid-issue is an inner page; the select still offers the rest.
+  const [newPageType, setNewPageType] = useState(innerPageTypeId(model.pageTypes) ?? "");
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  /** The ordering dialog: null closed; `initial` is the drag that opened it. */
+  const [pageOrder, setPageOrder] = useState<{ initial: string[] | null } | null>(null);
   /**
    * Which arrangement the auto-placer produced. Bumping it asks for another —
    * the same number always gives the same layout, so there is a way back.
@@ -726,8 +731,33 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
             onInsertAfter={(pageId) =>
               run(() => insertIssuePageAction(model.issueId, newPageType, pageId))
             }
-            onReorder={(ordered) => run(() => reorderIssuePagesAction(model.issueId, ordered))}
+            onReorder={(ordered) => setPageOrder({ initial: ordered })}
+            onOpenOrder={() => setPageOrder({ initial: null })}
           />
+          {pageOrder ? (
+            <PageOrderDialog
+              // Remounted per opening, so it always starts from the issue as
+              // it stands (or from the drag that opened it), never from a
+              // half-finished arrangement someone walked away from.
+              key={pageOrder.initial?.join() ?? "fresh"}
+              open
+              initialOrder={pageOrder.initial}
+              pages={model.pages.map((p) => ({
+                id: p.id,
+                number: p.number,
+                pageTypeName: p.pageTypeName,
+                fillPercent: fills.get(p.id)?.percent ?? 0,
+              }))}
+              onOpenChange={(open) => {
+                if (!open) setPageOrder(null);
+              }}
+              onConfirm={async (ordered) => {
+                const result = await reorderIssuePagesAction(model.issueId, ordered);
+                if (!result.message) router.refresh();
+                return result;
+              }}
+            />
+          ) : null}
         </div>
       </section>
 

@@ -43,8 +43,15 @@ export type IssueView = {
   label: string;
 };
 
-/** How many pages a new issue opens with: cover, one inner spread, back. */
-export const DEFAULT_ISSUE_PAGES = 4;
+/**
+ * How many pages a new issue opens with: cover, six inner, back.
+ *
+ * Eight and not four since 25/09/2026 (the user's call): a newspaper opens
+ * with a cover, a back and inner pages between them — and the number has to be
+ * a multiple of four, because a stitched issue is folded sheets of four
+ * (imposition.ts). "At least four inner" therefore rounds up to eight pages.
+ */
+export const DEFAULT_ISSUE_PAGES = 8;
 
 /**
  * Groups an issue's pages into what a person actually looks at.
@@ -140,7 +147,28 @@ export function seamsOf(pages: readonly PageRef[]): Array<{ afterPageId: string;
 }
 
 /**
- * The four page types a new issue opens with: cover, two inner, back.
+ * The inner page type — what a page added to an issue becomes by default.
+ *
+ * Preferred by name ("פנימי", which every newspaper starts with — base-shapes.ts),
+ * then anything that is not one of the two outsides. A page added in the
+ * middle of an issue is an inner page far more often than anything else; a
+ * default of "whatever type was created first" made it a cover.
+ */
+export function innerPageTypeId(
+  pageTypes: ReadonlyArray<{ id: string; name: string }>,
+): string | undefined {
+  const byName = (needle: string) => pageTypes.find((t) => t.name.includes(needle));
+  const named = byName("פנימי");
+  if (named) return named.id;
+  // Unnamed outsides fall back to the first type, exactly as defaultPageTypeIds
+  // does — so "inner" is then the first type that is not that one.
+  const cover = byName("שער") ?? pageTypes[0];
+  const back = byName("גב") ?? byName("אחורי") ?? pageTypes[0];
+  return (pageTypes.find((t) => t.id !== cover?.id && t.id !== back?.id) ?? pageTypes[0])?.id;
+}
+
+/**
+ * The page types a new issue opens with: cover, inner pages, back.
  *
  * Page types are free text owned by each newspaper (US-006), so there is no
  * flag saying "this one is the cover" — and there should not be one: which
@@ -157,9 +185,9 @@ export function defaultPageTypeIds(
   const byName = (needle: string) => pageTypes.find((t) => t.name.includes(needle));
   const fallback = pageTypes[0]!;
   const cover = byName("שער") ?? fallback;
-  const back = byName("גב") ?? fallback;
-  // Anything that is not one of the two outsides is an ordinary inner page.
-  const inner = pageTypes.find((t) => t.id !== cover.id && t.id !== back.id) ?? fallback;
+  // "אחורי" is how some papers name the back — the demo's own does.
+  const back = byName("גב") ?? byName("אחורי") ?? fallback;
+  const inner = pageTypes.find((t) => t.id === innerPageTypeId(pageTypes)) ?? fallback;
 
   const ids: string[] = [];
   for (let i = 0; i < Math.max(1, pageCount); i++) {
