@@ -41,7 +41,7 @@ export function validateReminderDays(days: number): string | null {
  * yet placeable, and chasing the customer for something they already sent is
  * the fastest way to make them stop trusting the reminders.
  */
-const WAITING_FOR_ARTWORK: readonly string[] = ["planned", "missing_ad"];
+const WAITING_FOR_ARTWORK: readonly string[] = ["missing_ad"];
 
 export type ReminderCandidate = {
   publicationId: string;

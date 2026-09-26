@@ -21,6 +21,8 @@ export type AdCardModel = {
   validationStatus: "pending" | "passed" | "failed";
   validationError: string | null;
   customerLabel: string | null;
+  /** For the list view, where the name links to the customer. The card itself is a link and cannot nest one. */
+  customerId?: string | null;
   uploadedBy: string;
   uploadedAt: Date;
   publicationCount: number;

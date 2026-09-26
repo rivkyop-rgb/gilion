@@ -439,7 +439,7 @@ export async function issueReport(
           publication: {
             select: {
               id: true,
-              customer: { select: { business_name: true } },
+              customer: { select: { id: true, business_name: true } },
             },
           },
           ad_shape: { select: { name: true } },
@@ -464,6 +464,7 @@ export async function issueReport(
       placements: issue.placements.map((placement) => ({
         id: placement.id,
         customerName: placement.publication.customer.business_name,
+        customerId: placement.publication.customer.id,
         shapeName: placement.ad_shape.name,
         cols: placement.cols,
         rows: placement.rows,

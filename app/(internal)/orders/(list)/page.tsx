@@ -8,6 +8,17 @@ import { countOrdersByStatus, listOrders, pendingPortalRequests } from "@/lib/da
 import { Send } from "lucide-react";
 import { ORDER_STATUS_LABELS, ORDER_STATUSES, type OrderStatus } from "@/lib/domain/order-status";
 import { Button } from "@/components/ui/button";
+import { DetailGrid, ExpandableRow } from "@/components/ui/expandable-row";
+import { FilterBuilder } from "@/components/ui/filter-builder";
+import { customerOptions } from "@/lib/data/customers";
+import { listNewspapers, shapeOptions } from "@/lib/data/newspapers";
+import {
+  PAYMENT_STATUSES,
+  PAYMENT_STATUS_LABELS,
+  type PaymentStatus,
+} from "@/lib/domain/payment-status";
+import { PAYMENT_TONE } from "@/components/status-tone";
+import { Badge } from "@/components/ui/badge";
 import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
 import { ORDER_TONE, TONE_ROW } from "@/components/status-tone";
@@ -21,25 +32,65 @@ export const metadata: Metadata = { title: "הזמנות · Gilion" };
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; source?: string; customer?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    source?: string;
+    customer?: string;
+    newspaper?: string;
+    shape?: string;
+    payment?: string;
+    from?: string;
+    to?: string;
+  }>;
 }) {
   const ctx = await getTenantContext();
   requireArea(ctx, "orders");
 
-  const { status = "all", source = "all", customer = "all" } = await searchParams;
+  const params = await searchParams;
+  const { status = "all", source = "all", customer = "all" } = params;
   const mayEdit = canWriteArea(ctx, "orders");
+  // FR-8: whoever reads orders but not money does not filter by it either.
+  const maySeeMoney = ctx.role !== "designer";
 
-  const [orders, counts, pendingFromPortal, customerRow] = await Promise.all([
-    listOrders(ctx.businessId, { status, source, customerId: customer }),
-    // The chips count what they would show — the same customer, if one is set.
-    countOrdersByStatus(ctx.businessId, customer),
-    pendingPortalRequests(ctx.businessId),
-    customer !== "all" ? getCustomer(ctx.businessId, customer) : Promise.resolve(null),
-  ]);
-  // Arrived from a customer's card: every link on the page keeps that customer.
-  const customerId = customerRow ? customer : null;
-  const withCustomer = (href: string) =>
-    customerId ? `${href}${href.includes("?") ? "&" : "?"}customer=${customerId}` : href;
+  const [orders, counts, pendingFromPortal, customerRow, papers, shapes, customers] =
+    await Promise.all([
+      listOrders(ctx.businessId, {
+        status,
+        source,
+        customerId: customer,
+        newspaperId: params.newspaper,
+        shapeId: params.shape,
+        payment: maySeeMoney ? params.payment : undefined,
+        from: params.from,
+        to: params.to,
+      }),
+      // The chips count what they would show — the same customer, if one is set.
+      countOrdersByStatus(ctx.businessId, customer),
+      pendingPortalRequests(ctx.businessId),
+      customer !== "all" ? getCustomer(ctx.businessId, customer) : Promise.resolve(null),
+      listNewspapers(ctx.businessId),
+      shapeOptions(ctx.businessId),
+      customerOptions(ctx.businessId),
+    ]);
+  // The filter bar's parameters. Every other link on the page (status chips,
+  // "new order") carries them along — a chip that drops the customer the list
+  // was opened for is a chip that quietly shows someone else's orders.
+  const builderValues = {
+    customer: customerRow ? customer : undefined,
+    newspaper: params.newspaper,
+    shape: params.shape,
+    payment: maySeeMoney ? params.payment : undefined,
+    source: params.source,
+    from: params.from,
+    to: params.to,
+  };
+  const withCustomer = (href: string) => {
+    const url = new URL(href, "http://x");
+    for (const [k, v] of Object.entries(builderValues)) {
+      if (v && v !== "all" && !url.searchParams.has(k)) url.searchParams.set(k, v);
+    }
+    return `${url.pathname}${url.search}`;
+  };
   const portalOnly = source === "customer_portal";
 
   return (
@@ -133,6 +184,51 @@ export default async function OrdersPage({
         ))}
       </div>
 
+      <FilterBuilder
+        basePath="/orders"
+        keep={{ status }}
+        values={builderValues}
+        fields={[
+          {
+            key: "newspaper",
+            label: "עיתון",
+            kind: "select",
+            options: papers.map((n) => ({ value: n.id, label: n.name })),
+          },
+          {
+            key: "customer",
+            label: "לקוח",
+            kind: "select",
+            options: customers.map((c) => ({ value: c.id, label: c.business_name })),
+          },
+          { key: "shape", label: "גודל", kind: "select", options: shapes },
+          ...(maySeeMoney
+            ? [
+                {
+                  key: "payment",
+                  label: "תשלום",
+                  kind: "select" as const,
+                  options: PAYMENT_STATUSES.map((p) => ({
+                    value: p,
+                    label: PAYMENT_STATUS_LABELS[p],
+                  })),
+                },
+              ]
+            : []),
+          {
+            key: "source",
+            label: "מקור",
+            kind: "select",
+            options: [
+              { value: "internal", label: "פנימי" },
+              { value: "customer_portal", label: "פורטל לקוח" },
+            ],
+          },
+          { key: "from", label: "פרסום מתאריך", kind: "date" },
+          { key: "to", label: "פרסום עד תאריך", kind: "date" },
+        ]}
+      />
+
       {orders.length === 0 ? (
         <EmptyState
           title={status === "all" ? "עדיין אין הזמנות" : "אין הזמנות בסטטוס הזה"}
@@ -150,6 +246,7 @@ export default async function OrdersPage({
           <table className="w-full text-sm" data-testid="orders-table">
             <thead className="bg-surface-container">
               <tr>
+                <th className="w-8 p-1" aria-label="פרטים" />
                 <th className="p-3 text-start font-semibold">מספר</th>
                 <th className="p-3 text-start font-semibold">לקוח</th>
                 <th className="p-3 text-start font-semibold">מקור</th>
@@ -161,10 +258,12 @@ export default async function OrdersPage({
             </thead>
             <tbody>
               {orders.map((o) => (
-                <tr
+                <ExpandableRow
                   key={o.id}
-                  data-testid={`order-row-${o.id}`}
-                  data-source={o.source}
+                  testId={`order-row-${o.id}`}
+                  rowProps={{ "data-source": o.source }}
+                  colSpan={8}
+                  details={<OrderDetails order={o} maySeeMoney={maySeeMoney} />}
                   className={cn(
                     "border-t border-outline-variant",
                     TONE_ROW[ORDER_TONE[o.status as OrderStatus]] ||
@@ -183,7 +282,11 @@ export default async function OrdersPage({
                       <Ltr>{orderNumber(o.number)}</Ltr>
                     </Link>
                   </td>
-                  <td className="p-3">{o.customer.business_name}</td>
+                  <td className="p-3">
+                    <Link href={`/customers/${o.customer.id}`} className="hover:underline">
+                      {o.customer.business_name}
+                    </Link>
+                  </td>
                   <td className="p-3">
                     <SourceBadge source={o.source} />
                   </td>
@@ -199,12 +302,78 @@ export default async function OrdersPage({
                   <td className="p-3">
                     <Ltr>{formatDate(o.created_at)}</Ltr>
                   </td>
-                </tr>
+                </ExpandableRow>
               ))}
             </tbody>
           </table>
         </div>
       )}
     </>
+  );
+}
+
+type OrderRow = Awaited<ReturnType<typeof listOrders>>[number];
+
+/** What the arrow opens: the order's lines, and the facts not in the columns. */
+function OrderDetails({ order, maySeeMoney }: { order: OrderRow; maySeeMoney: boolean }) {
+  return (
+    <div className="space-y-3">
+      <DetailGrid
+        items={[
+          ["כמות שורות", <Ltr key="n">{order.items.length}</Ltr>],
+          ...(maySeeMoney
+            ? ([
+                [
+                  "תשלום",
+                  <Badge key="p" tone={PAYMENT_TONE[order.payment_status as PaymentStatus]}>
+                    {PAYMENT_STATUS_LABELS[order.payment_status as PaymentStatus]}
+                  </Badge>,
+                ],
+              ] as Array<[string, React.ReactNode]>)
+            : []),
+          ["קובץ להזמנה", order.advertisement?.name ?? "—"],
+          ["אושרה", order.approved_at ? <Ltr key="a">{formatDate(order.approved_at)}</Ltr> : "—"],
+        ]}
+      />
+      {order.items.length > 0 ? (
+        <table className="w-full text-xs" data-testid={`order-lines-${order.id}`}>
+          <thead className="text-on-surface-variant">
+            <tr>
+              <th className="py-1 text-start font-medium">עיתון</th>
+              <th className="py-1 text-start font-medium">תאריך</th>
+              <th className="py-1 text-start font-medium">סוג עמוד</th>
+              <th className="py-1 text-start font-medium">גודל</th>
+              {maySeeMoney ? <th className="py-1 text-start font-medium">מחיר</th> : null}
+              <th className="py-1 text-start font-medium">קובץ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {order.items.map((i) => (
+              <tr key={i.id} className="border-t border-outline-variant">
+                <td className="py-1">{i.newspaper.name}</td>
+                <td className="py-1">
+                  <Ltr>{formatDate(i.publication_date)}</Ltr>
+                </td>
+                <td className="py-1">{i.page_type.name}</td>
+                <td className="py-1">
+                  {i.ad_shape.name}{" "}
+                  <span className="text-on-surface-variant">
+                    (<Ltr>{`${i.ad_shape.cols}×${i.ad_shape.rows}`}</Ltr>)
+                  </span>
+                </td>
+                {maySeeMoney ? (
+                  <td className="py-1">
+                    <Ltr>{formatMoney(Number(i.price))}</Ltr>
+                  </td>
+                ) : null}
+                <td className="py-1">
+                  {i.advertisement?.name ?? order.advertisement?.name ?? "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+    </div>
   );
 }

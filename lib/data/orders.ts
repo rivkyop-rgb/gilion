@@ -11,7 +11,17 @@ import { roundMoney } from "@/lib/domain/order";
 import { discountedPrice, orderPricing } from "@/lib/domain/ad-package";
 import { packagesByNewspaper } from "./newspapers";
 
-export type OrderFilters = { status?: string; source?: string; customerId?: string };
+export type OrderFilters = {
+  status?: string;
+  source?: string;
+  customerId?: string;
+  /** An order matches when ANY of its lines does — newspaper, shape, dates. */
+  newspaperId?: string;
+  shapeId?: string;
+  payment?: string;
+  from?: string;
+  to?: string;
+};
 
 const ORDER_INCLUDE = {
   customer: { select: { id: true, business_name: true } },
@@ -37,6 +47,25 @@ const ORDER_INCLUDE = {
   _count: { select: { items: true, publications: true } },
 };
 
+/** The line-level filters, as one `items: { some }` — a line must match ALL of them. */
+function lineFilter(filters: OrderFilters): Prisma.AdOrderWhereInput {
+  const line: Prisma.AdOrderItemWhereInput = {
+    ...(filters.newspaperId && filters.newspaperId !== "all"
+      ? { newspaper_id: filters.newspaperId }
+      : {}),
+    ...(filters.shapeId && filters.shapeId !== "all" ? { ad_shape_id: filters.shapeId } : {}),
+    ...(filters.from || filters.to
+      ? {
+          publication_date: {
+            ...(filters.from ? { gte: new Date(filters.from) } : {}),
+            ...(filters.to ? { lte: new Date(filters.to) } : {}),
+          },
+        }
+      : {}),
+  };
+  return Object.keys(line).length > 0 ? { items: { some: line } } : {};
+}
+
 export async function listOrders(businessId: string, filters: OrderFilters = {}) {
   return tenantDb(businessId).adOrder.findMany({
     where: {
@@ -49,6 +78,10 @@ export async function listOrders(businessId: string, filters: OrderFilters = {})
       ...(filters.customerId && filters.customerId !== "all"
         ? { customer_id: filters.customerId }
         : {}),
+      ...(filters.payment && filters.payment !== "all"
+        ? { payment_status: filters.payment as Prisma.EnumPaymentStatusFilter }
+        : {}),
+      ...lineFilter(filters),
     },
     orderBy: { created_at: "desc" },
     include: ORDER_INCLUDE,
@@ -429,8 +462,8 @@ export async function createPublicationsForOrder(
         // The state machine's answer for AD_LINKED on a valid, customer-owned
         // file — the ad on an order always belongs to that order's customer, so
         // there is no case where it would stop at `ad_received`.
-        status: (advertisementId ? "ready_for_layout" : "planned") as
-          "planned" | "ready_for_layout",
+        status: (advertisementId ? "ready_for_layout" : "missing_ad") as
+          "missing_ad" | "ready_for_layout",
         placement_status: "not_placed" as const,
         payment_status: "unpaid" as const,
       };

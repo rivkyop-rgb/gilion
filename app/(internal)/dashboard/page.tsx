@@ -227,6 +227,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               reminders={reminders.rows.map((r) => ({
                 id: r.id,
                 customerName: r.customer.business_name,
+                customerId: r.customer.id,
                 newspaperName: r.publication.newspaper.name,
                 date: r.publication.publication_date,
                 daysLeft: daysUntil(r.publication.publication_date, today),

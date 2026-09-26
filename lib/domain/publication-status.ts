@@ -18,7 +18,6 @@
  */
 
 export const PUBLICATION_STATUSES = [
-  "planned",
   "missing_ad",
   "ad_received",
   "ready_for_layout",
@@ -33,7 +32,6 @@ export const PUBLICATION_EVENTS = [
   "PUBLICATION_CREATED",
   "AD_LINKED",
   "AD_UNLINKED",
-  "REMINDER_WINDOW_ENTERED",
   "PLACED",
   "PLACEMENT_REMOVED",
   "ISSUE_CLOSED",
@@ -56,7 +54,6 @@ const TRANSITIONS: Record<
   PublicationStatus,
   Partial<Record<PublicationEvent, PublicationStatus>>
 > = {
-  planned: { AD_LINKED: "ad_received", REMINDER_WINDOW_ENTERED: "missing_ad" },
   missing_ad: { AD_LINKED: "ad_received" },
   ad_received: { AD_UNLINKED: "missing_ad" },
   ready_for_layout: { AD_UNLINKED: "missing_ad", PLACED: "placed" },
@@ -80,7 +77,6 @@ const TRANSITIONS: Record<
  * cancel — it happened.
  */
 const CANCELLABLE: readonly PublicationStatus[] = [
-  "planned",
   "missing_ad",
   "ad_received",
   "ready_for_layout",
@@ -126,8 +122,7 @@ export function availableEvents(from: PublicationStatus): PublicationEvent[] {
 }
 
 export const PUBLICATION_STATUS_LABELS: Record<PublicationStatus, string> = {
-  planned: "מתוכנן",
-  missing_ad: "חסרה מודעה",
+  missing_ad: "חסר קובץ",
   ad_received: "מודעה התקבלה",
   ready_for_layout: "מוכן לשיבוץ",
   placed: "שובץ",

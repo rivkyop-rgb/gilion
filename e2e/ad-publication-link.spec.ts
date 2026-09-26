@@ -64,9 +64,9 @@ test("שיוך מודעה לפרסום — משני הכיוונים — מזי�
   // --- direction 1: from the publication row -----------------------------
   await page.goto("/publications");
   const row = page.locator("tbody tr").filter({ hasText: orderRef }).first();
-  // `planned`, not `missing_ad`: a fresh publication only becomes "חסרה מודעה"
-  // when the reminder window opens (conventions.md §3, stage 10).
-  await expect(row).toContainText("מתוכנן");
+  // A publication without a file is "חסר קובץ" from the moment it exists
+  // (one state since 26/09/2026 — there is no separate "מתוכנן").
+  await expect(row).toContainText("חסר קובץ");
 
   const publicationId = (await row.getAttribute("data-testid"))!.replace("publication-row-", "");
   await page.getByTestId(`row-link-${publicationId}`).click();
@@ -96,6 +96,6 @@ test("שיוך מודעה לפרסום — משני הכיוונים — מזי�
 
   await page.goto("/publications");
   await expect(page.locator(`[data-testid="publication-row-${publicationId}"]`)).toContainText(
-    "חסרה מודעה",
+    "חסר קובץ",
   );
 });

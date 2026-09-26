@@ -208,7 +208,7 @@ export async function publicationsUsingAd(businessId: string, adId: string) {
  */
 export async function linkablePublications(businessId: string, customerId: string) {
   return tenantDb(businessId).publication.findMany({
-    where: { customer_id: customerId, status: { in: ["planned", "missing_ad"] } },
+    where: { customer_id: customerId, status: { in: ["missing_ad"] } },
     orderBy: { publication_date: "asc" },
     select: {
       id: true,
@@ -393,7 +393,7 @@ export async function publicationsAwaitingArtwork(businessId: string, orderId: s
     where: {
       order_id: orderId,
       advertisement_id: null,
-      status: { in: ["planned", "missing_ad"] },
+      status: { in: ["missing_ad"] },
     },
     select: { id: true, status: true },
   });
@@ -410,7 +410,7 @@ export async function openPublicationsForAd(businessId: string, customerId: stri
   return tenantDb(businessId).publication.findMany({
     where: {
       customer_id: customerId,
-      status: { in: ["planned", "missing_ad"] },
+      status: { in: ["missing_ad"] },
       advertisement_id: null,
     },
     select: { id: true, status: true },

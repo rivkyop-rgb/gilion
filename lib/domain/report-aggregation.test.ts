@@ -224,7 +224,7 @@ const row = (over: Partial<ReportablePublication>): ReportablePublication => ({
 
 describe("the four questions of US-010", () => {
   it("'who is running' is everything not cancelled", () => {
-    expect(matchesLens(row({ status: "planned" }), "running")).toBe(true);
+    expect(matchesLens(row({ status: "missing_ad" }), "running")).toBe(true);
     expect(matchesLens(row({ status: "canceled" }), "running")).toBe(false);
   });
 
@@ -237,7 +237,7 @@ describe("the four questions of US-010", () => {
   });
 
   it("'who is not laid out' ignores what has already run", () => {
-    expect(matchesLens(row({ placementStatus: "not_placed", status: "planned" }), "unplaced")).toBe(
+    expect(matchesLens(row({ placementStatus: "not_placed", status: "missing_ad" }), "unplaced")).toBe(
       true,
     );
     // A published ad has no placement left to chase.
@@ -256,7 +256,7 @@ describe("the four questions of US-010", () => {
   it("counts every chip in one pass over the rows", () => {
     const counts = lensCounts([
       row({ status: "published", paymentStatus: "debt" }),
-      row({ status: "planned", hasAdvertisement: false, placementStatus: "not_placed" }),
+      row({ status: "missing_ad", hasAdvertisement: false, placementStatus: "not_placed" }),
       row({ status: "canceled" }),
     ]);
     expect(counts.all).toBe(3);

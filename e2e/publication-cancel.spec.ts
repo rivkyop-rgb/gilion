@@ -44,7 +44,7 @@ test("ביטול פרסום בודד לא נוגע בשאר ההזמנה", async
 
   // One cancelled, one untouched — and the order itself is still approved.
   await expect(page.locator(`[data-testid="publication-row-${pubId}"]`)).toContainText("בוטל");
-  await expect(rows.filter({ hasText: "מתוכנן" })).toHaveCount(1);
+  await expect(rows.filter({ hasText: "חסר קובץ" })).toHaveCount(1);
 
   await page.goto(`/orders/${id}`);
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");

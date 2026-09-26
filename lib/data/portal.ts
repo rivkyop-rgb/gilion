@@ -391,7 +391,7 @@ export async function publicationsAwaitingArtwork(scope: CustomerScope, today: D
   return customerDb(scope).publication.findMany({
     where: {
       advertisement_id: null,
-      status: { in: ["planned", "missing_ad"] },
+      status: { in: ["missing_ad"] },
       publication_date: { gte: today },
       order: { status: { in: ["approved", "completed"] } },
     },

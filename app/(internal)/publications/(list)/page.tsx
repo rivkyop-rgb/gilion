@@ -7,7 +7,11 @@ import { placeableAds } from "@/lib/data/advertisements";
 import type { AdPreviewModel } from "@/components/ads/ad-preview";
 import type { AdFileType } from "@/lib/domain/ad-file";
 import { listNewspapers } from "@/lib/data/newspapers";
-import { getCustomer } from "@/lib/data/customers";
+import { customerOptions, getCustomer } from "@/lib/data/customers";
+import { shapeOptions } from "@/lib/data/newspapers";
+import { counted } from "@/lib/domain/hebrew-count";
+import { DetailGrid, ExpandableRow } from "@/components/ui/expandable-row";
+import { FilterBuilder } from "@/components/ui/filter-builder";
 import { isoDay, weekRange } from "@/lib/domain/calendar";
 import { issuesForPublications } from "@/lib/data/issues";
 import {
@@ -16,10 +20,12 @@ import {
   PUBLICATION_STATUS_LABELS,
   type PublicationStatus,
 } from "@/lib/domain/publication-status";
-import { PAYMENT_STATUS_LABELS, type PaymentStatus } from "@/lib/domain/payment-status";
+import {
+  PAYMENT_STATUSES,
+  PAYMENT_STATUS_LABELS,
+  type PaymentStatus,
+} from "@/lib/domain/payment-status";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
 import { PAYMENT_TONE, PUBLICATION_TONE, TONE_ROW } from "@/components/status-tone";
@@ -36,7 +42,7 @@ const isPublicationStatus = (v: string): v is PublicationStatus =>
 
 /** The dashboard's two drill-downs (FR-20), as they read after "פרסומים". */
 const ATTENTION_LABELS: Record<string, string> = {
-  missing_ad: "חסרי מודעה",
+  missing_ad: "חסרי קובץ",
   not_placed: "שלא שובצו",
 };
 
@@ -51,6 +57,9 @@ export default async function PublicationsPage({
     customer?: string;
     /** The dashboard's drill-down (FR-20) — see lib/data/publications.ts. */
     attention?: string;
+    shape?: string;
+    payment?: string;
+    source?: string;
   }>;
 }) {
   const ctx = await getTenantContext();
@@ -63,6 +72,9 @@ export default async function PublicationsPage({
     to = "",
     customer = "all",
     attention = "all",
+    shape = "all",
+    payment = "all",
+    source = "all",
   } = await searchParams;
 
   // FR-8: a designer places ads but never sees money.
@@ -78,6 +90,9 @@ export default async function PublicationsPage({
     if (to) q.set("to", to);
     if (customer !== "all") q.set("customer", customer);
     if (merged.attention !== "all") q.set("attention", merged.attention);
+    if (shape !== "all") q.set("shape", shape);
+    if (payment !== "all") q.set("payment", payment);
+    if (source !== "all") q.set("source", source);
     const query = q.toString();
     return query ? `/publications?${query}` : "/publications";
   };
@@ -95,7 +110,7 @@ export default async function PublicationsPage({
   const mayCancel = canWriteArea(ctx, "orders");
   const mayOpenIssues = canWriteArea(ctx, "issues");
 
-  const [page, papers, ads, customerRow] = await Promise.all([
+  const [page, papers, ads, customerRow, shapes, customers] = await Promise.all([
     listPublicationsPage(ctx.businessId, {
       newspaperId: newspaper,
       status,
@@ -103,13 +118,20 @@ export default async function PublicationsPage({
       to,
       customerId: customer,
       attention,
+      shapeId: shape,
+      payment: maySeeMoney ? payment : "all",
+      source,
     }),
     listNewspapers(ctx.businessId),
     mayLinkAds ? placeableAds(ctx.businessId) : Promise.resolve([]),
     customer !== "all" ? getCustomer(ctx.businessId, customer) : Promise.resolve(null),
+    shapeOptions(ctx.businessId),
+    customerOptions(ctx.businessId),
   ]);
   const customerName = customerRow?.business_name ?? null;
   const { rows, total } = page;
+  // The arrow, eight fixed columns, and the ones a role may or may not see.
+  const columnCount = 9 + (mayLinkAds ? 1 : 0) + (maySeeMoney ? 2 : 0) + (mayCancel ? 1 : 0);
 
   // One query for the whole table, grouped here: an ad may only be offered to
   // a publication of its own customer (stage 05 rule 5).
@@ -173,6 +195,13 @@ export default async function PublicationsPage({
   const paperName = papers.find((n) => n.id === newspaper)?.name;
   if (paperName) filterParts.push(`בעיתון ${paperName}`);
   if (customerName) filterParts.push(`של ${customerName}`);
+  const shapeName = shapes.find((x) => x.value === shape)?.label;
+  if (shapeName) filterParts.push(`בגודל ${shapeName}`);
+  if (maySeeMoney && payment !== "all" && payment in PAYMENT_STATUS_LABELS) {
+    filterParts.push(`בתשלום "${PAYMENT_STATUS_LABELS[payment as PaymentStatus]}"`);
+  }
+  if (source === "customer_portal") filterParts.push("שהגיעו מפורטל הלקוח");
+  if (source === "internal") filterParts.push("שהוזנו במשרד");
 
   const title =
     (ATTENTION_LABELS[attention]
@@ -193,7 +222,7 @@ export default async function PublicationsPage({
         {title}
       </h1>
       <p className="mb-4 text-sm text-on-surface-variant">
-        כל פרסום מחייב שנוצר מאישור הזמנה. פרסום בלי מודעה או בלי שיבוץ מסומן ברקע אדמדם.
+        כל פרסום מחייב שנוצר מאישור הזמנה. פרסום בלי קובץ או בלי שיבוץ מסומן ברקע אדמדם.
       </p>
 
       {/* Somebody who arrived from a dashboard card is looking at a SUBSET, and
@@ -258,52 +287,58 @@ export default async function PublicationsPage({
         ))}
       </div>
 
-      <form className="mb-4 flex flex-wrap items-end gap-3">
-        <div>
-          <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="newspaper">
-            עיתון
-          </label>
-          <select
-            id="newspaper"
-            name="newspaper"
-            defaultValue={newspaper}
-            data-testid="filter-newspaper"
-            className="h-10 rounded-lg border border-outline-variant bg-surface-container px-3 text-start text-sm"
-          >
-            <option value="all">כל העיתונים</option>
-            {papers.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* The status filter lives in the chip row above, in colour. It rides
-            along here as a hidden field so submitting the other filters keeps it.
-            So do the two the dashboard sets: submitting the date range must not
-            silently widen a list somebody arrived at from a KPI card. */}
-        <input type="hidden" name="status" value={status} />
-        <input type="hidden" name="attention" value={attention} />
-        <input type="hidden" name="customer" value={customer} />
-
-        <div>
-          <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="from">
-            מתאריך
-          </label>
-          <Input id="from" name="from" type="date" dir="ltr" defaultValue={from} className="w-40" />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="to">
-            עד תאריך
-          </label>
-          <Input id="to" name="to" type="date" dir="ltr" defaultValue={to} className="w-40" />
-        </div>
-
-        <Button type="submit" variant="secondary" data-testid="apply-filters">
-          סינון
-        </Button>
-      </form>
+      <FilterBuilder
+        basePath="/publications"
+        keep={{ status, attention }}
+        values={{
+          newspaper: newspaper !== "all" ? newspaper : undefined,
+          customer: customer !== "all" ? customer : undefined,
+          shape: shape !== "all" ? shape : undefined,
+          payment: maySeeMoney && payment !== "all" ? payment : undefined,
+          source: source !== "all" ? source : undefined,
+          from: from || undefined,
+          to: to || undefined,
+        }}
+        fields={[
+          {
+            key: "newspaper",
+            label: "עיתון",
+            kind: "select",
+            options: papers.map((n) => ({ value: n.id, label: n.name })),
+          },
+          {
+            key: "customer",
+            label: "לקוח",
+            kind: "select",
+            options: customers.map((c) => ({ value: c.id, label: c.business_name })),
+          },
+          { key: "shape", label: "גודל", kind: "select", options: shapes },
+          ...(maySeeMoney
+            ? [
+                {
+                  key: "payment",
+                  label: "תשלום",
+                  kind: "select" as const,
+                  options: PAYMENT_STATUSES.map((p) => ({
+                    value: p,
+                    label: PAYMENT_STATUS_LABELS[p],
+                  })),
+                },
+              ]
+            : []),
+          {
+            key: "source",
+            label: "מקור",
+            kind: "select",
+            options: [
+              { value: "internal", label: "פנימי" },
+              { value: "customer_portal", label: "פורטל לקוח" },
+            ],
+          },
+          { key: "from", label: "מתאריך", kind: "date" },
+          { key: "to", label: "עד תאריך", kind: "date" },
+        ]}
+      />
 
       {rows.length === 0 ? (
         <EmptyState
@@ -315,6 +350,7 @@ export default async function PublicationsPage({
           <table className="w-full text-sm" data-testid="publications-table">
             <thead className="bg-surface-container">
               <tr>
+                <th className="w-8 p-1" aria-label="פרטים" />
                 <th className="p-3 text-start font-semibold">לקוח</th>
                 <th className="p-3 text-start font-semibold">עיתון</th>
                 <th className="p-3 text-start font-semibold">תאריך</th>
@@ -358,9 +394,64 @@ export default async function PublicationsPage({
                   NEEDS_ATTENTION.includes(p.status as PublicationStatus) ||
                   p.placement_status === "not_placed";
                 return (
-                  <tr
+                  <ExpandableRow
                     key={p.id}
-                    data-testid={`publication-row-${p.id}`}
+                    testId={`publication-row-${p.id}`}
+                    colSpan={columnCount}
+                    details={
+                      <DetailGrid
+                        items={[
+                          ["סוג עמוד", p.order_item?.page_type.name ?? "—"],
+                          [
+                            "גודל",
+                            <span key="s">
+                              {p.ad_shape.name}{" "}
+                              <span className="text-on-surface-variant">
+                                (<Ltr>{`${p.ad_shape.cols}×${p.ad_shape.rows}`}</Ltr> משבצות)
+                              </span>
+                            </span>,
+                          ],
+                          [
+                            "כמות בהזמנה",
+                            <span key="q">
+                              {counted(p.order._count.publications, "פרסום אחד", "פרסומים")} בהזמנה{" "}
+                              <Link href={`/orders/${p.order_id}`} className="underline">
+                                <Ltr>{orderNumber(p.order.number)}</Ltr>
+                              </Link>
+                            </span>,
+                          ],
+                          ...(maySeeMoney
+                            ? ([
+                                ["מחיר", <Ltr key="m">{formatMoney(Number(p.price))}</Ltr>],
+                                [
+                                  "תשלום",
+                                  <Badge
+                                    key="pay"
+                                    tone={PAYMENT_TONE[p.payment_status as PaymentStatus]}
+                                  >
+                                    {PAYMENT_STATUS_LABELS[p.payment_status as PaymentStatus]}
+                                  </Badge>,
+                                ],
+                              ] as Array<[string, React.ReactNode]>)
+                            : []),
+                          [
+                            "קובץ",
+                            p.advertisement_id ? (
+                              <Link
+                                key="ad"
+                                href={`/advertisements/${p.advertisement_id}`}
+                                className="underline"
+                              >
+                                {adById.get(p.advertisement_id)?.name ?? "לקובץ"}
+                              </Link>
+                            ) : (
+                              "חסר קובץ"
+                            ),
+                          ],
+                          ["נוצר", <Ltr key="c">{formatDate(p.created_at)}</Ltr>],
+                        ]}
+                      />
+                    }
                     className={cn(
                       "border-t border-outline-variant",
                       attention
@@ -369,7 +460,11 @@ export default async function PublicationsPage({
                             "hover:bg-surface-container-low",
                     )}
                   >
-                    <td className="p-3">{p.customer.business_name}</td>
+                    <td className="p-3">
+                      <Link href={`/customers/${p.customer_id}`} className="hover:underline">
+                        {p.customer.business_name}
+                      </Link>
+                    </td>
                     <td className="p-3">{p.newspaper.name}</td>
                     <td className="p-3">
                       <Ltr>{formatDate(p.publication_date)}</Ltr>
@@ -458,7 +553,7 @@ export default async function PublicationsPage({
                         ) : null}
                       </td>
                     ) : null}
-                  </tr>
+                  </ExpandableRow>
                 );
               })}
             </tbody>

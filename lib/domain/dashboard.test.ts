@@ -27,10 +27,11 @@ describe("the six areas of FR-20", () => {
     expect(OPEN_ISSUE_STATES).not.toContain("closed");
   });
 
-  it("treats `planned` as missing artwork, not only `missing_ad`", () => {
-    // A publication sold further out than the reminder window is still
-    // `planned`. Counting the enum value alone reports zero until too late.
-    expect(MISSING_AD_STATES).toContain("planned");
+  it("has ONE state for missing artwork (26/09/2026)", () => {
+    // `planned` used to be counted too, because a publication was meant to
+    // reach `missing_ad` only when the reminder window caught it — an event no
+    // code ever fired. Every publication without a file is now born missing_ad.
+    expect(MISSING_AD_STATES).toEqual(["missing_ad"]);
   });
 
   it("hands Prisma a mutable array — a frozen tuple is refused by `in`", () => {
@@ -113,7 +114,7 @@ describe("attentionReason — US-001 AC-5", () => {
     expect(
       row({ status: "missing_ad", hasAdvertisement: false, placementStatus: "not_placed" }),
     ).toBe("missing_ad");
-    expect(row({ status: "planned", hasAdvertisement: false, placementStatus: "not_placed" })).toBe(
+    expect(row({ status: "missing_ad", hasAdvertisement: false, placementStatus: "not_placed" })).toBe(
       "missing_ad",
     );
   });

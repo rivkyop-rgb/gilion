@@ -33,7 +33,6 @@ export const ORDER_TONE: Record<OrderStatus, Tone> = {
 
 /** Eight statuses, eight colours. */
 export const PUBLICATION_TONE: Record<PublicationStatus, Tone> = {
-  planned: "info",
   missing_ad: "error",
   ad_received: "warning",
   ready_for_layout: "accent",

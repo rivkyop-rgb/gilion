@@ -38,16 +38,17 @@
 
 ### `lib/domain/publication-status.ts` (FR-4, FR-5)
 
-7 מצבים: `planned` · `missing_ad` · `ad_received` · `ready_for_layout` · `placed` · `published` · `canceled`.
+6 מצבים: `missing_ad` · `ad_received` · `ready_for_layout` · `placed` · `published` · `canceled`.
+
+> **26/09/2026:** `planned` אוחד לתוך `missing_ad` ("חסר קובץ") בהחלטת המשתמשת. שניהם אמרו "אין קובץ" והפרידה ביניהם הייתה חלון התזכורות — ו־`REMINDER_WINDOW_ENTERED` מעולם לא הופעל, כך שבפועל פרסום בלי קובץ נשאר "מתוכנן" לנצח. הדחיפות מחושבת במסך התזכורות לפי התאריך.
 
 **`billed` הוסר ב־23/09/2026.** הוא היה כאן וב־FR-4 מהיום הראשון, ושום קוד לא הפעיל את האירוע שמגיע אליו: שלב 08 הפך את "שולם" ל**נגזר** מסכום התשלומים מול ההזמנה ואסר על כל מסך לקבוע אותו ביד (כלל 7 שם), וסטטוס שני שאומר אותו דבר ידנית הוא בדיוק מה שהכלל ההוא מונע. ראה `prd.md` §10 היפוך 6.
 
 | אירוע                     | מעבר                                                                                           |
 | ------------------------- | ---------------------------------------------------------------------------------------------- |
-| `PUBLICATION_CREATED`     | — → `planned`                                                                                  |
-| `AD_LINKED`               | `planned` \| `missing_ad` → `ad_received` → (אם המודעה תקינה ומשויכת ללקוח) `ready_for_layout` |
+| `PUBLICATION_CREATED`     | — → `missing_ad` (או `ready_for_layout` כשצורף קובץ)                                              |
+| `AD_LINKED`               | `missing_ad` → `ad_received` → (אם המודעה תקינה ומשויכת ללקוח) `ready_for_layout` |
 | `AD_UNLINKED`             | `ad_received` \| `ready_for_layout` → `missing_ad`                                             |
-| `REMINDER_WINDOW_ENTERED` | `planned` (בלי מודעה) → `missing_ad`                                                           |
 | `PLACED`                  | `ready_for_layout` → `placed`                                                                  |
 | `PLACEMENT_REMOVED`       | `placed` → `ready_for_layout`                                                                  |
 | `ISSUE_CLOSED`            | `placed` → `published`                                                                         |

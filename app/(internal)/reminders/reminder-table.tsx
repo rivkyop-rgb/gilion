@@ -29,6 +29,7 @@ export type ReminderRow = {
   status: ReminderStatus;
   sentAt: Date | null;
   customerName: string;
+  customerId: string;
   phone: string | null;
   email: string | null;
   publicationId: string;
@@ -197,7 +198,15 @@ export function ReminderTable({ rows, mayAct }: { rows: ReminderRow[]; mayAct: b
                     />
                   </td>
                 ) : null}
-                <td className="p-3">{r.customerName}</td>
+                <td className="p-3">
+                  <Link
+                    href={`/customers/${r.customerId}`}
+                    data-testid={`reminder-customer-${r.id}`}
+                    className="underline-offset-2 hover:underline"
+                  >
+                    {r.customerName}
+                  </Link>
+                </td>
                 <td className="p-3">
                   <Link href={`/orders/${r.orderId}`} className="underline">
                     {r.newspaper}

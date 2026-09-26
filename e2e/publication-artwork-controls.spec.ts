@@ -69,7 +69,7 @@ test("החלפת המודעה בשורת הפרסום, וביטול שיוך ש�
   await page.getByTestId(`row-unlink-${id}`).click();
   await page.getByTestId(`unlink-dialog-${id}-confirm`).click();
 
-  await expect(page.locator(`[data-testid="publication-row-${id}"]`)).toContainText("חסרה מודעה");
+  await expect(page.locator(`[data-testid="publication-row-${id}"]`)).toContainText("חסר קובץ");
   await expect(page.getByTestId(`row-upload-${id}`)).toBeVisible();
 });
 

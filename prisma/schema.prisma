@@ -363,7 +363,7 @@ enum PaymentStatus {
 /// its order and forbids any screen from setting that by hand. See
 /// lib/domain/publication-status.ts for the full reasoning.
 enum PublicationStatus {
-  planned
+  /// Sold, and no artwork file yet. From creation — see the 20260926 migration.
   missing_ad
   ad_received
   ready_for_layout
@@ -807,7 +807,7 @@ model Publication {
   /// What was taken off, so an invoice can say it rather than merely charge it.
   discount_percent Decimal           @default(0) @db.Decimal(5, 2)
   source           OrderSource
-  status           PublicationStatus @default(planned)
+  status           PublicationStatus @default(missing_ad)
   placement_status PlacementStatus   @default(not_placed)
   payment_status   PaymentStatus     @default(unpaid)
 

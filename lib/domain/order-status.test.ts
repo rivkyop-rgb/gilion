@@ -109,7 +109,7 @@ describe("completion is blocked while publications are still live (rule 9)", () 
     expect(msg).toContain("2");
   });
 
-  it.each(["planned", "missing_ad", "ad_received", "ready_for_layout", "placed"])(
+  it.each(["missing_ad", "ad_received", "ready_for_layout", "placed"])(
     "%s counts as still active",
     (s) => {
       expect(completionBlockedMessage([s])).not.toBeNull();

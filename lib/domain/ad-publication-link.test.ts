@@ -46,8 +46,8 @@ describe("refuseLink", () => {
     expect(refuseLink(goodAd, { ...publication, status: "published" })).not.toBeNull();
   });
 
-  it("accepts a publication that is still only planned", () => {
-    expect(refuseLink(goodAd, { ...publication, status: "planned" })).toBeNull();
+  it("accepts a publication that has no file yet", () => {
+    expect(refuseLink(goodAd, { ...publication, status: "missing_ad" })).toBeNull();
   });
 });
 
@@ -56,7 +56,7 @@ describe("status transitions on link and unlink (rule 10)", () => {
     expect(afterAdLinked("missing_ad", { validationPassed: true, belongsToCustomer: true })).toBe(
       "ready_for_layout",
     );
-    expect(afterAdLinked("planned", { validationPassed: true, belongsToCustomer: true })).toBe(
+    expect(afterAdLinked("missing_ad", { validationPassed: true, belongsToCustomer: true })).toBe(
       "ready_for_layout",
     );
   });
@@ -79,7 +79,7 @@ describe("status transitions on link and unlink (rule 10)", () => {
   });
 
   it("refuses to unlink a publication that never had an ad", () => {
-    expect(() => transition("planned", "AD_UNLINKED")).toThrow();
+    expect(() => transition("missing_ad", "AD_UNLINKED")).toThrow();
   });
 });
 

@@ -17,6 +17,11 @@ export type PublicationFilters = {
    * near-enough approximation of it.
    */
   attention?: string;
+  /** The shape — "size" on screen. */
+  shapeId?: string;
+  /** The publication's derived payment status (lib/domain/payment-status.ts). */
+  payment?: string;
+  source?: string;
 };
 
 /** How many rows a list screen shows before it says it stopped. */
@@ -46,7 +51,8 @@ const PUBLICATION_INCLUDE = {
   customer: { select: { id: true, business_name: true } },
   newspaper: { select: { id: true, name: true } },
   ad_shape: { select: { id: true, name: true, cols: true, rows: true } },
-  order: { select: { id: true, number: true } },
+  order: { select: { id: true, number: true, _count: { select: { publications: true } } } },
+  order_item: { select: { page_type: { select: { name: true } } } },
 };
 
 /** One where-builder, so the list and its count can never drift apart. */
@@ -70,6 +76,13 @@ function whereFor(filters: PublicationFilters): Prisma.PublicationWhereInput {
         }
       : {}),
     ...(filters.attention && filters.attention !== "all" ? attentionWhere(filters.attention) : {}),
+    ...(filters.shapeId && filters.shapeId !== "all" ? { ad_shape_id: filters.shapeId } : {}),
+    ...(filters.payment && filters.payment !== "all"
+      ? { payment_status: filters.payment as Prisma.EnumPaymentStatusFilter }
+      : {}),
+    ...(filters.source && filters.source !== "all"
+      ? { source: filters.source as Prisma.EnumOrderSourceFilter }
+      : {}),
   };
 }
 

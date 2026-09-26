@@ -128,6 +128,7 @@ export function OpenIssuesWidget({ issues, mayOpen }: { issues: OpenIssue[]; may
 export type ReminderPreview = {
   id: string;
   customerName: string;
+  customerId: string;
   newspaperName: string;
   date: Date;
   daysLeft: number;
@@ -179,7 +180,14 @@ export function RemindersWidget({
                   data-testid={`reminder-preview-${reminder.id}`}
                   className="rounded-lg border border-outline-variant p-3"
                 >
-                  <p className="truncate font-medium">{reminder.customerName}</p>
+                  <p className="truncate font-medium">
+                    <Link
+                      href={`/customers/${reminder.customerId}`}
+                      className="underline-offset-2 hover:underline"
+                    >
+                      {reminder.customerName}
+                    </Link>
+                  </p>
                   <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-on-surface-variant">
                     <span className="truncate">{reminder.newspaperName}</span>
                     <span>·</span>

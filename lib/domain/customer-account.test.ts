@@ -21,11 +21,11 @@ describe("summariseAccount", () => {
   it("counts only publications on binding orders", () => {
     const a = summariseAccount(
       [
-        pub(1000, "planned"),
+        pub(1000, "missing_ad"),
         pub(500, "published", "o2", "completed"),
         // Neither of these is money anyone owes.
-        pub(9999, "planned", "draft", "draft"),
-        pub(8888, "planned", "rejected", "rejected"),
+        pub(9999, "missing_ad", "draft", "draft"),
+        pub(8888, "missing_ad", "rejected", "rejected"),
       ],
       paid({ o2: 500 }),
     );
@@ -40,7 +40,7 @@ describe("summariseAccount", () => {
    * wrong: ONE order, one insertion printed and one not.
    */
   it("splits a single order between what ran and what has not", () => {
-    const a = summariseAccount([pub(500, "published"), pub(500, "planned")], paid());
+    const a = summariseAccount([pub(500, "published"), pub(500, "missing_ad")], paid());
 
     expect(a.outstanding).toBe(1000);
     expect(a.ranOpen).toBe(500);
@@ -51,7 +51,7 @@ describe("summariseAccount", () => {
 
   it("takes a payment off both halves in proportion", () => {
     // 1,000 over two insertions, 600 in: each line carries 300 of it.
-    const a = summariseAccount([pub(500, "published"), pub(500, "planned")], paid({ o1: 600 }));
+    const a = summariseAccount([pub(500, "published"), pub(500, "missing_ad")], paid({ o1: 600 }));
     expect(a.settled).toBe(600);
     expect(a.outstanding).toBe(400);
     expect(a.ranOpen).toBe(200);
@@ -76,7 +76,7 @@ describe("summariseAccount", () => {
 
   it("settled plus outstanding always accounts for everything billed", () => {
     const a = summariseAccount(
-      [pub(1200, "planned"), pub(800, "published", "o2"), pub(450, "published", "o3")],
+      [pub(1200, "missing_ad"), pub(800, "published", "o2"), pub(450, "published", "o3")],
       paid({ o2: 800, o3: 50 }),
     );
     expect(a.settled + a.outstanding).toBe(a.billed);
@@ -85,7 +85,7 @@ describe("summariseAccount", () => {
 
   it("keeps an overpayment on its own order instead of netting it off a debt", () => {
     const a = summariseAccount(
-      [pub(100, "published"), pub(900, "planned", "o2")],
+      [pub(100, "published"), pub(900, "missing_ad", "o2")],
       paid({ o1: 250 }),
     );
     expect(a.settled).toBe(100);
@@ -97,7 +97,7 @@ describe("summariseAccount", () => {
   });
 
   it("never lets one line absorb more than it charged", () => {
-    const a = summariseAccount([pub(200, "published"), pub(200, "planned")], paid({ o1: 1000 }));
+    const a = summariseAccount([pub(200, "published"), pub(200, "missing_ad")], paid({ o1: 1000 }));
     expect(a.settled).toBe(400);
     expect(a.outstanding).toBe(0);
     expect(a.ranOpen).toBe(0);
@@ -106,7 +106,7 @@ describe("summariseAccount", () => {
 
   it("holds the invariant under uneven prices and a part payment", () => {
     const a = summariseAccount(
-      [pub(333.33, "published"), pub(333.33, "published"), pub(333.34, "planned")],
+      [pub(333.33, "published"), pub(333.33, "published"), pub(333.34, "missing_ad")],
       paid({ o1: 500 }),
     );
     expect(round(a.ranOpen + a.upcomingOpen)).toBe(a.outstanding);

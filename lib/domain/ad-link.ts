@@ -27,7 +27,7 @@ export type LinkTargetPublication = {
  * on a publication that already has one is an unlink followed by a link, not a
  * second link, so the state machine stays the only door.
  */
-export const LINKABLE_STATUSES: readonly PublicationStatus[] = ["planned", "missing_ad"];
+export const LINKABLE_STATUSES: readonly PublicationStatus[] = ["missing_ad"];
 
 /**
  * Placeable = passed validation AND belongs to a customer (US-005 AC-2, AC-4).

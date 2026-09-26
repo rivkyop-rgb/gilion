@@ -13,11 +13,6 @@ import {
 
 /** Transcribed independently from conventions.md §3. */
 const EXPECTED: Record<PublicationStatus, Partial<Record<PublicationEvent, PublicationStatus>>> = {
-  planned: {
-    AD_LINKED: "ad_received",
-    REMINDER_WINDOW_ENTERED: "missing_ad",
-    CANCELED: "canceled",
-  },
   missing_ad: { AD_LINKED: "ad_received", CANCELED: "canceled" },
   ad_received: { AD_UNLINKED: "missing_ad", CANCELED: "canceled" },
   ready_for_layout: { AD_UNLINKED: "missing_ad", PLACED: "placed", CANCELED: "canceled" },
@@ -57,7 +52,6 @@ describe("a published publication cannot be cancelled (rule 17)", () => {
 
   it("allows it from every state before publication", () => {
     for (const s of [
-      "planned",
       "missing_ad",
       "ad_received",
       "ready_for_layout",
@@ -69,10 +63,9 @@ describe("a published publication cannot be cancelled (rule 17)", () => {
 });
 
 describe("the full lifecycle", () => {
-  it("walks planned → missing_ad → ad_received → ready_for_layout → placed → published", () => {
-    let s: PublicationStatus = "planned";
-    s = transition(s, "REMINDER_WINDOW_ENTERED");
-    expect(s).toBe("missing_ad");
+  it("walks missing_ad → ad_received → ready_for_layout → placed → published", () => {
+    // Born missing_ad: "no file" is one state from creation (26/09/2026).
+    let s: PublicationStatus = "missing_ad";
     s = transition(s, "AD_LINKED");
     expect(s).toBe("ad_received");
     s = afterAdLinked("missing_ad", { validationPassed: true, belongsToCustomer: true });
@@ -91,19 +84,19 @@ describe("the full lifecycle", () => {
 
 describe("linking an ad only reaches ready_for_layout when the ad is usable", () => {
   it("stops at ad_received when validation has not passed", () => {
-    expect(afterAdLinked("planned", { validationPassed: false, belongsToCustomer: true })).toBe(
+    expect(afterAdLinked("missing_ad", { validationPassed: false, belongsToCustomer: true })).toBe(
       "ad_received",
     );
   });
 
   it("stops at ad_received when the ad belongs to another customer", () => {
-    expect(afterAdLinked("planned", { validationPassed: true, belongsToCustomer: false })).toBe(
+    expect(afterAdLinked("missing_ad", { validationPassed: true, belongsToCustomer: false })).toBe(
       "ad_received",
     );
   });
 
   it("continues to ready_for_layout when both hold", () => {
-    expect(afterAdLinked("planned", { validationPassed: true, belongsToCustomer: true })).toBe(
+    expect(afterAdLinked("missing_ad", { validationPassed: true, belongsToCustomer: true })).toBe(
       "ready_for_layout",
     );
   });

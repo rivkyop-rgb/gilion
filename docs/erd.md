@@ -192,7 +192,7 @@ advertisement_id reference: Advertisement no ריק כאשר חסרה מודעה
 publication_date date yes
 price decimal yes מחיר בפועל בזמן אישור ההזמנה
 source enum: [internal, customer_portal] yes
-status enum: [planned, missing_ad, ad_received, ready_for_layout, placed, published, canceled] yes
+status enum: [missing_ad, ad_received, ready_for_layout, placed, published, canceled] yes · missing_ad = "חסר קובץ" מרגע היצירה (planned אוחד לתוכו 26/09/2026)
 placement_status enum: [not_placed, placed] yes
 payment_status enum: [unpaid, partially_paid, paid, debt] yes
 created_at datetime yes

@@ -37,7 +37,7 @@ test("completing an order is blocked while a publication is still live", async (
   // Completion is an accounting act, so sales does not even see the button.
   await expect(page.getByTestId("complete-order")).toHaveCount(0);
 
-  // The accountant sees it, and is refused: the publication is still `planned`.
+  // The accountant sees it, and is refused: the publication is still `missing_ad`.
   await login(page, USERS.accounting);
   await page.goto(orderPath);
   await page.getByTestId("complete-order").click();

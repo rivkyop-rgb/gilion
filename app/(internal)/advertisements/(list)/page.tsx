@@ -84,6 +84,7 @@ export default async function AdvertisementsPage({
     validationStatus: ad.validation_status as AdCardModel["validationStatus"],
     validationError: ad.validation_error,
     customerLabel: ad.customer ? ad.customer.business_name : null,
+    customerId: ad.customer?.id ?? null,
     uploadedBy: ad.uploaded_by.name,
     uploadedAt: ad.uploaded_at,
     publicationCount: ad._count.publications,
@@ -315,7 +316,18 @@ function AdTable({ ads }: { ads: AdCardModel[] }) {
                   {ad.name}
                 </Link>
               </td>
-              <td className="p-3">{ad.customerLabel ?? <Badge tone="warning">ללא לקוח</Badge>}</td>
+              <td className="p-3">
+                {ad.customerId ? (
+                  <Link
+                    href={`/customers/${ad.customerId}`}
+                    className="underline-offset-2 hover:underline"
+                  >
+                    {ad.customerLabel}
+                  </Link>
+                ) : (
+                  <Badge tone="warning">ללא לקוח</Badge>
+                )}
+              </td>
               <td className="p-3 font-mono text-xs">
                 <Ltr>{AD_FILE_TYPE_LABELS[ad.fileType]}</Ltr>
               </td>

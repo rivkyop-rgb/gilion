@@ -162,7 +162,14 @@ export default async function IssueReportPage({
                           data-testid={`report-row-${placement.id}`}
                           className="border-t border-outline-variant"
                         >
-                          <td className="p-2">{placement.customerName}</td>
+                          <td className="p-2">
+                            <Link
+                              href={`/customers/${placement.customerId}`}
+                              className="underline-offset-2 hover:underline"
+                            >
+                              {placement.customerName}
+                            </Link>
+                          </td>
                           <td className="p-2">
                             {pageLabel(placement.pageNumber, issue.pageCount)}
                           </td>

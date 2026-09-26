@@ -34,15 +34,13 @@ export const OPEN_ISSUE_STATES: Array<"draft" | "in_layout" | "ready_for_print">
 ];
 
 /**
- * Statuses that mean no usable artwork has arrived.
+ * Statuses that mean no artwork file has arrived.
  *
- * `planned` is in the list and that is the whole subtlety: a publication only
- * becomes `missing_ad` once the reminder window catches it (conventions.md §3,
- * `REMINDER_WINDOW_ENTERED`). Counting the enum value alone would report zero
- * missing files for every publication sold more than a window ahead — a card
- * that reads "0" right up until it is too late to do anything.
+ * One state since 26/09/2026. It used to be two — `planned` and
+ * `missing_ad`, split by the reminder window — and the event that was to move
+ * one into the other was never fired, so the split only ever confused.
  */
-export const MISSING_AD_STATES: Array<"planned" | "missing_ad"> = ["planned", "missing_ad"];
+export const MISSING_AD_STATES: Array<"missing_ad"> = ["missing_ad"];
 
 /**
  * Statuses in which a publication can be placed but has not been.
@@ -60,8 +58,8 @@ export const READY_TO_PLACE_STATES: Array<"ad_received" | "ready_for_layout"> = 
 
 /** Publications that are still real commitments — everything but a cancellation. */
 export const LIVE_PUBLICATION_STATES: Array<
-  "planned" | "missing_ad" | "ad_received" | "ready_for_layout" | "placed" | "published"
-> = ["planned", "missing_ad", "ad_received", "ready_for_layout", "placed", "published"];
+  "missing_ad" | "ad_received" | "ready_for_layout" | "placed" | "published"
+> = ["missing_ad", "ad_received", "ready_for_layout", "placed", "published"];
 
 export const DASHBOARD_CARD_KEYS = [
   "week",
@@ -101,7 +99,7 @@ export const DASHBOARD_CARDS: readonly DashboardCard[] = [
   },
   {
     key: "missingAd",
-    label: "חסרי מודעה",
+    label: "חסרי קובץ",
     hint: "נמכרו ואין קובץ",
     tone: "error",
     area: "publications",
@@ -206,7 +204,7 @@ export function attentionReason(row: AttentionInput): "missing_ad" | "not_placed
     return null;
   }
   // AND, never OR. The two halves are the same fact seen twice — a status of
-  // `planned`/`missing_ad` is precisely the state in which no file is attached
+  // `missing_ad` is precisely the state in which no file is attached
   // — and the query behind the card ANDs them too. An OR here would make the
   // card and the list it links to disagree, which is the one failure FR-20
   // cannot survive: it teaches the reader that the numbers are decorative.

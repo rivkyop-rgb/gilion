@@ -17,7 +17,7 @@ const at = (iso: string, over: Partial<ReminderCandidate> = {}): ReminderCandida
   publicationId: `pub-${iso}`,
   customerId: "cust1",
   publicationDate: new Date(`${iso}T00:00:00Z`),
-  status: "planned",
+  status: "missing_ad",
   hasAdvertisement: false,
   ...over,
 });

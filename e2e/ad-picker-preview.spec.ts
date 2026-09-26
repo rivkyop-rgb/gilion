@@ -103,7 +103,7 @@ test("בורר המודעות מציג תמונות, מסנן בחיפוש, ומ
   await page.keyboard.press("Escape");
 
   // Still nothing linked — looking is not choosing.
-  await expect(page.locator(`[data-testid="publication-row-${id}"]`)).toContainText("מתוכנן");
+  await expect(page.locator(`[data-testid="publication-row-${id}"]`)).toContainText("חסר קובץ");
 
   // Now actually choose.
   await page.getByTestId(`ad-picker-option-${chosenId}`).click();

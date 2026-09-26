@@ -581,3 +581,16 @@ export async function packageInUse(businessId: string, id: string) {
 export async function deletePackage(businessId: string, id: string) {
   return tenantDb(businessId).adPackage.delete({ where: { id } });
 }
+
+/** Every shape of every newspaper — the "גודל" filter. Named with its paper when names repeat. */
+export async function shapeOptions(businessId: string) {
+  const rows = await tenantDb(businessId).adShape.findMany({
+    orderBy: [{ newspaper: { name: "asc" } }, { name: "asc" }],
+    select: { id: true, name: true, newspaper: { select: { name: true } } },
+  });
+  const papers = new Set(rows.map((r) => r.newspaper.name));
+  return rows.map((r) => ({
+    value: r.id,
+    label: papers.size > 1 ? `${r.name} · ${r.newspaper.name}` : r.name,
+  }));
+}

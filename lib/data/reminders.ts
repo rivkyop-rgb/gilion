@@ -33,7 +33,7 @@ export async function setReminderWindow(businessId: string, days: number) {
  */
 async function candidates(businessId: string): Promise<Array<ReminderCandidate & { id: string }>> {
   const rows = await tenantDb(businessId).publication.findMany({
-    where: { status: { in: ["planned", "missing_ad", "ad_received"] } },
+    where: { status: { in: ["missing_ad", "ad_received"] } },
     select: {
       id: true,
       customer_id: true,

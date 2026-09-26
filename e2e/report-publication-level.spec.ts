@@ -34,12 +34,8 @@ test("ארבעת הצ׳יפים קיימים, עם מונה לכל אחד", asyn
   const table = page.getByTestId("publications-report-table");
   await expect(table).toContainText(customer.name);
 
-  // `מתוכנן` and NOT `חסרה מודעה`, and the difference is the whole reason the
-  // chip is defined the way it is: a publication only moves to `missing_ad`
-  // when it enters the reminder window (conventions.md §3), and these are dated
-  // 2028. They have no artwork all the same — so "למי חסרה מודעה" asks about
-  // the FILE, not about the status, and finds them anyway (test below).
-  await expect(table).toContainText("מתוכנן");
+  // No file, so "חסר קובץ" — whatever the date (one state since 26/09/2026).
+  await expect(table).toContainText("חסר קובץ");
 
   // Counted on THIS customer's rows, not on `lens-count`. That figure is the
   // whole period across every customer, and the other specs in this suite sell
