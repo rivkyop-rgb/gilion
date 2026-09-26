@@ -35,6 +35,7 @@ export function PageStrip({
   onInsertAfter,
   onReorder,
   onOpenOrder,
+  highlightPageIds,
 }: {
   views: IssueView[];
   fills: Map<string, PageFill>;
@@ -48,6 +49,8 @@ export function PageStrip({
   /** A drag is a PROPOSAL: it opens the ordering dialog, which confirms it. */
   onReorder: (orderedPageIds: string[]) => void;
   onOpenOrder: () => void;
+  /** Just moved by a confirmed reorder — ringed so the new place is visible. */
+  highlightPageIds?: ReadonlySet<string>;
 }) {
   const [draggingPageId, setDraggingPageId] = useState<string | null>(null);
   const [overPageId, setOverPageId] = useState<string | null>(null);
@@ -111,8 +114,11 @@ export function PageStrip({
                         drop(page.id);
                       }}
                       title={`עמוד ${page.number} · ${page.pageTypeName}`}
+                      data-moved={highlightPageIds?.has(page.id) || undefined}
                       className={cn(
                         "flex w-8 flex-col justify-end gap-0.5 rounded-[3px] border bg-surface-container-lowest p-0.5",
+                        highlightPageIds?.has(page.id) &&
+                          "bg-state-active ring-2 ring-secondary ring-offset-1",
                         editable ? "cursor-grab" : "",
                         draggingPageId === page.id ? "opacity-40" : "",
                         overPageId === page.id && draggingPageId && draggingPageId !== page.id

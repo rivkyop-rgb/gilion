@@ -17,6 +17,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
+import { CustomerScopeBanner } from "@/components/customer-scope";
 import { cn } from "@/lib/utils";
 import { AdCard, type AdCardModel } from "../ad-card";
 import { UploadPanel } from "../upload-panel";
@@ -106,13 +107,14 @@ export default async function AdvertisementsPage({
   };
 
   const mayWrite = ctx.role !== "accounting";
+  const scoped = customers.find((c) => c.id === customer) ?? null;
 
   return (
     <>
       <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="page-title font-serif text-headline-lg font-semibold">
-            ניהול קבצים ומודעות
+            {scoped ? `קבצים ומודעות · ${scoped.business_name}` : "ניהול קבצים ומודעות"}
           </h1>
           <p className="mt-1 text-sm text-on-surface-variant">
             הגודל המותר נקבע לכל עיתון בנפרד בהגדרות. מודעה ללא לקוח, או שלא עברה בדיקה, אינה זמינה
@@ -162,6 +164,15 @@ export default async function AdvertisementsPage({
           ))}
         </span>
       </div>
+
+      {scoped ? (
+        <CustomerScopeBanner
+          customerId={scoped.id}
+          name={scoped.business_name}
+          what="הקבצים"
+          clearHref={hrefWith({ customer: "all" })}
+        />
+      ) : null}
 
       <form className="mb-6 flex flex-wrap items-end gap-3">
         <input type="hidden" name="view" value={view} />

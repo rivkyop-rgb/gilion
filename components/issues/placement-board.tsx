@@ -59,6 +59,7 @@ import { ShapeChips } from "./shape-chips";
 import { ChangeIssueDate } from "./issue-calendar";
 import { PageStrip } from "./page-strip";
 import { PageOrderDialog } from "./page-order-dialog";
+import { counted } from "@/lib/domain/hebrew-count";
 import { UnplacedPanel, type BoardCandidate } from "./unplaced-panel";
 import { useFittedSpread } from "./use-fitted-spread";
 
@@ -155,6 +156,8 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
   // A page added mid-issue is an inner page; the select still offers the rest.
   const [newPageType, setNewPageType] = useState(innerPageTypeId(model.pageTypes) ?? "");
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  /** Pages the last reorder moved — highlighted on the strip for a few seconds. */
+  const [recentlyMoved, setRecentlyMoved] = useState<Set<string>>(() => new Set());
   /** The ordering dialog: null closed; `initial` is the drag that opened it. */
   const [pageOrder, setPageOrder] = useState<{ initial: string[] | null } | null>(null);
   /**
@@ -733,6 +736,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
             }
             onReorder={(ordered) => setPageOrder({ initial: ordered })}
             onOpenOrder={() => setPageOrder({ initial: null })}
+            highlightPageIds={recentlyMoved}
           />
           {pageOrder ? (
             <PageOrderDialog
@@ -747,13 +751,31 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                 number: p.number,
                 pageTypeName: p.pageTypeName,
                 fillPercent: fills.get(p.id)?.percent ?? 0,
+                blocks: (placementsByPage.get(p.id) ?? []).map((b) => ({
+                  col: b.col,
+                  row: b.row,
+                  cols: b.cols,
+                  rows: b.rows,
+                })),
               }))}
+              grid={{ columns: model.grid.columns, rows: model.grid.rows }}
               onOpenChange={(open) => {
                 if (!open) setPageOrder(null);
               }}
               onConfirm={async (ordered) => {
+                const before = model.pages.map((p) => p.id);
                 const result = await reorderIssuePagesAction(model.issueId, ordered);
-                if (!result.message) router.refresh();
+                if (!result.message) {
+                  // Said on the board, not only in the dialog that just closed:
+                  // the strip is where the new order has to be recognisable.
+                  const moved = ordered.filter((id, i) => before[i] !== id);
+                  setRecentlyMoved(new Set(moved));
+                  say(
+                    `סדר העמודים עודכן — ${counted(moved.length, "עמוד אחד קיבל", "עמודים קיבלו")} מספר חדש. הם מסומנים ברצועה למטה.`,
+                  );
+                  window.setTimeout(() => setRecentlyMoved(new Set()), 10_000);
+                  router.refresh();
+                }
                 return result;
               }}
             />

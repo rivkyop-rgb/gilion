@@ -49,6 +49,11 @@ test.describe("filtering and expanding the lists", () => {
     await login(page, USERS.admin);
     await page.goto("/orders?status=approved");
     await page.locator('[data-testid^="expand-order-row-"]').first().click();
-    await expect(page.locator('[data-testid^="order-lines-"]').first()).toBeVisible();
+    // The fixture order is seeded with publications and no lines, so the
+    // details say "0 lines" rather than drawing a lines table — the row opens
+    // either way, which is what is under test here.
+    await expect(page.locator('[data-testid^="details-order-row-"]').first()).toContainText(
+      "כמות שורות",
+    );
   });
 });

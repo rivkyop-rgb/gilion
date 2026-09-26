@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { ArrowUpDown, X } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -17,7 +17,53 @@ export type OrderablePage = {
   pageTypeName: string;
   /** 0–100: how much of the page is sold, as on the strip. */
   fillPercent: number;
+  /** The ads on it, in grid cells — drawn small so a page is recognisable. */
+  blocks: Array<{ col: number; row: number; cols: number; rows: number }>;
 };
+
+/**
+ * The page in miniature: its proportion, and every ad on it as a block.
+ *
+ * Without it every inner page is the same card reading "פנימי", and moving one
+ * looks like nothing happened (the user, 26/09/2026). With it the page you
+ * dragged is the page with THAT layout, wherever it lands.
+ *
+ * Column 0 is the page's RIGHT edge (RTL, docs: rtl-grid-direction), so blocks
+ * are placed with `insetInlineStart`, which is the right in Hebrew.
+ */
+function MiniPage({
+  blocks,
+  grid,
+}: {
+  blocks: OrderablePage["blocks"];
+  grid: { columns: number; rows: number };
+}) {
+  return (
+    <div
+      className="relative w-full overflow-hidden rounded-sm border border-outline-variant bg-surface-container-lowest"
+      style={{ aspectRatio: `${grid.columns} / ${grid.rows}` }}
+      aria-hidden
+    >
+      {blocks.map((b, i) => (
+        <span
+          key={i}
+          className="absolute rounded-[2px] bg-primary/70"
+          style={{
+            insetInlineStart: `${(b.col / grid.columns) * 100}%`,
+            top: `${(b.row / grid.rows) * 100}%`,
+            inlineSize: `${(b.cols / grid.columns) * 100}%`,
+            blockSize: `${(b.rows / grid.rows) * 100}%`,
+          }}
+        />
+      ))}
+      {blocks.length === 0 ? (
+        <span className="absolute inset-0 flex items-center justify-center text-[10px] text-outline">
+          ריק
+        </span>
+      ) : null}
+    </div>
+  );
+}
 
 /** Moves `id` so that it lands at 1-based `position`. */
 function moveTo(order: string[], id: string, position: number): string[] {
@@ -42,6 +88,7 @@ function moveTo(order: string[], id: string, position: number): string[] {
  */
 export function PageOrderDialog({
   pages,
+  grid,
   open,
   initialOrder,
   onOpenChange,
@@ -49,6 +96,7 @@ export function PageOrderDialog({
 }: {
   /** In the issue's current order. */
   pages: OrderablePage[];
+  grid: { columns: number; rows: number };
   open: boolean;
   /** A starting arrangement — the drag that opened the dialog from the strip. */
   initialOrder: string[] | null;
@@ -64,6 +112,10 @@ export function PageOrderDialog({
 
   const byId = new Map(pages.map((p) => [p.id, p]));
   const moved = order.filter((id, i) => current[i] !== id).length;
+  /** "3 ← 6" for every page whose number changes — the whole change at a glance. */
+  const moves = order
+    .map((id, i) => ({ from: byId.get(id)!.number, to: i + 1 }))
+    .filter((m) => m.from !== m.to);
 
   const apply = (id: string) => {
     const raw = typed[id];
@@ -140,20 +192,27 @@ export function PageOrderDialog({
                     over === id && dragging && dragging !== id
                       ? "border-primary ring-2 ring-primary"
                       : wasElsewhere
-                        ? "border-secondary bg-state-active/20"
+                        ? "border-2 border-secondary bg-state-active/30 shadow-elevation-1"
                         : "border-outline-variant",
                   )}
                 >
-                  <span className="font-semibold">{pageLabel(position, order.length)}</span>
-                  <span className="text-on-surface-variant">{page.pageTypeName}</span>
-                  <span
-                    className="h-1 w-full overflow-hidden rounded-full bg-surface-container"
-                    aria-hidden
-                  >
-                    <span
-                      className="block h-full bg-primary"
-                      style={{ inlineSize: `${page.fillPercent}%` }}
-                    />
+                  <span className="flex items-center justify-between gap-1">
+                    <span className="font-semibold">{pageLabel(position, order.length)}</span>
+                    {wasElsewhere ? (
+                      <span
+                        data-testid={`order-moved-${page.number}`}
+                        className="inline-flex items-center gap-0.5 rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-on-primary"
+                        title={`עמוד ${page.number} עובר למקום ${position}`}
+                      >
+                        <Ltr>{page.number}</Ltr>
+                        <ArrowLeft className="size-3" aria-hidden />
+                        <Ltr>{position}</Ltr>
+                      </span>
+                    ) : null}
+                  </span>
+                  <MiniPage blocks={page.blocks} grid={grid} />
+                  <span className="text-on-surface-variant">
+                    {page.pageTypeName} · <Ltr>{page.fillPercent}%</Ltr> נמכר
                   </span>
                   <label className="flex items-center gap-1.5">
                     <span className="text-on-surface-variant">מספר</span>
@@ -176,11 +235,6 @@ export function PageOrderDialog({
                       className="h-8 w-14 rounded-lg border border-outline-variant bg-surface-container px-2 text-center text-sm"
                     />
                   </label>
-                  {wasElsewhere ? (
-                    <span className="text-on-surface-variant">
-                      היה עמוד <Ltr>{page.number}</Ltr>
-                    </span>
-                  ) : null}
                 </li>
               );
             })}
@@ -222,6 +276,20 @@ export function PageOrderDialog({
               חזרה לסדר הנוכחי
             </Button>
             <span className="text-xs text-on-surface-variant" data-testid="page-order-moved">
+              {moves.length > 0 ? (
+                <span className="me-2 inline-flex flex-wrap gap-1" data-testid="page-order-moves">
+                  {moves.map((m) => (
+                    <span
+                      key={m.from}
+                      className="inline-flex items-center gap-0.5 rounded-full bg-state-active/40 px-1.5 text-on-secondary-container"
+                    >
+                      <Ltr>{m.from}</Ltr>
+                      <ArrowLeft className="size-3" aria-hidden />
+                      <Ltr>{m.to}</Ltr>
+                    </span>
+                  ))}
+                </span>
+              ) : null}
               {moved === 0 ? "הסדר לא השתנה" : counted(moved, "עמוד אחד זז", "עמודים זזו")}
             </span>
           </div>

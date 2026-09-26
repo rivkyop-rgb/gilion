@@ -24,6 +24,7 @@ import { publicationsPhrase } from "@/lib/domain/hebrew-count";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
+import { CustomerScopeBanner } from "@/components/customer-scope";
 import { Input } from "@/components/ui/input";
 import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
@@ -109,16 +110,28 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     listNewspapers(ctx.businessId),
     customerOptions(ctx.businessId),
   ]);
+  const scoped = customers.find((c) => c.id === customerId) ?? null;
 
   const filters = { from: range.from, to: range.to, newspaperId, customerId };
 
   return (
     <>
-      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">דוחות</h1>
+      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">
+        {scoped ? `דוחות · ${scoped.business_name}` : "דוחות"}
+      </h1>
       <p className="mb-6 text-sm text-on-surface-variant">
         התקופה נקבעת לפי <strong>תאריך הפרסום</strong>, ולא לפי מתי ההזמנה נפתחה — הזמנה שנמכרה במרץ
         לארבעה שבועות באפריל מופיעה בדוח של אפריל.
       </p>
+
+      {scoped ? (
+        <CustomerScopeBanner
+          customerId={scoped.id}
+          name={scoped.business_name}
+          what="השורות"
+          clearHref={hrefFor({ customer: "all" })}
+        />
+      ) : null}
 
       <div className="mb-5 flex gap-2 border-b border-outline-variant" data-testid="report-tabs">
         <TabLink

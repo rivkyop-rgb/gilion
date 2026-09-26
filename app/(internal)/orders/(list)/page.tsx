@@ -10,6 +10,7 @@ import { ORDER_STATUS_LABELS, ORDER_STATUSES, type OrderStatus } from "@/lib/dom
 import { Button } from "@/components/ui/button";
 import { DetailGrid, ExpandableRow } from "@/components/ui/expandable-row";
 import { FilterBuilder } from "@/components/ui/filter-builder";
+import { CustomerScopeBanner } from "@/components/customer-scope";
 import { customerOptions } from "@/lib/data/customers";
 import { listNewspapers, shapeOptions } from "@/lib/data/newspapers";
 import {
@@ -115,18 +116,13 @@ export default async function OrdersPage({
       </div>
 
       {customerRow ? (
-        <p
-          data-testid="orders-customer-banner"
-          className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-status-info-bg px-4 py-3 text-sm text-status-info-fg"
-        >
-          מוצגות רק ההזמנות של {customerRow.business_name}.
-          <Link href={`/customers/${customerRow.id}`} className="underline">
-            לכרטיס הלקוח
-          </Link>
-          <Link href="/orders" className="underline">
-            הצגת כל ההזמנות
-          </Link>
-        </p>
+        <CustomerScopeBanner
+          testId="orders-customer-banner"
+          customerId={customerRow.id}
+          name={customerRow.business_name}
+          what="ההזמנות"
+          clearHref="/orders"
+        />
       ) : null}
 
       {/* Backlog 27: what customers sent, found without reading every row. */}

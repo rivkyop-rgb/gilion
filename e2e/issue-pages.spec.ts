@@ -71,6 +71,9 @@ test.describe("the pages of an issue", () => {
     await page.getByTestId("order-number-4").fill("2");
     await page.getByTestId("order-number-4").press("Enter");
     await expect(page.getByTestId("page-order-moved")).toContainText("עמודים זזו");
+    // Visible, not only counted: the moved page wears its old and new number.
+    await expect(page.getByTestId("order-moved-4")).toBeVisible();
+    await expect(page.getByTestId("page-order-moves")).toBeVisible();
 
     // Proposed, not written: the strip under the dialog has not moved.
     await expect(page.getByTestId("page-thumb-2")).not.toHaveAttribute("title", /אחורי/);
@@ -82,6 +85,9 @@ test.describe("the pages of an issue", () => {
     // Wait for the dialog to go — it stays open for the whole write (CLAUDE.md).
     await expect(page.getByTestId("page-order-dialog")).toHaveCount(0);
     await expect(page.getByTestId("page-thumb-2")).toHaveAttribute("title", /אחורי/);
+    // And the board says so, and rings what moved.
+    await expect(page.getByTestId("board-message")).toContainText("סדר העמודים עודכן");
+    await expect(page.locator('[data-moved="true"]').first()).toBeVisible();
   });
 
   test("names the outside pages instead of numbering them", async ({ page }) => {

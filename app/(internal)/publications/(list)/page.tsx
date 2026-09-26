@@ -208,7 +208,9 @@ export default async function PublicationsPage({
       ? `פרסומים ${ATTENTION_LABELS[attention]}`
       : status !== "all" && isPublicationStatus(status)
         ? `פרסומים · ${PUBLICATION_STATUS_LABELS[status]}`
-        : "פרסומים") + (isThisWeek ? " השבוע" : "");
+        : "פרסומים") +
+    (isThisWeek ? " השבוע" : "") +
+    (customerName ? ` · ${customerName}` : "");
 
   return (
     <>
@@ -234,6 +236,11 @@ export default async function PublicationsPage({
           className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-status-info-bg px-4 py-3 text-sm text-status-info-fg"
         >
           <span>מוצגים רק פרסומים {filterParts.join(", ")}.</span>
+          {customerRow ? (
+            <Link href={`/customers/${customerRow.id}`} className="underline">
+              לכרטיס הלקוח
+            </Link>
+          ) : null}
           <Link href="/publications" className="underline" data-testid="clear-filters">
             הצגת כל הפרסומים
           </Link>
