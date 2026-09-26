@@ -237,9 +237,9 @@ describe("the four questions of US-010", () => {
   });
 
   it("'who is not laid out' ignores what has already run", () => {
-    expect(matchesLens(row({ placementStatus: "not_placed", status: "missing_ad" }), "unplaced")).toBe(
-      true,
-    );
+    expect(
+      matchesLens(row({ placementStatus: "not_placed", status: "missing_ad" }), "unplaced"),
+    ).toBe(true);
     // A published ad has no placement left to chase.
     expect(
       matchesLens(row({ placementStatus: "not_placed", status: "published" }), "unplaced"),

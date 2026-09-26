@@ -65,8 +65,13 @@ export const TEXT_FIELDS: readonly TextField[] = [
   {
     key: "reminder_template",
     label: "נוסח ברירת מחדל לתזכורת",
-    default: "שלום, טרם קיבלנו את המודעה לפרסום הקרוב. נשמח לקבל אותה בהקדם.",
-    where: "מסך התזכורות — הנוסח שמועתק כשפונים ללקוח",
+    // Worded with the user, 27/09/2026. The {…} fields are filled per reminder
+    // (lib/domain/reminders.ts fillReminder) and the text opens WhatsApp or
+    // the mail program already written.
+    default:
+      "שלום {לקוח},\nרצינו להזכיר שהמודעה שלך אמורה לצאת בעזרת השם ב{עיתון} ביום {תאריך}.\nנשמח לקבל את קובץ המודעה בהקדם, כדי שנספיק להכין אותה לדפוס.\nתודה רבה,\n{עסק}",
+    where:
+      "מסך התזכורות — נפתח בוואטסאפ ובמייל. אפשר להשתמש ב־{לקוח}, {עיתון}, {תאריך}, {עסק} והם יתמלאו לבד.",
     multiline: true,
     maxLength: 400,
   },

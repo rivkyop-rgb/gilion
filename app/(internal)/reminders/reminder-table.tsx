@@ -8,6 +8,7 @@ import { Check, RefreshCw, Send, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmailLink, PhoneLink } from "@/components/contact-links";
+import type { ReminderRecipient } from "@/lib/domain/reminders";
 import { InlineError } from "@/components/states";
 import {
   daysLabel,
@@ -30,8 +31,11 @@ export type ReminderRow = {
   sentAt: Date | null;
   customerName: string;
   customerId: string;
-  phone: string | null;
-  email: string | null;
+  /** Everyone ticked on the customer's card — or the business itself. */
+  recipients: ReminderRecipient[];
+  /** The panel's wording, filled for this reminder. */
+  message: string;
+  subject: string;
   publicationId: string;
   orderId: string;
   newspaper: string;
@@ -220,13 +224,38 @@ export function ReminderTable({ rows, mayAct }: { rows: ReminderRow[]; mayAct: b
                   {daysLabel(r.daysLeft)}
                 </td>
                 <td className="p-3">
-                  {r.phone ? (
-                    <PhoneLink phone={r.phone} className="font-mono text-xs" />
-                  ) : r.email ? (
-                    <EmailLink email={r.email} className="font-mono text-xs" />
-                  ) : (
-                    <span className="text-xs text-on-surface-variant">אין פרטי קשר</span>
-                  )}
+                  {/* Every recipient with BOTH ways to reach them: WhatsApp
+                      and mail open with the reminder already written. */}
+                  <ul className="space-y-1.5" data-testid={`reminder-recipients-${r.id}`}>
+                    {r.recipients.map((to) => (
+                      <li key={to.label} className="text-xs">
+                        {r.recipients.length > 1 || !to.isMain ? (
+                          <span className="block font-medium text-on-surface">{to.label}</span>
+                        ) : null}
+                        {to.phone || to.email ? (
+                          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            {to.phone ? (
+                              <PhoneLink
+                                phone={to.phone}
+                                message={r.message}
+                                className="font-mono"
+                              />
+                            ) : null}
+                            {to.email ? (
+                              <EmailLink
+                                email={to.email}
+                                subject={r.subject}
+                                body={r.message}
+                                className="font-mono"
+                              />
+                            ) : null}
+                          </span>
+                        ) : (
+                          <span className="text-on-surface-variant">אין פרטי קשר</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
                 </td>
                 <td className="p-3">
                   <Badge tone={STATUS_TONE[r.status]}>{REMINDER_STATUS_LABELS[r.status]}</Badge>

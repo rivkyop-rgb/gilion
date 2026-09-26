@@ -123,7 +123,24 @@ export async function listReminders(businessId: string, status = "open") {
       status: true,
       sent_at: true,
       customer: {
-        select: { id: true, business_name: true, phone: true, email: true },
+        select: {
+          id: true,
+          business_name: true,
+          phone: true,
+          email: true,
+          reminders_to_main: true,
+          // Who is ticked to receive reminders (reminderRecipients).
+          contacts: {
+            orderBy: { position: "asc" },
+            select: {
+              name: true,
+              role: true,
+              phone: true,
+              email: true,
+              receives_reminders: true,
+            },
+          },
+        },
       },
       publication: {
         select: {

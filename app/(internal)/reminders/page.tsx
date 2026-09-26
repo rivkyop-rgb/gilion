@@ -4,10 +4,16 @@ import { BellRing, CheckCircle2, Info } from "lucide-react";
 
 import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { listReminders, refreshReminders, reminderWindow } from "@/lib/data/reminders";
-import { daysUntil, type ReminderStatus } from "@/lib/domain/reminders";
+import {
+  daysUntil,
+  fillReminder,
+  reminderRecipients,
+  type ReminderStatus,
+} from "@/lib/domain/reminders";
+import { formatDate } from "../orders/format";
 import { EmptyState } from "@/components/states";
 import { cn } from "@/lib/utils";
-import { loadSettings } from "@/lib/data/business-settings";
+import { businessName, loadSettings } from "@/lib/data/business-settings";
 import { textFor } from "@/lib/domain/business-settings";
 import { ReminderTable, type ReminderRow } from "./reminder-table";
 import { ReminderWording } from "./reminder-wording";
@@ -28,11 +34,13 @@ export default async function RemindersPage({
   // brought up to date when someone looks at it.
   await refreshReminders(ctx.businessId);
 
-  const [rows, window, settings] = await Promise.all([
+  const [rows, window, settings, business] = await Promise.all([
     listReminders(ctx.businessId, status),
     reminderWindow(ctx.businessId),
     loadSettings(ctx.businessId),
+    businessName(ctx.businessId),
   ]);
+  const template = textFor("reminder_template", settings.texts);
 
   const today = new Date();
   const model: ReminderRow[] = rows.map((r) => ({
@@ -41,8 +49,16 @@ export default async function RemindersPage({
     sentAt: r.sent_at,
     customerName: r.customer.business_name,
     customerId: r.customer.id,
-    phone: r.customer.phone,
-    email: r.customer.email,
+    recipients: reminderRecipients(r.customer),
+    // The panel's wording, filled for THIS reminder — what WhatsApp and the
+    // mail program open with.
+    message: fillReminder(template, {
+      customer: r.customer.business_name,
+      newspaper: r.publication.newspaper.name,
+      date: formatDate(r.publication.publication_date),
+      business,
+    }),
+    subject: `תזכורת: קובץ מודעה ל${r.publication.newspaper.name}`,
     publicationId: r.publication.id,
     orderId: r.publication.order_id,
     newspaper: r.publication.newspaper.name,
@@ -108,9 +124,7 @@ export default async function RemindersPage({
         ))}
       </div>
 
-      {model.length > 0 ? (
-        <ReminderWording text={textFor("reminder_template", settings.texts)} />
-      ) : null}
+      {model.length > 0 ? <ReminderWording text={template} /> : null}
 
       {model.length === 0 ? (
         <div data-testid="reminders-empty">

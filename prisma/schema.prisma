@@ -277,20 +277,24 @@ model AuditLog {
 /// Deliberately has no company registration number: that field appeared in the
 /// Stitch mockups but is not in the ERD (docs/design/gaps.md §א).
 model Customer {
-  id            String   @id @default(cuid())
-  business_id   String
+  id                String   @id @default(cuid())
+  business_id       String
   /// Every customer is a business (decided 23/09/2026). The people at it
   /// are `contacts`.
-  business_name String
+  business_name     String
   /// ח.פ / ע.מ — 9 digits, optional, unique within the business.
-  tax_id        String?
+  tax_id            String?
   /// At least one of phone/email is required, enforced by a CHECK constraint.
-  phone         String?
-  email         String?
+  phone             String?
+  email             String?
   /// Free text for whoever handles the customer next.
-  notes         String?
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+  notes             String?
+  /// The business's own phone/email is ticked to receive reminders. When
+  /// nothing at all is ticked — this or any contact — reminders go here anyway
+  /// (lib/domain/reminders.ts `reminderRecipients`).
+  reminders_to_main Boolean  @default(false)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
 
   business       Business          @relation(fields: [business_id], references: [id], onDelete: Restrict)
   /// The people at the business, first one = main contact. Part of the
@@ -313,17 +317,19 @@ model Customer {
 /// `position` 0 is the main contact.
 /// Tenant-scoped through `customer` (lib/data/tenant-models.ts).
 model CustomerContact {
-  id          String   @id @default(cuid())
-  customer_id String
-  name        String
+  id                 String   @id @default(cuid())
+  customer_id        String
+  name               String
   /// Free text: "הנהלת חשבונות", "גרפיקאית". Not an enum — every customer
   /// names its own people.
-  role        String?
-  phone       String?
-  email       String?
+  role               String?
+  phone              String?
+  email              String?
   /// Order on the card, as entered.
-  position    Int
-  created_at  DateTime @default(now())
+  /// Ticked on the customer's card: this person gets the reminders.
+  receives_reminders Boolean  @default(false)
+  position           Int
+  created_at         DateTime @default(now())
 
   customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
 

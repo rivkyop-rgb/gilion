@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  fillReminder,
+  reminderRecipients,
   daysLabel,
   daysUntil,
   dueReminders,
@@ -148,5 +150,69 @@ describe("urgency and labels", () => {
     expect(daysLabel(1)).toBe("מחר");
     expect(daysLabel(5)).toBe("בעוד 5 ימים");
     expect(daysLabel(-2)).toBe("עבר לפני 2 ימים");
+  });
+});
+
+describe("reminderRecipients — who the reminder goes to", () => {
+  const base = {
+    phone: "031234567",
+    email: "office@x.co.il",
+    reminders_to_main: false,
+    contacts: [
+      { name: "רון", role: "גרפיקאי", phone: "0521111111", email: null, receives_reminders: false },
+      { name: "מיכל", role: null, phone: null, email: "m@x.co.il", receives_reminders: false },
+    ],
+  };
+
+  it("nothing ticked: the business's own details", () => {
+    expect(reminderRecipients(base)).toEqual([
+      { label: "פרטי העסק", phone: "031234567", email: "office@x.co.il", isMain: true },
+    ]);
+  });
+
+  it("a ticked contact replaces the default, and says who it is", () => {
+    const r = reminderRecipients({
+      ...base,
+      contacts: [{ ...base.contacts[0]!, receives_reminders: true }, base.contacts[1]!],
+    });
+    expect(r).toEqual([
+      { label: "רון · גרפיקאי", phone: "0521111111", email: null, isMain: false },
+    ]);
+  });
+
+  it("the business and a contact together", () => {
+    const r = reminderRecipients({
+      ...base,
+      reminders_to_main: true,
+      contacts: [base.contacts[0]!, { ...base.contacts[1]!, receives_reminders: true }],
+    });
+    expect(r.map((x) => x.label)).toEqual(["פרטי העסק", "מיכל"]);
+  });
+
+  it("a ticked contact with no way to reach them falls back to the business", () => {
+    const r = reminderRecipients({
+      ...base,
+      contacts: [{ name: "אין", role: null, phone: null, email: null, receives_reminders: true }],
+    });
+    expect(r[0]!.isMain).toBe(true);
+  });
+});
+
+describe("fillReminder", () => {
+  it("fills every field, every time it appears", () => {
+    expect(
+      fillReminder("{לקוח}, ב{עיתון} ב־{תאריך}. {עסק} · {לקוח}", {
+        customer: "מרכז הרפואה",
+        newspaper: "עיתון השבוע",
+        date: "29.9.2026",
+        business: "הוצאת המרכז",
+      }),
+    ).toBe("מרכז הרפואה, בעיתון השבוע ב־29.9.2026. הוצאת המרכז · מרכז הרפואה");
+  });
+
+  it("leaves a fixed sentence alone", () => {
+    expect(fillReminder("שלום", { customer: "a", newspaper: "b", date: "c", business: "d" })).toBe(
+      "שלום",
+    );
   });
 });

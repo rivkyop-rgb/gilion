@@ -125,3 +125,76 @@ export function daysLabel(days: number): string {
   if (days === 1) return "מחר";
   return `בעוד ${days} ימים`;
 }
+
+// ---------------------------------------------------------------------------
+// Who a reminder goes to, and what it says (27/09/2026)
+// ---------------------------------------------------------------------------
+
+export type ReminderRecipient = {
+  /** "פרטי העסק", or the contact's name and role. */
+  label: string;
+  phone: string | null;
+  email: string | null;
+  isMain: boolean;
+};
+
+type RecipientSource = {
+  phone: string | null;
+  email: string | null;
+  reminders_to_main: boolean;
+  contacts: ReadonlyArray<{
+    name: string;
+    role: string | null;
+    phone: string | null;
+    email: string | null;
+    receives_reminders: boolean;
+  }>;
+};
+
+/**
+ * Everyone ticked on the customer's card to receive reminders — the business's
+ * own details, contacts, or both. NOTHING ticked means the business's own
+ * details: a customer nobody configured is still reminded, where they always
+ * were. A ticked contact with neither phone nor email is left out — there is
+ * no way to reach them, and a row that offers nothing to click is noise.
+ */
+export function reminderRecipients(customer: RecipientSource): ReminderRecipient[] {
+  const main: ReminderRecipient = {
+    label: "פרטי העסק",
+    phone: customer.phone,
+    email: customer.email,
+    isMain: true,
+  };
+  const ticked: ReminderRecipient[] = [
+    ...(customer.reminders_to_main ? [main] : []),
+    ...customer.contacts
+      .filter((c) => c.receives_reminders && (c.phone || c.email))
+      .map((c) => ({
+        label: c.role ? `${c.name} · ${c.role}` : c.name,
+        phone: c.phone,
+        email: c.email,
+        isMain: false,
+      })),
+  ];
+  return ticked.length > 0 ? ticked : [main];
+}
+
+/** The fields a reminder wording may use, as the admin panel names them. */
+export const REMINDER_PLACEHOLDERS = ["{לקוח}", "{עיתון}", "{תאריך}", "{עסק}"] as const;
+
+/**
+ * The panel's wording with this reminder's details put in.
+ *
+ * Every occurrence is replaced, and a wording without placeholders comes back
+ * unchanged — a business that wrote its own fixed sentence keeps it.
+ */
+export function fillReminder(
+  template: string,
+  values: { customer: string; newspaper: string; date: string; business: string },
+): string {
+  return template
+    .replaceAll("{לקוח}", values.customer)
+    .replaceAll("{עיתון}", values.newspaper)
+    .replaceAll("{תאריך}", values.date)
+    .replaceAll("{עסק}", values.business);
+}

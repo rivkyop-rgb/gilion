@@ -155,11 +155,7 @@ describe("what a new issue opens with", () => {
   ];
 
   it("opens eight pages — cover, six inner, back — a multiple of four", () => {
-    expect(defaultPageTypeIds(types)).toEqual([
-      "t_cover",
-      ...Array(6).fill("t_inner"),
-      "t_back",
-    ]);
+    expect(defaultPageTypeIds(types)).toEqual(["t_cover", ...Array(6).fill("t_inner"), "t_back"]);
   });
 
   it("falls back to the first type when the names say nothing", () => {
@@ -177,7 +173,12 @@ describe("what a new issue opens with", () => {
   it("a page added later is an inner page, whatever was created first", () => {
     // The board used to default to pageTypes[0] — the cover, on every newspaper.
     expect(innerPageTypeId(types)).toBe("t_inner");
-    expect(innerPageTypeId([{ id: "c", name: "שער" }, { id: "x", name: "מוסף" }])).toBe("x");
+    expect(
+      innerPageTypeId([
+        { id: "c", name: "שער" },
+        { id: "x", name: "מוסף" },
+      ]),
+    ).toBe("x");
   });
 
   it("has nothing to guess when the newspaper has no page types", () => {

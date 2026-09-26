@@ -179,9 +179,17 @@ describe("contacts", () => {
         role: "הנהלת חשבונות",
         phone: "0521234567",
         email: "ron@x.co.il",
+        receives_reminders: false,
         position: 0,
       },
-      { name: "מיכל", role: null, phone: null, email: null, position: 1 },
+      {
+        name: "מיכל",
+        role: null,
+        phone: null,
+        email: null,
+        receives_reminders: false,
+        position: 1,
+      },
     ]);
   });
 });

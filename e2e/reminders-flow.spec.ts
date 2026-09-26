@@ -129,7 +129,8 @@ test("פרסום קרוב בלי מודעה נכנס לרשימה, ושום דב
    * the whole of what the product can honestly offer.
    */
   const wording = page.getByTestId("reminder-wording");
-  await expect(wording).toContainText("טרם קיבלנו את המודעה");
+  // The default wording since 27/09/2026 — its {…} fields shown as written.
+  await expect(wording).toContainText("רצינו להזכיר");
   await expect(page.getByTestId("copy-reminder-wording")).toBeVisible();
 
   const table = page.getByTestId("reminders-table");
@@ -144,6 +145,14 @@ test("פרסום קרוב בלי מודעה נכנס לרשימה, ושום דב
   // past holidays.
   await expect(page.getByTestId(`reminder-days-${id}`)).toContainText(`בעוד ${target.days} ימים`);
   await expect(row).toContainText("נדרשת");
+
+  // WhatsApp and mail open with the wording already FILLED for this row:
+  // the customer's name in place of {לקוח}, and no raw placeholder left.
+  const recipients = page.getByTestId(`reminder-recipients-${id}`);
+  const wa = await recipients.locator('a[href^="https://wa.me/"]').first().getAttribute("href");
+  const text = decodeURIComponent(wa!.split("?text=")[1]!);
+  expect(text).toContain(customer);
+  expect(text).not.toContain("{לקוח}");
 
   // Approving marks; it does not send.
   await page.getByTestId(`select-reminder-${id}`).check();

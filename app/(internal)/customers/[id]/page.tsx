@@ -26,6 +26,7 @@ import { PUBLICATION_STATUS_LABELS, type PublicationStatus } from "@/lib/domain/
 import { DeleteCustomer } from "./delete-customer";
 import { getCustomer } from "@/lib/data/customers";
 import { EmailLink, PhoneLink } from "@/components/contact-links";
+import { ReminderRecipients } from "./reminder-recipients";
 import { AdQuickLook, AdThumb } from "@/components/ads/ad-preview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -273,6 +274,27 @@ export default async function CustomerPage({
           </div>
         ) : null}
       </dl>
+
+      <ReminderRecipients
+        customerId={customer.id}
+        editable={mayEdit}
+        options={[
+          {
+            target: "main",
+            label: "פרטי העסק",
+            phone: customer.phone,
+            email: customer.email,
+            on: customer.reminders_to_main,
+          },
+          ...customer.contacts.map((c) => ({
+            target: c.id,
+            label: c.role ? `${c.name} · ${c.role}` : c.name,
+            phone: c.phone,
+            email: c.email,
+            on: c.receives_reminders,
+          })),
+        ]}
+      />
 
       {customer.contacts.length > 0 || customer.notes ? (
         <div className="mb-8 grid gap-4 lg:grid-cols-2">

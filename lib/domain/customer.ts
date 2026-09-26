@@ -30,6 +30,9 @@ export type ContactInput = {
   role?: string | null;
   phone?: string | null;
   email?: string | null;
+  /** The reminders tick from the card. Carried through an edit, which
+      replaces the rows — without it every save would untick everyone. */
+  receivesReminders?: boolean;
 };
 
 export const NOTES_MAX = 2000;
@@ -58,7 +61,6 @@ export function normalizeEmail(raw: string | null | undefined): string | null {
   const trimmed = raw?.trim().toLowerCase();
   return trimmed ? trimmed : null;
 }
-
 
 /** ח.פ / ע.מ as stored: digits only. Null for an empty input. */
 export function normalizeTaxId(raw: string | null | undefined): string | null {
@@ -141,6 +143,7 @@ export function contactsToStorage(contacts: ContactInput[] | undefined) {
       role: c.role?.trim() || null,
       phone: normalizePhone(c.phone),
       email: normalizeEmail(c.email),
+      receives_reminders: c.receivesReminders ?? false,
       position,
     }));
 }

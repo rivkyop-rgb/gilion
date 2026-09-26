@@ -48,7 +48,8 @@ export function ReminderWording({ text }: { text: string }) {
       </div>
       <p className="text-sm whitespace-pre-wrap text-on-surface-variant">{text}</p>
       <p className="mt-2 text-xs text-on-surface-variant">
-        נקבע בהגדרות · טקסטים, וניתן לשינוי שם בלי מפתח.
+        השדות בסוגריים — {"{לקוח}"}, {"{עיתון}"}, {"{תאריך}"}, {"{עסק}"} — מתמלאים לבד כשלוחצים על
+        וואטסאפ או על המייל בשורה של התזכורת, וההודעה נפתחת כתובה. הנוסח נקבע בהגדרות · טקסטים.
       </p>
     </div>
   );

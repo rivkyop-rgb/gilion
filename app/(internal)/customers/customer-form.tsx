@@ -19,7 +19,14 @@ export type CustomerFormValues = {
   contacts: ContactRow[];
 };
 
-type ContactRow = { name: string; role: string; phone: string; email: string };
+type ContactRow = {
+  name: string;
+  role: string;
+  phone: string;
+  email: string;
+  /** Set on the card, not here — carried so a save does not clear it. */
+  receivesReminders?: boolean;
+};
 
 const EMPTY: CustomerFormValues = {
   businessName: "",
@@ -149,6 +156,11 @@ function ContactsEditor({ initial, error }: { initial: ContactRow[]; error?: str
           data-testid={`contact-row-${i}`}
           className="grid gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3 sm:grid-cols-2"
         >
+          <input
+            type="hidden"
+            name="contact_reminders"
+            value={row.initial.receivesReminders ? "1" : "0"}
+          />
           <Input
             name="contact_name"
             aria-label="שם"

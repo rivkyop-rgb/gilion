@@ -34,6 +34,7 @@ const schema = z.object({
         role: z.string().nullable().optional(),
         phone: z.string().nullable().optional(),
         email: z.string().nullable().optional(),
+        receivesReminders: z.boolean().optional(),
       }),
     )
     .max(50),
@@ -50,11 +51,13 @@ function readContacts(formData: FormData) {
   const roles = col("contact_role");
   const phones = col("contact_phone");
   const emails = col("contact_email");
+  const reminders = col("contact_reminders");
   return names.map((name, i) => ({
     name,
     role: roles[i] ?? null,
     phone: phones[i] ?? null,
     email: emails[i] ?? null,
+    receivesReminders: reminders[i] === "1",
   }));
 }
 
@@ -177,4 +180,35 @@ export async function deleteCustomerAction(id: string): Promise<FormState> {
 
   revalidatePath("/customers");
   redirect("/customers");
+}
+
+const reminderTarget = z.object({
+  customerId: z.string().min(1),
+  /** "main" — the business's own details — or a contact id. */
+  target: z.string().min(1),
+  on: z.boolean(),
+});
+
+/** A tick in "who gets reminders" on the customer's card. Saved at once. */
+export async function setReminderRecipientAction(input: unknown): Promise<FormState> {
+  const ctx = await getTenantContext();
+  requireArea(ctx, "customers", "write");
+
+  const parsed = reminderTarget.safeParse(input);
+  if (!parsed.success) return { message: "הבחירה לא נשמרה" };
+  const { customerId, target, on } = parsed.data;
+
+  const existing = await data.getCustomer(ctx.businessId, customerId);
+  if (!existing) return { message: "הלקוח לא נמצא" };
+
+  if (target === "main") {
+    await data.setMainReceivesReminders(ctx.businessId, customerId, on);
+  } else {
+    if (!existing.contacts.some((c) => c.id === target)) return { message: "איש הקשר לא נמצא" };
+    await data.setContactReceivesReminders(ctx.businessId, customerId, target, on);
+  }
+
+  revalidatePath(`/customers/${customerId}`);
+  revalidatePath("/reminders");
+  return {};
 }

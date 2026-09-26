@@ -120,6 +120,7 @@ type StoredContact = {
   role: string | null;
   phone: string | null;
   email: string | null;
+  receives_reminders: boolean;
   position: number;
 };
 
@@ -199,4 +200,31 @@ export async function taxIdTaken(businessId: string, taxId: string, exceptId?: s
     select: { id: true },
   });
   return found !== null;
+}
+
+/** The tick on the customer's card: the business's own details get reminders. */
+export async function setMainReceivesReminders(businessId: string, id: string, on: boolean) {
+  return tenantDb(businessId).customer.update({
+    where: { id },
+    data: { reminders_to_main: on },
+  });
+}
+
+/**
+ * The tick next to a contact. Written THROUGH the customer, so the tenant scope
+ * of the customer covers the contact — a contact id from another business
+ * matches nothing under this customer and the update fails.
+ */
+export async function setContactReceivesReminders(
+  businessId: string,
+  customerId: string,
+  contactId: string,
+  on: boolean,
+) {
+  return tenantDb(businessId).customer.update({
+    where: { id: customerId },
+    data: {
+      contacts: { update: { where: { id: contactId }, data: { receives_reminders: on } } },
+    },
+  });
 }

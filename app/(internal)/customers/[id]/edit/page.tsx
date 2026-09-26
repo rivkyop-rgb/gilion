@@ -39,6 +39,7 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ i
             role: c.role ?? "",
             phone: c.phone ?? "",
             email: c.email ?? "",
+            receivesReminders: c.receives_reminders,
           })),
         }}
         cancelHref={`/customers/${id}`}

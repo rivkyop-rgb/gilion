@@ -51,12 +51,7 @@ describe("a published publication cannot be cancelled (rule 17)", () => {
   });
 
   it("allows it from every state before publication", () => {
-    for (const s of [
-      "missing_ad",
-      "ad_received",
-      "ready_for_layout",
-      "placed",
-    ] as const) {
+    for (const s of ["missing_ad", "ad_received", "ready_for_layout", "placed"] as const) {
       expect(transition(s, "CANCELED")).toBe("canceled");
     }
   });

@@ -114,9 +114,9 @@ describe("attentionReason — US-001 AC-5", () => {
     expect(
       row({ status: "missing_ad", hasAdvertisement: false, placementStatus: "not_placed" }),
     ).toBe("missing_ad");
-    expect(row({ status: "missing_ad", hasAdvertisement: false, placementStatus: "not_placed" })).toBe(
-      "missing_ad",
-    );
+    expect(
+      row({ status: "missing_ad", hasAdvertisement: false, placementStatus: "not_placed" }),
+    ).toBe("missing_ad");
   });
 
   /**
