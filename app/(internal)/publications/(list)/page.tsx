@@ -317,6 +317,7 @@ export default async function PublicationsPage({
             key: "customer",
             label: "לקוח",
             kind: "select",
+            search: true,
             options: customers.map((c) => ({ value: c.id, label: c.business_name })),
           },
           { key: "shape", label: "גודל", kind: "select", options: shapes },

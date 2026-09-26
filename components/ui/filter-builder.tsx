@@ -16,10 +16,15 @@ export type FilterField =
       label: string;
       kind: "select";
       options: Array<{ value: string; label: string }>;
+      /**
+       * Type to search instead of a list. Always on for customers — the rule
+       * everywhere a customer is picked (23/09/2026) — however few there are.
+       */
+      search?: boolean;
     }
   | { key: string; label: string; kind: "date" };
 
-/** Above this many options a select is replaced by type-to-search (customers). */
+/** Above this many options any select becomes type-to-search, `search` or not. */
 const SEARCH_ABOVE = 12;
 
 /**
@@ -89,7 +94,11 @@ export function FilterBuilder({
   };
 
   return (
-    <div ref={rootRef} className="relative mb-4 flex flex-wrap items-center gap-2" data-testid={testId}>
+    <div
+      ref={rootRef}
+      className="relative mb-4 flex flex-wrap items-center gap-2"
+      data-testid={testId}
+    >
       <span className="inline-flex items-center gap-1 text-xs text-on-surface-variant">
         <Filter className="size-3.5" aria-hidden />
         סינון
@@ -180,13 +189,14 @@ export function FilterBuilder({
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
                   />
-                ) : field.options.length > SEARCH_ABOVE ? (
+                ) : field.search || field.options.length > SEARCH_ABOVE ? (
                   <Combobox
                     key={field.key}
                     name={`fb-${field.key}`}
                     testId={`${testId}-value`}
                     options={field.options}
                     onChange={setValue}
+                    placeholder="הקלידי כדי לחפש…"
                   />
                 ) : (
                   <select
@@ -208,7 +218,13 @@ export function FilterBuilder({
           ) : null}
 
           <div className="flex gap-2">
-            <Button type="button" size="sm" disabled={!field || !value} onClick={add} data-testid={`${testId}-apply`}>
+            <Button
+              type="button"
+              size="sm"
+              disabled={!field || !value}
+              onClick={add}
+              data-testid={`${testId}-apply`}
+            >
               הוספה
             </Button>
             <Button type="button" size="sm" variant="ghost" onClick={() => setAdding(false)}>
