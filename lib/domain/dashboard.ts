@@ -70,6 +70,7 @@ export const DASHBOARD_CARD_KEYS = [
   "debt",
   "reminders",
   "openIssues",
+  "pendingOrders",
 ] as const;
 export type DashboardCardKey = (typeof DASHBOARD_CARD_KEYS)[number];
 
@@ -133,6 +134,14 @@ export const DASHBOARD_CARDS: readonly DashboardCard[] = [
     tone: "neutral",
     area: "issues",
   },
+  {
+    // Shown only where it means something — see visibleCards().
+    key: "pendingOrders",
+    label: "הזמנות לאישור",
+    hint: "ממתינות שמישהו יאשר",
+    tone: "warning",
+    area: "orders",
+  },
 ];
 
 /**
@@ -150,6 +159,23 @@ export const DASHBOARD_CARDS: readonly DashboardCard[] = [
  */
 export function cardsFor(canReadArea: (area: Area) => boolean): DashboardCard[] {
   return DASHBOARD_CARDS.filter((card) => canReadArea(card.area));
+}
+
+/**
+ * "הזמנות לאישור" belongs on the dashboard of a business that chose the
+ * approval step for office orders (Business.internal_orders_need_approval).
+ * Elsewhere it still appears while anything IS waiting — a portal request
+ * always waits, whatever the setting — and disappears at zero, where it would
+ * be a card about a process this business does not run.
+ */
+export function visibleCards(
+  cards: readonly DashboardCard[],
+  counts: Partial<Record<DashboardCardKey, number>>,
+  ordersNeedApproval: boolean,
+): DashboardCard[] {
+  return cards.filter(
+    (c) => c.key !== "pendingOrders" || ordersNeedApproval || (counts.pendingOrders ?? 0) > 0,
+  );
 }
 
 /**

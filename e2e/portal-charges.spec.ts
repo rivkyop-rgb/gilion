@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { USERS, login, loginAsAdmin } from "./helpers";
+import { USERS, login, loginAsAdmin, passOrderWarnings } from "./helpers";
 import { validPng } from "./ad-fixtures";
 import { openBillingRow, recordPayment } from "./billing-helpers";
 import {
@@ -45,6 +45,7 @@ test("the estimate, the charge after approval, and the payments — of this cust
   await login(page, USERS.sales);
   await page.goto(`/orders/${id}`);
   await page.getByTestId("approve-order").click();
+  await passOrderWarnings(page);
   await expect(page.getByTestId("order-status")).toHaveAttribute("data-status", "approved");
 
   await loginAsAdmin(page);

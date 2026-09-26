@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { Check, Ban, Trash2, X } from "lucide-react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { AlertTriangle, Check, Ban, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { InlineError } from "@/components/states";
@@ -32,6 +33,9 @@ export function OrderActions({
   lineCount,
   total,
   layout = "bar",
+  directApproval = false,
+  missingAd = false,
+  soonDate = null,
 }: {
   orderId: string;
   orderRef: string;
@@ -46,6 +50,16 @@ export function OrderActions({
    * full width, inside the order summary card (design 03).
    */
   layout?: "bar" | "card";
+  /**
+   * The business approves office orders straight from the draft
+   * (Business.internal_orders_need_approval = false) and this order was typed
+   * in the office. Then the draft offers "אישור" instead of "שליחה לאישור".
+   */
+  directApproval?: boolean;
+  /** No artwork attached to the order or to any of its lines. */
+  missingAd?: boolean;
+  /** The earliest line date, formatted, when it falls in the coming week. */
+  soonDate?: string | null;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
@@ -53,6 +67,22 @@ export function OrderActions({
 
   const run = (fn: () => Promise<FormState>) =>
     startTransition(async () => setError((await fn()).message ?? null));
+
+  /**
+   * Moving an order forward without its artwork asks first — and if the paper
+   * prints within the week, asks again, separately (the user's rule): two
+   * different warnings, each confirmed on its own, never one dialog carrying
+   * both where the second sentence is read past.
+   */
+  const [warning, setWarning] = useState<{ step: "no-ad" | "soon"; go: () => void } | null>(null);
+  const guarded = (fn: () => Promise<FormState>) => () => {
+    const go = () => {
+      setWarning(null);
+      run(fn);
+    };
+    if (!missingAd) return go();
+    setWarning({ step: "no-ad", go });
+  };
 
   return (
     <div
@@ -68,11 +98,20 @@ export function OrderActions({
         <RejectForm orderId={orderId} onCancel={() => setRejecting(false)} />
       ) : (
         <div className={layout === "bar" ? "flex flex-wrap gap-3" : "flex flex-col gap-2"}>
-          {status === "draft" ? (
+          {status === "draft" && directApproval && canApprove ? (
+            <Button
+              disabled={busy}
+              data-testid="approve-order"
+              onClick={guarded(() => approveOrderAction(orderId))}
+            >
+              <Check className="size-4" />
+              אישור ההזמנה
+            </Button>
+          ) : status === "draft" ? (
             <Button
               disabled={busy}
               data-testid="submit-order"
-              onClick={() => run(() => submitOrderAction(orderId))}
+              onClick={guarded(() => submitOrderAction(orderId))}
             >
               שליחה לאישור
             </Button>
@@ -83,7 +122,7 @@ export function OrderActions({
               <Button
                 disabled={busy}
                 data-testid="approve-order"
-                onClick={() => run(() => approveOrderAction(orderId))}
+                onClick={guarded(() => approveOrderAction(orderId))}
               >
                 <Check className="size-4" />
                 אישור ההזמנה
@@ -170,7 +209,79 @@ export function OrderActions({
           ) : null}
         </div>
       )}
+      {warning ? (
+        <OrderWarning
+          step={warning.step}
+          soonDate={soonDate}
+          onCancel={() => setWarning(null)}
+          onConfirm={() => {
+            if (warning.step === "no-ad" && soonDate) {
+              setWarning({ step: "soon", go: warning.go });
+            } else {
+              warning.go();
+            }
+          }}
+        />
+      ) : null}
     </div>
+  );
+}
+
+/** One warning at a time — see `guarded`. */
+function OrderWarning({
+  step,
+  soonDate,
+  onCancel,
+  onConfirm,
+}: {
+  step: "no-ad" | "soon";
+  soonDate: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const testId = step === "no-ad" ? "order-warn-no-ad" : "order-warn-soon";
+  return (
+    <DialogPrimitive.Root open onOpenChange={(open) => (open ? null : onCancel())}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-primary/40" />
+        <DialogPrimitive.Content
+          data-testid={testId}
+          className="fixed inset-x-0 top-1/2 z-50 mx-auto w-[min(28rem,calc(100vw-2rem))] -translate-y-1/2 rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-2"
+        >
+          <DialogPrimitive.Title className="mb-2 flex items-center gap-2 font-serif text-lg font-semibold">
+            <AlertTriangle
+              className={
+                step === "soon" ? "size-5 text-status-error-fg" : "size-5 text-status-warning-fg"
+              }
+            />
+            {step === "no-ad" ? "לאשר בלי מודעה?" : "שימי לב — העיתון יורד לדפוס"}
+          </DialogPrimitive.Title>
+          <DialogPrimitive.Description asChild>
+            <div className="mb-4 text-sm text-on-surface-variant">
+              {step === "no-ad" ? (
+                <p>
+                  להזמנה עדיין לא צורף קובץ מודעה. אפשר להמשיך ולהוסיף את הקובץ אחר כך — הפרסומים
+                  יסומנו &quot;חסרה מודעה&quot; עד שיגיע.
+                </p>
+              ) : (
+                <p>
+                  הפרסום הראשון בהזמנה הוא ב־<Ltr>{soonDate}</Ltr>, השבוע. העיתון יורד לדפוס וצריך
+                  את המודעה בזמן. להמשיך בכל זאת?
+                </p>
+              )}
+            </div>
+          </DialogPrimitive.Description>
+          <div className="flex gap-3 border-t border-outline-variant pt-4">
+            <Button onClick={onConfirm} data-testid={`${testId}-confirm`}>
+              {step === "no-ad" ? "כן, להמשיך בלי מודעה" : "הבנתי, להמשיך"}
+            </Button>
+            <Button variant="ghost" onClick={onCancel}>
+              ביטול
+            </Button>
+          </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
 

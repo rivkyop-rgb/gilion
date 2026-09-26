@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { USERS, login } from "./helpers";
+import { USERS, login, passOrderWarnings } from "./helpers";
 import { validJpg, validPng } from "./ad-fixtures";
 import {
   PORTAL_DATES,
@@ -67,6 +67,7 @@ test("one request, two sizes, four dates, two files — and the office sees who 
 
   // Approval: four publications, each already holding its own line's file.
   await page.getByTestId("approve-order").click();
+  await passOrderWarnings(page);
   await expect(page.getByTestId("order-status")).toHaveAttribute("data-status", "approved");
   const rows = page.locator('[data-testid="publications-preview"] tbody tr');
   await expect(rows).toHaveCount(4);

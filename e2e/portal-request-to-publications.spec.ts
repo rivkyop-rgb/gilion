@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { USERS, login } from "./helpers";
+import { USERS, login, passOrderWarnings } from "./helpers";
 import { validPng } from "./ad-fixtures";
 import { PORTAL_DATES, PORTAL_PAPERS, portalLogin, submitRequest } from "./portal-helpers";
 
@@ -35,6 +35,8 @@ test("a portal request becomes publications only when staff approve it", async (
   await expect(page.getByTestId("preview-caption")).toContainText("ייווצר לאחר אישור");
 
   await page.getByTestId("approve-order").click();
+
+  await passOrderWarnings(page);
   await expect(page.getByTestId("order-status")).toHaveAttribute("data-status", "approved");
   await expect(page.getByTestId("preview-caption")).toContainText("נוצר");
   await expect(page.locator('[data-testid="publications-preview"] tbody tr')).toHaveCount(1);

@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 
-import { NEWSPAPERS, addOrderLine, pickOrderNewspaper } from "./helpers";
+import { NEWSPAPERS, addOrderLine, pickOrderNewspaper, passOrderWarnings } from "./helpers";
 
 /**
  * Fixtures for the payment specs (stage 08).
@@ -88,7 +88,10 @@ export async function approvedOrder(
   }
 
   await page.getByTestId("submit-order").click();
+
+  await passOrderWarnings(page);
   await page.getByTestId("approve-order").click();
+  await passOrderWarnings(page);
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
   return orderId;
 }

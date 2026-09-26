@@ -13,7 +13,8 @@ import { listNewspapers } from "@/lib/data/newspapers";
 import { customerOptions } from "@/lib/data/customers";
 import { issuesForPublications, openIssuesForPlacement } from "@/lib/data/issues";
 import { refreshReminders } from "@/lib/data/reminders";
-import { cardsFor, showsMoney, type DashboardCardKey } from "@/lib/domain/dashboard";
+import { cardsFor, showsMoney, visibleCards, type DashboardCardKey } from "@/lib/domain/dashboard";
+import { internalOrdersNeedApproval } from "@/lib/data/orders";
 import { isoDay } from "@/lib/domain/calendar";
 import { daysUntil } from "@/lib/domain/reminders";
 import {
@@ -24,8 +25,17 @@ import {
 import type { PaymentStatus } from "@/lib/domain/payment-status";
 import { ROLE_LABELS } from "@/lib/auth/labels";
 import { Ltr } from "@/components/ui/ltr";
+import { cn } from "@/lib/utils";
 import { KpiCard } from "./kpi-card";
-import { BellRing, CalendarDays, FileWarning, LayoutGrid, Newspaper, Wallet } from "lucide-react";
+import {
+  BellRing,
+  CalendarDays,
+  ClipboardCheck,
+  FileWarning,
+  LayoutGrid,
+  Newspaper,
+  Wallet,
+} from "lucide-react";
 import { DashboardFilters } from "./filters";
 import { WeekTable, type WeekRow } from "./week-table";
 import { OpenIssuesWidget, RemindersWidget } from "./widgets";
@@ -62,6 +72,7 @@ const KPI_ICON: Record<DashboardCardKey, React.ComponentType<{ className?: strin
   debt: Wallet,
   reminders: BellRing,
   openIssues: Newspaper,
+  pendingOrders: ClipboardCheck,
 };
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<Search> }) {
@@ -167,7 +178,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     debt: "/billing?status=debt",
     reminders: "/reminders",
     openIssues: "/issues?status=open",
+    pendingOrders: "/orders?status=pending_approval",
   };
+  const shown = visibleCards(cards, counts, await internalOrdersNeedApproval(ctx.businessId));
 
   return (
     <>
@@ -181,10 +194,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </p>
 
       <div
-        className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+        className={cn(
+          "mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3",
+          shown.length > 6 ? "xl:grid-cols-7" : "xl:grid-cols-6",
+        )}
         data-testid="dashboard-kpis"
       >
-        {cards.map((card) => (
+        {shown.map((card) => (
           <KpiCard
             key={card.key}
             label={card.label}

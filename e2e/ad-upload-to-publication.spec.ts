@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { addOrderLine, loginAsAdmin, orderRef } from "./helpers";
+import { addOrderLine, loginAsAdmin, orderRef, passOrderWarnings } from "./helpers";
 import { validPdf } from "./ad-fixtures";
 import { pngOfRoughly } from "./ad-fixtures";
 
@@ -25,7 +25,10 @@ async function approvedOrder(page: Page, dates: string[]): Promise<string> {
   }
 
   await page.getByTestId("submit-order").click();
+
+  await passOrderWarnings(page);
   await page.getByTestId("approve-order").click();
+  await passOrderWarnings(page);
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
   return orderRef(page);
 }
@@ -77,7 +80,10 @@ test("העלאה מהפרסום נמדדת מול העיתון של אותו פ�
   await addOrderLine(page, "2026-12-03", "1000", 1);
 
   await page.getByTestId("submit-order").click();
+
+  await passOrderWarnings(page);
   await page.getByTestId("approve-order").click();
+  await passOrderWarnings(page);
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
 
   const ref = await orderRef(page);

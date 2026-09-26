@@ -83,6 +83,7 @@ export async function dashboardCounts(
     run("debt", async () => (await billingCustomers(businessId, { status: "debt" })).length),
     run("reminders", () => countOpenReminders(businessId)),
     run("openIssues", () => db.issue.count({ where: { status: { in: OPEN_ISSUE_STATES } } })),
+    run("pendingOrders", () => db.adOrder.count({ where: { status: "pending_approval" } })),
   ]);
 
   return Object.fromEntries(results.filter((r) => r !== null)) as DashboardCounts;

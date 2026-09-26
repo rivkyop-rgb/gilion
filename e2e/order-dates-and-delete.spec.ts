@@ -1,5 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
-import { NEWSPAPERS, USERS, login, orderRef, pickOrderNewspaper } from "./helpers";
+import {
+  NEWSPAPERS,
+  USERS,
+  login,
+  orderRef,
+  pickOrderNewspaper,
+  passOrderWarnings,
+} from "./helpers";
 
 /**
  * The stage 04 follow-ups: a print schedule per newspaper, several dates per
@@ -155,7 +162,9 @@ test.describe("deleting an order", () => {
     await page.getByTestId("line-price").fill("250");
     await page.getByTestId("add-line").click();
     await page.getByTestId("submit-order").click();
+    await passOrderWarnings(page);
     await page.getByTestId("approve-order").click();
+    await passOrderWarnings(page);
     await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
 
     await expect(page.getByTestId("delete-order")).toHaveCount(0);
@@ -169,7 +178,9 @@ test.describe("deleting an order", () => {
     await page.getByTestId("line-price").fill("250");
     await page.getByTestId("add-line").click();
     await page.getByTestId("submit-order").click();
+    await passOrderWarnings(page);
     await page.getByTestId("approve-order").click();
+    await passOrderWarnings(page);
     // Waiting for the approval to land before cancelling: without it the click
     // races the re-render and lands on a button that is about to be replaced,
     // so the cancel never happens and the status stays "מאושרת".

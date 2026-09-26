@@ -1,5 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
-import { NEWSPAPERS, PAGE_TYPES, SHAPES, USERS, login, orderRef } from "./helpers";
+import {
+  NEWSPAPERS,
+  PAGE_TYPES,
+  SHAPES,
+  USERS,
+  login,
+  orderRef,
+  passOrderWarnings,
+} from "./helpers";
 
 /**
  * Success criterion 2 of prd.md §7, mapped here by docs/plan/README.md:
@@ -73,9 +81,13 @@ test("a sales rep builds, previews and approves 10 publications well inside 3 mi
   await expect(page.locator('[data-testid="publications-preview"] tbody tr')).toHaveCount(10);
 
   await page.getByTestId("submit-order").click();
+
+  await passOrderWarnings(page);
   await expect(page.getByTestId("order-status")).toHaveText("ממתינה לאישור");
 
   await page.getByTestId("approve-order").click();
+
+  await passOrderWarnings(page);
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
 
   // Ten binding publications, one per line, each carrying the copied price.

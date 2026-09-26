@@ -10,6 +10,7 @@ import {
   Shapes,
   Type,
   Users,
+  ClipboardCheck,
 } from "lucide-react";
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 
@@ -33,6 +34,12 @@ const SECTIONS = [
     icon: Newspaper,
     title: "עיתונים",
     body: "גודל עמוד, שוליים, חלוקת העמוד לגריד, סוגי עמודים, צורות פרסום ומחירון.",
+  },
+  {
+    href: "/settings/orders",
+    icon: ClipboardCheck,
+    title: "תהליך הזמנות",
+    body: "האם הזמנה שמוזנת במשרד מאושרת ישירות או ממתינה לאישור נפרד.",
   },
   {
     href: "/settings/reminders",

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { USERS, login } from "./helpers";
+import { USERS, login, passOrderWarnings } from "./helpers";
 
 /**
  * FR-17 itself is asserted in lib/data/price-immutability.test.ts, against the
@@ -29,7 +29,9 @@ test("completing an order is blocked while a publication is still live", async (
   await page.getByTestId("line-price").fill("400");
   await page.getByTestId("add-line").click();
   await page.getByTestId("submit-order").click();
+  await passOrderWarnings(page);
   await page.getByTestId("approve-order").click();
+  await passOrderWarnings(page);
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
 
   // Completion is an accounting act, so sales does not even see the button.

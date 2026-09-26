@@ -136,6 +136,13 @@ model Business {
   /// Admin edits it in settings; the default is a week.
   reminder_days_before Int @default(7)
 
+  /// Whether an order typed in the office waits for a second click to be
+  /// approved (draft → pending_approval → approved), or is approved straight
+  /// from the draft (draft → approved). Chosen per business in the admin
+  /// panel (25/09/2026). Portal requests ALWAYS wait: nobody in the office has
+  /// looked at them yet, which is the whole point of the approval step.
+  internal_orders_need_approval Boolean @default(false)
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 

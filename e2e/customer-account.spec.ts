@@ -1,6 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { PAGE_TYPES, SHAPES, USERS, login, loginAsAdmin, addOrderLine } from "./helpers";
+import {
+  PAGE_TYPES,
+  SHAPES,
+  USERS,
+  login,
+  loginAsAdmin,
+  addOrderLine,
+  passOrderWarnings,
+} from "./helpers";
 import { validPdf, validPng } from "./ad-fixtures";
 import { uploadFile } from "./ad-helpers";
 import { BILLING_DATES, approvedOrder, openBillingRow, recordPayment } from "./billing-helpers";
@@ -57,7 +65,10 @@ async function approvedOrderFor(page: Page, customerLabel: string, price: string
   await addOrderLine(page, "2026-12-01", price, 1);
 
   await page.getByTestId("submit-order").click();
+
+  await passOrderWarnings(page);
   await page.getByTestId("approve-order").click();
+  await passOrderWarnings(page);
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
 }
 

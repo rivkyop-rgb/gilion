@@ -233,3 +233,22 @@ export async function orderRef(page: Page): Promise<string> {
   const text = await page.getByTestId("order-ref").textContent();
   return (text ?? "").trim();
 }
+
+/**
+ * Confirms the warnings that moving an order forward may raise (order-actions
+ * `guarded`): "לאשר בלי מודעה?" and, when the first line prints within the
+ * week, "העיתון יורד לדפוס". Either may or may not appear, so each is looked
+ * for briefly and confirmed if it is there — they open synchronously on the
+ * click, so a short wait is enough.
+ */
+export async function passOrderWarnings(page: Page) {
+  for (const id of ["order-warn-no-ad", "order-warn-soon"]) {
+    const confirm = page.getByTestId(`${id}-confirm`);
+    try {
+      await confirm.waitFor({ state: "visible", timeout: 1500 });
+      await confirm.click();
+    } catch {
+      // Not raised for this order — nothing to confirm.
+    }
+  }
+}

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { USERS, addOrderLine, login, orderRef } from "./helpers";
+import { USERS, addOrderLine, login, orderRef, passOrderWarnings } from "./helpers";
 import { validJpg, validPdf } from "./ad-fixtures";
 
 /**
@@ -22,7 +22,10 @@ async function approvedOrder(page: Page, dates: string[]): Promise<string> {
   }
 
   await page.getByTestId("submit-order").click();
+
+  await passOrderWarnings(page);
   await page.getByTestId("approve-order").click();
+  await passOrderWarnings(page);
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
   return orderRef(page);
 }

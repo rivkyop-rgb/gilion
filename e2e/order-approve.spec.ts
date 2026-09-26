@@ -1,5 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
-import { NEWSPAPERS, PAGE_TYPES, SHAPES, USERS, login, orderRef } from "./helpers";
+import {
+  NEWSPAPERS,
+  PAGE_TYPES,
+  SHAPES,
+  USERS,
+  login,
+  orderRef,
+  passOrderWarnings,
+} from "./helpers";
 
 /**
  * US-004 and FR-17: approval is the moment an order stops being a proposal.
@@ -63,9 +71,13 @@ test.describe("approving an order (US-004)", () => {
     await expect(page.getByTestId("order-total")).toContainText("2,000");
 
     await page.getByTestId("submit-order").click();
+
+    await passOrderWarnings(page);
     await expect(page.getByTestId("order-status")).toHaveText("ממתינה לאישור");
 
     await page.getByTestId("approve-order").click();
+
+    await passOrderWarnings(page);
     await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
     await expect(page.getByTestId("preview-caption")).toContainText("2 פרסומים מחייבים נוצרו");
 
@@ -83,9 +95,12 @@ test.describe("approving an order (US-004)", () => {
     await newDraft(page);
     await addLine(page, "2026-12-15", "500");
     await page.getByTestId("submit-order").click();
+    await passOrderWarnings(page);
     await expect(page.getByTestId("approve-order")).toBeVisible();
 
     await page.getByTestId("approve-order").click();
+
+    await passOrderWarnings(page);
     await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
 
     // The button is gone, so the second attempt goes through the action directly
@@ -100,7 +115,9 @@ test.describe("approving an order (US-004)", () => {
     await newDraft(page);
     await addLine(page, "2026-12-20", "300");
     await page.getByTestId("submit-order").click();
+    await passOrderWarnings(page);
     await page.getByTestId("approve-order").click();
+    await passOrderWarnings(page);
     await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
 
     await expect(page.getByTestId("add-line")).toHaveCount(0);
@@ -183,6 +200,7 @@ test.describe("rejecting an order (FR-19)", () => {
     await newDraft(page);
     await addLine(page, "2026-12-01", "100");
     await page.getByTestId("submit-order").click();
+    await passOrderWarnings(page);
 
     await page.getByTestId("open-reject").click();
     await page.getByTestId("reject-reason").fill("התאריך כבר מלא");
@@ -197,6 +215,7 @@ test.describe("rejecting an order (FR-19)", () => {
     await newDraft(page);
     await addLine(page, "2026-12-01", "100");
     await page.getByTestId("submit-order").click();
+    await passOrderWarnings(page);
 
     await page.getByTestId("open-reject").click();
     await page.getByTestId("confirm-reject").click();
@@ -209,6 +228,7 @@ test.describe("rejecting an order (FR-19)", () => {
     await newDraft(page);
     await addLine(page, "2026-12-01", "100");
     await page.getByTestId("submit-order").click();
+    await passOrderWarnings(page);
     await page.getByTestId("open-reject").click();
     await page.getByTestId("confirm-reject").click();
     await expect(page.getByTestId("order-status")).toHaveText("נדחתה");

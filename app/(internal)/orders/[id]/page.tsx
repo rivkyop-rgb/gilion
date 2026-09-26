@@ -6,7 +6,13 @@ import { Info, Send } from "lucide-react";
 
 import { canReadArea, canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { customerCredit, paidByOrder } from "@/lib/data/payments";
-import { getOrder, orderFormOptions, orderMoney } from "@/lib/data/orders";
+import {
+  internalOrdersNeedApproval,
+  getOrder,
+  orderFormOptions,
+  orderMoney,
+} from "@/lib/data/orders";
+import { addDays, jerusalemDay } from "@/lib/domain/calendar";
 import { formatPercent } from "@/lib/domain/ad-package";
 import { itemsEditable, type OrderStatus } from "@/lib/domain/order-status";
 import type { PublicationStatus } from "@/lib/domain/publication-status";
@@ -54,6 +60,20 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       : 0;
 
   const approved = order.publications.length > 0;
+
+  // What moving this order forward should warn about (OrderActions `guarded`).
+  const missingAd = !order.advertisement && order.items.some((i) => !i.advertisement);
+  // "The coming week" as SEVEN DAYS FORWARD, deliberately not calendar.ts's
+  // Sunday-to-Saturday: the question is "does the paper print before the file
+  // can arrive", and a Sunday issue seen on a Friday is two days away however
+  // the calendar splits the weeks.
+  const today = jerusalemDay(new Date());
+  const soon = order.items
+    .map((i) => i.publication_date)
+    .filter((d) => d >= today && d <= addDays(today, 7))
+    .sort((a, b) => a.getTime() - b.getTime())[0];
+  const directApproval =
+    order.source === "internal" && !(await internalOrdersNeedApproval(ctx.businessId));
   // The artwork column belongs to whoever may touch files, which is not the
   // same set as whoever may read the order (FR-8).
   const mayAttachAds = canWriteArea(ctx, "advertisements");
@@ -371,6 +391,9 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               <div className="mt-5">
                 <OrderActions
                   layout="card"
+                  directApproval={directApproval}
+                  missingAd={missingAd}
+                  soonDate={soon ? formatDate(soon) : null}
                   orderId={order.id}
                   orderRef={orderNumber(order.number)}
                   status={status}

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { publicationsPhrase } from "@/lib/domain/hebrew-count";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { KeyRound, Pencil } from "lucide-react";
+import { KeyRound, Pencil, Plus } from "lucide-react";
 
 import { canReadArea, canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { customerHistoryCounts } from "@/lib/data/customers";
@@ -191,9 +191,19 @@ export default async function CustomerPage({
           ) : null}
         </div>
 
-        {mayEdit ? (
-          <div className="flex gap-2">
-            <CopyLink url={portalLink} label="העתקת קישור לפורטל" testId="customer-portal-link" />
+        {mayEdit || canWriteArea(ctx, "orders") ? (
+          <div className="flex flex-wrap gap-2">
+            {canWriteArea(ctx, "orders") ? (
+              <Button asChild>
+                <Link href={`/orders/new?customer=${customer.id}`} data-testid="customer-new-order">
+                  <Plus className="size-4" />
+                  הזמנה חדשה
+                </Link>
+              </Button>
+            ) : null}
+            {mayEdit ? (
+              <CopyLink url={portalLink} label="העתקת קישור לפורטל" testId="customer-portal-link" />
+            ) : null}
             {canWriteArea(ctx, "settings") ? (
               <Button variant="secondary" asChild>
                 <Link
@@ -205,12 +215,14 @@ export default async function CustomerPage({
                 </Link>
               </Button>
             ) : null}
-            <Button variant="secondary" asChild>
-              <Link href={`/customers/${customer.id}/edit`}>
-                <Pencil className="size-4" />
-                עריכה
-              </Link>
-            </Button>
+            {mayEdit ? (
+              <Button variant="secondary" asChild>
+                <Link href={`/customers/${customer.id}/edit`}>
+                  <Pencil className="size-4" />
+                  עריכה
+                </Link>
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -300,7 +312,18 @@ export default async function CustomerPage({
 
       {maySeeMoney && maySeeOrders ? (
         <section className="mb-8" data-testid="customer-account">
-          <h2 className="mb-3 font-serif text-xl font-semibold">מצב חשבון</h2>
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-serif text-xl font-semibold">מצב חשבון</h2>
+            {canReadArea(ctx, "reports") ? (
+              <Link
+                href={`/reports?customer=${customer.id}`}
+                data-testid="customer-report"
+                className="text-sm underline underline-offset-2"
+              >
+                לדוח הלקוח
+              </Link>
+            ) : null}
+          </div>
           {/*
             The five questions, in the order the user asked them (16/09/2026):
             how much was ordered and not paid · how much RAN and was not paid ·
@@ -532,7 +555,16 @@ export default async function CustomerPage({
 
       {maySeeOrders ? (
         <section className="mb-8">
-          <h2 className="mb-3 font-serif text-xl font-semibold">הזמנות</h2>
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-serif text-xl font-semibold">הזמנות</h2>
+            <Link
+              href={`/orders?customer=${customer.id}`}
+              data-testid="customer-all-orders"
+              className="text-sm underline underline-offset-2"
+            >
+              לכל ההזמנות של הלקוח
+            </Link>
+          </div>
           <ListToolbar
             prefix="o"
             params={ordersParams}
@@ -612,7 +644,16 @@ export default async function CustomerPage({
       ) : null}
 
       <section className="mb-8">
-        <h2 className="mb-3 font-serif text-xl font-semibold">פרסומים</h2>
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-serif text-xl font-semibold">פרסומים</h2>
+          <Link
+            href={`/publications?customer=${customer.id}`}
+            data-testid="customer-all-publications"
+            className="text-sm underline underline-offset-2"
+          >
+            לכל הפרסומים של הלקוח
+          </Link>
+        </div>
         <ListToolbar
           prefix="p"
           params={pubsParams}
@@ -701,7 +742,16 @@ export default async function CustomerPage({
 
       {maySeeAds ? (
         <section className="mb-8">
-          <h2 className="mb-3 font-serif text-xl font-semibold">קבצים</h2>
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-serif text-xl font-semibold">קבצים</h2>
+            <Link
+              href={`/advertisements?customer=${customer.id}`}
+              data-testid="customer-all-ads"
+              className="text-sm underline underline-offset-2"
+            >
+              לכל הקבצים של הלקוח
+            </Link>
+          </div>
           <ListToolbar
             prefix="a"
             params={adsParams}

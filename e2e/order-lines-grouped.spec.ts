@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { USERS, addOrderLine, login, orderRef } from "./helpers";
+import { USERS, addOrderLine, login, orderRef, passOrderWarnings } from "./helpers";
 
 /**
  * The order reads by what was ORDERED; the publications list keeps the detail.
@@ -62,7 +62,10 @@ test("הפירוט לפי תאריך נמצא בפרסומים, שורה לכל 
   await addDate(page, "2026-12-08", "1000", 2);
 
   await page.getByTestId("submit-order").click();
+
+  await passOrderWarnings(page);
   await page.getByTestId("approve-order").click();
+  await passOrderWarnings(page);
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
 
   const ref = await orderRef(page);

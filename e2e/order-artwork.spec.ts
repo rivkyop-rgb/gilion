@@ -1,6 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { NEWSPAPERS, addOrderLine, loginAsAdmin, orderRef, pickOrderNewspaper } from "./helpers";
+import {
+  NEWSPAPERS,
+  addOrderLine,
+  loginAsAdmin,
+  orderRef,
+  pickOrderNewspaper,
+  passOrderWarnings,
+} from "./helpers";
 import { validPdf } from "./ad-fixtures";
 
 /**
@@ -47,7 +54,10 @@ test("מודעה שצורפה להזמנה משויכת אוטומטית לכל 
   await expect(page.getByTestId("order-artwork-attached")).toContainText(file.name);
 
   await page.getByTestId("submit-order").click();
+
+  await passOrderWarnings(page);
   await page.getByTestId("approve-order").click();
+  await passOrderWarnings(page);
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
 
   // All three publications carry the file, and the state machine took each of
@@ -70,7 +80,9 @@ test("שיוך מודעה אחת לכל הפרסומים הפתוחים של ה�
 
   await draftWithLines(page, ["2026-11-03", "2026-11-10"]);
   await page.getByTestId("submit-order").click();
+  await passOrderWarnings(page);
   await page.getByTestId("approve-order").click();
+  await passOrderWarnings(page);
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
   const ref = await orderRef(page);
 

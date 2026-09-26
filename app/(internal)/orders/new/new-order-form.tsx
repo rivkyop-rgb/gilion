@@ -9,9 +9,15 @@ import { InlineError, EmptyState } from "@/components/states";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { createOrderDraftAction, type FormState } from "../actions";
 
-export function NewOrderForm({ customers }: { customers: ComboboxOption[] }) {
+export function NewOrderForm({
+  customers,
+  defaultCustomerId = "",
+}: {
+  customers: ComboboxOption[];
+  defaultCustomerId?: string;
+}) {
   const [state, action, pending] = useActionState<FormState, FormData>(createOrderDraftAction, {});
-  const [customerId, setCustomerId] = useState("");
+  const [customerId, setCustomerId] = useState(defaultCustomerId);
 
   if (customers.length === 0) {
     return (
@@ -55,6 +61,7 @@ export function NewOrderForm({ customers }: { customers: ComboboxOption[] }) {
           name="customerId"
           testId="order-customer"
           options={customers}
+          defaultValue={defaultCustomerId}
           required
           placeholder="הקלידי שם עסק או טלפון…"
           emptyText="אין לקוח שמתאים לחיפוש"

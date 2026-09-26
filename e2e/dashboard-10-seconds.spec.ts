@@ -50,9 +50,9 @@ test.describe("לוח בקרה — ארבע שאלות ממסך אחד", () => {
     expect(elapsed).toBeLessThan(10_000);
   });
 
-  test("שישה כרטיסים, ולא אחד מהם הוא 'מודעות להגהה'", async ({ page }) => {
+  test("שבעה כרטיסים — כולל הזמנות לאישור — ולא אחד מהם הוא 'מודעות להגהה'", async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(page.getByTestId("dashboard-kpis").locator("> a")).toHaveCount(6);
+    await expect(page.getByTestId("dashboard-kpis").locator("> a")).toHaveCount(7);
     // The proofing state Stitch invented is not in the FR-4 enum, so a card
     // for it could only ever show a number no query can produce.
     await expect(page.getByTestId("dashboard-kpis")).not.toContainText("הגהה");

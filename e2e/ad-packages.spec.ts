@@ -10,6 +10,7 @@ import {
   login,
   loginAsAdmin,
   pickOrderNewspaper,
+  passOrderWarnings,
 } from "./helpers";
 
 /**
@@ -133,6 +134,8 @@ test.describe("quantity discounts", () => {
     await expect(page.getByTestId("order-total")).toContainText("3,600");
 
     await page.getByTestId("submit-order").click();
+
+    await passOrderWarnings(page);
     await expect(page.getByTestId("order-status")).toHaveText("ממתינה לאישור");
     // Submitted is not yet approved: the discount is not frozen onto the lines
     // until approval, so the screen must still price the order from the live
@@ -142,6 +145,8 @@ test.describe("quantity discounts", () => {
     await expect(page.getByTestId("order-discount")).toContainText("חבילת 4");
 
     await page.getByTestId("approve-order").click();
+
+    await passOrderWarnings(page);
     await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
 
     // The publications carry the NET price: a publication is a debt, and
@@ -173,7 +178,9 @@ test.describe("quantity discounts", () => {
     await addLine(page, "2027-05-18", "1000", 3);
     await addLine(page, "2027-05-25", "1000", 4);
     await page.getByTestId("submit-order").click();
+    await passOrderWarnings(page);
     await page.getByTestId("approve-order").click();
+    await passOrderWarnings(page);
     await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
 
     // Deleting it would leave the frozen percentage on the lines with nothing

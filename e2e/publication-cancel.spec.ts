@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { USERS, addOrderLine, login, loginAsAdmin, orderRef } from "./helpers";
+import { USERS, addOrderLine, login, loginAsAdmin, orderRef, passOrderWarnings } from "./helpers";
 
 /**
  * Cancelling ONE publication out of an order (stage 04 rule 18).
@@ -25,7 +25,10 @@ test("ביטול פרסום בודד לא נוגע בשאר ההזמנה", async
   }
 
   await page.getByTestId("submit-order").click();
+
+  await passOrderWarnings(page);
   await page.getByTestId("approve-order").click();
+  await passOrderWarnings(page);
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
 
   const ref = await orderRef(page);

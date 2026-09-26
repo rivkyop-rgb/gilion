@@ -11,7 +11,7 @@ import { roundMoney } from "@/lib/domain/order";
 import { discountedPrice, orderPricing } from "@/lib/domain/ad-package";
 import { packagesByNewspaper } from "./newspapers";
 
-export type OrderFilters = { status?: string; source?: string };
+export type OrderFilters = { status?: string; source?: string; customerId?: string };
 
 const ORDER_INCLUDE = {
   customer: { select: { id: true, business_name: true } },
@@ -46,6 +46,9 @@ export async function listOrders(businessId: string, filters: OrderFilters = {})
       ...(filters.source && filters.source !== "all"
         ? { source: filters.source as Prisma.EnumOrderSourceFilter }
         : {}),
+      ...(filters.customerId && filters.customerId !== "all"
+        ? { customer_id: filters.customerId }
+        : {}),
     },
     orderBy: { created_at: "desc" },
     include: ORDER_INCLUDE,
@@ -59,9 +62,10 @@ export async function pendingPortalRequests(businessId: string): Promise<number>
   });
 }
 
-export async function countOrdersByStatus(businessId: string) {
+export async function countOrdersByStatus(businessId: string, customerId = "all") {
   const rows = await tenantDb(businessId).adOrder.groupBy({
     by: ["status"],
+    ...(customerId !== "all" ? { where: { customer_id: customerId } } : {}),
     _count: { _all: true },
   });
   return Object.fromEntries(rows.map((r) => [r.status, r._count._all])) as Record<string, number>;
@@ -504,4 +508,28 @@ export async function orderMoney(
     total: roundMoney(total),
     earned: [...earned.values()],
   };
+}
+
+/**
+ * Whether office orders in this business wait for a separate approval
+ * (Business.internal_orders_need_approval). Portal requests always do.
+ */
+export async function internalOrdersNeedApproval(businessId: string): Promise<boolean> {
+  const row = await basePrisma.business.findUnique({
+    where: { id: businessId },
+    select: { internal_orders_need_approval: true },
+  });
+  return row?.internal_orders_need_approval ?? false;
+}
+
+export async function setInternalOrdersNeedApproval(businessId: string, value: boolean) {
+  return basePrisma.business.update({
+    where: { id: businessId },
+    data: { internal_orders_need_approval: value },
+  });
+}
+
+/** Orders waiting for someone to approve them — the dashboard card. */
+export async function countPendingOrders(businessId: string): Promise<number> {
+  return tenantDb(businessId).adOrder.count({ where: { status: "pending_approval" } });
 }

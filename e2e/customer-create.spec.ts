@@ -22,9 +22,7 @@ test.describe("creating a customer (US-002)", () => {
     await expect(page.getByTestId("customer-name")).toHaveText(name);
   });
 
-  test("saves ח.פ, contacts with roles and notes, and shows them on the card", async ({
-    page,
-  }) => {
+  test("saves ח.פ, contacts with roles and notes, and shows them on the card", async ({ page }) => {
     const name = `עסק ${Date.now()}`;
     await page.fill("#businessName", name);
     await page.fill("#taxId", "51-555555-5");

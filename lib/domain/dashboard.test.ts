@@ -4,6 +4,7 @@ import { access, type Area } from "@/lib/auth/rbac";
 import {
   attentionReason,
   cardsFor,
+  visibleCards,
   DASHBOARD_CARDS,
   MISSING_AD_STATES,
   OPEN_ISSUE_STATES,
@@ -14,8 +15,8 @@ const reader = (role: Parameters<typeof access>[0]) => (area: Area) =>
   access(role, area) !== "none";
 
 describe("the six areas of FR-20", () => {
-  it("has exactly six cards, and none of them is the invented proofing one", () => {
-    expect(DASHBOARD_CARDS).toHaveLength(6);
+  it("has the six FR-20 cards plus pending orders, and no invented proofing one", () => {
+    expect(DASHBOARD_CARDS).toHaveLength(7);
     expect(DASHBOARD_CARDS.map((c) => c.label)).not.toContain("מודעות להגהה");
   });
 
@@ -39,8 +40,29 @@ describe("the six areas of FR-20", () => {
 });
 
 describe("cardsFor — FR-8 decides what is even computed", () => {
-  it("gives an admin all six", () => {
-    expect(cardsFor(reader("admin"))).toHaveLength(6);
+  it("gives an admin all seven", () => {
+    expect(cardsFor(reader("admin"))).toHaveLength(7);
+  });
+
+  it("never gives a designer the orders card — no access to orders", () => {
+    expect(cardsFor(reader("designer")).map((c) => c.key)).not.toContain("pendingOrders");
+  });
+});
+
+describe("visibleCards — pending orders only where they mean something", () => {
+  const all = cardsFor(reader("admin"));
+  const has = (cards: { key: string }[]) => cards.some((c) => c.key === "pendingOrders");
+
+  it("shows it to a business that chose the approval step, even at zero", () => {
+    expect(has(visibleCards(all, { pendingOrders: 0 }, true))).toBe(true);
+  });
+
+  it("hides it at zero where office orders are approved directly", () => {
+    expect(has(visibleCards(all, { pendingOrders: 0 }, false))).toBe(false);
+  });
+
+  it("still shows it while a portal request waits — those always wait", () => {
+    expect(has(visibleCards(all, { pendingOrders: 2 }, false))).toBe(true);
   });
 
   it("never gives a designer the debt card", () => {

@@ -236,12 +236,8 @@ export async function removeOrderItemAction(orderId: string, itemId: string): Pr
   return { ok: true };
 }
 
-export async function submitOrderAction(orderId: string): Promise<FormState> {
-  const ctx = await requireOrderWrite();
-
-  const order = await data.getOrder(ctx.businessId, orderId);
-  if (!order) return { message: "ההזמנה לא נמצאה" };
-
+/** The checks a draft must pass to leave draft — by submission or by direct approval. */
+function submissionProblem(order: NonNullable<Awaited<ReturnType<typeof data.getOrder>>>) {
   const errors = validateForSubmission({
     customerId: order.customer_id,
     lines: order.items.map((i) => ({
@@ -252,7 +248,17 @@ export async function submitOrderAction(orderId: string): Promise<FormState> {
       price: Number(i.price),
     })),
   });
-  if (errors.length) return { message: errors[0]!.message };
+  return errors.length ? errors[0]!.message : null;
+}
+
+export async function submitOrderAction(orderId: string): Promise<FormState> {
+  const ctx = await requireOrderWrite();
+
+  const order = await data.getOrder(ctx.businessId, orderId);
+  if (!order) return { message: "ההזמנה לא נמצאה" };
+
+  const invalid = submissionProblem(order);
+  if (invalid) return { message: invalid };
 
   try {
     const next = transition(order.status as OrderStatus, "SUBMIT");
@@ -284,7 +290,22 @@ export async function approveOrderAction(orderId: string): Promise<FormState> {
 
   let next: OrderStatus;
   try {
-    next = transition(order.status as OrderStatus, "APPROVE");
+    const current = order.status as OrderStatus;
+    if (current === "draft") {
+      // Straight from the draft only where the business chose it
+      // (Business.internal_orders_need_approval), and never for a portal
+      // request — nobody in the office has looked at one of those yet.
+      if (order.source !== "internal" || (await data.internalOrdersNeedApproval(ctx.businessId))) {
+        return { message: 'בעסק הזה הזמנה נשלחת לאישור קודם — לחצי "שליחה לאישור"' };
+      }
+      const invalid = submissionProblem(order);
+      if (invalid) return { message: invalid };
+      // Both edges of the machine, so the direct path is not a back door
+      // around it: a draft that could not be submitted cannot be approved.
+      next = transition(transition(current, "SUBMIT"), "APPROVE");
+    } else {
+      next = transition(current, "APPROVE");
+    }
   } catch (e) {
     if (e instanceof InvalidTransitionError) return { message: e.message };
     throw e;

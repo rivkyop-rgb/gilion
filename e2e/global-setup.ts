@@ -358,6 +358,11 @@ async function deleteTestOrders(prisma: PrismaClient) {
   // the demo opens on ORD-0236 rather than ORD-0001. Safe here and only here —
   // every order was just deleted, so nothing can collide with a fresh 1.
   await prisma.business.updateMany({ data: { last_order_number: 0 } });
+  // The suites were written against draft → pending_approval → approved, and
+  // that is what they keep exercising. The business setting defaults to
+  // direct approval (25/09/2026); order-direct-approval.spec.ts turns it off
+  // for itself and puts it back.
+  await prisma.business.updateMany({ data: { internal_orders_need_approval: true } });
   // Stage 09 (backlog 21): a spec that edits the portal address must not
   // leave the next run's /p/merkaz pointing nowhere.
   await prisma.business.update({ where: { id: "biz_alpha" }, data: { slug: "merkaz" } });

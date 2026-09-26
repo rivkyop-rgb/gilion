@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { USERS, login, loginAsAdmin, orderRef } from "./helpers";
+import { USERS, login, loginAsAdmin, orderRef, passOrderWarnings } from "./helpers";
 import { validPdf } from "./ad-fixtures";
 import { uploadFile } from "./ad-helpers";
 
@@ -100,7 +100,10 @@ async function approvedOrderOn(
   const days = await addPrintableLine(page, minDays);
 
   await page.getByTestId("submit-order").click();
+
+  await passOrderWarnings(page);
   await page.getByTestId("approve-order").click();
+  await passOrderWarnings(page);
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
   return { ref: await orderRef(page), days };
 }

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 
 import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
+import { getCustomer } from "@/lib/data/customers";
 import { countOrdersByStatus, listOrders, pendingPortalRequests } from "@/lib/data/orders";
 import { Send } from "lucide-react";
 import { ORDER_STATUS_LABELS, ORDER_STATUSES, type OrderStatus } from "@/lib/domain/order-status";
@@ -20,39 +21,62 @@ export const metadata: Metadata = { title: "הזמנות · Gilion" };
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; source?: string }>;
+  searchParams: Promise<{ status?: string; source?: string; customer?: string }>;
 }) {
   const ctx = await getTenantContext();
   requireArea(ctx, "orders");
 
-  const { status = "all", source = "all" } = await searchParams;
+  const { status = "all", source = "all", customer = "all" } = await searchParams;
   const mayEdit = canWriteArea(ctx, "orders");
 
-  const [orders, counts, pendingFromPortal] = await Promise.all([
-    listOrders(ctx.businessId, { status, source }),
-    countOrdersByStatus(ctx.businessId),
+  const [orders, counts, pendingFromPortal, customerRow] = await Promise.all([
+    listOrders(ctx.businessId, { status, source, customerId: customer }),
+    // The chips count what they would show — the same customer, if one is set.
+    countOrdersByStatus(ctx.businessId, customer),
     pendingPortalRequests(ctx.businessId),
+    customer !== "all" ? getCustomer(ctx.businessId, customer) : Promise.resolve(null),
   ]);
+  // Arrived from a customer's card: every link on the page keeps that customer.
+  const customerId = customerRow ? customer : null;
+  const withCustomer = (href: string) =>
+    customerId ? `${href}${href.includes("?") ? "&" : "?"}customer=${customerId}` : href;
   const portalOnly = source === "customer_portal";
 
   return (
     <>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">הזמנות</h1>
+          <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">
+            {customerRow ? `הזמנות · ${customerRow.business_name}` : "הזמנות"}
+          </h1>
           <p className="text-sm text-on-surface-variant">
             הזמנה בטיוטה אינה יוצרת פרסומים מחייבים. הפרסומים נוצרים רק באישור.
           </p>
         </div>
         {mayEdit ? (
           <Button asChild>
-            <Link href="/orders/new" data-testid="new-order">
+            <Link href={withCustomer("/orders/new")} data-testid="new-order">
               <Plus className="size-4" />
               הזמנה חדשה
             </Link>
           </Button>
         ) : null}
       </div>
+
+      {customerRow ? (
+        <p
+          data-testid="orders-customer-banner"
+          className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-status-info-bg px-4 py-3 text-sm text-status-info-fg"
+        >
+          מוצגות רק ההזמנות של {customerRow.business_name}.
+          <Link href={`/customers/${customerRow.id}`} className="underline">
+            לכרטיס הלקוח
+          </Link>
+          <Link href="/orders" className="underline">
+            הצגת כל ההזמנות
+          </Link>
+        </p>
+      ) : null}
 
       {/* Backlog 27: what customers sent, found without reading every row. */}
       <div className="mb-3">
@@ -80,7 +104,7 @@ export default async function OrdersPage({
 
       {/* The chip row doubles as the colour legend for the table below it. */}
       <div className="mb-4 flex flex-wrap gap-2" data-testid="status-filters">
-        <Link href="/orders" aria-current={status === "all" ? "page" : undefined}>
+        <Link href={withCustomer("/orders")} aria-current={status === "all" ? "page" : undefined}>
           <span
             className={cn(
               "inline-flex h-8 items-center gap-2 rounded-full px-3 text-sm font-medium transition-colors",
@@ -95,7 +119,7 @@ export default async function OrdersPage({
         {ORDER_STATUSES.map((s) => (
           <Link
             key={s}
-            href={`/orders?status=${s}`}
+            href={withCustomer(`/orders?status=${s}`)}
             data-testid={`status-filter-${s}`}
             aria-current={status === s ? "page" : undefined}
           >
