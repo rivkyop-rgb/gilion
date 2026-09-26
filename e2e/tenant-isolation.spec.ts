@@ -101,7 +101,7 @@ const CROSS_TENANT = [
   { what: "הזמנה", url: `/orders/${ISSUE_FIXTURES.order}`, open: "order-ref" },
   { what: "מודעה", url: `/advertisements/${ISSUE_FIXTURES.adOk}`, open: "ad-publications" },
   { what: "לוח שיבוץ", url: `/issues/${ISSUE_FIXTURES.issue}/board`, open: "board-status" },
-  { what: "בדיקת גיליון", url: `/issues/${ISSUE_FIXTURES.issue}/validate`, open: "check-message" },
+  { what: "בדיקת גיליון", url: `/issues/${ISSUE_FIXTURES.issue}/validate`, open: "kpi-planned" },
 ] as const;
 
 test.describe("every entity with an id in its URL is scoped (FR-1)", () => {
