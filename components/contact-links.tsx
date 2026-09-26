@@ -1,6 +1,10 @@
+"use client";
+
 import { Mail, MessageCircle, Phone } from "lucide-react";
 import { Ltr } from "@/components/ui/ltr";
 import { cn } from "@/lib/utils";
+import { emailHref } from "@/lib/domain/mail-link";
+import { useMailClient } from "./mail-client";
 
 /**
  * wa.me wants the international form without "+" or the trunk zero:
@@ -12,16 +16,6 @@ export function whatsappHref(phone: string, message?: string): string {
   const base = `https://wa.me/${digits.startsWith("0") ? `972${digits.slice(1)}` : digits}`;
   // wa.me opens the chat with this text already typed; sending stays a person's act.
   return message ? `${base}?text=${encodeURIComponent(message)}` : base;
-}
-
-/** mailto with the subject and body already written. */
-export function mailtoHref(email: string, subject?: string, body?: string): string {
-  const q = new URLSearchParams();
-  if (subject) q.set("subject", subject);
-  if (body) q.set("body", body);
-  // URLSearchParams writes spaces as "+", which mail programs show literally.
-  const query = q.toString().replace(/\+/g, "%20");
-  return query ? `mailto:${email}?${query}` : `mailto:${email}`;
 }
 
 /**
@@ -65,7 +59,11 @@ export function PhoneLink({
   );
 }
 
-/** An address that opens the mail program on a new message to it. */
+/**
+ * An address that opens a new message to it — in Gmail or in the computer's
+ * mail program, as the business chose in the admin panel (Business.mail_client).
+ * Gmail opens in a new tab, so the screen the person was working on stays.
+ */
 export function EmailLink({
   email,
   className,
@@ -78,9 +76,11 @@ export function EmailLink({
   subject?: string;
   body?: string;
 }) {
+  const client = useMailClient();
   return (
     <a
-      href={mailtoHref(email, subject, body)}
+      href={emailHref(client, email, subject, body)}
+      {...(client === "gmail" ? { target: "_blank", rel: "noopener noreferrer" } : {})}
       className={cn("inline-flex items-center gap-1 underline-offset-2 hover:underline", className)}
       title="שליחת מייל"
     >

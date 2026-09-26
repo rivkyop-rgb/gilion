@@ -11,6 +11,7 @@ import type { Prisma } from "@prisma/client";
 
 import { basePrisma, tenantDb } from "./db";
 import type { ColorOverrides } from "@/lib/domain/theme-tokens";
+import type { MailClient } from "@/lib/domain/mail-link";
 import { type BrandSlot, type TextOverrides } from "@/lib/domain/business-settings";
 
 /** What every consumer receives, whether or not a row exists. */
@@ -246,4 +247,20 @@ export async function loginBrandKeys(): Promise<string[]> {
   });
   if (businesses.length !== 1) return [];
   return brandKeysFor(businesses[0]!.id);
+}
+
+/** Where email links open (Business.mail_client). */
+export async function mailClient(businessId: string): Promise<MailClient> {
+  const row = await basePrisma.business.findUnique({
+    where: { id: businessId },
+    select: { mail_client: true },
+  });
+  return (row?.mail_client as MailClient | undefined) ?? "gmail";
+}
+
+export async function setMailClient(businessId: string, value: MailClient) {
+  return basePrisma.business.update({
+    where: { id: businessId },
+    data: { mail_client: value },
+  });
 }

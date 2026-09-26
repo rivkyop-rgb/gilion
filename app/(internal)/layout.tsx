@@ -1,10 +1,11 @@
 import { Breadcrumbs } from "@/components/shell/breadcrumbs";
+import { MailClientProvider } from "@/components/mail-client";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth/config";
 import { activeMembershipsFor, allBusinessesForSuperAdmin } from "@/lib/auth/memberships";
 import { loadOverrides } from "@/lib/data/permissions";
-import { loadSettings } from "@/lib/data/business-settings";
+import { loadSettings, mailClient } from "@/lib/data/business-settings";
 import { cssVariables } from "@/lib/domain/theme-tokens";
 import { brandSrc } from "@/components/brand/brand-mark";
 import { SidebarRail } from "@/components/shell/sidebar";
@@ -57,7 +58,10 @@ export default async function InternalLayout({ children }: { children: React.Rea
   // `var(--gilion-<name>, <default>)`, so setting the overridden ones on this
   // element repaints the system and setting none falls through to the
   // stylesheet — no rebuild, no deploy, and no conditional anywhere.
-  const settings = await loadSettings(current.businessId);
+  const [settings, mail] = await Promise.all([
+    loadSettings(current.businessId),
+    mailClient(current.businessId),
+  ]);
 
   return (
     <div className="flex min-h-screen bg-surface" style={cssVariables(settings.colors)}>
@@ -84,7 +88,7 @@ export default async function InternalLayout({ children }: { children: React.Rea
         <main className="flex-1 p-4 lg:p-8">
           <div className="mx-auto max-w-[1440px]">
             <Breadcrumbs />
-            {children}
+            <MailClientProvider value={mail}>{children}</MailClientProvider>
           </div>
         </main>
       </div>

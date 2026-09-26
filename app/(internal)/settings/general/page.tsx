@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
-import { businessName, loadSettings } from "@/lib/data/business-settings";
+import { businessName, loadSettings, mailClient } from "@/lib/data/business-settings";
 import { businessSlug } from "@/lib/data/portal-link";
 import { portalUrl } from "@/lib/portal-origin";
 import { GeneralForm } from "./general-form";
 import { PortalLinkPanel } from "./portal-link-panel";
+import { MailClientForm } from "./mail-client-form";
 
 export const metadata: Metadata = { title: "כללי · Gilion" };
 
@@ -20,10 +21,11 @@ export default async function GeneralSettingsPage() {
   const ctx = await getTenantContext();
   requireArea(ctx, "settings", "write");
 
-  const [settings, name, slug] = await Promise.all([
+  const [settings, name, slug, mail] = await Promise.all([
     loadSettings(ctx.businessId),
     businessName(ctx.businessId),
     businessSlug(ctx.businessId),
+    mailClient(ctx.businessId),
   ]);
   const url = await portalUrl(slug);
 
@@ -35,6 +37,8 @@ export default async function GeneralSettingsPage() {
       </p>
 
       <PortalLinkPanel url={url} slug={slug} />
+
+      <MailClientForm current={mail} />
 
       <GeneralForm settings={settings} />
     </>

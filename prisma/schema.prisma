@@ -143,6 +143,11 @@ model Business {
   /// looked at them yet, which is the whole point of the approval step.
   internal_orders_need_approval Boolean @default(false)
 
+  /// Where an email link opens (admin panel, 27/09/2026): `gmail` — a new
+  /// Gmail compose tab with recipient, subject and body — or `mailto`, the
+  /// mail program installed on the computer.
+  mail_client MailClient @default(gmail)
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
@@ -368,6 +373,11 @@ enum PaymentStatus {
 /// stage 08 derives whether a publication is paid for from the payment rows on
 /// its order and forbids any screen from setting that by hand. See
 /// lib/domain/publication-status.ts for the full reasoning.
+enum MailClient {
+  gmail
+  mailto
+}
+
 enum PublicationStatus {
   /// Sold, and no artwork file yet. From creation — see the 20260926 migration.
   missing_ad
