@@ -5,12 +5,16 @@ import { BellRing, CheckCircle2, Info } from "lucide-react";
 import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { listReminders, refreshReminders, reminderWindow } from "@/lib/data/reminders";
 import {
+  daysLabel,
   daysUntil,
   fillReminder,
   reminderRecipients,
+  weekdayLabel,
   type ReminderStatus,
 } from "@/lib/domain/reminders";
-import { formatDate } from "../orders/format";
+import { formatDate, orderNumber } from "../orders/format";
+import { businessSlug } from "@/lib/data/portal-link";
+import { portalUrl } from "@/lib/portal-origin";
 import { EmptyState } from "@/components/states";
 import { cn } from "@/lib/utils";
 import { businessName, loadSettings } from "@/lib/data/business-settings";
@@ -40,6 +44,7 @@ export default async function RemindersPage({
     loadSettings(ctx.businessId),
     businessName(ctx.businessId),
   ]);
+  const portal = await portalUrl(await businessSlug(ctx.businessId));
   const template = textFor("reminder_template", settings.texts);
 
   const today = new Date();
@@ -49,15 +54,28 @@ export default async function RemindersPage({
     sentAt: r.sent_at,
     customerName: r.customer.business_name,
     customerId: r.customer.id,
-    recipients: reminderRecipients(r.customer),
-    // The panel's wording, filled for THIS reminder — what WhatsApp and the
-    // mail program open with.
-    message: fillReminder(template, {
-      customer: r.customer.business_name,
-      newspaper: r.publication.newspaper.name,
-      date: formatDate(r.publication.publication_date),
-      business,
-    }),
+    // The panel's wording, filled for THIS reminder and for each person it
+    // goes to — {איש קשר} differs between them.
+    recipients: reminderRecipients(r.customer).map((to) => ({
+      ...to,
+      message: fillReminder(template, {
+        לקוח: r.customer.business_name,
+        "איש קשר": to.isMain
+          ? (r.customer.contacts[0]?.name ?? r.customer.business_name)
+          : to.label.split(" · ")[0]!,
+        עיתון: r.publication.newspaper.name,
+        תאריך: formatDate(r.publication.publication_date),
+        יום: weekdayLabel(r.publication.publication_date),
+        "ימים שנותרו": daysLabel(daysUntil(r.publication.publication_date, today)),
+        גודל: r.publication.ad_shape.name,
+        "סוג עמוד": r.publication.order_item?.page_type.name ?? "",
+        "מספר הזמנה": orderNumber(r.publication.order.number),
+        עסק: business,
+        "טלפון העסק": settings.contactPhone ?? "",
+        "מייל העסק": settings.contactEmail ?? "",
+        "קישור לפורטל": portal,
+      }),
+    })),
     subject: `תזכורת: קובץ מודעה ל${r.publication.newspaper.name}`,
     publicationId: r.publication.id,
     orderId: r.publication.order_id,

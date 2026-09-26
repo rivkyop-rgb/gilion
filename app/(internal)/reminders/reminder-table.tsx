@@ -31,10 +31,9 @@ export type ReminderRow = {
   sentAt: Date | null;
   customerName: string;
   customerId: string;
-  /** Everyone ticked on the customer's card — or the business itself. */
-  recipients: ReminderRecipient[];
-  /** The panel's wording, filled for this reminder. */
-  message: string;
+  /** Everyone ticked on the customer's card — or the business itself —
+      each with the panel's wording filled for them. */
+  recipients: Array<ReminderRecipient & { message: string }>;
   subject: string;
   publicationId: string;
   orderId: string;
@@ -237,7 +236,7 @@ export function ReminderTable({ rows, mayAct }: { rows: ReminderRow[]; mayAct: b
                             {to.phone ? (
                               <PhoneLink
                                 phone={to.phone}
-                                message={r.message}
+                                message={to.message}
                                 className="font-mono"
                               />
                             ) : null}
@@ -245,7 +244,7 @@ export function ReminderTable({ rows, mayAct }: { rows: ReminderRow[]; mayAct: b
                               <EmailLink
                                 email={to.email}
                                 subject={r.subject}
-                                body={r.message}
+                                body={to.message}
                                 className="font-mono"
                               />
                             ) : null}

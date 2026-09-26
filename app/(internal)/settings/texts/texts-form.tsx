@@ -3,14 +3,18 @@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { PanelForm, ResetFieldButton } from "@/components/settings/panel-form";
-import { TEXT_FIELDS, type TextOverrides } from "@/lib/domain/business-settings";
+import {
+  TEXT_FIELDS,
+  TEXTS_WITH_OWN_SCREEN,
+  type TextOverrides,
+} from "@/lib/domain/business-settings";
 import { updateTextsAction } from "../business-settings-actions";
 
 export function TextsForm({ texts }: { texts: TextOverrides }) {
   return (
     <PanelForm action={updateTextsAction} group="texts" resetLabel="איפוס כל הטקסטים">
       <div className="space-y-4">
-        {TEXT_FIELDS.map((field) => {
+        {TEXT_FIELDS.filter((f) => !TEXTS_WITH_OWN_SCREEN.includes(f.key)).map((field) => {
           const value = texts[field.key] ?? "";
           return (
             <div

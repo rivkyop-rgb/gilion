@@ -150,6 +150,9 @@ export async function listReminders(businessId: string, status = "open") {
           newspaper: { select: { name: true } },
           ad_shape: { select: { name: true } },
           order_id: true,
+          // For the wording's {מספר הזמנה} and {סוג עמוד} fields.
+          order: { select: { number: true } },
+          order_item: { select: { page_type: { select: { name: true } } } },
         },
       },
     },

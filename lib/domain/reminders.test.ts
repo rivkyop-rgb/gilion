@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   fillReminder,
+  REMINDER_SAMPLE,
   reminderRecipients,
+  unknownFields,
+  weekdayLabel,
   daysLabel,
   daysUntil,
   dueReminders,
@@ -202,17 +205,30 @@ describe("fillReminder", () => {
   it("fills every field, every time it appears", () => {
     expect(
       fillReminder("{לקוח}, ב{עיתון} ב־{תאריך}. {עסק} · {לקוח}", {
-        customer: "מרכז הרפואה",
-        newspaper: "עיתון השבוע",
-        date: "29.9.2026",
-        business: "הוצאת המרכז",
+        לקוח: "מרכז הרפואה",
+        עיתון: "עיתון השבוע",
+        תאריך: "29.9.2026",
+        עסק: "הוצאת המרכז",
       }),
     ).toBe("מרכז הרפואה, בעיתון השבוע ב־29.9.2026. הוצאת המרכז · מרכז הרפואה");
   });
 
+  it("fields with a space in their name, and spaces inside the braces", () => {
+    expect(
+      fillReminder("{ מספר הזמנה } / {איש קשר}", { "מספר הזמנה": "ORD-1", "איש קשר": "רון" }),
+    ).toBe("ORD-1 / רון");
+  });
+
+  it("leaves a typo in braces as written, and names it", () => {
+    expect(fillReminder("שלום {לקחו}", { לקוח: "x" })).toBe("שלום {לקחו}");
+    expect(unknownFields("שלום {לקחו} {לקוח} {לקחו}")).toEqual(["לקחו"]);
+  });
+
   it("leaves a fixed sentence alone", () => {
-    expect(fillReminder("שלום", { customer: "a", newspaper: "b", date: "c", business: "d" })).toBe(
-      "שלום",
-    );
+    expect(fillReminder("שלום", REMINDER_SAMPLE)).toBe("שלום");
+  });
+
+  it("names the weekday of a DATE column", () => {
+    expect(weekdayLabel(new Date("2026-09-29T00:00:00Z"))).toBe("יום שלישי");
   });
 });

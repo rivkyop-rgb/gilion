@@ -199,13 +199,20 @@ export async function updateTextsAction(
 ): Promise<PanelState> {
   const ctx = await requireAdmin();
 
+  // Only what this form actually carries. A text edited on its own screen
+  // (TEXTS_WITH_OWN_SCREEN) is not on this form, and reading its absence as
+  // "empty" would erase it on every save here.
   const submitted: Record<string, string> = {};
-  for (const field of TEXT_FIELDS) submitted[field.key] = String(formData.get(field.key) ?? "");
+  for (const field of TEXT_FIELDS) {
+    if (formData.has(field.key)) submitted[field.key] = String(formData.get(field.key) ?? "");
+  }
 
-  const read = readSubmittedTexts(submitted);
-  if ("error" in read) return { message: read.error };
+  const parsed = readSubmittedTexts(submitted);
+  if ("error" in parsed) return { message: parsed.error };
 
   const before = await data.loadSettings(ctx.businessId);
+  const kept = Object.fromEntries(Object.entries(before.texts).filter(([k]) => !(k in submitted)));
+  const read = { overrides: { ...kept, ...parsed.overrides } };
 
   await withAudit(
     { businessId: ctx.businessId, userId: ctx.userId },

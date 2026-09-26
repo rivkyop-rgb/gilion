@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InlineError } from "@/components/states";
 import { MAX_REMINDER_DAYS, MIN_REMINDER_DAYS } from "@/lib/domain/reminders";
+import { counted } from "@/lib/domain/hebrew-count";
 import { setReminderWindowAction } from "../../reminders/actions";
 
 /**
@@ -57,7 +58,8 @@ export function ReminderWindowForm({ current, affected }: { current: number; aff
       </div>
 
       <p className="mt-3 text-sm text-on-surface-variant" data-testid="reminder-preview">
-        בערך הנוכחי ({current} ימים) יש <strong>{affected}</strong> פרסומים שנכנסים לרשימה.
+        בערך הנוכחי ({current} ימים){" "}
+        <strong>{counted(affected, "פרסום אחד נכנס", "פרסומים נכנסים")}</strong> לרשימה.
       </p>
 
       {error ? (

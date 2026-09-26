@@ -179,22 +179,61 @@ export function reminderRecipients(customer: RecipientSource): ReminderRecipient
   return ticked.length > 0 ? ticked : [main];
 }
 
-/** The fields a reminder wording may use, as the admin panel names them. */
-export const REMINDER_PLACEHOLDERS = ["{לקוח}", "{עיתון}", "{תאריך}", "{עסק}"] as const;
+/**
+ * Every field a reminder wording may use, in the order the editor offers them.
+ * `sample` is what the live preview in the panel shows for it.
+ */
+export const REMINDER_FIELDS = [
+  { key: "לקוח", label: "שם הלקוח", sample: "מרכז הרפואה" },
+  { key: "איש קשר", label: "שם מקבל התזכורת", sample: "יעל אבידן" },
+  { key: "עיתון", label: "שם העיתון", sample: "עיתון השבוע" },
+  { key: "תאריך", label: "תאריך הפרסום", sample: "29.9.2026" },
+  { key: "יום", label: "יום בשבוע", sample: "יום שלישי" },
+  { key: "ימים שנותרו", label: "כמה ימים נשארו", sample: "בעוד 3 ימים" },
+  { key: "גודל", label: "גודל המודעה", sample: "רבע עמוד" },
+  { key: "סוג עמוד", label: "סוג העמוד", sample: "פנימי" },
+  { key: "מספר הזמנה", label: "מספר ההזמנה", sample: "ORD-0012" },
+  { key: "עסק", label: "שם העסק שלנו", sample: "הוצאת המרכז" },
+  { key: "טלפון העסק", label: "הטלפון שלנו", sample: "03-5551234" },
+  { key: "מייל העסק", label: "המייל שלנו", sample: "office@merkaz.co.il" },
+  { key: "קישור לפורטל", label: "קישור להעלאת קובץ בפורטל", sample: "https://…/p/merkaz" },
+] as const;
+
+export type ReminderFieldKey = (typeof REMINDER_FIELDS)[number]["key"];
+export type ReminderValues = Record<ReminderFieldKey, string>;
+
+const FIELD_KEYS = new Set<string>(REMINDER_FIELDS.map((f) => f.key));
+const PLACEHOLDER = /\{([^{}]+)\}/g;
+
+/** Sample values for the editor's live preview. */
+export const REMINDER_SAMPLE = Object.fromEntries(
+  REMINDER_FIELDS.map((f) => [f.key, f.sample]),
+) as ReminderValues;
 
 /**
- * The panel's wording with this reminder's details put in.
+ * The wording with this reminder's details put in.
  *
- * Every occurrence is replaced, and a wording without placeholders comes back
- * unchanged — a business that wrote its own fixed sentence keeps it.
+ * Every known {field} is replaced wherever it appears; anything else in braces
+ * is left exactly as written, so a typo shows up in the message instead of
+ * silently vanishing — and `unknownFields` names it in the editor first.
  */
-export function fillReminder(
-  template: string,
-  values: { customer: string; newspaper: string; date: string; business: string },
-): string {
-  return template
-    .replaceAll("{לקוח}", values.customer)
-    .replaceAll("{עיתון}", values.newspaper)
-    .replaceAll("{תאריך}", values.date)
-    .replaceAll("{עסק}", values.business);
+export function fillReminder(template: string, values: Partial<ReminderValues>): string {
+  return template.replace(PLACEHOLDER, (whole, key: string) => {
+    const k = key.trim();
+    return FIELD_KEYS.has(k) && values[k as ReminderFieldKey] !== undefined
+      ? values[k as ReminderFieldKey]!
+      : whole;
+  });
+}
+
+/** {…} in the wording that is not a field — a typo, usually. */
+export function unknownFields(template: string): string[] {
+  const found = [...template.matchAll(PLACEHOLDER)].map((m) => m[1]!.trim());
+  return [...new Set(found.filter((k) => !FIELD_KEYS.has(k)))];
+}
+
+/** The Hebrew weekday of a DATE column (UTC midnight — see daysUntil). */
+export function weekdayLabel(date: Date): string {
+  const days = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+  return `יום ${days[date.getUTCDay()]}`;
 }

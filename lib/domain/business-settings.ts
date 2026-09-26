@@ -70,14 +70,20 @@ export const TEXT_FIELDS: readonly TextField[] = [
     // the mail program already written.
     default:
       "שלום {לקוח},\nרצינו להזכיר שהמודעה שלך אמורה לצאת בעזרת השם ב{עיתון} ביום {תאריך}.\nנשמח לקבל את קובץ המודעה בהקדם, כדי שנספיק להכין אותה לדפוס.\nתודה רבה,\n{עסק}",
-    where:
-      "מסך התזכורות — נפתח בוואטסאפ ובמייל. אפשר להשתמש ב־{לקוח}, {עיתון}, {תאריך}, {עסק} והם יתמלאו לבד.",
+    where: "מסך התזכורות — נפתח בוואטסאפ ובמייל. נערך בהגדרות ← תזכורות, עם שדות שמתמלאים לבד.",
     multiline: true,
-    maxLength: 400,
+    maxLength: 1000,
   },
 ] as const;
 
 export const TEXT_KEYS: readonly TextKey[] = TEXT_FIELDS.map((f) => f.key);
+
+/**
+ * Texts edited on a screen of their own rather than on "טקסטים": the reminder
+ * wording lives in Settings ← Reminders beside its fields and preview
+ * (27/09/2026). One place to edit each text — two would disagree.
+ */
+export const TEXTS_WITH_OWN_SCREEN: readonly TextKey[] = ["reminder_template"];
 
 export function textFieldByKey(key: string): TextField | undefined {
   return TEXT_FIELDS.find((f) => f.key === key);

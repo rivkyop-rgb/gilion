@@ -45,7 +45,7 @@ const SECTIONS = [
     href: "/settings/reminders",
     icon: BellRing,
     title: "תזכורות",
-    body: "כמה ימים לפני הפרסום להתחיל להזכיר ללקוח שחסרה מודעה.",
+    body: "כמה ימים לפני הפרסום להתחיל להזכיר, ונוסח התזכורת שנפתח בוואטסאפ ובמייל.",
   },
   {
     href: "/settings/ad-shapes",
