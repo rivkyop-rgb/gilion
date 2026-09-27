@@ -1,7 +1,6 @@
 /**
  * Publication reads and cancellation (FR-4, FR-5, US-001).
  */
-import { jerusalemDay } from "@/lib/domain/calendar";
 import { Prisma } from "@prisma/client";
 import { basePrisma, tenantDb } from "./db";
 import { MISSING_AD_STATES, READY_TO_PLACE_STATES } from "@/lib/domain/dashboard";
@@ -23,11 +22,8 @@ export type PublicationFilters = {
   /** The publication's derived payment status (lib/domain/payment-status.ts). */
   payment?: string;
   source?: string;
-  /**
-   * "past" — already ran: dated before today, not cancelled (who published).
-   * "upcoming" — today or later, not cancelled (who is due to publish).
-   */
-  when?: string;
+  /** Free text over the filtered list: customer, order number, size, newspaper. */
+  q?: string;
 };
 
 /** How many rows a list screen shows before it says it stopped. */
@@ -62,18 +58,22 @@ const PUBLICATION_INCLUDE = {
 };
 
 /**
- * "Who published" and "who is due to publish" — by the calendar, in
- * Jerusalem (lib/domain/calendar.ts), and never counting a cancellation.
- * AND-ed with the explicit from/to when both are set; they are different
- * questions and both can be asked.
+ * Search inside whatever the other filters left. An order is written on screen
+ * as ORD-0012, so "ORD-12", "0012" and "12" all find it — the digits are what
+ * is compared, against the order's real sequence number.
  */
-function whenWhere(when?: string): Prisma.PublicationWhereInput {
-  if (when !== "past" && when !== "upcoming") return {};
-  const today = jerusalemDay(new Date());
+function searchWhere(q?: string): Prisma.PublicationWhereInput {
+  const text = q?.trim();
+  if (!text) return {};
+  const digits = text.replace(/\D/g, "");
+  const number = digits ? Number(digits) : NaN;
   return {
-    AND: [
-      { status: { not: "canceled" } },
-      { publication_date: when === "past" ? { lt: today } : { gte: today } },
+    OR: [
+      { customer: { business_name: { contains: text, mode: "insensitive" } } },
+      { customer: { contacts: { some: { name: { contains: text, mode: "insensitive" } } } } },
+      { ad_shape: { name: { contains: text, mode: "insensitive" } } },
+      { newspaper: { name: { contains: text, mode: "insensitive" } } },
+      ...(Number.isSafeInteger(number) ? [{ order: { number } }] : []),
     ],
   };
 }
@@ -106,7 +106,7 @@ function whereFor(filters: PublicationFilters): Prisma.PublicationWhereInput {
     ...(filters.source && filters.source !== "all"
       ? { source: filters.source as Prisma.EnumOrderSourceFilter }
       : {}),
-    ...whenWhere(filters.when),
+    ...searchWhere(filters.q),
   };
 }
 
@@ -176,3 +176,25 @@ export async function publicationCountsForCustomer(businessId: string, customerI
 }
 
 export { basePrisma };
+
+/**
+ * Every date each newspaper has (or will have) publications on, with how many
+ * — the date picker on the publications list. Cancellations are not a date the
+ * paper printed anyone on, so they do not make one appear.
+ */
+export async function publicationDatesByNewspaper(businessId: string) {
+  const rows = await tenantDb(businessId).publication.groupBy({
+    by: ["newspaper_id", "publication_date"],
+    where: { status: { not: "canceled" } },
+    _count: { _all: true },
+    orderBy: { publication_date: "asc" },
+  });
+  const map: Record<string, Array<{ date: string; count: number }>> = {};
+  for (const r of rows) {
+    (map[r.newspaper_id] ??= []).push({
+      date: r.publication_date.toISOString().slice(0, 10),
+      count: r._count._all,
+    });
+  }
+  return map;
+}

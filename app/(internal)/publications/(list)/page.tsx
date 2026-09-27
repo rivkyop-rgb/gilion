@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { canReadArea, canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
-import { listPublicationsPage } from "@/lib/data/publications";
+import { listPublicationsPage, publicationDatesByNewspaper } from "@/lib/data/publications";
 import { placeableAds } from "@/lib/data/advertisements";
 import type { AdPreviewModel } from "@/components/ads/ad-preview";
 import type { AdFileType } from "@/lib/domain/ad-file";
@@ -12,7 +12,8 @@ import { shapeOptions } from "@/lib/data/newspapers";
 import { counted } from "@/lib/domain/hebrew-count";
 import { DetailGrid, ExpandableRow } from "@/components/ui/expandable-row";
 import { FilterBuilder } from "@/components/ui/filter-builder";
-import { isoDay, weekRange } from "@/lib/domain/calendar";
+import { IssueDateBar } from "@/components/issue-date-bar";
+import { isoDay, jerusalemDay, weekRange } from "@/lib/domain/calendar";
 import { issuesForPublications } from "@/lib/data/issues";
 import {
   NEEDS_ATTENTION,
@@ -60,8 +61,8 @@ export default async function PublicationsPage({
     shape?: string;
     payment?: string;
     source?: string;
-    /** "past" | "upcoming" — who published / who is due to (lib/data/publications.ts). */
-    when?: string;
+    /** Search inside the filtered list (lib/data/publications.ts). */
+    q?: string;
   }>;
 }) {
   const ctx = await getTenantContext();
@@ -77,8 +78,10 @@ export default async function PublicationsPage({
     shape = "all",
     payment = "all",
     source = "all",
-    when = "all",
+    q = "",
   } = await searchParams;
+  // Named apart: `q` is also every URLSearchParams below.
+  const search = q;
 
   // FR-8: a designer places ads but never sees money.
   const maySeeMoney = ctx.role !== "designer";
@@ -96,7 +99,7 @@ export default async function PublicationsPage({
     if (shape !== "all") q.set("shape", shape);
     if (payment !== "all") q.set("payment", payment);
     if (source !== "all") q.set("source", source);
-    if (when !== "all") q.set("when", when);
+    if (search) q.set("q", search);
     const query = q.toString();
     return query ? `/publications?${query}` : "/publications";
   };
@@ -104,13 +107,6 @@ export default async function PublicationsPage({
   // שובצו" can only ever be empty. The drill-down has no chip of its own —
   // "חסרי מודעה" beside the status "חסרה מודעה" read as the same status twice;
   // the title and the banner say what is shown.
-  /** The same list, with only "when" changed. */
-  const hrefWithWhen = (next: string) => {
-    const url = new URL(hrefWith({}), "http://x");
-    if (next === "all") url.searchParams.delete("when");
-    else url.searchParams.set("when", next);
-    return `${url.pathname}${url.search}`;
-  };
   const hrefFor = (next: string) => hrefWith({ status: next, attention: "all" });
 
   // FR-8 again: accounting reads publications but has no access to artwork,
@@ -121,7 +117,7 @@ export default async function PublicationsPage({
   const mayCancel = canWriteArea(ctx, "orders");
   const mayOpenIssues = canWriteArea(ctx, "issues");
 
-  const [page, papers, ads, customerRow, shapes, customers] = await Promise.all([
+  const [page, papers, ads, customerRow, shapes, customers, datesByNewspaper] = await Promise.all([
     listPublicationsPage(ctx.businessId, {
       newspaperId: newspaper,
       status,
@@ -132,13 +128,14 @@ export default async function PublicationsPage({
       shapeId: shape,
       payment: maySeeMoney ? payment : "all",
       source,
-      when,
+      q,
     }),
     listNewspapers(ctx.businessId),
     mayLinkAds ? placeableAds(ctx.businessId) : Promise.resolve([]),
     customer !== "all" ? getCustomer(ctx.businessId, customer) : Promise.resolve(null),
     shapeOptions(ctx.businessId),
     customerOptions(ctx.businessId),
+    publicationDatesByNewspaper(ctx.businessId),
   ]);
   const customerName = customerRow?.business_name ?? null;
   const { rows, total } = page;
@@ -201,6 +198,7 @@ export default async function PublicationsPage({
     filterParts.push(`בסטטוס "${PUBLICATION_STATUS_LABELS[status]}"`);
   }
   if (isThisWeek) filterParts.push("של השבוע הנוכחי");
+  else if (from && from === to) filterParts.push(`בגיליון של ${day(from)}`);
   else if (from && to) filterParts.push(`בין ${day(from)} ל־${day(to)}`);
   else if (from) filterParts.push(`מ־${day(from)} והלאה`);
   else if (to) filterParts.push(`עד ${day(to)}`);
@@ -214,8 +212,7 @@ export default async function PublicationsPage({
   }
   if (source === "customer_portal") filterParts.push("שהגיעו מפורטל הלקוח");
   if (source === "internal") filterParts.push("שהוזנו במשרד");
-  if (when === "past") filterParts.push("שכבר פורסמו");
-  if (when === "upcoming") filterParts.push("שעוד אמורים להתפרסם");
+  if (q.trim()) filterParts.push(`שמתאימים לחיפוש "${q.trim()}"`);
 
   const title =
     (ATTENTION_LABELS[attention]
@@ -308,63 +305,46 @@ export default async function PublicationsPage({
         ))}
       </div>
 
-      {/* The two questions asked most, one click each — and they keep whatever
-          newspaper or customer is already chosen, so "who is due in X" is
-          "choose X, then this". */}
-      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm" data-testid="when-quick">
-        <span className="text-xs text-on-surface-variant">שאלה מהירה:</span>
-        {(
-          [
-            ["past", "מי פרסם"],
-            ["upcoming", "מי אמור לפרסם"],
-          ] as const
-        ).map(([value, label]) => (
-          <Link
-            key={value}
-            href={hrefWithWhen(when === value ? "all" : value)}
-            data-testid={`when-${value}`}
-            aria-current={when === value ? "true" : undefined}
-            className={cn(
-              "rounded-full px-3 py-1 font-medium ring-1 transition-colors",
-              when === value
-                ? "bg-primary text-on-primary ring-primary"
-                : "bg-surface-container-lowest text-on-surface ring-outline-variant hover:bg-surface-container",
-            )}
-          >
-            {label}
-          </Link>
-        ))}
-      </div>
+      <IssueDateBar
+        basePath="/publications"
+        newspapers={papers.map((n) => ({ id: n.id, name: n.name }))}
+        datesByNewspaper={datesByNewspaper}
+        newspaper={newspaper}
+        date={from && from === to ? from : ""}
+        q={q}
+        today={isoDay(jerusalemDay(new Date()))}
+        keep={{
+          status,
+          attention,
+          customer,
+          shape,
+          payment,
+          source,
+          // A range that is not a single day belongs to the filter below and
+          // is carried along; a single day is the bar's own.
+          ...(from && from !== to ? { from, to } : {}),
+        }}
+      />
 
       <FilterBuilder
         basePath="/publications"
-        keep={{ status, attention }}
+        keep={{
+          status,
+          attention,
+          newspaper,
+          q,
+          ...(from && from === to ? { from, to } : {}),
+        }}
         values={{
-          newspaper: newspaper !== "all" ? newspaper : undefined,
           customer: customer !== "all" ? customer : undefined,
           shape: shape !== "all" ? shape : undefined,
           payment: maySeeMoney && payment !== "all" ? payment : undefined,
           source: source !== "all" ? source : undefined,
-          when: when !== "all" ? when : undefined,
-          from: from || undefined,
-          to: to || undefined,
+          // A single day is the bar's date above — shown there, not twice.
+          from: from && from !== to ? from : undefined,
+          to: to && from !== to ? to : undefined,
         }}
         fields={[
-          {
-            key: "when",
-            label: "מתי",
-            kind: "select",
-            options: [
-              { value: "past", label: "כבר פורסמו — מי פרסם" },
-              { value: "upcoming", label: "עתידיים — מי אמור לפרסם" },
-            ],
-          },
-          {
-            key: "newspaper",
-            label: "עיתון",
-            kind: "select",
-            options: papers.map((n) => ({ value: n.id, label: n.name })),
-          },
           {
             key: "customer",
             label: "לקוח",

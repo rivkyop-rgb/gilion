@@ -14,10 +14,8 @@ test.describe("filtering and expanding the lists", () => {
     await login(page, USERS.admin);
     await page.goto("/publications");
 
-    await page.getByTestId("filter-builder-add").click();
-    await page.getByTestId("filter-builder-field").selectOption("newspaper");
-    await page.getByTestId("filter-builder-value").selectOption(NEWSPAPERS.alpha);
-    await page.getByTestId("filter-builder-apply").click();
+    // The newspaper is chosen on the bar above; the builder adds to it.
+    await page.getByTestId("bar-newspaper").selectOption(NEWSPAPERS.alpha);
     await page.waitForURL(/newspaper=/);
 
     await page.getByTestId("filter-builder-add").click();
@@ -27,12 +25,12 @@ test.describe("filtering and expanding the lists", () => {
     await page.waitForURL(/payment=unpaid/);
     expect(page.url()).toContain("newspaper=");
 
-    await expect(page.getByTestId("filter-chip-newspaper")).toBeVisible();
+    await expect(page.getByTestId("filter-chip-payment")).toBeVisible();
     await expect(page.getByTestId("attention-banner")).toContainText('בתשלום "לא שולם"');
 
     await page.getByTestId("filter-remove-payment").click();
     await page.waitForURL((url) => !url.search.includes("payment="));
-    await expect(page.getByTestId("filter-chip-newspaper")).toBeVisible();
+    expect(page.url()).toContain("newspaper=");
   });
 
   test("the arrow opens a publication's details under its row", async ({ page }) => {
@@ -58,18 +56,27 @@ test.describe("filtering and expanding the lists", () => {
   });
 });
 
-test.describe("who published, who is due, and which files", () => {
-  test("'מי אמור לפרסם' keeps the newspaper chosen, and says both", async ({ page }) => {
+test.describe("an issue's date, a search, and which files", () => {
+  test("a newspaper, then one of its dates, then a search inside it", async ({ page }) => {
     await login(page, USERS.admin);
-    await page.goto(`/publications?newspaper=${NEWSPAPERS.alpha}`);
-    await page.getByTestId("when-upcoming").click();
-    await page.waitForURL(/when=upcoming/);
-    expect(page.url()).toContain("newspaper=");
-    await expect(page.getByTestId("attention-banner")).toContainText("שעוד אמורים להתפרסם");
+    await page.goto("/publications");
 
-    await page.getByTestId("when-past").click();
-    await page.waitForURL(/when=past/);
-    await expect(page.getByTestId("attention-banner")).toContainText("שכבר פורסמו");
+    await expect(page.getByTestId("bar-date")).toBeDisabled();
+    await page.getByTestId("bar-newspaper").selectOption(NEWSPAPERS.alpha);
+    await page.waitForURL(/newspaper=/);
+
+    // The dates are the ones this paper has publications on, with a count.
+    const option = page.getByTestId("bar-date").locator("option[value]:not([value=''])").first();
+    const day = (await option.getAttribute("value"))!;
+    await page.getByTestId("bar-date").selectOption(day);
+    await page.waitForURL(new RegExp(`from=${day}&to=${day}`));
+    await expect(page.getByTestId("attention-banner")).toContainText("בגיליון של");
+
+    await page.getByTestId("bar-search").fill("מרכז");
+    await page.getByTestId("bar-search-apply").click();
+    await page.waitForURL(/q=/);
+    expect(page.url()).toContain(`from=${day}`);
+    await expect(page.getByTestId("attention-banner")).toContainText('לחיפוש "מרכז"');
   });
 
   test("files can be narrowed to one newspaper", async ({ page }) => {

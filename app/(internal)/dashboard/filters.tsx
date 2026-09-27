@@ -15,6 +15,8 @@ export type DashboardFilterValues = {
   status: string;
   from: string;
   to: string;
+  /** Every date — the dates are lifted, not merely widened. */
+  all?: boolean;
 };
 
 /**
@@ -45,6 +47,7 @@ export function DashboardFilters({
   statuses,
   baseHref,
   dirty,
+  thisWeek,
 }: {
   values: DashboardFilterValues;
   newspapers: FilterOption[];
@@ -52,6 +55,8 @@ export function DashboardFilters({
   statuses: Array<{ value: string; label: string }>;
   /** The page's URL without any of these five parameters. */
   baseHref: string;
+  /** This week's yyyy-MM-dd bounds — to know when "השבוע" is not showing. */
+  thisWeek: { from: string; to: string };
   /**
    * Whether the reader actually narrowed anything.
    *
@@ -75,8 +80,11 @@ export function DashboardFilters({
     if (merged.customer && merged.customer !== "all")
       url.searchParams.set("customer", merged.customer);
     if (merged.status && merged.status !== "all") url.searchParams.set("status", merged.status);
-    if (merged.from) url.searchParams.set("from", merged.from);
-    if (merged.to) url.searchParams.set("to", merged.to);
+    if (merged.all) url.searchParams.set("all", "1");
+    else {
+      if (merged.from) url.searchParams.set("from", merged.from);
+      if (merged.to) url.searchParams.set("to", merged.to);
+    }
     router.push(`${url.pathname}${url.search}`, { scroll: false });
   };
 
@@ -94,6 +102,8 @@ export function DashboardFilters({
           status: read("status") || "all",
           from: read("from"),
           to: read("to"),
+          // Both dates cleared is "no dates" — everything — not "this week".
+          all: !read("from") && !read("to"),
         });
       }}
     >
@@ -180,12 +190,37 @@ export function DashboardFilters({
         סינון
       </Button>
 
+      {/* The two ranges asked for most, one click each. "השבוע" is the bare
+          dashboard's own range, so it clears the dates rather than typing
+          this week's into them. */}
+      <Button
+        type="button"
+        variant={values.all ? "primary" : "ghost"}
+        data-testid="dates-all"
+        aria-pressed={values.all}
+        onClick={() => go({ all: true, from: "", to: "" })}
+      >
+        כל התאריכים
+      </Button>
+      {values.all || values.from !== thisWeek.from || values.to !== thisWeek.to ? (
+        <Button
+          type="button"
+          variant="ghost"
+          data-testid="dates-this-week"
+          onClick={() => go({ all: false, from: "", to: "" })}
+        >
+          השבוע
+        </Button>
+      ) : null}
+
       {dirty ? (
         <Button
           type="button"
           variant="ghost"
           data-testid="clear-filters"
-          onClick={() => go({ newspaper: "all", customer: "all", status: "all", from: "", to: "" })}
+          onClick={() =>
+            go({ newspaper: "all", customer: "all", status: "all", from: "", to: "", all: false })
+          }
         >
           <X className="size-4" />
           ניקוי

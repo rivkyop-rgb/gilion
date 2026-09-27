@@ -125,3 +125,20 @@ test.describe("ארבעת המסננים", () => {
     await expect.poll(async () => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   });
 });
+
+test.describe("all dates, and back to this week", () => {
+  test("'כל התאריכים' lifts the dates, and 'השבוע' brings them back", async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto("/dashboard");
+    await expect(page.getByTestId("week-heading")).toHaveText("פרסומים השבוע");
+
+    await page.getByTestId("dates-all").click();
+    await page.waitForURL(/all=1/);
+    await expect(page.getByTestId("week-heading")).toHaveText("כל הפרסומים");
+    await expect(page.getByTestId("filter-from")).toHaveValue("");
+
+    await page.getByTestId("dates-this-week").click();
+    await page.waitForURL((url) => !url.search.includes("all="));
+    await expect(page.getByTestId("week-heading")).toHaveText("פרסומים השבוע");
+  });
+});

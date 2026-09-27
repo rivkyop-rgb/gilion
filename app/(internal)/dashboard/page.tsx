@@ -48,6 +48,8 @@ type Search = {
   status?: string;
   from?: string;
   to?: string;
+  /** "1" — every date, not only this week (27/09/2026). */
+  all?: string;
 };
 
 /**
@@ -90,8 +92,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     status: params.status ?? "all",
     // The table opens on this week — that is the screen's question. The two
     // date fields stay editable so the other weeks are one change away.
-    from: params.from ?? weekFrom,
-    to: params.to ?? weekTo,
+    // `all=1` lifts the dates altogether — "show me everything".
+    from: params.all ? "" : (params.from ?? weekFrom),
+    to: params.all ? "" : (params.to ?? weekTo),
+    all: params.all === "1",
   };
 
   const mayReadArea = (area: Area) => canReadArea(ctx, area);
@@ -247,7 +251,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <div className="border-b border-outline-variant bg-surface-container-low px-5 pt-4">
               <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="font-serif text-xl font-semibold" data-testid="week-heading">
-                  {showingThisWeek ? (
+                  {filters.all ? (
+                    "כל הפרסומים"
+                  ) : showingThisWeek ? (
                     "פרסומים השבוע"
                   ) : (
                     <>
@@ -276,6 +282,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
               <DashboardFilters
                 baseHref="/dashboard"
+                thisWeek={{ from: weekFrom, to: weekTo }}
                 values={filters}
                 dirty={Object.keys(params).length > 0}
                 newspapers={papers.map((p) => ({ id: p.id, name: p.name }))}
