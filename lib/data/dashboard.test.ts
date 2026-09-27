@@ -90,7 +90,12 @@ describe("ביצועי הדשבורד", () => {
 
   it("ששת המונים חוזרים בתוך התקציב", async () => {
     const started = Date.now();
-    const counts = await dashboardCounts(BUSINESS, DASHBOARD_CARD_KEYS, undefined, new Date("2031-06-15"));
+    const counts = await dashboardCounts(
+      BUSINESS,
+      DASHBOARD_CARD_KEYS,
+      undefined,
+      new Date("2031-06-15"),
+    );
     const elapsed = Date.now() - started;
 
     // Every card answered, not merely a fast empty object.
@@ -115,7 +120,12 @@ describe("ביצועי הדשבורד", () => {
 
   it("כרטיס שהתפקיד אינו רואה אינו שאילתה שרצה", async () => {
     // Rule 10 from the other side: asking for two cards must not compute six.
-    const counts = await dashboardCounts(BUSINESS, ["week", "openIssues"], undefined, new Date("2031-06-15"));
+    const counts = await dashboardCounts(
+      BUSINESS,
+      ["week", "openIssues"],
+      undefined,
+      new Date("2031-06-15"),
+    );
     expect(Object.keys(counts).sort()).toEqual(["openIssues", "week"]);
     expect(counts.debt).toBeUndefined();
   });

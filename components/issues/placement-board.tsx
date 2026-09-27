@@ -64,7 +64,6 @@ import { ISSUE_TONE } from "@/components/status-tone";
 import { ChangeIssueDate } from "./issue-calendar";
 import { PageStrip } from "./page-strip";
 import { PageOrderDialog } from "./page-order-dialog";
-import { AutoPlaceDialog } from "./auto-place-dialog";
 import { counted } from "@/lib/domain/hebrew-count";
 import { UnplacedPanel, type BoardCandidate } from "./unplaced-panel";
 import { useFittedSpread } from "./use-fitted-spread";
@@ -93,6 +92,11 @@ export type BoardModel = {
   grid: DerivedGrid;
   /** Every page type the newspaper offers — what a new page may be. */
   pageTypes: Array<{ id: string; name: string }>;
+  /** The page types auto-placement may use — the newspaper's setting. */
+  autoPlaceTypeNames: string[];
+  newspaperId: string;
+  /** May open the newspaper settings, where that is changed. */
+  mayConfigure: boolean;
   pages: BoardPage[];
   placements: CanvasPlacement[];
   candidates: BoardCandidate[];
@@ -390,9 +394,6 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
       else if (!result.ok) fail(result.message ?? "הפעולה נכשלה");
       if (result.ok && result.message) say(result.message);
     });
-
-  /** The auto-placer's "where" dialog. Remounted per opening, so it starts clean. */
-  const [autoOpen, setAutoOpen] = useState(false);
 
   const jumpToPage = (pageId: string) => {
     const index = viewIndexOfPage(views, pageId);
@@ -873,8 +874,9 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                     disabled={pending}
                     data-testid="auto-place"
                     className="h-auto w-full whitespace-normal py-1.5 leading-4"
-                    // Asks WHERE first — every page, or only chosen ones (27/09/2026).
-                    onClick={() => setAutoOpen(true)}
+                    // Where it may place, and what it adds, are the newspaper's
+                    // settings per page type — no question on every click.
+                    onClick={() => run(() => autoPlaceIssueAction(model.issueId, layoutSeed))}
                   >
                     <Wand2 className="size-4" />
                     <span>שיבוץ אוטומטי</span>
@@ -882,8 +884,22 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                       <Ltr>{unplacedCount}</Ltr>
                     </span>
                   </Button>
-                  <span className="text-[11px] leading-4 text-on-surface-variant">
-                    עמודים יתווספו לפי הצורך.
+                  <span
+                    className="text-[11px] leading-4 text-on-surface-variant"
+                    data-testid="auto-place-scope"
+                  >
+                    בעמודי {model.autoPlaceTypeNames.join(", ") || "—"}. עמודים יתווספו לפי הצורך.
+                    {model.mayConfigure ? (
+                      <>
+                        {" "}
+                        <Link
+                          href={`/settings/newspapers/${model.newspaperId}`}
+                          className="underline"
+                        >
+                          שינוי
+                        </Link>
+                      </>
+                    ) : null}
                   </span>
                 </>
               ) : null}
@@ -950,31 +966,6 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
               onOpenOrder={() => setPageOrder({ initial: null })}
               highlightPageIds={recentlyMoved}
             />
-            {autoOpen ? (
-              <AutoPlaceDialog
-                open
-                onOpenChange={setAutoOpen}
-                waiting={unplacedCount}
-                busy={pending}
-                pages={model.pages.map((p) => ({
-                  id: p.id,
-                  label: pageLabel(p.number, totalPages),
-                  pageTypeName: p.pageTypeName,
-                  percent: fills.get(p.id)?.percent ?? 0,
-                }))}
-                onRun={(onlyPageIds) => {
-                  setAutoOpen(false);
-                  run(() =>
-                    autoPlaceIssueAction(
-                      model.issueId,
-                      layoutSeed,
-                      false,
-                      onlyPageIds ?? undefined,
-                    ),
-                  );
-                }}
-              />
-            ) : null}
             {pageOrder ? (
               <PageOrderDialog
                 // Remounted per opening, so it always starts from the issue as

@@ -461,6 +461,13 @@ model PageType {
   id           String   @id @default(cuid())
   newspaper_id String
   name         String
+  /// Auto-placement may put ads on pages of this type (newspaper settings,
+  /// 27/09/2026). The cover and the back are usually switched off here.
+  auto_place   Boolean  @default(true)
+  /// The type auto-placement ADDS when the issue runs out of room. At most one
+  /// per newspaper (enforced in the action); none → the inner type by name
+  /// (lib/domain/issue-layout.ts innerPageTypeId).
+  auto_grow    Boolean  @default(false)
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 

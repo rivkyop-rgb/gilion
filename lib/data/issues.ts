@@ -159,7 +159,7 @@ export async function pageTypesOf(businessId: string, newspaperId: string) {
   return tenantDb(businessId).pageType.findMany({
     where: { newspaper_id: newspaperId },
     orderBy: { name: "asc" },
-    select: { id: true, name: true },
+    select: { id: true, name: true, auto_place: true },
   });
 }
 

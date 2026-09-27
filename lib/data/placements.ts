@@ -542,13 +542,6 @@ export async function autoPlaceIssue(
    * the screen asks first.
    */
   reset = false,
-  /**
-   * Place only on these pages (27/09/2026). Given → the issue is NOT grown: the
-   * person chose where things go, and adding pages they did not choose would
-   * overrule them. What does not fit is reported as `left`. Omitted → every
-   * page, and inner pages are added until everything fits.
-   */
-  onlyPageIds?: string[],
 ): Promise<AutoPlaceOutcome> {
   const db = tenantDb(ctx.businessId);
 
@@ -563,16 +556,13 @@ export async function autoPlaceIssue(
   let sheetsAdded = 0;
   let cleared = 0;
   let left = 0;
-  const only = onlyPageIds && onlyPageIds.length > 0 ? new Set(onlyPageIds) : null;
 
   if (reset) {
     const existing = await db.placement.findMany({
       // "Another arrangement" on chosen pages rearranges THOSE pages only.
-      where: {
-        issue_id: issueId,
-        status: "placed",
-        ...(only ? { issue_page_id: { in: [...only] } } : {}),
-      },
+      // "Another arrangement" rearranges the pages auto-placement may use —
+      // an ad a person put on the cover by hand stays where they put it.
+      where: { issue_id: issueId, status: "placed", page: { page_type: { auto_place: true } } },
       select: { id: true },
     });
     for (const placement of existing) {
@@ -587,7 +577,7 @@ export async function autoPlaceIssue(
   // number of sheets the leftovers could possibly need. Bounded so a single
   // unplaceable ad cannot inflate an issue without end.
   for (let round = 0; round < MAX_AUTO_ROUNDS; round++) {
-    const plan = await planAutoPlacement(ctx, issueId, seed + round, only);
+    const plan = await planAutoPlacement(ctx, issueId, seed + round);
     if (!plan) break;
 
     for (const placement of plan.placements) {
@@ -610,8 +600,6 @@ export async function autoPlaceIssue(
 
     left = plan.unplaced.length;
     if (plan.unplaced.length === 0) break;
-    // Chosen pages: never grow the issue — see onlyPageIds.
-    if (only) break;
     // Nothing landed AND nothing fits: growing again would not help.
     if (plan.placements.length === 0 && sheetsAdded > 0 && plan.sheets === 0) break;
 
@@ -629,12 +617,7 @@ export async function autoPlaceIssue(
 const MAX_AUTO_ROUNDS = 12;
 
 /** What the packer would do right now, without writing anything. */
-async function planAutoPlacement(
-  ctx: ActorContext,
-  issueId: string,
-  seed: number,
-  only: Set<string> | null = null,
-) {
+async function planAutoPlacement(ctx: ActorContext, issueId: string, seed: number) {
   const db = tenantDb(ctx.businessId);
 
   const issue = await db.issue.findUnique({
@@ -646,6 +629,8 @@ async function planAutoPlacement(
           reservations: { orderBy: { name: "asc" } },
           page_type: {
             select: {
+              // The newspaper's setting: may auto-placement use this type?
+              auto_place: true,
               allowed_shapes: {
                 include: {
                   ad_shape: {
@@ -736,19 +721,20 @@ async function planAutoPlacement(
     },
   }));
 
+  // Only page types the newspaper opened to auto-placement (27/09/2026).
   const pages: AutoPlacePage[] = issue.pages
-    .filter((page) => !only || only.has(page.id))
+    .filter((page) => page.page_type.auto_place)
     .map((page) => ({
-    pageId: page.id,
-    pageNumber: page.page_number,
-    allowedShapes: shapeSpecsOf(page),
-    // A reserved area is not a placement and never will be, but to a packer it
-    // is exactly as unavailable as one (backlog item 14).
-    occupied: [
-      ...(occupiedByPage.get(page.id) ?? []),
-      ...reservedOf(page).map((area) => area.rect),
-    ],
-  }));
+      pageId: page.id,
+      pageNumber: page.page_number,
+      allowedShapes: shapeSpecsOf(page),
+      // A reserved area is not a placement and never will be, but to a packer it
+      // is exactly as unavailable as one (backlog item 14).
+      occupied: [
+        ...(occupiedByPage.get(page.id) ?? []),
+        ...reservedOf(page).map((area) => area.rect),
+      ],
+    }));
 
   const result = autoPlace(items, pages, grid, seed);
   return { ...result, sheets: sheetsNeededFor(result.unplaced, grid) };
@@ -774,9 +760,11 @@ async function addSheetTo(businessId: string, issueId: string, newspaperId: stri
   const types = await tenantDb(businessId).pageType.findMany({
     where: { newspaper_id: newspaperId },
     orderBy: { created_at: "asc" },
-    select: { id: true, name: true },
+    select: { id: true, name: true, auto_grow: true },
   });
-  const pageTypeId = innerPageTypeId(types) ?? pages[0]?.page_type_id;
+  // The type the newspaper chose to grow with, else the inner one by name.
+  const pageTypeId =
+    types.find((t) => t.auto_grow)?.id ?? innerPageTypeId(types) ?? pages[0]?.page_type_id;
   if (!pageTypeId) throw new Error("לעיתון אין סוג עמוד להוסיף");
 
   const before = pages.length >= 2 ? pages[pages.length - 2]! : pages[0]!;

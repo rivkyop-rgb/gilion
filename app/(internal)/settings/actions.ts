@@ -662,3 +662,41 @@ export async function deletePackageAction(
   revalidatePath(`/settings/newspapers/${newspaperId}/pricing`);
   return {};
 }
+
+const autoPlaceSettings = z.object({
+  autoPlaceTypeIds: z.array(z.string().min(1)).max(100),
+  growTypeId: z.string().min(1).nullable(),
+});
+
+/**
+ * Where auto-placement may place, and which type it adds when the issue runs
+ * out of room — per page type of one newspaper (27/09/2026).
+ */
+export async function setAutoPlaceSettingsAction(
+  newspaperId: string,
+  input: unknown,
+): Promise<FormState> {
+  const ctx = await requireAdmin();
+  const parsed = autoPlaceSettings.safeParse(input);
+  if (!parsed.success) return { message: "ההגדרה לא תקינה" };
+  const { autoPlaceTypeIds, growTypeId } = parsed.data;
+
+  const paper = await papers.getNewspaper(ctx.businessId, newspaperId);
+  if (!paper) return { message: "העיתון לא נמצא" };
+  const own = new Set(paper.page_types.map((t) => t.id));
+  // Ids from the browser are checked against THIS newspaper's types.
+  if (autoPlaceTypeIds.some((id) => !own.has(id)) || (growTypeId && !own.has(growTypeId))) {
+    return { message: "סוג עמוד לא שייך לעיתון הזה" };
+  }
+  if (autoPlaceTypeIds.length === 0) {
+    return { message: "צריך לאפשר שיבוץ אוטומטי לפחות בסוג עמוד אחד" };
+  }
+  // Pages added for room must be pages it may then use, or growing achieves nothing.
+  if (growTypeId && !autoPlaceTypeIds.includes(growTypeId)) {
+    return { message: "סוג העמוד שנוסף כשחסר מקום חייב להיות מותר לשיבוץ אוטומטי" };
+  }
+
+  await papers.setAutoPlaceSettings(ctx.businessId, newspaperId, autoPlaceTypeIds, growTypeId);
+  revalidatePath(`/settings/newspapers/${newspaperId}`);
+  return {};
+}

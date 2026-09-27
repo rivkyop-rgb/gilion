@@ -92,7 +92,11 @@ export default async function BoardPage({
     isAdmin: ctx.role === "admin" || ctx.isSuperAdmin,
     mayWrite: canWriteArea(ctx, "issues"),
     grid,
-    pageTypes,
+    pageTypes: pageTypes.map((t) => ({ id: t.id, name: t.name })),
+    // What auto-placement will use, said under its button (27/09/2026).
+    autoPlaceTypeNames: pageTypes.filter((t) => t.auto_place).map((t) => t.name),
+    newspaperId: issue.newspaper_id,
+    mayConfigure: canWriteArea(ctx, "settings"),
     customers,
     focusPageNumber: Number.isInteger(Number(focus)) && focus ? Number(focus) : null,
     pages: issue.pages.map((page) => ({

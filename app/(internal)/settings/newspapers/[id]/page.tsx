@@ -11,6 +11,7 @@ import { NewspaperForm } from "../newspaper-form";
 import { updateNewspaperAction } from "../../actions";
 import { NewspaperTabs } from "./tabs";
 import { PageTypes } from "./page-types";
+import { AutoPlaceSettings } from "./auto-place-settings";
 
 export const metadata: Metadata = { title: "הגדרות עיתון · Gilion" };
 
@@ -71,6 +72,17 @@ export default async function NewspaperPage({ params }: { params: Promise<{ id: 
           }}
         />
       </section>
+
+      <AutoPlaceSettings
+        newspaperId={paper.id}
+        readOnly={!mayEdit}
+        types={paper.page_types.map((pt) => ({
+          id: pt.id,
+          name: pt.name,
+          autoPlace: pt.auto_place,
+          autoGrow: pt.auto_grow,
+        }))}
+      />
 
       <PageTypes
         newspaperId={paper.id}

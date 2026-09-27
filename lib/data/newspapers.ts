@@ -594,3 +594,29 @@ export async function shapeOptions(businessId: string) {
     label: papers.size > 1 ? `${r.name} · ${r.newspaper.name}` : r.name,
   }));
 }
+
+/** One write for the whole choice, so no reader ever sees half of it. */
+export async function setAutoPlaceSettings(
+  businessId: string,
+  newspaperId: string,
+  autoPlaceTypeIds: string[],
+  growTypeId: string | null,
+) {
+  const db = tenantDb(businessId);
+  const types = await db.pageType.findMany({
+    where: { newspaper_id: newspaperId },
+    select: { id: true },
+  });
+  // Through the newspaper, whose tenant scope covers its page types.
+  return db.newspaper.update({
+    where: { id: newspaperId },
+    data: {
+      page_types: {
+        update: types.map((t) => ({
+          where: { id: t.id },
+          data: { auto_place: autoPlaceTypeIds.includes(t.id), auto_grow: t.id === growTypeId },
+        })),
+      },
+    },
+  });
+}

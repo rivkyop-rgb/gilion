@@ -365,6 +365,9 @@ async function deleteTestOrders(prisma: PrismaClient) {
   await prisma.business.updateMany({
     data: { internal_orders_need_approval: true, mail_client: "gmail" },
   });
+  // Auto-placement's per-page-type setting (27/09/2026): every type open, none
+  // chosen to grow with — what a spec that changed it would otherwise leak.
+  await prisma.pageType.updateMany({ data: { auto_place: true, auto_grow: false } });
   // Stage 09 (backlog 21): a spec that edits the portal address must not
   // leave the next run's /p/merkaz pointing nowhere.
   await prisma.business.update({ where: { id: "biz_alpha" }, data: { slug: "merkaz" } });

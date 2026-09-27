@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { loginAsAdmin } from "./helpers";
+import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import "dotenv/config";
+
+import { NEWSPAPERS, loginAsAdmin } from "./helpers";
 import {
   ISSUE_FIXTURES,
   boardUrl,
@@ -8,10 +12,9 @@ import {
   resetFixtureIssue,
 } from "./issue-helpers";
 
-/** "שיבוץ אוטומטי" asks where first (27/09/2026); "בכל העמודים" is the default. */
+/** One click — where it may place is the newspaper's setting (27/09/2026). */
 async function runAutoPlace(page: Page) {
   await page.getByTestId("auto-place").click();
-  await page.getByTestId("auto-place-run").click();
 }
 
 /**
@@ -145,36 +148,56 @@ test("still says where there is room, right after placing", async ({ page }) => 
   await expect(room).toContainText("% פנוי");
 });
 
-test.describe("where it may place (27/09/2026)", () => {
+test.describe("where it may place — the newspaper's setting (27/09/2026)", () => {
+  const prisma = new PrismaClient({
+    adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
+  });
+  const allTypesOpen = () =>
+    prisma.pageType.updateMany({
+      where: { newspaper_id: NEWSPAPERS.alpha },
+      data: { auto_place: true, auto_grow: false },
+    });
+
   test.beforeEach(async ({ page }) => {
+    await allTypesOpen();
     await resetFixtureIssue();
     await loginAsAdmin(page);
+  });
+  test.afterEach(allTypesOpen);
+  test.afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  test("only the page types opened in the settings receive ads", async ({ page }) => {
+    await page.goto(`/settings/newspapers/${NEWSPAPERS.alpha}`);
+    await page.getByTestId("auto-place-type-שער").uncheck();
+    await page.getByTestId("auto-place-type-אחורי").uncheck();
+    await page.getByTestId("save-auto-place").click();
+    await expect(page.getByTestId("auto-place-saved")).toBeVisible();
+
     await page.goto(boardUrl);
+    await expect(page.getByTestId("auto-place-scope")).toContainText("פנימי");
+    await expect(page.getByTestId("auto-place-scope")).not.toContainText("שער");
+    await runAutoPlace(page);
+    await expect(page.getByTestId("board-message")).toContainText("שובצו");
+
+    // Nothing on the cover or the back — asked of the database, not the screen.
+    const outside = await prisma.placement.count({
+      where: {
+        issue_id: ISSUE_FIXTURES.issue,
+        status: "placed",
+        page: { page_type: { name: { in: ["שער", "אחורי"] } } },
+      },
+    });
+    expect(outside).toBe(0);
   });
 
-  test("'בכל העמודים' is the default, and running it places everything placeable", async ({
-    page,
-  }) => {
-    // The type of the pages it ADDS is not asserted here: the fixture's four
-    // placeable ads fit the pages it already has, so it never grows. That rule
-    // (inner type, by innerPageTypeId) is covered in lib/domain/issue-layout.
-    await page.getByTestId("auto-place").click();
-    await expect(page.getByTestId("auto-place-scope-all")).toHaveAttribute("aria-checked", "true");
-    await page.getByTestId("auto-place-run").click();
-    await expect(page.getByTestId("placed-count")).toHaveText("(4)");
-  });
-
-  test("only on chosen pages: nothing is added, and what did not fit is said", async ({ page }) => {
-    const before = await page.locator('[data-testid^="page-thumb-"]').count();
-
-    await page.getByTestId("auto-place").click();
-    await page.getByTestId("auto-place-scope-chosen").click();
-    await expect(page.getByTestId("auto-place-run")).toBeDisabled();
-    await page.getByTestId("auto-place-page-שער").check();
-    await page.getByTestId("auto-place-run").click();
-
-    // The cover takes only the shapes it allows; the rest stay waiting.
-    await expect(page.getByTestId("board-message")).toContainText("בעמודים שנבחרו");
-    expect(await page.locator('[data-testid^="page-thumb-"]').count()).toBe(before);
+  test("the added type must itself be open to auto-placement", async ({ page }) => {
+    await page.goto(`/settings/newspapers/${NEWSPAPERS.alpha}`);
+    await page.getByTestId("auto-grow-type-פנימי").check();
+    await page.getByTestId("auto-place-type-פנימי").uncheck();
+    // Unticking the type clears it as the one to grow with.
+    await expect(page.getByTestId("auto-grow-type-פנימי")).not.toBeChecked();
+    await expect(page.getByTestId("auto-grow-type-פנימי")).toBeDisabled();
   });
 });
