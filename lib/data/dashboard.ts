@@ -35,10 +35,26 @@ export type DashboardCounts = Partial<Record<DashboardCardKey, number>>;
 export async function dashboardCounts(
   businessId: string,
   keys: readonly DashboardCardKey[],
+  /**
+   * The dashboard's period (27/09/2026): the three PUBLICATION cards count
+   * inside it, exactly as the table below them does. No bounds is "all time".
+   * Omitted — this week, which is what the bare dashboard shows.
+   */
+  range?: { from?: Date; to?: Date },
   today = new Date(),
 ): Promise<DashboardCounts> {
   const db = tenantDb(businessId);
   const week = weekRange(today);
+  const period = range ?? { from: week.from, to: week.to };
+  const inPeriod =
+    period.from || period.to
+      ? {
+          publication_date: {
+            ...(period.from ? { gte: period.from } : {}),
+            ...(period.to ? { lte: period.to } : {}),
+          },
+        }
+      : {};
   const wanted = new Set(keys);
 
   const run = <K extends DashboardCardKey>(
@@ -51,22 +67,23 @@ export async function dashboardCounts(
     run("week", () =>
       db.publication.count({
         where: {
-          publication_date: { gte: week.from, lte: week.to },
+          ...inPeriod,
           // Rule 3: a cancelled publication is counted nowhere.
           status: { in: LIVE_PUBLICATION_STATES },
         },
       }),
     ),
-    run("missingAd", () => db.publication.count({ where: attentionWhere("missing_ad") })),
+    run("missingAd", () =>
+      db.publication.count({ where: { ...attentionWhere("missing_ad"), ...inPeriod } }),
+    ),
     run("notPlaced", () =>
       db.publication.count({
         where: {
           ...attentionWhere("not_placed"),
-          // From the start of this week forward. A date that has already gone
-          // by missed its issue — that is a cleanup item in the publications
-          // list, not a thing anybody can still do today, and letting those
-          // accumulate turns the card into a number nobody acts on.
-          publication_date: { gte: week.from },
+          // Inside the period, like the cards beside it. "כל הזמן" therefore
+          // includes dates that already missed their issue — the question
+          // there is "everything", and a cleanup list is part of the answer.
+          ...inPeriod,
         },
       }),
     ),

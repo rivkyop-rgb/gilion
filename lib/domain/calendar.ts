@@ -62,6 +62,14 @@ export function weekRange(moment: Date): DayRange {
   return { from, to: addDays(from, 6) };
 }
 
+/** This calendar month in Jerusalem — first day to last day, inclusive. */
+export function monthRange(moment: Date): DayRange {
+  const today = jerusalemDay(moment);
+  const from = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+  const to = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0));
+  return { from, to };
+}
+
 /** `yyyy-MM-dd` — the form a date input and a query string both speak. */
 export function isoDay(day: Date): string {
   return day.toISOString().slice(0, 10);

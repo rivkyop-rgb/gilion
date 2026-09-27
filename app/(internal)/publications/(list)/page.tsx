@@ -12,6 +12,7 @@ import { shapeOptions } from "@/lib/data/newspapers";
 import { counted } from "@/lib/domain/hebrew-count";
 import { DetailGrid, ExpandableRow } from "@/components/ui/expandable-row";
 import { FilterBuilder } from "@/components/ui/filter-builder";
+import { ResetFilters } from "@/components/ui/reset-filters";
 import { IssueDateBar } from "@/components/issue-date-bar";
 import { isoDay, jerusalemDay, weekRange } from "@/lib/domain/calendar";
 import { issuesForPublications } from "@/lib/data/issues";
@@ -326,59 +327,71 @@ export default async function PublicationsPage({
         }}
       />
 
-      <FilterBuilder
-        basePath="/publications"
-        keep={{
-          status,
-          attention,
-          newspaper,
-          q,
-          ...(from && from === to ? { from, to } : {}),
-        }}
-        values={{
-          customer: customer !== "all" ? customer : undefined,
-          shape: shape !== "all" ? shape : undefined,
-          payment: maySeeMoney && payment !== "all" ? payment : undefined,
-          source: source !== "all" ? source : undefined,
-          // A single day is the bar's date above — shown there, not twice.
-          from: from && from !== to ? from : undefined,
-          to: to && from !== to ? to : undefined,
-        }}
-        fields={[
-          {
-            key: "customer",
-            label: "לקוח",
-            kind: "select",
-            search: true,
-            options: customers.map((c) => ({ value: c.id, label: c.business_name })),
-          },
-          { key: "shape", label: "גודל", kind: "select", options: shapes },
-          ...(maySeeMoney
-            ? [
-                {
-                  key: "payment",
-                  label: "תשלום",
-                  kind: "select" as const,
-                  options: PAYMENT_STATUSES.map((p) => ({
-                    value: p,
-                    label: PAYMENT_STATUS_LABELS[p],
-                  })),
-                },
-              ]
-            : []),
-          {
-            key: "source",
-            label: "מקור",
-            kind: "select",
-            options: [
-              { value: "internal", label: "פנימי" },
-              { value: "customer_portal", label: "פורטל לקוח" },
-            ],
-          },
-          { key: "from", label: "מתאריך", kind: "date" },
-          { key: "to", label: "עד תאריך", kind: "date" },
-        ]}
-      />
+      <div className="flex flex-wrap items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <FilterBuilder
+            basePath="/publications"
+            keep={{
+              status,
+              attention,
+              newspaper,
+              q,
+              ...(from && from === to ? { from, to } : {}),
+            }}
+            values={{
+              customer: customer !== "all" ? customer : undefined,
+              shape: shape !== "all" ? shape : undefined,
+              payment: maySeeMoney && payment !== "all" ? payment : undefined,
+              source: source !== "all" ? source : undefined,
+              // A single day is the bar's date above — shown there, not twice.
+              from: from && from !== to ? from : undefined,
+              to: to && from !== to ? to : undefined,
+            }}
+            fields={[
+              {
+                key: "customer",
+                label: "לקוח",
+                kind: "select",
+                search: true,
+                options: customers.map((c) => ({ value: c.id, label: c.business_name })),
+              },
+              { key: "shape", label: "גודל", kind: "select", options: shapes },
+              ...(maySeeMoney
+                ? [
+                    {
+                      key: "payment",
+                      label: "תשלום",
+                      kind: "select" as const,
+                      options: PAYMENT_STATUSES.map((p) => ({
+                        value: p,
+                        label: PAYMENT_STATUS_LABELS[p],
+                      })),
+                    },
+                  ]
+                : []),
+              {
+                key: "source",
+                label: "מקור",
+                kind: "select",
+                options: [
+                  { value: "internal", label: "פנימי" },
+                  { value: "customer_portal", label: "פורטל לקוח" },
+                ],
+              },
+              { key: "from", label: "מתאריך", kind: "date" },
+              { key: "to", label: "עד תאריך", kind: "date" },
+            ]}
+          />
+        </div>
+        <ResetFilters
+          href="/publications"
+          active={
+            [status, attention, newspaper, customer, shape, payment, source].some(
+              (v) => v !== "all",
+            ) || Boolean(from || to || search)
+          }
+        />
+      </div>
 
       {rows.length === 0 ? (
         <EmptyState

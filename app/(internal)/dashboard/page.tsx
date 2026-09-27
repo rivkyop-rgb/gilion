@@ -15,7 +15,7 @@ import { issuesForPublications, openIssuesForPlacement } from "@/lib/data/issues
 import { refreshReminders } from "@/lib/data/reminders";
 import { cardsFor, showsMoney, visibleCards, type DashboardCardKey } from "@/lib/domain/dashboard";
 import { internalOrdersNeedApproval } from "@/lib/data/orders";
-import { isoDay } from "@/lib/domain/calendar";
+import { monthRange, isoDay } from "@/lib/domain/calendar";
 import { daysUntil } from "@/lib/domain/reminders";
 import {
   PUBLICATION_STATUSES,
@@ -27,6 +27,7 @@ import { ROLE_LABELS } from "@/lib/auth/labels";
 import { Ltr } from "@/components/ui/ltr";
 import { cn } from "@/lib/utils";
 import { KpiCard } from "./kpi-card";
+import { DashboardPeriod } from "./period";
 import {
   BellRing,
   CalendarDays,
@@ -84,6 +85,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const week = dashboardWeek();
   const weekFrom = isoDay(week.from);
   const weekTo = isoDay(week.to);
+  const month = monthRange(new Date());
+  const monthFrom = isoDay(month.from);
+  const monthTo = isoDay(month.to);
 
   const params = await searchParams;
   const filters = {
@@ -115,6 +119,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     dashboardCounts(
       ctx.businessId,
       cards.map((c) => c.key),
+      // The period governs the cards as well as the table (27/09/2026).
+      {
+        ...(filters.from ? { from: new Date(filters.from) } : {}),
+        ...(filters.to ? { to: new Date(filters.to) } : {}),
+      },
     ),
     mayReadPublications
       ? listPublicationsPage(ctx.businessId, {
@@ -174,11 +183,24 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
    */
   const showingThisWeek = filters.from === weekFrom && filters.to === weekTo;
 
-  /** Each card's drill-down carries the very filter the card counted. */
+  /** Each card's drill-down carries the very filter — and period — the card counted. */
+  const period = [filters.from ? `from=${filters.from}` : "", filters.to ? `to=${filters.to}` : ""]
+    .filter(Boolean)
+    .join("&");
+  const withPeriod = (base: string) =>
+    period ? `${base}${base.includes("?") ? "&" : "?"}${period}` : base;
+  const isMonth = !filters.all && filters.from === monthFrom && filters.to === monthTo;
+  const periodLabel = filters.all
+    ? "כל הזמן"
+    : showingThisWeek
+      ? "השבוע"
+      : isMonth
+        ? "החודש"
+        : `${filters.from || "…"} – ${filters.to || "…"}`;
   const hrefFor: Record<DashboardCardKey, string> = {
-    week: `/publications?from=${weekFrom}&to=${weekTo}`,
-    missingAd: "/publications?attention=missing_ad",
-    notPlaced: `/publications?attention=not_placed&from=${weekFrom}`,
+    week: withPeriod("/publications"),
+    missingAd: withPeriod("/publications?attention=missing_ad"),
+    notPlaced: withPeriod("/publications?attention=not_placed"),
     debt: "/billing?status=debt",
     reminders: "/reminders",
     openIssues: "/issues?status=open",
@@ -189,13 +211,34 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   return (
     <>
       <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">לוח בקרה</h1>
-      <p className="mb-6 text-sm text-on-surface-variant">
-        נכנסת כ־{ROLE_LABELS[ctx.role]}. השבוע הנוכחי הוא{" "}
-        <Ltr>
-          {weekFrom} – {weekTo}
-        </Ltr>{" "}
-        (ראשון עד שבת). כל מספר למטה נפתח לרשימה שממנה הוא נספר.
+      <p className="mb-3 text-sm text-on-surface-variant" data-testid="dashboard-period-sentence">
+        נכנסת כ־{ROLE_LABELS[ctx.role]}. מוצגים נתוני{" "}
+        <strong className="text-on-surface">
+          {filters.all ? (
+            "כל הזמן"
+          ) : (
+            <>
+              {showingThisWeek ? "השבוע " : isMonth ? "החודש " : ""}
+              <Ltr>
+                {filters.from || "…"} – {filters.to || "…"}
+              </Ltr>
+            </>
+          )}
+        </strong>
+        . כל מספר למטה נפתח לרשימה שממנה הוא נספר.
       </p>
+
+      <DashboardPeriod
+        current={{ from: filters.from, to: filters.to }}
+        all={filters.all}
+        week={{ from: weekFrom, to: weekTo }}
+        month={{ from: monthFrom, to: monthTo }}
+        keep={{
+          newspaper: filters.newspaper,
+          customer: filters.customer,
+          status: filters.status,
+        }}
+      />
 
       <div
         className={cn(
@@ -207,8 +250,26 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         {shown.map((card) => (
           <KpiCard
             key={card.key}
-            label={card.label}
-            hint={card.hint}
+            label={
+              card.key === "week"
+                ? filters.all
+                  ? "כל הפרסומים"
+                  : showingThisWeek
+                    ? "פרסומים השבוע"
+                    : isMonth
+                      ? "פרסומים החודש"
+                      : "פרסומים בתקופה"
+                : card.label
+            }
+            hint={
+              card.key === "week"
+                ? filters.all
+                  ? "מכל התאריכים"
+                  : showingThisWeek
+                    ? "ראשון עד שבת"
+                    : periodLabel
+                : card.hint
+            }
             value={counts[card.key] ?? 0}
             tone={card.tone}
             href={hrefFor[card.key]}
@@ -282,7 +343,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
               <DashboardFilters
                 baseHref="/dashboard"
-                thisWeek={{ from: weekFrom, to: weekTo }}
                 values={filters}
                 dirty={Object.keys(params).length > 0}
                 newspapers={papers.map((p) => ({ id: p.id, name: p.name }))}

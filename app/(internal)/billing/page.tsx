@@ -1,3 +1,4 @@
+import { ResetFilters } from "@/components/ui/reset-filters";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Wallet } from "lucide-react";
@@ -225,6 +226,10 @@ export default async function BillingPage({
         <Button type="submit" variant="secondary" data-testid="billing-apply">
           סינון
         </Button>
+        <ResetFilters
+          href="/billing"
+          active={status !== "all" || Boolean(q) || Boolean(customer)}
+        />
         <Button variant="ghost" asChild>
           <Link href="/reports">לדוחות</Link>
         </Button>

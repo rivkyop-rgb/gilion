@@ -1,3 +1,4 @@
+import { ResetFilters } from "@/components/ui/reset-filters";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -290,6 +291,12 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         <Button type="submit" variant="secondary" data-testid="report-apply">
           הצגה
         </Button>
+        <ResetFilters
+          href={`/reports?tab=${tab}`}
+          active={
+            newspaperId !== "all" || customerId !== "all" || Boolean(params.from || params.to)
+          }
+        />
       </form>
 
       {tab === "payments" ? (

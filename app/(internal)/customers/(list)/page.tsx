@@ -1,3 +1,4 @@
+import { ResetFilters } from "@/components/ui/reset-filters";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Plus, Search } from "lucide-react";
@@ -75,6 +76,7 @@ export default async function CustomersPage({
             data-testid="customer-search"
           />
         </div>
+        <ResetFilters href="/customers" active={Boolean(q)} />
       </form>
 
       {rows.length === 0 ? (

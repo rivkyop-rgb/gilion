@@ -10,6 +10,7 @@ import { ORDER_STATUS_LABELS, ORDER_STATUSES, type OrderStatus } from "@/lib/dom
 import { Button } from "@/components/ui/button";
 import { DetailGrid, ExpandableRow } from "@/components/ui/expandable-row";
 import { FilterBuilder } from "@/components/ui/filter-builder";
+import { ResetFilters } from "@/components/ui/reset-filters";
 import { CustomerScopeBanner } from "@/components/customer-scope";
 import { customerOptions } from "@/lib/data/customers";
 import { listNewspapers, shapeOptions } from "@/lib/data/newspapers";
@@ -180,51 +181,59 @@ export default async function OrdersPage({
         ))}
       </div>
 
-      <FilterBuilder
-        basePath="/orders"
-        keep={{ status }}
-        values={builderValues}
-        fields={[
-          {
-            key: "newspaper",
-            label: "עיתון",
-            kind: "select",
-            options: papers.map((n) => ({ value: n.id, label: n.name })),
-          },
-          {
-            key: "customer",
-            label: "לקוח",
-            kind: "select",
-            search: true,
-            options: customers.map((c) => ({ value: c.id, label: c.business_name })),
-          },
-          { key: "shape", label: "גודל", kind: "select", options: shapes },
-          ...(maySeeMoney
-            ? [
-                {
-                  key: "payment",
-                  label: "תשלום",
-                  kind: "select" as const,
-                  options: PAYMENT_STATUSES.map((p) => ({
-                    value: p,
-                    label: PAYMENT_STATUS_LABELS[p],
-                  })),
-                },
-              ]
-            : []),
-          {
-            key: "source",
-            label: "מקור",
-            kind: "select",
-            options: [
-              { value: "internal", label: "פנימי" },
-              { value: "customer_portal", label: "פורטל לקוח" },
-            ],
-          },
-          { key: "from", label: "פרסום מתאריך", kind: "date" },
-          { key: "to", label: "פרסום עד תאריך", kind: "date" },
-        ]}
-      />
+      <div className="flex flex-wrap items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <FilterBuilder
+            basePath="/orders"
+            keep={{ status }}
+            values={builderValues}
+            fields={[
+              {
+                key: "newspaper",
+                label: "עיתון",
+                kind: "select",
+                options: papers.map((n) => ({ value: n.id, label: n.name })),
+              },
+              {
+                key: "customer",
+                label: "לקוח",
+                kind: "select",
+                search: true,
+                options: customers.map((c) => ({ value: c.id, label: c.business_name })),
+              },
+              { key: "shape", label: "גודל", kind: "select", options: shapes },
+              ...(maySeeMoney
+                ? [
+                    {
+                      key: "payment",
+                      label: "תשלום",
+                      kind: "select" as const,
+                      options: PAYMENT_STATUSES.map((p) => ({
+                        value: p,
+                        label: PAYMENT_STATUS_LABELS[p],
+                      })),
+                    },
+                  ]
+                : []),
+              {
+                key: "source",
+                label: "מקור",
+                kind: "select",
+                options: [
+                  { value: "internal", label: "פנימי" },
+                  { value: "customer_portal", label: "פורטל לקוח" },
+                ],
+              },
+              { key: "from", label: "פרסום מתאריך", kind: "date" },
+              { key: "to", label: "פרסום עד תאריך", kind: "date" },
+            ]}
+          />
+        </div>
+        <ResetFilters
+          href="/orders"
+          active={Object.entries(params).some(([, v]) => v && v !== "all")}
+        />
+      </div>
 
       {orders.length === 0 ? (
         <EmptyState

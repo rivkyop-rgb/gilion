@@ -62,7 +62,7 @@ test.describe("ארבעת המסננים", () => {
 
     await page.getByTestId("filter-from").fill(OPEN_DATE);
     await page.getByTestId("filter-to").fill(OPEN_DATE);
-    await page.getByTestId("apply-filters").click();
+    await page.getByTestId("apply-period").click();
     await page.waitForURL(new RegExp(`from=${OPEN_DATE}`));
 
     await expect(page.getByTestId("week-table")).toContainText(
@@ -91,12 +91,11 @@ test.describe("ארבעת המסננים", () => {
     expect(page.url()).toContain(`from=${WEEK.from}`);
   });
 
-  test("'ניקוי' מופיע רק אחרי שסיננו משהו", async ({ page }) => {
-    // The dashboard opens on this week, so both date fields are filled on a
-    // completely untouched screen. A reset offered there resets nothing, and a
-    // control that does nothing is one people stop trusting.
+  test("'איפוס סינון' פעיל רק אחרי שסיננו משהו", async ({ page }) => {
+    // Always in its place (27/09/2026), and inert on an untouched screen — a
+    // reset that resets nothing must not look like it would.
     await page.goto("/dashboard");
-    await expect(page.getByTestId("clear-filters")).toHaveCount(0);
+    await expect(page.getByTestId("clear-filters")).toHaveAttribute("aria-disabled", "true");
 
     await page.getByTestId("filter-status").selectOption("missing_ad");
     await page.getByTestId("apply-filters").click();
@@ -136,6 +135,9 @@ test.describe("all dates, and back to this week", () => {
     await page.waitForURL(/all=1/);
     await expect(page.getByTestId("week-heading")).toHaveText("כל הפרסומים");
     await expect(page.getByTestId("filter-from")).toHaveValue("");
+    // The whole screen, not only the table: the sentence and the first card say it.
+    await expect(page.getByTestId("dashboard-period-sentence")).toContainText("כל הזמן");
+    await expect(page.getByTestId("kpi-week")).toContainText("כל הפרסומים");
 
     await page.getByTestId("dates-this-week").click();
     await page.waitForURL((url) => !url.search.includes("all="));

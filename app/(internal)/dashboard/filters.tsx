@@ -1,11 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Filter, X } from "lucide-react";
+import { Filter } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ResetFilters } from "@/components/ui/reset-filters";
 import { Combobox } from "@/components/ui/combobox";
-import { Input } from "@/components/ui/input";
 
 export type FilterOption = { id: string; name: string };
 
@@ -47,7 +47,6 @@ export function DashboardFilters({
   statuses,
   baseHref,
   dirty,
-  thisWeek,
 }: {
   values: DashboardFilterValues;
   newspapers: FilterOption[];
@@ -55,8 +54,6 @@ export function DashboardFilters({
   statuses: Array<{ value: string; label: string }>;
   /** The page's URL without any of these five parameters. */
   baseHref: string;
-  /** This week's yyyy-MM-dd bounds — to know when "השבוע" is not showing. */
-  thisWeek: { from: string; to: string };
   /**
    * Whether the reader actually narrowed anything.
    *
@@ -100,10 +97,7 @@ export function DashboardFilters({
           newspaper: read("newspaper") || "all",
           customer: read("customer") || "all",
           status: read("status") || "all",
-          from: read("from"),
-          to: read("to"),
-          // Both dates cleared is "no dates" — everything — not "this week".
-          all: !read("from") && !read("to"),
+          // The dates belong to the period control above and are kept as they are.
         });
       }}
     >
@@ -159,73 +153,12 @@ export function DashboardFilters({
         </select>
       </Field>
 
-      <Field label="מתאריך" htmlFor="from">
-        <Input
-          key={values.from}
-          id="from"
-          name="from"
-          type="date"
-          dir="ltr"
-          defaultValue={values.from}
-          data-testid="filter-from"
-          className="w-40"
-        />
-      </Field>
-
-      <Field label="עד תאריך" htmlFor="to">
-        <Input
-          key={values.to}
-          id="to"
-          name="to"
-          type="date"
-          dir="ltr"
-          defaultValue={values.to}
-          data-testid="filter-to"
-          className="w-40"
-        />
-      </Field>
-
       <Button type="submit" variant="secondary" data-testid="apply-filters">
         <Filter className="size-4" />
         סינון
       </Button>
 
-      {/* The two ranges asked for most, one click each. "השבוע" is the bare
-          dashboard's own range, so it clears the dates rather than typing
-          this week's into them. */}
-      <Button
-        type="button"
-        variant={values.all ? "primary" : "ghost"}
-        data-testid="dates-all"
-        aria-pressed={values.all}
-        onClick={() => go({ all: true, from: "", to: "" })}
-      >
-        כל התאריכים
-      </Button>
-      {values.all || values.from !== thisWeek.from || values.to !== thisWeek.to ? (
-        <Button
-          type="button"
-          variant="ghost"
-          data-testid="dates-this-week"
-          onClick={() => go({ all: false, from: "", to: "" })}
-        >
-          השבוע
-        </Button>
-      ) : null}
-
-      {dirty ? (
-        <Button
-          type="button"
-          variant="ghost"
-          data-testid="clear-filters"
-          onClick={() =>
-            go({ newspaper: "all", customer: "all", status: "all", from: "", to: "", all: false })
-          }
-        >
-          <X className="size-4" />
-          ניקוי
-        </Button>
-      ) : null}
+      <ResetFilters href="/dashboard" active={dirty} testId="clear-filters" />
     </form>
   );
 }

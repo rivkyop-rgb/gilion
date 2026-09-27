@@ -1,3 +1,4 @@
+import { ResetFilters } from "@/components/ui/reset-filters";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
@@ -289,6 +290,16 @@ export default async function AdvertisementsPage({
         <Button type="submit" variant="secondary" data-testid="apply-filters">
           סינון
         </Button>
+        <ResetFilters
+          href={view === "list" ? "/advertisements?view=list" : "/advertisements"}
+          active={
+            customer !== "all" ||
+            status !== "all" ||
+            type !== "all" ||
+            Boolean(from || to || unassigned) ||
+            newspaper !== "all"
+          }
+        />
       </form>
 
       {model.length === 0 ? (

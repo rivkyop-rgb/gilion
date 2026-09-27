@@ -90,7 +90,7 @@ describe("ביצועי הדשבורד", () => {
 
   it("ששת המונים חוזרים בתוך התקציב", async () => {
     const started = Date.now();
-    const counts = await dashboardCounts(BUSINESS, DASHBOARD_CARD_KEYS, new Date("2031-06-15"));
+    const counts = await dashboardCounts(BUSINESS, DASHBOARD_CARD_KEYS, undefined, new Date("2031-06-15"));
     const elapsed = Date.now() - started;
 
     // Every card answered, not merely a fast empty object.
@@ -103,7 +103,7 @@ describe("ביצועי הדשבורד", () => {
     // which is the shape the wall clock is set by.
     const started = Date.now();
     const [counts, table] = await Promise.all([
-      dashboardCounts(BUSINESS, DASHBOARD_CARD_KEYS, new Date("2031-06-15")),
+      dashboardCounts(BUSINESS, DASHBOARD_CARD_KEYS, undefined, new Date("2031-06-15")),
       listPublicationsPage(BUSINESS, { from: "2031-06-08", to: "2031-06-14" }),
     ]);
     const elapsed = Date.now() - started;
@@ -115,7 +115,7 @@ describe("ביצועי הדשבורד", () => {
 
   it("כרטיס שהתפקיד אינו רואה אינו שאילתה שרצה", async () => {
     // Rule 10 from the other side: asking for two cards must not compute six.
-    const counts = await dashboardCounts(BUSINESS, ["week", "openIssues"], new Date("2031-06-15"));
+    const counts = await dashboardCounts(BUSINESS, ["week", "openIssues"], undefined, new Date("2031-06-15"));
     expect(Object.keys(counts).sort()).toEqual(["openIssues", "week"]);
     expect(counts.debt).toBeUndefined();
   });
@@ -127,7 +127,7 @@ describe("ביצועי הדשבורד", () => {
      * own cheaper query.
      */
     const today = new Date("2031-06-15");
-    const counts = await dashboardCounts(BUSINESS, ["week"], today);
+    const counts = await dashboardCounts(BUSINESS, ["week"], undefined, today);
     // 2031-06-15 is a Sunday; its week runs to the 21st.
     const table = await listPublicationsPage(BUSINESS, { from: "2031-06-15", to: "2031-06-21" });
     expect(counts.week).toBe(table.total);
