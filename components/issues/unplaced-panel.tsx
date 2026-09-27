@@ -106,7 +106,7 @@ export function UnplacedPanel({
   return (
     <section
       aria-label="פרסומים שלא שובצו"
-      className="flex max-h-[calc(100dvh-12.5rem)] min-h-0 flex-col rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3"
+      className="flex max-h-full min-h-0 flex-col rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3"
     >
       {/* Two tabs, because the panel answers two different questions: what is
           left to do, and what has already been done. The second one used to be

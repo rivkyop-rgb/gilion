@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { loginAsAdmin } from "./helpers";
-import { FIXTURE, ISSUE_FIXTURES, boardUrl, openView, resetFixtureIssue } from "./issue-helpers";
+import { FIXTURE, ISSUE_FIXTURES, boardUrl, openView, resetFixtureIssue, openDetails } from "./issue-helpers";
 
 /**
  * Composing the issue after it is open.
@@ -117,6 +117,7 @@ test.describe("the pages of an issue", () => {
     page,
   }) => {
     await openView(page, FIXTURE.spreadView);
+    await openDetails(page);
     const panel = page.getByTestId(`allowed-shapes-${FIXTURE.innerRightPage}`);
     await expect(panel).toContainText("רבע עמוד");
     await expect(panel).toContainText("ס״מ");
@@ -153,6 +154,7 @@ test.describe("the pages of an issue", () => {
 
   test("draws the allowed shapes instead of only naming them", async ({ page }) => {
     await openView(page, FIXTURE.spreadView);
+    await openDetails(page);
     const list = page.getByTestId(`allowed-shapes-list-${FIXTURE.innerRightPage}`);
 
     // A picture of the footprint, not a line of text: "half a page across" and
@@ -168,6 +170,7 @@ test.describe("the pages of an issue", () => {
     await page.getByTestId(`board-cell-${FIXTURE.innerRightPage}-0-0`).click();
     await expect(page.locator('[data-testid^="placement-"]')).toHaveCount(1);
 
+    await openDetails(page);
     await page.getByTestId("remove-page").click();
 
     await expect(page.getByTestId("board-message")).toContainText("שיבוצים");

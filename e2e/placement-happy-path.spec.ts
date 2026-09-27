@@ -8,8 +8,7 @@ import {
   expectPlacedCount,
   openView,
   placeAt,
-  resetFixtureIssue,
-} from "./issue-helpers";
+  resetFixtureIssue, openDetails } from "./issue-helpers";
 
 /**
  * US-007 AC-3 and AC-4: put an ad on the page, see what it is, take it off.
@@ -42,6 +41,7 @@ test.describe("placing an ad on a page", () => {
     await expect(placement).toHaveCount(1);
 
     await placement.click();
+    await openDetails(page);
     const details = page.getByTestId("selected-details");
     await expect(details).toContainText("רבע עמוד");
     await expect(details).toContainText("עמוד");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -9,6 +9,10 @@ import {
   ChevronRight,
   ClipboardCheck,
   Lock,
+  Maximize2,
+  Minimize2,
+  PanelLeftClose,
+  PanelLeftOpen,
   Trash2,
   Wand2,
 } from "lucide-react";
@@ -56,6 +60,7 @@ import {
 } from "@/app/(internal)/issues/actions";
 import { PageCanvas, type CanvasPlacement } from "./page-canvas";
 import { ShapeChips } from "./shape-chips";
+import { ISSUE_TONE } from "@/components/status-tone";
 import { ChangeIssueDate } from "./issue-calendar";
 import { PageStrip } from "./page-strip";
 import { PageOrderDialog } from "./page-order-dialog";
@@ -100,6 +105,20 @@ export type BoardModel = {
    * here" is not a link. Null when the URL asked for nothing.
    */
   focusPageNumber: number | null;
+};
+
+const DETAILS_KEY = "gilion.board.details";
+const readDetails = () => {
+  try {
+    return window.localStorage.getItem(DETAILS_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+/** Storage changes in another tab; this tab writes through setDetailsOpen. */
+const subscribeDetails = (onChange: () => void) => {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
 };
 
 /** What the designer is currently holding. */
@@ -156,6 +175,41 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
   // A page added mid-issue is an inner page; the select still offers the rest.
   const [newPageType, setNewPageType] = useState(innerPageTypeId(model.pageTypes) ?? "");
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  /** Full screen: the board over the app's own chrome (27/09/2026). */
+  const [focus, setFocus] = useState(false);
+  /**
+   * The details panel. Remembered per browser; closed until asked for.
+   * Read through useSyncExternalStore so the server (no storage) and the first
+   * client render agree, and the stored choice arrives right after.
+   */
+  const storedDetails = useSyncExternalStore(
+    subscribeDetails,
+    () => readDetails(),
+    () => false,
+  );
+  const [detailsChoice, setDetailsChoice] = useState<boolean | null>(null);
+  const detailsOpen = detailsChoice ?? storedDetails;
+  const setDetailsOpen = (open: boolean) => {
+    setDetailsChoice(open);
+    try {
+      window.localStorage.setItem(DETAILS_KEY, open ? "1" : "0");
+    } catch {
+      // A browser that refuses storage just does not remember.
+    }
+  };
+  // F toggles focus and Esc leaves it — never while typing into a field.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if (e.key === "Escape") setFocus(false);
+      else if ((e.key === "f" || e.key === "כ") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        setFocus((f) => !f);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   /** Pages the last reorder moved — highlighted on the strip for a few seconds. */
   const [recentlyMoved, setRecentlyMoved] = useState<Set<string>>(() => new Set());
   /** The ordering dialog: null closed; `initial` is the drag that opened it. */
@@ -344,7 +398,26 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
 
   return (
     <div
-      className="grid gap-3 xl:grid-cols-[17rem_1fr_15rem]"
+      // NOT "placement-…": that prefix is reserved for placements, and every
+      // spec counts them with [data-testid^="placement-"] (CLAUDE.md).
+      data-testid="board-root"
+      data-focus={focus || undefined}
+      className={cn(
+        "flex flex-col gap-3",
+        // Focus: the board over everything — top bar and menu included.
+        focus && "fixed inset-0 z-40 overflow-hidden bg-background p-3",
+      )}
+      // One height for all three columns, set here so focus can change it in
+      // one place. Measured below by useFittedSpread; this is only the budget.
+      /* The board is exactly the window below the top bar (h-16) and the
+         frame's padding (py-3), and the columns take what the header row
+         leaves — measured by layout, not subtracted by guess. A fixed
+         `100dvh - N` held until the header wrapped to two lines on a laptop,
+         and the foot of the page went off screen by exactly that line
+         (CLAUDE.md, "חיסור קבוע מ־100dvh"). */
+      style={{
+        height: focus ? "100dvh" : "calc(100dvh - 4rem - 1.5rem)",
+      }}
       // A drag that ends anywhere but a page is a cancelled drag, not a drop —
       // the selection survives it so the click path still works.
       onPointerUp={() => {
@@ -352,44 +425,153 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
         setDragging(false);
       }}
     >
-      <UnplacedPanel
-        issueId={model.issueId}
-        candidates={model.candidates}
-        placements={model.placements}
-        pageLabelOf={(pageId) =>
-          pageLabel(model.pages.find((p) => p.id === pageId)?.number ?? 0, totalPages)
-        }
-        onJumpToPlacement={(placement) => {
-          jumpToPage(placement.pageId);
-          setHeld(null);
-        }}
-        customers={model.customers}
-        openPages={(view?.pages ?? []).map((p) => {
-          const full = model.pages.find((x) => x.id === p.id);
-          return {
-            id: p.id,
-            label: pageLabel(p.number, totalPages),
-            pageTypeId: full?.pageTypeId ?? "",
-            allowedShapes: full?.allowedShapes ?? [],
-          };
-        })}
-        grid={model.grid}
-        editable={editable}
-        isAdmin={model.isAdmin}
-        holdingPublicationId={held?.kind === "publication" ? held.publicationId : null}
-        onPressStart={() => {
-          pressed.current = true;
-        }}
-        onPick={(item) =>
-          setHeld((prev) =>
-            prev?.kind === "publication" && prev.publicationId === item.publicationId
-              ? null
-              : { kind: "publication", publicationId: item.publicationId, shape: item.shape },
-          )
-        }
-      />
+      {/* ── One slim row: which issue, its status, and what to do with it ─────
+          It used to be a heading block above the board and a status block at
+          the foot of the details panel — together about 150px of height that
+          came straight off the printed page (27/09/2026). */}
+      <header
+        className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2"
+        data-testid="board-header"
+      >
+        <h1 className="font-serif text-xl font-semibold">
+          {model.newspaperName} · <Ltr>{model.issueDate}</Ltr>
+        </h1>
+        <span className="text-xs text-on-surface-variant">
+          גריד{" "}
+          <Ltr>
+            {model.grid.columns} × {model.grid.rows}
+          </Ltr>{" "}
+          · <Ltr>{totalPages}</Ltr> עמודים
+        </span>
+        <Badge tone={ISSUE_TONE[model.status]} data-testid="board-status">
+          {ISSUE_STATUS_LABELS[model.status]}
+        </Badge>
+        {model.mayWrite ? (
+          <>
+            {/* Whether placing is allowed RIGHT NOW, said outright — the status
+                name alone does not answer it. NOT "placement-…": every spec
+                counts placements with [data-testid^="placement-"]. */}
+            <span
+              data-testid="can-place"
+              className={cn(
+                "rounded-full px-2.5 py-0.5 text-xs",
+                editable
+                  ? "bg-status-success-bg text-status-success-fg"
+                  : "bg-status-neutral-bg text-status-neutral-fg",
+              )}
+            >
+              {editable ? "אפשר לשבץ עכשיו" : (locked ?? "הגיליון אינו פתוח לשיבוץ")}
+            </span>
+            {editable ? (
+              <ChangeIssueDate
+                issueId={model.issueId}
+                currentDate={model.issueDateIso}
+                onDone={say}
+              />
+            ) : null}
+            {/* `closed` is not one of these, nor is reopening: both run the
+                seven checks and write the press file, so they live on the check
+                screen behind its findings — never as a one-click status. */}
+            {availableTransitions(model.status, model.isAdmin)
+              .filter((to) => to !== "closed" && model.status !== "closed")
+              .map((to) => (
+                <Button
+                  key={to}
+                  size="sm"
+                  variant="secondary"
+                  disabled={pending}
+                  data-testid={`set-status-${to}`}
+                  onClick={() =>
+                    startTransition(async () => {
+                      const result = await setIssueStatusAction(model.issueId, to);
+                      if (!result.ok) {
+                        fail(result.message ?? "לא הצלחנו לשנות סטטוס");
+                        return;
+                      }
+                      router.refresh();
+                    })
+                  }
+                >
+                  {ISSUE_STATUS_LABELS[to]}
+                </Button>
+              ))}
+            <Button asChild size="sm" data-testid="go-to-check">
+              <Link href={`/issues/${model.issueId}/validate`}>
+                <ClipboardCheck className="size-4" />
+                {model.status === "closed" ? "בדיקה ו־PDF" : "בדיקה וסגירה"}
+              </Link>
+            </Button>
+          </>
+        ) : null}
 
-      {/* ── Centre: the spread ─────────────────────────────────────────────────
+        <span className="ms-auto flex items-center gap-2">
+          <Button
+            size="sm"
+            variant={focus ? "primary" : "secondary"}
+            data-testid="board-focus"
+            aria-pressed={focus}
+            title="מסך מלא — מקש F"
+            onClick={() => setFocus((f) => !f)}
+          >
+            {focus ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+            {focus ? "יציאה ממסך מלא" : "מסך מלא"}
+          </Button>
+          {!focus ? (
+            <Button asChild size="sm" variant="ghost">
+              <Link href="/issues">חזרה לגיליונות</Link>
+            </Button>
+          ) : null}
+        </span>
+      </header>
+
+      <div
+        className={cn(
+          "grid min-h-0 flex-1 gap-3 [grid-template-rows:minmax(0,1fr)]",
+          focus
+            ? "xl:grid-cols-[16rem_1fr_9rem]"
+            : detailsOpen
+              ? "xl:grid-cols-[16rem_1fr_9rem_17rem]"
+              : "xl:grid-cols-[16rem_1fr_9rem_2.75rem]",
+        )}
+      >
+        <UnplacedPanel
+          issueId={model.issueId}
+          candidates={model.candidates}
+          placements={model.placements}
+          pageLabelOf={(pageId) =>
+            pageLabel(model.pages.find((p) => p.id === pageId)?.number ?? 0, totalPages)
+          }
+          onJumpToPlacement={(placement) => {
+            jumpToPage(placement.pageId);
+            setHeld(null);
+          }}
+          customers={model.customers}
+          openPages={(view?.pages ?? []).map((p) => {
+            const full = model.pages.find((x) => x.id === p.id);
+            return {
+              id: p.id,
+              label: pageLabel(p.number, totalPages),
+              pageTypeId: full?.pageTypeId ?? "",
+              allowedShapes: full?.allowedShapes ?? [],
+            };
+          })}
+          grid={model.grid}
+          editable={editable}
+          isAdmin={model.isAdmin}
+          holdingPublicationId={held?.kind === "publication" ? held.publicationId : null}
+          onPressStart={() => {
+            pressed.current = true;
+          }}
+          onPick={(item) =>
+            setHeld((prev) =>
+              prev?.kind === "publication" && prev.publicationId === item.publicationId
+                ? null
+                : { kind: "publication", publicationId: item.publicationId, shape: item.shape },
+            )
+          }
+        />
+
+        {/* ── Centre: the spread ─────────────────────────────────────────────────
 
           The column has a definite height and the spread takes whatever the
           rest of it leaves. That is deliberate: subtracting a guessed constant
@@ -398,16 +580,13 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
           nobody accounted for. Here the notices, the pager and the strip take
           what they need first, and the page fills the remainder — so it is
           always whole, whatever wrapped. */}
-      <section
-        aria-label="קנבס העמוד"
-        className="flex h-[calc(100dvh-12.5rem)] min-h-72 min-w-0 flex-col"
-      >
-        {/* Both notices live in space that is ALWAYS reserved, and the hover
+        <section aria-label="קנבס העמוד" className="flex h-full min-h-72 min-w-0 flex-col">
+          {/* Both notices live in space that is ALWAYS reserved, and the hover
             reason is drawn over the page rather than above it. A banner that
             appears when the pointer enters a cell pushes the page down by its
             own height — out from under the pointer — so the cell being aimed at
             moves as it is aimed at, and the drop lands somewhere else. */}
-        {/* One message, in one always-reserved place.
+          {/* One message, in one always-reserved place.
             
             The hover reason used to ALSO be drawn floating over the top of the
             page — the same sentence twice, and the copy on the canvas sat
@@ -418,7 +597,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
             
             Priority is deliberate: while something is in hand, why it will not
             drop outranks whatever the last action said. */}
-        {/* A FIXED height, and the message positioned inside it.
+          {/* A FIXED height, and the message positioned inside it.
             
             `min-h-9` reserved one line, so a long refusal wrapped to two and
             took the difference out of the canvas — which moved the cell being
@@ -431,9 +610,9 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
             Two lines' worth is reserved always. Anything longer scrolls inside
             the box rather than pushing anything, because a reason is worth
             reading in full and never worth moving the page for. */}
-        <div className="relative mb-2 h-14 shrink-0">
-          {held && verdict ? (
-            /* One testid for the whole row, whatever is in it.
+          <div className="relative mb-2 h-14 shrink-0">
+            {held && verdict ? (
+              /* One testid for the whole row, whatever is in it.
                
                The hover reason used to be a second element with a second name,
                floating over the canvas. Splitting them was splitting one thing:
@@ -442,37 +621,37 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                two names meant every spec had to know which of them the board
                happened to be showing. `data-kind` keeps them tellable apart
                where that actually matters. */
-            <p
-              role="status"
-              data-testid="board-message"
-              data-kind="verdict"
-              /* RED, because it blocks.
+              <p
+                role="status"
+                data-testid="board-message"
+                data-kind="verdict"
+                /* RED, because it blocks.
                  
                  One scheme across the product, the one the check screen already
                  uses: red refuses, orange warns and blocks nothing, green is
                  fine. This message used to be orange while hovering and red
                  after the click — the same sentence in two colours, which
                  taught the reader that the colour means nothing. */
-              className="absolute inset-0 overflow-y-auto rounded-lg bg-status-error-bg p-2 text-sm text-status-error-fg"
-            >
-              {verdict.message}
-            </p>
-          ) : notice ? (
-            <p
-              role="alert"
-              data-testid="board-message"
-              data-kind="notice"
-              data-ok={notice.ok}
-              className={cn(
-                "absolute inset-0 flex flex-wrap items-center gap-2 overflow-y-auto rounded-lg p-2 text-sm",
-                notice.ok
-                  ? "bg-status-success-bg text-status-success-fg"
-                  : "bg-status-error-bg text-status-error-fg",
-              )}
-            >
-              <span>{notice.text}</span>
+                className="absolute inset-0 overflow-y-auto rounded-lg bg-status-error-bg p-2 text-sm text-status-error-fg"
+              >
+                {verdict.message}
+              </p>
+            ) : notice ? (
+              <p
+                role="alert"
+                data-testid="board-message"
+                data-kind="notice"
+                data-ok={notice.ok}
+                className={cn(
+                  "absolute inset-0 flex flex-wrap items-center gap-2 overflow-y-auto rounded-lg p-2 text-sm",
+                  notice.ok
+                    ? "bg-status-success-bg text-status-success-fg"
+                    : "bg-status-error-bg text-status-error-fg",
+                )}
+              >
+                <span>{notice.text}</span>
 
-              {/* What is still SELLABLE, said in the same breath as what just
+                {/* What is still SELLABLE, said in the same breath as what just
                   happened.
                   
                   The two used to take turns in this row, and a success always
@@ -481,491 +660,479 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                   the moment somebody wants it. They are not competing pieces of
                   news: "four ads went down" and "two pages still have room" are
                   the same sentence to a person running an issue. */}
-              {notice.ok && unfinished.length > 0 ? (
-                <span
-                  data-testid="unfinished-after-notice"
-                  className="flex flex-wrap items-center gap-1.5 text-on-surface-variant"
-                >
-                  · עדיין יש מקום למכור ב־<Ltr>{unfinished.length}</Ltr>{" "}
+                {notice.ok && unfinished.length > 0 ? (
+                  <span
+                    data-testid="unfinished-after-notice"
+                    className="flex flex-wrap items-center gap-1.5 text-on-surface-variant"
+                  >
+                    · עדיין יש מקום למכור ב־<Ltr>{unfinished.length}</Ltr>{" "}
+                    {unfinished.length === 1 ? "עמוד" : "עמודים"}:
+                    {unfinished.map((f) => (
+                      <button
+                        key={f.pageId}
+                        type="button"
+                        data-testid={`jump-to-page-${f.pageNumber}`}
+                        onClick={() => jumpToPage(f.pageId)}
+                        className="rounded-full bg-surface-container-lowest px-2 py-0.5 text-xs font-medium underline-offset-2 hover:underline"
+                      >
+                        {pageLabel(f.pageNumber, totalPages)} · {100 - f.percent}% פנוי
+                      </button>
+                    ))}
+                  </span>
+                ) : null}
+              </p>
+            ) : unfinished.length > 0 ? (
+              <p
+                data-testid="unfinished-alert"
+                className="absolute inset-0 flex flex-wrap items-center gap-2 overflow-y-auto rounded-lg bg-status-warning-bg p-2 text-sm text-status-warning-fg"
+              >
+                <AlertTriangle className="size-4 shrink-0" />
+                <span>
+                  עדיין יש מקום למכור ב־<Ltr>{unfinished.length}</Ltr>{" "}
                   {unfinished.length === 1 ? "עמוד" : "עמודים"}:
-                  {unfinished.map((f) => (
-                    <button
-                      key={f.pageId}
-                      type="button"
-                      data-testid={`jump-to-page-${f.pageNumber}`}
-                      onClick={() => jumpToPage(f.pageId)}
-                      className="rounded-full bg-surface-container-lowest px-2 py-0.5 text-xs font-medium underline-offset-2 hover:underline"
-                    >
-                      {pageLabel(f.pageNumber, totalPages)} · {100 - f.percent}% פנוי
-                    </button>
-                  ))}
                 </span>
-              ) : null}
-            </p>
-          ) : unfinished.length > 0 ? (
-            <p
-              data-testid="unfinished-alert"
-              className="absolute inset-0 flex flex-wrap items-center gap-2 overflow-y-auto rounded-lg bg-status-warning-bg p-2 text-sm text-status-warning-fg"
-            >
-              <AlertTriangle className="size-4 shrink-0" />
-              <span>
-                עדיין יש מקום למכור ב־<Ltr>{unfinished.length}</Ltr>{" "}
-                {unfinished.length === 1 ? "עמוד" : "עמודים"}:
-              </span>
-              {unfinished.map((f) => (
-                <button
-                  key={f.pageId}
-                  type="button"
-                  data-testid={`jump-to-page-${f.pageNumber}`}
-                  onClick={() => jumpToPage(f.pageId)}
-                  className="rounded-full bg-surface-container-lowest px-2 py-0.5 text-xs font-medium underline-offset-2 hover:underline"
-                >
-                  {/* The number a seller acts on is what is LEFT, not what is
+                {unfinished.map((f) => (
+                  <button
+                    key={f.pageId}
+                    type="button"
+                    data-testid={`jump-to-page-${f.pageNumber}`}
+                    onClick={() => jumpToPage(f.pageId)}
+                    className="rounded-full bg-surface-container-lowest px-2 py-0.5 text-xs font-medium underline-offset-2 hover:underline"
+                  >
+                    {/* The number a seller acts on is what is LEFT, not what is
                       gone. The page caption shows how full it is; this shows
                       what there is to offer somebody on the phone. */}
-                  {pageLabel(f.pageNumber, totalPages)} · {100 - f.percent}% פנוי
-                </button>
-              ))}
-            </p>
-          ) : (
-            <p
-              data-testid="all-full"
-              className="absolute inset-0 overflow-y-auto p-2 text-sm text-status-success-fg"
-            >
-              כל העמודים מלאים — אין יותר שטח למכור בגיליון הזה.
-            </p>
-          )}
-        </div>
+                    {pageLabel(f.pageNumber, totalPages)} · {100 - f.percent}% פנוי
+                  </button>
+                ))}
+              </p>
+            ) : (
+              <p
+                data-testid="all-full"
+                className="absolute inset-0 overflow-y-auto p-2 text-sm text-status-success-fg"
+              >
+                כל העמודים מלאים — אין יותר שטח למכור בגיליון הזה.
+              </p>
+            )}
+          </div>
 
-        {/* The pager. RTL: "next" walks deeper into the issue, which is
-            leftwards on screen, so the chevron pointing left is the forward one. */}
-        <div className="mb-2 flex shrink-0 items-center justify-center gap-3">
-          <Button
-            size="sm"
-            variant="ghost"
-            data-testid="pager-prev"
-            disabled={viewIndex === 0}
-            onClick={() => setViewIndex((i) => Math.max(0, i - 1))}
-            aria-label="לתצוגה הקודמת"
-          >
-            <ChevronRight className="size-4" />
-          </Button>
-          <span data-testid="pager-label" className="min-w-40 text-center text-sm font-medium">
-            {view?.label ?? "—"}
-            <span className="ms-2 text-xs font-normal text-on-surface-variant">
-              <Ltr>
-                {views.length === 0 ? 0 : viewIndex + 1}/{views.length}
-              </Ltr>
-            </span>
-          </span>
-          <Button
-            size="sm"
-            variant="ghost"
-            data-testid="pager-next"
-            disabled={viewIndex >= views.length - 1}
-            onClick={() => setViewIndex((i) => Math.min(views.length - 1, i + 1))}
-            aria-label="לתצוגה הבאה"
-          >
-            <ChevronLeft className="size-4" />
-          </Button>
-        </div>
+          <div className="relative min-h-0 flex-1">
+            {locked ? (
+              <div
+                data-testid="lock-overlay"
+                className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-surface-dim/80 text-on-surface"
+              >
+                <Lock className="size-8" />
+                <p className="font-medium">{locked}</p>
+              </div>
+            ) : null}
 
-        <div className="relative min-h-0 flex-1">
-          {locked ? (
-            <div
-              data-testid="lock-overlay"
-              className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-surface-dim/80 text-on-surface"
-            >
-              <Lock className="size-8" />
-              <p className="font-medium">{locked}</p>
-            </div>
-          ) : null}
-
-          {/* dir="rtl" puts the lower page number on the right with no
+            {/* dir="rtl" puts the lower page number on the right with no
               arithmetic — the same rule the grid inside each page follows.
 
               The height budget is what keeps the issue on one screen. The
               subtraction is the chrome around it: the top bar, the page
               heading, the notice row, the pager, the captions and the strip. */}
-          <div
-            ref={spreadRef}
-            dir="rtl"
-            data-testid="spread"
-            className="mx-auto flex h-full items-start justify-center gap-2"
-          >
-            {(view?.pages ?? []).map((page) => {
-              const full = model.pages.find((p) => p.id === page.id);
-              const fill = fills.get(page.id);
-              if (!full || !fill) return null;
-              return (
-                <PageCanvas
-                  key={page.id}
-                  page={page}
-                  totalPages={totalPages}
-                  size={pageSize}
-                  grid={model.grid}
-                  placements={placementsByPage.get(page.id) ?? []}
-                  reserved={full.reserved}
-                  fill={fill}
-                  editable={editable}
-                  holding={held?.kind === "publication"}
-                  refusesHeld={
-                    held && !full.allowedShapes.some((s) => s.id === held.shape.id)
-                      ? held.shape.name
-                      : null
-                  }
-                  candidate={candidate?.pageId === page.id ? candidate : null}
-                  verdict={candidate?.pageId === page.id ? verdict : null}
-                  selectedPlacementId={selectedPlacement?.id ?? null}
-                  onCellEnter={(pageId, cell) => held && setHover({ pageId, cell })}
-                  onCellClick={(pageId, cell) => {
-                    setSelectedPageId(pageId);
-                    if (held) commit(pageId, cell);
-                  }}
-                  onPointerCell={(pageId, cell) => {
-                    if (!held) return;
-                    setHover({ pageId, cell });
-                    if (pressed.current) setDragging(true);
-                  }}
-                  onDrop={(pageId, cell) => {
-                    if (!held || !dragging) return;
-                    setDragging(false);
-                    pressed.current = false;
-                    commit(pageId, cell);
-                  }}
-                  onPlacementPick={(placement) => {
-                    pressed.current = editable;
-                    setSelectedPageId(placement.pageId);
-                    setHeld((prev) =>
-                      prev?.kind === "placement" && prev.placementId === placement.id
-                        ? null
-                        : {
-                            kind: "placement",
-                            placementId: placement.id,
-                            publicationId: placement.publicationId,
-                            shape: {
-                              // The AD SHAPE's id, never the placement's — see
-                              // CanvasPlacement.shapeId. With the wrong one,
-                              // rule 5 refuses the move on every page in the
-                              // issue, including the one it is already on.
-                              id: placement.shapeId,
-                              name: placement.shapeName,
-                              // The footprint stays the PLACEMENT's own: an ad
-                              // laid out before the catalogue was resized keeps
-                              // the size it was sold at (conventions.md §7).
-                              cols: placement.cols,
-                              rows: placement.rows,
-                              positions: placement.shapePositions,
-                            },
-                          },
-                    );
-                  }}
-                  onLeave={() => setHover(null)}
-                />
-              );
-            })}
-          </div>
-        </div>
-
-        {editable && (unplacedCount > 0 || model.placements.length > 0) ? (
-          <div className="mt-2 flex shrink-0 flex-wrap items-center gap-2">
-            {unplacedCount > 0 ? (
-              <>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={pending}
-                  data-testid="auto-place"
-                  onClick={() => run(() => autoPlaceIssueAction(model.issueId, layoutSeed))}
-                >
-                  <Wand2 className="size-4" />
-                  שיבוץ אוטומטי (<Ltr>{unplacedCount}</Ltr>)
-                </Button>
-                <span className="text-xs text-on-surface-variant">
-                  עמודים יתווספו לפי הצורך כדי שכל הפרסומים ייכנסו.
-                </span>
-              </>
-            ) : null}
-
-            {/* "Another arrangement" empties the board and packs again, which
-                is the only thing it could honestly mean once everything is
-                already placed. It undoes hand-placed ads as well, so it asks. */}
-            {model.placements.length > 0 ? (
-              <ConfirmDialog
-                testId="reshuffle"
-                trigger={
-                  <Button size="sm" variant="ghost" data-testid="auto-place-reshuffle">
-                    סידור אחר
-                  </Button>
-                }
-                title="לסדר את הגיליון מחדש?"
-                body={`כל ${model.placements.length} השיבוצים בגיליון יוסרו, והמערכת תסדר אותו מחדש בפריסה אחרת — כולל מודעות ששובצו ביד.`}
-                confirmLabel="סדר מחדש"
-                pendingLabel="מסדר…"
-                onConfirm={async () => {
-                  const next = layoutSeed + 1;
-                  setLayoutSeed(next);
-                  const result = await autoPlaceIssueAction(model.issueId, next, true);
-                  if (result.ok) {
-                    if (result.message) say(result.message);
-                    router.refresh();
-                    return;
-                  }
-                  return { message: result.message ?? "לא הצלחנו לסדר מחדש" };
-                }}
-              />
-            ) : null}
-          </div>
-        ) : null}
-
-        <div className="shrink-0">
-          <PageStrip
-            views={views}
-            fills={fills}
-            activeIndex={viewIndex}
-            editable={editable}
-            pageTypes={model.pageTypes}
-            newPageTypeId={newPageType}
-            onNewPageTypeChange={setNewPageType}
-            onSelectView={(index) => {
-              setViewIndex(index);
-              setHeld(null);
-            }}
-            onInsertAfter={(pageId) =>
-              run(() => insertIssuePageAction(model.issueId, newPageType, pageId))
-            }
-            onReorder={(ordered) => setPageOrder({ initial: ordered })}
-            onOpenOrder={() => setPageOrder({ initial: null })}
-            highlightPageIds={recentlyMoved}
-          />
-          {pageOrder ? (
-            <PageOrderDialog
-              // Remounted per opening, so it always starts from the issue as
-              // it stands (or from the drag that opened it), never from a
-              // half-finished arrangement someone walked away from.
-              key={pageOrder.initial?.join() ?? "fresh"}
-              open
-              initialOrder={pageOrder.initial}
-              pages={model.pages.map((p) => ({
-                id: p.id,
-                number: p.number,
-                pageTypeName: p.pageTypeName,
-                fillPercent: fills.get(p.id)?.percent ?? 0,
-                blocks: (placementsByPage.get(p.id) ?? []).map((b) => ({
-                  col: b.col,
-                  row: b.row,
-                  cols: b.cols,
-                  rows: b.rows,
-                })),
-              }))}
-              grid={{ columns: model.grid.columns, rows: model.grid.rows }}
-              onOpenChange={(open) => {
-                if (!open) setPageOrder(null);
-              }}
-              onConfirm={async (ordered) => {
-                const before = model.pages.map((p) => p.id);
-                const result = await reorderIssuePagesAction(model.issueId, ordered);
-                if (!result.message) {
-                  // Said on the board, not only in the dialog that just closed:
-                  // the strip is where the new order has to be recognisable.
-                  const moved = ordered.filter((id, i) => before[i] !== id);
-                  setRecentlyMoved(new Set(moved));
-                  say(
-                    `סדר העמודים עודכן — ${counted(moved.length, "עמוד אחד קיבל", "עמודים קיבלו")} מספר חדש. הם מסומנים ברצועה למטה.`,
-                  );
-                  window.setTimeout(() => setRecentlyMoved(new Set()), 10_000);
-                  router.refresh();
-                }
-                return result;
-              }}
-            />
-          ) : null}
-        </div>
-      </section>
-
-      {/* ── End panel: the selection ─────────────────────────────────────────── */}
-      <section
-        aria-label="פרטי השיבוץ הנבחר"
-        className="max-h-[calc(100dvh-12.5rem)] overflow-y-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3"
-      >
-        <h2 className="mb-2 font-serif text-lg font-semibold">פרטים</h2>
-
-        {selectedPlacement ? (
-          <dl className="space-y-2 text-sm" data-testid="selected-details">
-            <Row label="לקוח" value={selectedPlacement.customerName} />
-            <Row label="עיתון" value={model.newspaperName} />
-            <Row
-              label="עמוד"
-              value={pageLabel(
-                model.pages.find((p) => p.id === selectedPlacement.pageId)?.number ?? 0,
-                totalPages,
-              )}
-            />
-            <Row label="צורה" value={selectedPlacement.shapeName} />
-            {/* Size in centimetres, never in cells (conventions.md §1). */}
-            <Row label="גודל" value={sizeLabel(selectedPlacement, model.grid)} />
-            {selectedPlacement.duplicate ? <Badge tone="accent">שיבוץ בחריגה מאושרת</Badge> : null}
-
-            {editable ? (
-              <ConfirmDialog
-                testId="remove-placement"
-                trigger={
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="mt-2 w-full"
-                    data-testid="remove-placement-trigger"
-                  >
-                    <Trash2 className="size-4" />
-                    הסר שיבוץ
-                  </Button>
-                }
-                title="להסיר את השיבוץ?"
-                body={`המודעה של ${selectedPlacement.customerName} תרד מהעמוד, והפרסום יחזור לרשימת הלא־משובצים.`}
-                confirmLabel="הסר שיבוץ"
-                pendingLabel="מסיר…"
-                onConfirm={async () => {
-                  const result = await removePlacementAction(model.issueId, selectedPlacement.id);
-                  if (result.ok) {
-                    setHeld(null);
-                    router.refresh();
-                    return;
-                  }
-                  return { message: result.message ?? "לא הצלחנו להסיר" };
-                }}
-              />
-            ) : null}
-          </dl>
-        ) : (
-          <p className="text-sm text-on-surface-variant">
-            {held
-              ? "בחרי תא בעמוד כדי להניח את המודעה, או גררי אותה לשם."
-              : "בחרי מודעה משובצת כדי לראות את פרטיה."}
-          </p>
-        )}
-
-        {editable && selectedPage && model.pages.length > 1 ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="mt-3 w-full"
-            disabled={pending}
-            data-testid="remove-page"
-            onClick={() =>
-              run(async () => {
-                const result = await removeIssuePageAction(model.issueId, selectedPage.id);
-                if (result.ok) setSelectedPageId(null);
-                return result;
-              })
-            }
-          >
-            <Trash2 className="size-4" />
-            הסרת {pageLabel(selectedPage.number, totalPages)}
-          </Button>
-        ) : null}
-
-        {/* What may still be SOLD onto the page in front of you.
-            "40% free" is not an offer anyone can make; "a quarter page and an
-            eighth still fit" is — and a shape the page type refuses is worth
-            seeing too, so nobody promises a customer a full page on the cover. */}
-        <div className="mt-4 border-t border-outline-variant pt-3">
-          <p className="mb-1 text-xs text-on-surface-variant">צורות מותרות בעמוד הפתוח</p>
-          {(view?.pages ?? []).map((p) => {
-            const full = model.pages.find((x) => x.id === p.id);
-            const fill = fills.get(p.id);
-            if (!full || !fill) return null;
-            const fits = new Set(fill.fits.map((s) => s.id));
-            return (
-              <div key={p.id} className="mb-2" data-testid={`allowed-shapes-${p.number}`}>
-                <p className="text-xs font-medium">
-                  {pageLabel(p.number, totalPages)} · {full.pageTypeName}
-                </p>
-                <ShapeChips
-                  shapes={full.allowedShapes}
-                  fits={fits}
-                  grid={model.grid}
-                  testId={`allowed-shapes-list-${p.number}`}
-                />
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Status control — the forward step, and an admin's way back. */}
-        {model.mayWrite ? (
-          <div className="mt-4 border-t border-outline-variant pt-3">
-            <p className="mb-1 text-xs text-on-surface-variant">סטטוס הגיליון</p>
-            {/* Whether placing is allowed RIGHT NOW, said outright. The status
-                name alone does not answer it: "טיוטה" and "בעבודה" both mean
-                yes, and somebody who has to learn that is somebody who will
-                ask instead. */}
-            <p
-              /* NOT "placement-…": every spec counts placements with
-                 [data-testid^="placement-"], and a sibling sharing that prefix
-                 silently adds one to every count. */
-              data-testid="can-place"
-              className={cn(
-                "mb-2 rounded-lg p-2 text-xs",
-                editable
-                  ? "bg-status-success-bg text-status-success-fg"
-                  : "bg-status-neutral-bg text-status-neutral-fg",
-              )}
+            <div
+              ref={spreadRef}
+              dir="rtl"
+              data-testid="spread"
+              className="mx-auto flex h-full items-start justify-center gap-2"
             >
-              {editable ? "אפשר לשבץ עכשיו" : (locked ?? "הגיליון אינו פתוח לשיבוץ")}
-            </p>
-            {editable ? (
-              <ChangeIssueDate
-                issueId={model.issueId}
-                currentDate={model.issueDateIso}
-                onDone={say}
-              />
-            ) : null}
+              {(view?.pages ?? []).map((page) => {
+                const full = model.pages.find((p) => p.id === page.id);
+                const fill = fills.get(page.id);
+                if (!full || !fill) return null;
+                return (
+                  <PageCanvas
+                    key={page.id}
+                    page={page}
+                    totalPages={totalPages}
+                    size={pageSize}
+                    grid={model.grid}
+                    placements={placementsByPage.get(page.id) ?? []}
+                    reserved={full.reserved}
+                    fill={fill}
+                    editable={editable}
+                    holding={held?.kind === "publication"}
+                    refusesHeld={
+                      held && !full.allowedShapes.some((s) => s.id === held.shape.id)
+                        ? held.shape.name
+                        : null
+                    }
+                    candidate={candidate?.pageId === page.id ? candidate : null}
+                    verdict={candidate?.pageId === page.id ? verdict : null}
+                    selectedPlacementId={selectedPlacement?.id ?? null}
+                    onCellEnter={(pageId, cell) => held && setHover({ pageId, cell })}
+                    onCellClick={(pageId, cell) => {
+                      setSelectedPageId(pageId);
+                      if (held) commit(pageId, cell);
+                    }}
+                    onPointerCell={(pageId, cell) => {
+                      if (!held) return;
+                      setHover({ pageId, cell });
+                      if (pressed.current) setDragging(true);
+                    }}
+                    onDrop={(pageId, cell) => {
+                      if (!held || !dragging) return;
+                      setDragging(false);
+                      pressed.current = false;
+                      commit(pageId, cell);
+                    }}
+                    onPlacementPick={(placement) => {
+                      pressed.current = editable;
+                      setSelectedPageId(placement.pageId);
+                      setHeld((prev) =>
+                        prev?.kind === "placement" && prev.placementId === placement.id
+                          ? null
+                          : {
+                              kind: "placement",
+                              placementId: placement.id,
+                              publicationId: placement.publicationId,
+                              shape: {
+                                // The AD SHAPE's id, never the placement's — see
+                                // CanvasPlacement.shapeId. With the wrong one,
+                                // rule 5 refuses the move on every page in the
+                                // issue, including the one it is already on.
+                                id: placement.shapeId,
+                                name: placement.shapeName,
+                                // The footprint stays the PLACEMENT's own: an ad
+                                // laid out before the catalogue was resized keeps
+                                // the size it was sold at (conventions.md §7).
+                                cols: placement.cols,
+                                rows: placement.rows,
+                                positions: placement.shapePositions,
+                              },
+                            },
+                      );
+                    }}
+                    onLeave={() => setHover(null)}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        </section>
 
-            <div className="mt-2 flex flex-wrap gap-2">
-              {/* `closed` is NOT one of these buttons, and reopening is not
-                  either.
-                  
-                  Until stage 07 closing was a status change like any other. It
-                  is not: it runs seven checks, marks every publication on the
-                  page as published, and writes the file that goes to the press.
-                  Reopening has to walk all of that back. Both live on the check
-                  screen, behind the findings that decide whether they may
-                  happen at all — a one-click "closed" beside "in layout" would
-                  be an irreversible act dressed as a dropdown. */}
-              {availableTransitions(model.status, model.isAdmin)
-                .filter((to) => to !== "closed" && model.status !== "closed")
-                .map((to) => (
+        {/* ── The page column: where you are in the issue, and its pages ─────────
+          Beside the page rather than under it (27/09/2026): the pager, the
+          auto-placer and the page strip used to take ~180px of height under
+          the canvas — height a printed page, which is tall, needed more. */}
+        <aside
+          aria-label="עמודי הגיליון"
+          data-testid="board-rail"
+          className="flex h-full min-h-72 min-w-0 flex-col gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest p-2 shadow-elevation-1"
+        >
+          {/* The pager. RTL: "next" walks deeper into the issue, which is
+            leftwards on screen, so the chevron pointing left is the forward one. */}
+          <div className="flex shrink-0 items-center justify-between gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              data-testid="pager-prev"
+              disabled={viewIndex === 0}
+              onClick={() => setViewIndex((i) => Math.max(0, i - 1))}
+              aria-label="לתצוגה הקודמת"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+            <span
+              data-testid="pager-label"
+              className="flex min-w-0 flex-col items-center text-center text-xs font-medium leading-4"
+            >
+              {view?.label ?? "—"}
+              <span className="text-[11px] font-normal text-on-surface-variant">
+                <Ltr>
+                  {views.length === 0 ? 0 : viewIndex + 1}/{views.length}
+                </Ltr>
+              </span>
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              data-testid="pager-next"
+              disabled={viewIndex >= views.length - 1}
+              onClick={() => setViewIndex((i) => Math.min(views.length - 1, i + 1))}
+              aria-label="לתצוגה הבאה"
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+          </div>
+
+          {editable && (unplacedCount > 0 || model.placements.length > 0) ? (
+            <div className="flex shrink-0 flex-col gap-1.5">
+              {unplacedCount > 0 ? (
+                <>
                   <Button
-                    key={to}
                     size="sm"
                     variant="secondary"
                     disabled={pending}
-                    data-testid={`set-status-${to}`}
-                    onClick={() =>
-                      startTransition(async () => {
-                        const result = await setIssueStatusAction(model.issueId, to);
-                        if (!result.ok) {
-                          fail(result.message ?? "לא הצלחנו לשנות סטטוס");
-                          return;
-                        }
-                        router.refresh();
-                      })
-                    }
+                    data-testid="auto-place"
+                    className="h-auto w-full whitespace-normal py-1.5 leading-4"
+                    onClick={() => run(() => autoPlaceIssueAction(model.issueId, layoutSeed))}
                   >
-                    {ISSUE_STATUS_LABELS[to]}
+                    <Wand2 className="size-4" />
+                    <span>שיבוץ אוטומטי</span>
+                    <span className="rounded-full bg-surface-container-lowest px-1.5 text-xs">
+                      <Ltr>{unplacedCount}</Ltr>
+                    </span>
                   </Button>
-                ))}
+                  <span className="text-[11px] leading-4 text-on-surface-variant">
+                    עמודים יתווספו לפי הצורך.
+                  </span>
+                </>
+              ) : null}
 
-              <Button asChild size="sm" data-testid="go-to-check">
-                <Link href={`/issues/${model.issueId}/validate`}>
-                  <ClipboardCheck className="size-4" />
-                  {model.status === "closed" ? "בדיקה ו־PDF" : "בדיקה וסגירה"}
-                </Link>
+              {/* "Another arrangement" empties the board and packs again, which
+                is the only thing it could honestly mean once everything is
+                already placed. It undoes hand-placed ads as well, so it asks. */}
+              {model.placements.length > 0 ? (
+                <ConfirmDialog
+                  testId="reshuffle"
+                  trigger={
+                    <Button size="sm" variant="ghost" data-testid="auto-place-reshuffle">
+                      סידור אחר
+                    </Button>
+                  }
+                  title="לסדר את הגיליון מחדש?"
+                  body={`כל ${model.placements.length} השיבוצים בגיליון יוסרו, והמערכת תסדר אותו מחדש בפריסה אחרת — כולל מודעות ששובצו ביד.`}
+                  confirmLabel="סדר מחדש"
+                  pendingLabel="מסדר…"
+                  onConfirm={async () => {
+                    const next = layoutSeed + 1;
+                    setLayoutSeed(next);
+                    const result = await autoPlaceIssueAction(model.issueId, next, true);
+                    if (result.ok) {
+                      if (result.message) say(result.message);
+                      router.refresh();
+                      return;
+                    }
+                    return { message: result.message ?? "לא הצלחנו לסדר מחדש" };
+                  }}
+                />
+              ) : null}
+            </div>
+          ) : null}
+
+          {selectedPlacement && !detailsOpen && !focus ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              data-testid="open-selected-details"
+              onClick={() => setDetailsOpen(true)}
+            >
+              לפרטי המודעה
+            </Button>
+          ) : null}
+
+          <div className="flex min-h-0 flex-1 flex-col">
+            <PageStrip
+              views={views}
+              fills={fills}
+              activeIndex={viewIndex}
+              editable={editable}
+              pageTypes={model.pageTypes}
+              newPageTypeId={newPageType}
+              onNewPageTypeChange={setNewPageType}
+              onSelectView={(index) => {
+                setViewIndex(index);
+                setHeld(null);
+              }}
+              onInsertAfter={(pageId) =>
+                run(() => insertIssuePageAction(model.issueId, newPageType, pageId))
+              }
+              onReorder={(ordered) => setPageOrder({ initial: ordered })}
+              onOpenOrder={() => setPageOrder({ initial: null })}
+              highlightPageIds={recentlyMoved}
+            />
+            {pageOrder ? (
+              <PageOrderDialog
+                // Remounted per opening, so it always starts from the issue as
+                // it stands (or from the drag that opened it), never from a
+                // half-finished arrangement someone walked away from.
+                key={pageOrder.initial?.join() ?? "fresh"}
+                open
+                initialOrder={pageOrder.initial}
+                pages={model.pages.map((p) => ({
+                  id: p.id,
+                  number: p.number,
+                  pageTypeName: p.pageTypeName,
+                  fillPercent: fills.get(p.id)?.percent ?? 0,
+                  blocks: (placementsByPage.get(p.id) ?? []).map((b) => ({
+                    col: b.col,
+                    row: b.row,
+                    cols: b.cols,
+                    rows: b.rows,
+                  })),
+                }))}
+                grid={{ columns: model.grid.columns, rows: model.grid.rows }}
+                onOpenChange={(open) => {
+                  if (!open) setPageOrder(null);
+                }}
+                onConfirm={async (ordered) => {
+                  const before = model.pages.map((p) => p.id);
+                  const result = await reorderIssuePagesAction(model.issueId, ordered);
+                  if (!result.message) {
+                    // Said on the board, not only in the dialog that just closed:
+                    // the strip is where the new order has to be recognisable.
+                    const moved = ordered.filter((id, i) => before[i] !== id);
+                    setRecentlyMoved(new Set(moved));
+                    say(
+                      `סדר העמודים עודכן — ${counted(moved.length, "עמוד אחד קיבל", "עמודים קיבלו")} מספר חדש. הם מסומנים בטור העמודים.`,
+                    );
+                    window.setTimeout(() => setRecentlyMoved(new Set()), 10_000);
+                    router.refresh();
+                  }
+                  return result;
+                }}
+              />
+            ) : null}
+          </div>
+        </aside>
+
+        {/* ── End panel: the selection ─────────────────────────────────────────── */}
+        {focus ? null : !detailsOpen ? (
+          /* Closed by default, and opened only by a click. It does NOT open by
+           itself on selecting an ad: opening a column beside the page changes
+           the room the page is fitted into, and a page that resizes under the
+           pointer is the trap in CLAUDE.md ("הודעה שנפתחת מעל קנבס"). */
+          <button
+            type="button"
+            data-testid="toggle-details"
+            aria-expanded={false}
+            onClick={() => setDetailsOpen(true)}
+            className="flex h-full flex-col items-center gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest py-3 text-xs font-medium text-on-surface-variant shadow-elevation-1 hover:bg-surface-container"
+          >
+            <PanelLeftOpen className="size-4" aria-hidden />
+            <span className="[writing-mode:vertical-rl]">פרטים וצורות</span>
+          </button>
+        ) : (
+          <section
+            aria-label="פרטי השיבוץ הנבחר"
+            className="max-h-full overflow-y-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3"
+          >
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="font-serif text-lg font-semibold">פרטים</h2>
+              <Button
+                size="sm"
+                variant="ghost"
+                data-testid="toggle-details"
+                aria-expanded
+                aria-label="סגירת הפרטים"
+                onClick={() => setDetailsOpen(false)}
+              >
+                <PanelLeftClose className="size-4" />
               </Button>
             </div>
-          </div>
-        ) : null}
-      </section>
+
+            {selectedPlacement ? (
+              <dl className="space-y-2 text-sm" data-testid="selected-details">
+                <Row label="לקוח" value={selectedPlacement.customerName} />
+                <Row label="עיתון" value={model.newspaperName} />
+                <Row
+                  label="עמוד"
+                  value={pageLabel(
+                    model.pages.find((p) => p.id === selectedPlacement.pageId)?.number ?? 0,
+                    totalPages,
+                  )}
+                />
+                <Row label="צורה" value={selectedPlacement.shapeName} />
+                {/* Size in centimetres, never in cells (conventions.md §1). */}
+                <Row label="גודל" value={sizeLabel(selectedPlacement, model.grid)} />
+                {selectedPlacement.duplicate ? (
+                  <Badge tone="accent">שיבוץ בחריגה מאושרת</Badge>
+                ) : null}
+
+                {editable ? (
+                  <ConfirmDialog
+                    testId="remove-placement"
+                    trigger={
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="mt-2 w-full"
+                        data-testid="remove-placement-trigger"
+                      >
+                        <Trash2 className="size-4" />
+                        הסר שיבוץ
+                      </Button>
+                    }
+                    title="להסיר את השיבוץ?"
+                    body={`המודעה של ${selectedPlacement.customerName} תרד מהעמוד, והפרסום יחזור לרשימת הלא־משובצים.`}
+                    confirmLabel="הסר שיבוץ"
+                    pendingLabel="מסיר…"
+                    onConfirm={async () => {
+                      const result = await removePlacementAction(
+                        model.issueId,
+                        selectedPlacement.id,
+                      );
+                      if (result.ok) {
+                        setHeld(null);
+                        router.refresh();
+                        return;
+                      }
+                      return { message: result.message ?? "לא הצלחנו להסיר" };
+                    }}
+                  />
+                ) : null}
+              </dl>
+            ) : (
+              <p className="text-sm text-on-surface-variant">
+                {held
+                  ? "בחרי תא בעמוד כדי להניח את המודעה, או גררי אותה לשם."
+                  : "בחרי מודעה משובצת כדי לראות את פרטיה."}
+              </p>
+            )}
+
+            {editable && selectedPage && model.pages.length > 1 ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="mt-3 w-full"
+                disabled={pending}
+                data-testid="remove-page"
+                onClick={() =>
+                  run(async () => {
+                    const result = await removeIssuePageAction(model.issueId, selectedPage.id);
+                    if (result.ok) setSelectedPageId(null);
+                    return result;
+                  })
+                }
+              >
+                <Trash2 className="size-4" />
+                הסרת {pageLabel(selectedPage.number, totalPages)}
+              </Button>
+            ) : null}
+
+            {/* What may still be SOLD onto the page in front of you.
+            "40% free" is not an offer anyone can make; "a quarter page and an
+            eighth still fit" is — and a shape the page type refuses is worth
+            seeing too, so nobody promises a customer a full page on the cover. */}
+            <div className="mt-4 border-t border-outline-variant pt-3">
+              <p className="mb-1 text-xs text-on-surface-variant">צורות מותרות בעמוד הפתוח</p>
+              {(view?.pages ?? []).map((p) => {
+                const full = model.pages.find((x) => x.id === p.id);
+                const fill = fills.get(p.id);
+                if (!full || !fill) return null;
+                const fits = new Set(fill.fits.map((s) => s.id));
+                return (
+                  <div key={p.id} className="mb-2" data-testid={`allowed-shapes-${p.number}`}>
+                    <p className="text-xs font-medium">
+                      {pageLabel(p.number, totalPages)} · {full.pageTypeName}
+                    </p>
+                    <ShapeChips
+                      shapes={full.allowedShapes}
+                      fits={fits}
+                      grid={model.grid}
+                      testId={`allowed-shapes-list-${p.number}`}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+      </div>
 
       {duplicateFor ? (
         <DuplicateDialog

@@ -669,3 +669,14 @@ async function clearIssueObjects(issueId: string, businessId = "biz_alpha") {
   });
   await minio.removeObjects(process.env.MINIO_BUCKET!, keys);
 }
+
+/**
+ * Opens the board's details panel. It is closed by default since 27/09/2026 —
+ * the page takes that room — and opens only by a click, never by itself
+ * (opening it resizes the page, which must not happen under the pointer).
+ */
+export async function openDetails(page: Page) {
+  const toggle = page.getByTestId("toggle-details");
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  await expect(page.getByTestId("toggle-details")).toHaveAttribute("aria-expanded", "true");
+}

@@ -6,6 +6,14 @@ import { useEffect, useRef, useState } from "react";
 const SPREAD_GAP = 8;
 
 /**
+ * The caption row under each page (name, type, how full) — part of the page's
+ * own column, so its height comes out of the budget before the page is sized.
+ * Without it the page took the whole column and the caption fell below the
+ * window, once nothing sat under the spread any more (27/09/2026).
+ */
+const CAPTION = 22;
+
+/**
  * How big each page of the open view may be, so the whole thing is on screen.
  *
  * ── Why this is measured and not left to CSS ─────────────────────────────────
@@ -52,7 +60,7 @@ export function useFittedSpread(pageCount: number, aspectRatio: number) {
 
   const widthBudget = Math.max(0, box.width - SPREAD_GAP * (pages - 1));
   const heightFromWidth = widthBudget / pages / ratio;
-  const height = Math.max(0, Math.min(box.height, heightFromWidth));
+  const height = Math.max(0, Math.min(box.height - CAPTION, heightFromWidth));
 
   return { ref, size: { width: Math.floor(height * ratio), height: Math.floor(height) } };
 }

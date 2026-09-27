@@ -1,4 +1,5 @@
 import { Breadcrumbs } from "@/components/shell/breadcrumbs";
+import { ContentFrame } from "@/components/shell/content-frame";
 import { MailClientProvider } from "@/components/mail-client";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
@@ -85,11 +86,11 @@ export default async function InternalLayout({ children }: { children: React.Rea
           onSelectBusiness={switchBusinessAction}
           onSignOut={signOutAction}
         />
-        <main className="flex-1 p-4 lg:p-8">
-          <div className="mx-auto max-w-[1440px]">
+        <main className="flex-1">
+          <ContentFrame>
             <Breadcrumbs />
             <MailClientProvider value={mail}>{children}</MailClientProvider>
-          </div>
+          </ContentFrame>
         </main>
       </div>
     </div>

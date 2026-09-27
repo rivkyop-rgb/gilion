@@ -73,17 +73,19 @@ export function PageStrip({
   };
 
   return (
-    <div className="mt-3 overflow-x-auto pb-2" data-testid="page-strip">
-      <ul className="flex items-stretch gap-1">
+    // A column beside the page, not a strip under it (27/09/2026): a printed
+    // page is tall, and the height a strip took came straight off the page.
+    <div className="flex min-h-0 flex-1 flex-col" data-testid="page-strip">
+      <ul className="flex min-h-0 flex-1 flex-col items-stretch gap-1 overflow-y-auto pe-1">
         {views.map((view, index) => (
-          <li key={view.index} className="flex items-stretch gap-1">
+          <li key={view.index} className="flex flex-col items-stretch gap-1">
             <button
               type="button"
               data-testid={`view-tab-${index}`}
               aria-current={index === activeIndex}
               onClick={() => onSelectView(index)}
               className={cn(
-                "flex flex-col gap-1 rounded-lg border p-2 text-xs transition-colors",
+                "flex flex-col items-center gap-1 rounded-lg border p-2 text-xs transition-colors",
                 index === activeIndex
                   ? "border-primary bg-status-accent-bg font-medium"
                   : "border-outline-variant hover:bg-surface-container",
@@ -156,7 +158,7 @@ export function PageStrip({
                 aria-label={`הוספת עמוד אחרי עמוד ${view.pages[view.pages.length - 1]!.number}`}
                 title={`הוספת עמוד אחרי עמוד ${view.pages[view.pages.length - 1]!.number}`}
                 onClick={() => onInsertAfter(view.pages[view.pages.length - 1]!.id)}
-                className="flex w-6 shrink-0 items-center justify-center rounded-lg border border-dashed border-outline-variant text-on-surface-variant transition-colors hover:border-primary hover:bg-status-accent-bg hover:text-primary"
+                className="flex h-5 shrink-0 items-center justify-center rounded-lg border border-dashed border-outline-variant text-on-surface-variant transition-colors hover:border-primary hover:bg-status-accent-bg hover:text-primary"
               >
                 <Plus className="size-3.5" />
               </button>
@@ -166,14 +168,14 @@ export function PageStrip({
       </ul>
 
       {editable && pageTypes.length > 0 ? (
-        <div className="mt-2 flex items-center gap-2 text-xs text-on-surface-variant">
+        <div className="mt-2 flex shrink-0 flex-col gap-2 border-t border-outline-variant pt-2 text-xs text-on-surface-variant">
           <label htmlFor="new-page-type">עמוד חדש יהיה מסוג</label>
           <select
             id="new-page-type"
             data-testid="new-page-type"
             value={newPageTypeId}
             onChange={(e) => onNewPageTypeChange(e.target.value)}
-            className="h-8 rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-sm"
+            className="h-8 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-sm"
           >
             {pageTypes.map((pt) => (
               <option key={pt.id} value={pt.id}>
@@ -185,7 +187,7 @@ export function PageStrip({
             type="button"
             data-testid="open-page-order"
             onClick={onOpenOrder}
-            className="ms-auto inline-flex items-center gap-1 rounded-lg border border-outline-variant px-2 py-1 font-medium text-on-surface hover:bg-surface-container"
+            className="inline-flex items-center justify-center gap-1 rounded-lg border border-outline-variant px-2 py-1.5 font-medium text-on-surface hover:bg-surface-container"
           >
             <ArrowUpDown className="size-3.5" aria-hidden />
             שינוי סדר העמודים

@@ -278,7 +278,6 @@ export function ChangeIssueDate({
       <Button
         size="sm"
         variant="ghost"
-        className="w-full"
         data-testid="change-issue-date"
         onClick={() => setOpen(true)}
       >

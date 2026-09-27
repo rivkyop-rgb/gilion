@@ -14,13 +14,11 @@ import {
 } from "@/lib/data/issues";
 import { readAllowedCells } from "@/lib/data/ad-shapes";
 import { boardCustomerOptions } from "@/lib/data/issue-sales";
-import { ISSUE_STATUS_LABELS, type IssueStatus } from "@/lib/domain/issue-status";
+import type { IssueStatus } from "@/lib/domain/issue-status";
 import type { ShapeSpec } from "@/lib/domain/placement";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
-import { ISSUE_TONE } from "@/components/status-tone";
 import { PlacementBoard, type BoardModel } from "@/components/issues/placement-board";
 
 export const metadata: Metadata = { title: "לוח שיבוץ · Gilion" };
@@ -152,29 +150,6 @@ export default async function BoardPage({
 
   return (
     <>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-serif text-2xl font-semibold">
-            {issue.newspaper.name} · <Ltr>{DATE.format(issue.issue_date)}</Ltr>
-          </h1>
-          <p className="text-sm text-on-surface-variant">
-            גריד{" "}
-            <Ltr>
-              {grid.columns} × {grid.rows}
-            </Ltr>{" "}
-            · <Ltr>{issue.pages.length}</Ltr> עמודים
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge tone={ISSUE_TONE[issue.status as IssueStatus]} data-testid="board-status">
-            {ISSUE_STATUS_LABELS[issue.status as IssueStatus]}
-          </Badge>
-          <Button asChild size="sm" variant="ghost">
-            <Link href="/issues">חזרה לגיליונות</Link>
-          </Button>
-        </div>
-      </div>
-
       <PlacementBoard model={model} />
     </>
   );
