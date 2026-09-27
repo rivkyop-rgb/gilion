@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { loginAsAdmin } from "./helpers";
 import {
@@ -7,6 +7,12 @@ import {
   leaveOnlyOnePlaceable,
   resetFixtureIssue,
 } from "./issue-helpers";
+
+/** "שיבוץ אוטומטי" asks where first (27/09/2026); "בכל העמודים" is the default. */
+async function runAutoPlace(page: Page) {
+  await page.getByTestId("auto-place").click();
+  await page.getByTestId("auto-place-run").click();
+}
 
 /**
  * Filling an issue by itself (backlog item 4).
@@ -28,7 +34,7 @@ test.describe("automatic placement", () => {
     // an ad belonging to nobody). The packer may only take the four.
     await expect(page.getByTestId("unplaced-count")).toHaveText("(6)");
 
-    await page.getByTestId("auto-place").click();
+    await runAutoPlace(page);
 
     await expect(page.getByTestId("board-message")).toContainText("שובצו");
     await expect(page.getByTestId("placed-count")).toHaveText("(4)");
@@ -40,7 +46,7 @@ test.describe("automatic placement", () => {
   test("grows the issue when what is waiting does not fit", async ({ page }) => {
     const before = await page.getByTestId("page-strip").getByRole("listitem").count();
 
-    await page.getByTestId("auto-place").click();
+    await runAutoPlace(page);
     await expect(page.getByTestId("placed-count")).toHaveText("(4)");
 
     // A full page, two quarters and a strip do not fit on one cover, one back
@@ -52,7 +58,7 @@ test.describe("automatic placement", () => {
   });
 
   test("says what it did, as news rather than as an error", async ({ page }) => {
-    await page.getByTestId("auto-place").click();
+    await runAutoPlace(page);
 
     const message = page.getByTestId("board-message");
     await expect(message).toContainText("שובצו 4 פרסומים");
@@ -62,7 +68,7 @@ test.describe("automatic placement", () => {
   });
 
   test("another arrangement empties the board and packs it again", async ({ page }) => {
-    await page.getByTestId("auto-place").click();
+    await runAutoPlace(page);
     await expect(page.getByTestId("placed-count")).toHaveText("(4)");
 
     // Deterministic: asking for the same thing gives the same thing, so there
@@ -88,7 +94,7 @@ test.describe("automatic placement", () => {
   });
 
   test("is not offered once there is nothing left to place", async ({ page }) => {
-    await page.getByTestId("auto-place").click();
+    await runAutoPlace(page);
     await expect(page.getByTestId("placed-count")).toHaveText("(4)");
 
     // Only the two blocked ones remain, and the packer cannot take those — so
@@ -109,7 +115,7 @@ test("says it in Hebrew when exactly one ad goes down", async ({ page }) => {
 
   await loginAsAdmin(page);
   await page.goto(boardUrl);
-  await page.getByTestId("auto-place").click();
+  await runAutoPlace(page);
 
   const message = page.getByTestId("board-message");
   await expect(message).toContainText("שובץ פרסום אחד");
@@ -128,7 +134,7 @@ test("still says where there is room, right after placing", async ({ page }) => 
   await loginAsAdmin(page);
   await page.goto(boardUrl);
 
-  await page.getByTestId("auto-place").click();
+  await runAutoPlace(page);
   await expect(page.getByTestId("board-message")).toContainText("שובצו");
 
   // Same row, same breath: what happened, and what is left to sell.
@@ -137,4 +143,38 @@ test("still says where there is room, right after placing", async ({ page }) => 
   await expect(room).toContainText("עדיין יש מקום למכור");
   // Free, not full — the number a seller quotes down the phone.
   await expect(room).toContainText("% פנוי");
+});
+
+test.describe("where it may place (27/09/2026)", () => {
+  test.beforeEach(async ({ page }) => {
+    await resetFixtureIssue();
+    await loginAsAdmin(page);
+    await page.goto(boardUrl);
+  });
+
+  test("'בכל העמודים' is the default, and running it places everything placeable", async ({
+    page,
+  }) => {
+    // The type of the pages it ADDS is not asserted here: the fixture's four
+    // placeable ads fit the pages it already has, so it never grows. That rule
+    // (inner type, by innerPageTypeId) is covered in lib/domain/issue-layout.
+    await page.getByTestId("auto-place").click();
+    await expect(page.getByTestId("auto-place-scope-all")).toHaveAttribute("aria-checked", "true");
+    await page.getByTestId("auto-place-run").click();
+    await expect(page.getByTestId("placed-count")).toHaveText("(4)");
+  });
+
+  test("only on chosen pages: nothing is added, and what did not fit is said", async ({ page }) => {
+    const before = await page.locator('[data-testid^="page-thumb-"]').count();
+
+    await page.getByTestId("auto-place").click();
+    await page.getByTestId("auto-place-scope-chosen").click();
+    await expect(page.getByTestId("auto-place-run")).toBeDisabled();
+    await page.getByTestId("auto-place-page-שער").check();
+    await page.getByTestId("auto-place-run").click();
+
+    // The cover takes only the shapes it allows; the rest stay waiting.
+    await expect(page.getByTestId("board-message")).toContainText("בעמודים שנבחרו");
+    expect(await page.locator('[data-testid^="page-thumb-"]').count()).toBe(before);
+  });
 });

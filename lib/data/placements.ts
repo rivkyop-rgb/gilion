@@ -18,6 +18,7 @@
 import { Prisma } from "@prisma/client";
 
 import { basePrisma, tenantDb } from "./db";
+import { innerPageTypeId } from "@/lib/domain/issue-layout";
 import { gridOfIssue, insertIssuePages, isoDate, reservedOf, shapeSpecsOf } from "./issues";
 import { readAllowedCells } from "./ad-shapes";
 import { withAudit } from "./audit";
@@ -508,6 +509,8 @@ export type AutoPlaceOutcome = {
   sheetsAdded: number;
   /** How many placements were cleared first, when rearranging. */
   cleared: number;
+  /** Waiting publications that did not fit — only possible on chosen pages. */
+  left: number;
 };
 
 /**
@@ -539,6 +542,13 @@ export async function autoPlaceIssue(
    * the screen asks first.
    */
   reset = false,
+  /**
+   * Place only on these pages (27/09/2026). Given → the issue is NOT grown: the
+   * person chose where things go, and adding pages they did not choose would
+   * overrule them. What does not fit is reported as `left`. Omitted → every
+   * page, and inner pages are added until everything fits.
+   */
+  onlyPageIds?: string[],
 ): Promise<AutoPlaceOutcome> {
   const db = tenantDb(ctx.businessId);
 
@@ -552,10 +562,17 @@ export async function autoPlaceIssue(
   let placed = 0;
   let sheetsAdded = 0;
   let cleared = 0;
+  let left = 0;
+  const only = onlyPageIds && onlyPageIds.length > 0 ? new Set(onlyPageIds) : null;
 
   if (reset) {
     const existing = await db.placement.findMany({
-      where: { issue_id: issueId, status: "placed" },
+      // "Another arrangement" on chosen pages rearranges THOSE pages only.
+      where: {
+        issue_id: issueId,
+        status: "placed",
+        ...(only ? { issue_page_id: { in: [...only] } } : {}),
+      },
       select: { id: true },
     });
     for (const placement of existing) {
@@ -570,7 +587,7 @@ export async function autoPlaceIssue(
   // number of sheets the leftovers could possibly need. Bounded so a single
   // unplaceable ad cannot inflate an issue without end.
   for (let round = 0; round < MAX_AUTO_ROUNDS; round++) {
-    const plan = await planAutoPlacement(ctx, issueId, seed + round);
+    const plan = await planAutoPlacement(ctx, issueId, seed + round, only);
     if (!plan) break;
 
     for (const placement of plan.placements) {
@@ -591,7 +608,10 @@ export async function autoPlaceIssue(
       }
     }
 
+    left = plan.unplaced.length;
     if (plan.unplaced.length === 0) break;
+    // Chosen pages: never grow the issue — see onlyPageIds.
+    if (only) break;
     // Nothing landed AND nothing fits: growing again would not help.
     if (plan.placements.length === 0 && sheetsAdded > 0 && plan.sheets === 0) break;
 
@@ -602,14 +622,19 @@ export async function autoPlaceIssue(
     }
   }
 
-  return { placed, sheetsAdded, cleared };
+  return { placed, sheetsAdded, cleared, left };
 }
 
 /** Above this the issue is growing for a reason no extra page will fix. */
 const MAX_AUTO_ROUNDS = 12;
 
 /** What the packer would do right now, without writing anything. */
-async function planAutoPlacement(ctx: ActorContext, issueId: string, seed: number) {
+async function planAutoPlacement(
+  ctx: ActorContext,
+  issueId: string,
+  seed: number,
+  only: Set<string> | null = null,
+) {
   const db = tenantDb(ctx.businessId);
 
   const issue = await db.issue.findUnique({
@@ -711,7 +736,9 @@ async function planAutoPlacement(ctx: ActorContext, issueId: string, seed: numbe
     },
   }));
 
-  const pages: AutoPlacePage[] = issue.pages.map((page) => ({
+  const pages: AutoPlacePage[] = issue.pages
+    .filter((page) => !only || only.has(page.id))
+    .map((page) => ({
     pageId: page.id,
     pageNumber: page.page_number,
     allowedShapes: shapeSpecsOf(page),
@@ -728,7 +755,7 @@ async function planAutoPlacement(ctx: ActorContext, issueId: string, seed: numbe
 }
 
 /**
- * Adds one sheet — two inner pages — before the back page.
+ * Adds one sheet — four inner pages — before the back page.
  *
  * The type is the one the issue already uses for its inner pages, so a grown
  * issue is composed the way the person composed it. The back page stays last:
@@ -741,17 +768,15 @@ async function addSheetTo(businessId: string, issueId: string, newspaperId: stri
     select: { id: true, page_number: true, page_type_id: true },
   });
 
-  // The inner type in use, or — on an issue with no inside yet — whatever the
-  // newspaper offers that is not the cover's type.
-  const inner = pages.length > 2 ? pages[1]!.page_type_id : null;
-  const fallback = (
-    await tenantDb(businessId).pageType.findFirst({
-      where: { newspaper_id: newspaperId, id: { not: pages[0]?.page_type_id } },
-      select: { id: true },
-    })
-  )?.id;
-
-  const pageTypeId = inner ?? fallback ?? pages[0]?.page_type_id;
+  // Always an INNER page, by the same rule the board's "+" uses
+  // (innerPageTypeId). It used to copy page 2's type, which after a reorder
+  // could be the back or the cover — and the issue grew with pages of that.
+  const types = await tenantDb(businessId).pageType.findMany({
+    where: { newspaper_id: newspaperId },
+    orderBy: { created_at: "asc" },
+    select: { id: true, name: true },
+  });
+  const pageTypeId = innerPageTypeId(types) ?? pages[0]?.page_type_id;
   if (!pageTypeId) throw new Error("לעיתון אין סוג עמוד להוסיף");
 
   const before = pages.length >= 2 ? pages[pages.length - 2]! : pages[0]!;

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
-import { agrees, pagesPhrase, placedPhrase, publicationsPhrase } from "@/lib/domain/hebrew-count";
+import { agrees, counted, pagesPhrase, placedPhrase, publicationsPhrase } from "@/lib/domain/hebrew-count";
 import * as issues from "@/lib/data/issues";
 import * as placements from "@/lib/data/placements";
 import * as sales from "@/lib/data/issue-sales";
@@ -495,22 +495,37 @@ export async function autoPlaceIssueAction(
   seed = 1,
   /** Empty the board first — see autoPlaceIssue. */
   reset = false,
+  /** Only these pages, and never grow the issue — see autoPlaceIssue. */
+  onlyPageIds?: unknown,
 ): Promise<FormState & { placed?: number; sheetsAdded?: number }> {
   const ctx = await requireIssueWrite();
 
+  const only = z.array(z.string().min(1)).max(500).optional().safeParse(onlyPageIds);
+  if (!only.success) return { message: "רשימת העמודים לא תקינה" };
+  if (only.data && only.data.length === 0) return { message: "לא נבחר אף עמוד לשיבוץ" };
+
   try {
-    const outcome = await placements.autoPlaceIssue(ctx, issueId, seed, reset);
+    const outcome = await placements.autoPlaceIssue(ctx, issueId, seed, reset, only.data);
     revalidatePath(`/issues/${issueId}/board`);
     revalidatePath("/issues");
     revalidatePath("/publications");
+
+    // Chosen pages that could not take everything: said, with how many are left.
+    const leftNote =
+      only.data && outcome.left > 0
+        ? ` ${counted(outcome.left, "פרסום אחד לא נכנס", "פרסומים לא נכנסו")} בעמודים שנבחרו — אפשר לשבץ שוב בכל העמודים.`
+        : "";
 
     if (outcome.placed === 0) {
       return {
         ok: true,
         placed: 0,
         sheetsAdded: 0,
-        message:
-          outcome.cleared > 0 ? "הלוח רוקן, ולא נמצא מה לשבץ" : "לא נמצא פרסום שממתין לשיבוץ",
+        message: leftNote
+          ? `לא נמצא מקום בעמודים שנבחרו.${leftNote}`
+          : outcome.cleared > 0
+            ? "הלוח רוקן, ולא נמצא מה לשבץ"
+            : "לא נמצא פרסום שממתין לשיבוץ",
       };
     }
     return {
@@ -519,8 +534,8 @@ export async function autoPlaceIssueAction(
       sheetsAdded: outcome.sheetsAdded,
       message:
         outcome.sheetsAdded > 0
-          ? `${placedPhrase(outcome.placed)}, ונוספו ${pagesPhrase(outcome.sheetsAdded * PAGES_PER_SHEET)} כדי שכולם ייכנסו`
-          : placedPhrase(outcome.placed),
+          ? `${placedPhrase(outcome.placed)}, ונוספו ${pagesPhrase(outcome.sheetsAdded * PAGES_PER_SHEET)} פנימיים כדי שכולם ייכנסו`
+          : `${placedPhrase(outcome.placed)}${leftNote ? "." + leftNote : ""}`,
     };
   } catch (error) {
     return asFormState(error);
