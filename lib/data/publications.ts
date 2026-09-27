@@ -1,6 +1,7 @@
 /**
  * Publication reads and cancellation (FR-4, FR-5, US-001).
  */
+import { jerusalemDay } from "@/lib/domain/calendar";
 import { Prisma } from "@prisma/client";
 import { basePrisma, tenantDb } from "./db";
 import { MISSING_AD_STATES, READY_TO_PLACE_STATES } from "@/lib/domain/dashboard";
@@ -22,6 +23,11 @@ export type PublicationFilters = {
   /** The publication's derived payment status (lib/domain/payment-status.ts). */
   payment?: string;
   source?: string;
+  /**
+   * "past" — already ran: dated before today, not cancelled (who published).
+   * "upcoming" — today or later, not cancelled (who is due to publish).
+   */
+  when?: string;
 };
 
 /** How many rows a list screen shows before it says it stopped. */
@@ -55,6 +61,23 @@ const PUBLICATION_INCLUDE = {
   order_item: { select: { page_type: { select: { name: true } } } },
 };
 
+/**
+ * "Who published" and "who is due to publish" — by the calendar, in
+ * Jerusalem (lib/domain/calendar.ts), and never counting a cancellation.
+ * AND-ed with the explicit from/to when both are set; they are different
+ * questions and both can be asked.
+ */
+function whenWhere(when?: string): Prisma.PublicationWhereInput {
+  if (when !== "past" && when !== "upcoming") return {};
+  const today = jerusalemDay(new Date());
+  return {
+    AND: [
+      { status: { not: "canceled" } },
+      { publication_date: when === "past" ? { lt: today } : { gte: today } },
+    ],
+  };
+}
+
 /** One where-builder, so the list and its count can never drift apart. */
 function whereFor(filters: PublicationFilters): Prisma.PublicationWhereInput {
   return {
@@ -83,6 +106,7 @@ function whereFor(filters: PublicationFilters): Prisma.PublicationWhereInput {
     ...(filters.source && filters.source !== "all"
       ? { source: filters.source as Prisma.EnumOrderSourceFilter }
       : {}),
+    ...whenWhere(filters.when),
   };
 }
 

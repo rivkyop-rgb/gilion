@@ -14,6 +14,8 @@ export type AdFilters = {
   to?: string;
   /** The "ללא לקוח" quick chip (US-005 AC-4). */
   unassigned?: boolean;
+  /** Files used by a publication in this newspaper — "which files went to X". */
+  newspaperId?: string;
 };
 
 const AD_INCLUDE = {
@@ -34,6 +36,9 @@ export async function listAdvertisements(businessId: string, filters: AdFilters 
       : {}),
     ...(filters.fileType && filters.fileType !== "all"
       ? { file_type: filters.fileType as Prisma.EnumAdFileTypeFilter }
+      : {}),
+    ...(filters.newspaperId && filters.newspaperId !== "all"
+      ? { publications: { some: { newspaper_id: filters.newspaperId } } }
       : {}),
     ...(filters.from || filters.to
       ? {

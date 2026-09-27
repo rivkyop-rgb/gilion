@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { portalBusiness } from "@/lib/data/portal-link";
+import { portalUrl } from "@/lib/portal-origin";
 import { textFor } from "@/lib/domain/business-settings";
 import { cssVariables } from "@/lib/domain/theme-tokens";
 import { LoginForm } from "@/app/(auth)/login/login-form";
@@ -15,9 +16,34 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!business) return { title: "כניסת לקוחות · Gilion" };
   const name = business.settings.displayName ?? business.name;
   const favicon = business.settings.faviconFileKey;
+
+  // The card WhatsApp (and most messengers) draw under a link to this page:
+  // the business's name and its logo. A message opened from a link can carry
+  // text only, so this is how a reminder that includes {קישור לפורטל} reaches
+  // the customer with the logo on it (27/09/2026). Absolute URLs — the
+  // messenger's server fetches them, not the browser.
+  const url = await portalUrl(business.slug);
+  const origin = new URL(url).origin;
+  const logo = business.settings.logoFullFileKey ?? business.settings.markFileKey;
+  const image = logo
+    ? `${origin}/api/files/${logo}?portal=${business.slug}`
+    : `${origin}/brand/logo-full.png`;
+  const description = business.settings.tagline ?? "העלאת קובץ מודעה ומעקב אחרי ההזמנות שלך";
+
   return {
     title: `כניסת לקוחות · ${name}`,
+    description,
     ...(favicon ? { icons: { icon: `/api/files/${favicon}?portal=${business.slug}` } } : {}),
+    openGraph: {
+      type: "website",
+      url,
+      siteName: name,
+      title: name,
+      description,
+      locale: "he_IL",
+      images: [{ url: image, alt: name }],
+    },
+    twitter: { card: "summary", title: name, description, images: [image] },
   };
 }
 

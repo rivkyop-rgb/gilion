@@ -39,6 +39,8 @@ type Search = {
   to?: string;
   unassigned?: string;
   view?: string;
+  /** Files used in a publication of this newspaper. */
+  newspaper?: string;
 };
 
 export default async function AdvertisementsPage({
@@ -57,6 +59,7 @@ export default async function AdvertisementsPage({
     to = "",
     unassigned = "",
     view = "grid",
+    newspaper = "all",
   } = await searchParams;
 
   const unassignedOnly = unassigned === "1";
@@ -69,6 +72,7 @@ export default async function AdvertisementsPage({
       from,
       to,
       unassigned: unassignedOnly,
+      newspaperId: newspaper,
     }),
     newspaperLimits(ctx.businessId),
     listCustomerOptions(ctx.businessId),
@@ -98,7 +102,17 @@ export default async function AdvertisementsPage({
 
   const hrefWith = (patch: Partial<Search>) => {
     const q = new URLSearchParams();
-    const merged: Search = { customer, status, type, from, to, unassigned, view, ...patch };
+    const merged: Search = {
+      customer,
+      status,
+      type,
+      from,
+      to,
+      unassigned,
+      view,
+      newspaper,
+      ...patch,
+    };
     for (const [key, value] of Object.entries(merged)) {
       if (value && value !== "all" && !(key === "view" && value === "grid")) q.set(key, value);
     }
@@ -214,6 +228,26 @@ export default async function AdvertisementsPage({
             {Object.entries(AD_STATUS_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="newspaper">
+            עיתון
+          </label>
+          <select
+            id="newspaper"
+            name="newspaper"
+            defaultValue={newspaper}
+            data-testid="filter-ad-newspaper"
+            className="h-10 rounded-lg border border-outline-variant bg-surface-container px-3 text-start text-sm"
+          >
+            <option value="all">כל העיתונים</option>
+            {papers.map((n) => (
+              <option key={n.id} value={n.id}>
+                {n.name}
               </option>
             ))}
           </select>

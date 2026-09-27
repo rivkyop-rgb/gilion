@@ -60,6 +60,8 @@ export default async function PublicationsPage({
     shape?: string;
     payment?: string;
     source?: string;
+    /** "past" | "upcoming" — who published / who is due to (lib/data/publications.ts). */
+    when?: string;
   }>;
 }) {
   const ctx = await getTenantContext();
@@ -75,6 +77,7 @@ export default async function PublicationsPage({
     shape = "all",
     payment = "all",
     source = "all",
+    when = "all",
   } = await searchParams;
 
   // FR-8: a designer places ads but never sees money.
@@ -93,6 +96,7 @@ export default async function PublicationsPage({
     if (shape !== "all") q.set("shape", shape);
     if (payment !== "all") q.set("payment", payment);
     if (source !== "all") q.set("source", source);
+    if (when !== "all") q.set("when", when);
     const query = q.toString();
     return query ? `/publications?${query}` : "/publications";
   };
@@ -100,6 +104,13 @@ export default async function PublicationsPage({
   // שובצו" can only ever be empty. The drill-down has no chip of its own —
   // "חסרי מודעה" beside the status "חסרה מודעה" read as the same status twice;
   // the title and the banner say what is shown.
+  /** The same list, with only "when" changed. */
+  const hrefWithWhen = (next: string) => {
+    const url = new URL(hrefWith({}), "http://x");
+    if (next === "all") url.searchParams.delete("when");
+    else url.searchParams.set("when", next);
+    return `${url.pathname}${url.search}`;
+  };
   const hrefFor = (next: string) => hrefWith({ status: next, attention: "all" });
 
   // FR-8 again: accounting reads publications but has no access to artwork,
@@ -121,6 +132,7 @@ export default async function PublicationsPage({
       shapeId: shape,
       payment: maySeeMoney ? payment : "all",
       source,
+      when,
     }),
     listNewspapers(ctx.businessId),
     mayLinkAds ? placeableAds(ctx.businessId) : Promise.resolve([]),
@@ -202,6 +214,8 @@ export default async function PublicationsPage({
   }
   if (source === "customer_portal") filterParts.push("שהגיעו מפורטל הלקוח");
   if (source === "internal") filterParts.push("שהוזנו במשרד");
+  if (when === "past") filterParts.push("שכבר פורסמו");
+  if (when === "upcoming") filterParts.push("שעוד אמורים להתפרסם");
 
   const title =
     (ATTENTION_LABELS[attention]
@@ -294,6 +308,34 @@ export default async function PublicationsPage({
         ))}
       </div>
 
+      {/* The two questions asked most, one click each — and they keep whatever
+          newspaper or customer is already chosen, so "who is due in X" is
+          "choose X, then this". */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm" data-testid="when-quick">
+        <span className="text-xs text-on-surface-variant">שאלה מהירה:</span>
+        {(
+          [
+            ["past", "מי פרסם"],
+            ["upcoming", "מי אמור לפרסם"],
+          ] as const
+        ).map(([value, label]) => (
+          <Link
+            key={value}
+            href={hrefWithWhen(when === value ? "all" : value)}
+            data-testid={`when-${value}`}
+            aria-current={when === value ? "true" : undefined}
+            className={cn(
+              "rounded-full px-3 py-1 font-medium ring-1 transition-colors",
+              when === value
+                ? "bg-primary text-on-primary ring-primary"
+                : "bg-surface-container-lowest text-on-surface ring-outline-variant hover:bg-surface-container",
+            )}
+          >
+            {label}
+          </Link>
+        ))}
+      </div>
+
       <FilterBuilder
         basePath="/publications"
         keep={{ status, attention }}
@@ -303,10 +345,20 @@ export default async function PublicationsPage({
           shape: shape !== "all" ? shape : undefined,
           payment: maySeeMoney && payment !== "all" ? payment : undefined,
           source: source !== "all" ? source : undefined,
+          when: when !== "all" ? when : undefined,
           from: from || undefined,
           to: to || undefined,
         }}
         fields={[
+          {
+            key: "when",
+            label: "מתי",
+            kind: "select",
+            options: [
+              { value: "past", label: "כבר פורסמו — מי פרסם" },
+              { value: "upcoming", label: "עתידיים — מי אמור לפרסם" },
+            ],
+          },
           {
             key: "newspaper",
             label: "עיתון",

@@ -57,3 +57,26 @@ test.describe("filtering and expanding the lists", () => {
     );
   });
 });
+
+test.describe("who published, who is due, and which files", () => {
+  test("'מי אמור לפרסם' keeps the newspaper chosen, and says both", async ({ page }) => {
+    await login(page, USERS.admin);
+    await page.goto(`/publications?newspaper=${NEWSPAPERS.alpha}`);
+    await page.getByTestId("when-upcoming").click();
+    await page.waitForURL(/when=upcoming/);
+    expect(page.url()).toContain("newspaper=");
+    await expect(page.getByTestId("attention-banner")).toContainText("שעוד אמורים להתפרסם");
+
+    await page.getByTestId("when-past").click();
+    await page.waitForURL(/when=past/);
+    await expect(page.getByTestId("attention-banner")).toContainText("שכבר פורסמו");
+  });
+
+  test("files can be narrowed to one newspaper", async ({ page }) => {
+    await login(page, USERS.admin);
+    await page.goto("/advertisements?view=list");
+    await page.getByTestId("filter-ad-newspaper").selectOption(NEWSPAPERS.alpha);
+    await page.getByRole("button", { name: "סינון" }).click();
+    await page.waitForURL(/newspaper=/);
+  });
+});
