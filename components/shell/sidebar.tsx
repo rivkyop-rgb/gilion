@@ -9,7 +9,7 @@ import { canAccessPlatform, type Area, type Role } from "@/lib/auth/rbac";
 import { effectiveAccess, type PermissionOverrides } from "@/lib/domain/permissions";
 import { BrandMark, type BrandKeys } from "@/components/brand/brand-mark";
 import { cn } from "@/lib/utils";
-import { BUILT_THROUGH_STAGE, NAV_ITEMS } from "./nav-items";
+import { BUILT_THROUGH_STAGE, NAV_GROUP_LABELS, NAV_ITEMS, type NavGroup } from "./nav-items";
 
 /**
  * Where the collapsed/expanded choice is remembered.
@@ -137,18 +137,17 @@ export function SidebarRail(props: NavProps) {
       onPointerEnter={() => collapsed && setPeeking(true)}
       onPointerLeave={() => setPeeking(false)}
       className={cn(
-        // RTL: border-e is the logical end edge — the sidebar's left in Hebrew.
-        "relative hidden shrink-0 border-e border-outline-variant bg-surface-container-lowest transition-[width] duration-150 lg:block",
+        // The deep navy of the logo frames the page (redesign, 29/09/2026). It
+        // needs no border: the change of colour is the edge.
+        "relative hidden shrink-0 bg-sidebar text-on-sidebar transition-[width] duration-150 lg:block",
         collapsed ? "w-16" : "w-70",
       )}
     >
       <div
         className={cn(
-          "h-full bg-surface-container-lowest p-3",
+          "h-full bg-sidebar p-3",
           // Only the peeking state leaves the rail's own box.
-          collapsed && peeking
-            ? "absolute inset-y-0 start-0 z-30 w-70 border-e border-outline-variant shadow-elevation-2"
-            : "",
+          collapsed && peeking ? "absolute inset-y-0 start-0 z-30 w-70 shadow-elevation-2" : "",
         )}
       >
         <SidebarNav {...props} collapsed={collapsed && !peeking} onToggle={toggle} />
@@ -175,7 +174,7 @@ function ToggleButton({ collapsed, onToggle }: { collapsed: boolean; onToggle: (
       aria-pressed={collapsed}
       aria-label={label}
       title={label}
-      className="shrink-0 rounded-sm p-1 text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
+      className="shrink-0 rounded-sm p-1.5 text-on-sidebar-muted hover:bg-sidebar-hover hover:text-inverse-on-surface"
     >
       {/* RTL: PanelRight is the panel on the reading-start side. */}
       {collapsed ? <Icons.PanelLeft className="size-4" /> : <Icons.PanelRight className="size-4" />}
@@ -201,21 +200,29 @@ function SidebarNav({
     return effectiveAccess(role, i.area as Area, permissions) !== "none";
   });
 
+  const groups = (Object.keys(NAV_GROUP_LABELS) as NavGroup[])
+    .map((group) => ({ group, items: items.filter((i) => i.group === group) }))
+    .filter((g) => g.items.length > 0);
+
   return (
     <nav className="flex h-full flex-col gap-1" aria-label="ניווט ראשי">
-      <div className={cn("mb-4 flex items-center gap-2", collapsed ? "justify-center" : "px-2")}>
+      <div className={cn("mb-4 flex items-center gap-2", collapsed ? "justify-center" : "px-1")}>
         <Link href="/dashboard" className="flex min-w-0 flex-1 items-center gap-3">
-          <BrandMark
-            slot="mark"
-            keys={brand?.keys}
-            width={54}
-            height={36}
-            className={cn("h-9 shrink-0", collapsed ? "w-8" : "w-[54px]")}
-          />
+          {/* A white tile, because the mark is navy and the rail is navy: an
+              uploaded logo has to stay visible whatever colour it is. */}
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-surface-container-lowest">
+            <BrandMark
+              slot="mark"
+              keys={brand?.keys}
+              width={34}
+              height={34}
+              className="size-[34px]"
+            />
+          </span>
           {!collapsed ? (
             <span
               data-testid="sidebar-brand-name"
-              className="truncate font-serif text-xl font-bold whitespace-nowrap text-primary"
+              className="truncate font-serif text-xl font-bold whitespace-nowrap text-inverse-on-surface"
             >
               {brand?.name || "Gilion"}
             </span>
@@ -234,63 +241,82 @@ function SidebarNav({
         </div>
       ) : null}
 
-      {items.map((item) => {
-        const Icon = (Icons[item.icon as keyof typeof Icons] ??
-          Icons.Circle) as React.ComponentType<{ className?: string }>;
-        const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-        const ready = item.stage <= BUILT_THROUGH_STAGE;
-        const label = AREA_LABELS[item.area];
-
-        // With the label off screen the tooltip is the only thing naming the
-        // icon, so a rail stays readable without being expanded.
-        const title = collapsed ? label : undefined;
-
-        if (!ready) {
-          return (
+      {groups.map(({ group, items: groupItems }, index) => (
+        <div
+          key={group}
+          role="group"
+          aria-label={NAV_GROUP_LABELS[group]}
+          className="flex flex-col gap-0.5"
+        >
+          {/* Expanded, a group is named; collapsed, a hairline is all the room
+              there is, and the tooltips carry the names. */}
+          {collapsed ? (
+            index > 0 ? (
+              <hr className="mx-2 my-2 border-sidebar-hover" aria-hidden />
+            ) : null
+          ) : (
             <span
-              key={item.area}
-              aria-disabled="true"
-              title={title ?? `ייבנה בשלב ${String(item.stage).padStart(2, "0")}`}
               className={cn(
-                "flex cursor-not-allowed items-center gap-3 rounded-lg py-2.5 text-sm text-outline opacity-60",
-                collapsed ? "justify-center px-0" : "px-3",
+                "px-3 pb-1 text-xs font-medium text-on-sidebar-muted",
+                index > 0 && "pt-4",
               )}
+              aria-hidden
             >
-              <Icon className="size-5 shrink-0" />
-              {collapsed ? <span className="sr-only">{label}</span> : label}
+              {NAV_GROUP_LABELS[group]}
             </span>
-          );
-        }
+          )}
 
-        // The working screens above, the administration below — one hairline
-        // between them, as in app-shell.md §1.
-        const divider =
-          item.area === "settings" ? (
-            <hr key="divider" className="my-2 border-outline-variant" aria-hidden />
-          ) : null;
+          {groupItems.map((item) => {
+            const Icon = (Icons[item.icon as keyof typeof Icons] ??
+              Icons.Circle) as React.ComponentType<{ className?: string }>;
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const ready = item.stage <= BUILT_THROUGH_STAGE;
+            const label = AREA_LABELS[item.area];
 
-        return [
-          divider,
-          <Link
-            key={item.area}
-            href={item.href}
-            title={title}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "flex items-center gap-3 rounded-lg py-2.5 text-sm transition-colors",
-              collapsed ? "justify-center px-0" : "px-3",
-              // RTL: the active marker is a border on the start edge (border-s),
-              // which renders on the right in Hebrew.
-              active
-                ? "border-s-4 border-secondary bg-state-active font-semibold text-on-secondary-container"
-                : "text-on-surface-variant hover:bg-surface-container-low",
-            )}
-          >
-            <Icon className="size-5 shrink-0" />
-            {collapsed ? <span className="sr-only">{label}</span> : label}
-          </Link>,
-        ];
-      })}
+            // With the label off screen the tooltip is the only thing naming the
+            // icon, so a rail stays readable without being expanded.
+            const title = collapsed ? label : undefined;
+
+            if (!ready) {
+              return (
+                <span
+                  key={item.area}
+                  aria-disabled="true"
+                  title={title ?? `ייבנה בשלב ${String(item.stage).padStart(2, "0")}`}
+                  className={cn(
+                    "flex cursor-not-allowed items-center gap-3 rounded-lg py-2.5 text-sm text-on-sidebar-muted opacity-60",
+                    collapsed ? "justify-center px-0" : "px-3",
+                  )}
+                >
+                  <Icon className="size-5 shrink-0" />
+                  {collapsed ? <span className="sr-only">{label}</span> : label}
+                </span>
+              );
+            }
+
+            return (
+              <Link
+                key={item.area}
+                href={item.href}
+                title={title}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg py-2.5 text-[15px] transition-colors",
+                  collapsed ? "justify-center px-0" : "px-3",
+                  // Gold on navy marks where you are. It is the only gold in
+                  // the menu, so it cannot be mistaken for a status.
+                  active
+                    ? "bg-sidebar-active font-semibold text-state-active"
+                    : "text-on-sidebar hover:bg-sidebar-hover hover:text-inverse-on-surface",
+                )}
+              >
+                <Icon className="size-5 shrink-0" />
+                {collapsed ? <span className="sr-only">{label}</span> : label}
+              </Link>
+            );
+          })}
+        </div>
+      ))}
     </nav>
   );
 }

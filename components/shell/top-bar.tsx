@@ -40,7 +40,12 @@ export function TopBar({
             <Menu className="size-5" />
             <span className="sr-only">פתיחת תפריט</span>
           </SheetTrigger>
-          <SheetContent title="ניווט ראשי">
+          <SheetContent
+            title="ניווט ראשי"
+            // The same navy as the rail, close button included — the menu is
+            // one object whether it sits beside the page or slides over it.
+            className="border-0 bg-sidebar [&>button]:text-on-sidebar [&>button]:hover:bg-sidebar-hover"
+          >
             <div onClick={() => setOpen(false)}>
               <SidebarContent role={role} isSuperAdmin={isSuperAdmin} permissions={permissions} />
             </div>
