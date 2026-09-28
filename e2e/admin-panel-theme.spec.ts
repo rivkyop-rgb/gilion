@@ -101,7 +101,7 @@ test.describe("the palette an admin owns", () => {
     await expect(page.getByTestId("panel-saved")).toContainText("נשמרו 2 צבעים מותאמים");
 
     await page.getByTestId("reset-primary").click();
-    await expect(page.getByTestId("hex-primary")).toHaveValue("#000613");
+    await expect(page.getByTestId("hex-primary")).toHaveValue("#14305a");
     await expect(page.getByTestId("hex-brand-gold")).toHaveValue("#00897b");
 
     await expect
@@ -124,7 +124,7 @@ test.describe("the palette an admin owns", () => {
     await expect(page.getByTestId("panel-saved")).toBeVisible();
 
     await page.getByTestId("panel-reset-all").click();
-    await expect(page.getByTestId("hex-primary")).toHaveValue("#000613");
+    await expect(page.getByTestId("hex-primary")).toHaveValue("#14305a");
   });
 
   test("a low-contrast pair warns and still saves — it is the admin's brand", async ({ page }) => {
@@ -160,6 +160,6 @@ test.describe("the palette an admin owns", () => {
     // beta's admin is a different person in a different tenant (FR-1).
     await login(page, USERS.betaAdmin);
     await page.goto("/settings/theme");
-    await expect(page.getByTestId("hex-primary")).toHaveValue("#000613");
+    await expect(page.getByTestId("hex-primary")).toHaveValue("#14305a");
   });
 });

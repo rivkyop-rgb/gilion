@@ -17,66 +17,91 @@
  * override from the wrapper above it.
  * ------------------------------------------------------------------------ */
 @theme inline {
-  /* --- core --- */
-  --color-primary: var(--gilion-primary, #000613);
+  /* --- core — the navy and gold of the logo (redesign, 29/09/2026) ---
+     primary was #000613, a near-black the Stitch export produced instead of
+     the navy its own prose described. The brand is the logo's navy. */
+  --color-primary: var(--gilion-primary, #14305a);
   --color-on-primary: var(--gilion-on-primary, #ffffff);
-  --color-primary-container: var(--gilion-primary-container, #001f3f);
-  --color-on-primary-container: #6f88ad;
-  --color-secondary: var(--gilion-secondary, #735c00);
-  --color-on-secondary-container: #745c00;
-  --color-secondary-fixed: #ffe088;
-  --color-error: var(--gilion-error, #ba1a1a);
-  --color-error-container: #ffdad6;
-  --color-on-error-container: #93000a;
+  /* The deep navy: the sidebar and anything that frames the page. */
+  --color-primary-container: var(--gilion-primary-container, #0b1f3d);
+  --color-on-primary-container: #a9b5cb;
+  /* Gold that can be READ on a light surface. brand-gold itself cannot: it is
+     2:1 on white, so it paints lines, marks and the one main button — text
+     that should look gold uses this. */
+  --color-secondary: var(--gilion-secondary, #6b5200);
+  --color-on-secondary-container: #6b5200;
+  --color-secondary-fixed: #fff4cc;
+  --color-error: var(--gilion-error, #b3261e);
+  --color-error-container: #fbe4e2;
+  --color-on-error-container: #a1261e;
 
-  /* Two distinct golds — gaps.md §ב. brand-gold is the logo/accent gold,
-     state-active is the menu highlight. They are NOT interchangeable. */
+  /* Two distinct golds. brand-gold is the logo gold: the single primary call
+     to action on a screen, and the mark beside the active menu item.
+     state-active is the lighter highlight gold: the active item's text on the
+     navy sidebar, and the tint behind a selected option elsewhere. The yellow
+     menu background it used to paint is gone — it was the same yellow as
+     "debt", which made both meaningless. */
   --color-brand-gold: var(--gilion-brand-gold, #d4af37);
-  --color-state-active: var(--gilion-state-active, #fed65b);
+  --color-on-brand-gold: #0b1f3d;
+  --color-state-active: var(--gilion-state-active, #f1d57a);
 
-  /* --- surfaces: light-blue → white hierarchy --- */
+  /* --- the sidebar — derived from primary-container, so an admin who
+     recolours the frame recolours its text and hover with it --- */
+  --color-sidebar: var(--color-primary-container);
+  --color-on-sidebar: color-mix(in srgb, #ffffff 76%, var(--color-primary-container));
+  --color-on-sidebar-muted: color-mix(in srgb, #ffffff 50%, var(--color-primary-container));
+  --color-sidebar-hover: color-mix(in srgb, #ffffff 8%, var(--color-primary-container));
+  --color-sidebar-active: color-mix(
+    in srgb,
+    var(--color-brand-gold) 16%,
+    var(--color-primary-container)
+  );
+
+  /* --- surfaces: a cool grey-blue page, white cards on it --- */
   --color-surface-container-lowest: #ffffff;
-  --color-surface: #f9f9ff;
-  --color-background: #f9f9ff;
-  --color-surface-bright: #f9f9ff;
-  --color-surface-container-low: #f0f3ff;
-  --color-surface-container: #e7eeff;
-  --color-surface-container-high: #dee8ff;
-  --color-surface-container-highest: #d8e3fa;
-  --color-surface-variant: #d8e3fa;
-  --color-surface-dim: #cfdaf1;
-  --color-inverse-surface: #263142;
-  --color-inverse-on-surface: #ebf1ff;
+  --color-surface: #f3f5f9;
+  --color-background: #f3f5f9;
+  --color-surface-bright: #f7f9fc;
+  --color-surface-container-low: #f7f9fc;
+  --color-surface-container: #edf0f5;
+  --color-surface-container-high: #e8ecf3;
+  --color-surface-container-highest: #e1e6ef;
+  --color-surface-variant: #e1e6ef;
+  --color-surface-dim: #dde3ec;
+  --color-inverse-surface: #0b1f3d;
+  --color-inverse-on-surface: #ffffff;
 
   /* --- text & borders --- */
-  --color-on-surface: #111c2c;
-  --color-on-background: #111c2c;
-  --color-on-surface-variant: #43474e;
-  --color-outline: #74777f;
-  --color-outline-variant: #c4c6cf;
+  --color-on-surface: #111a2b;
+  --color-on-background: #111a2b;
+  --color-on-surface-variant: #4a5366;
+  /* Placeholder text and strong borders: 4.9:1 on white. */
+  --color-outline: #687186;
+  --color-outline-variant: #dce2ec;
 
   /* --- semantic status colors ---
-     Stitch inlined these as raw values; here they are tokens, because every
-     badge in the system uses them. design-system.md §1. */
-  --color-status-success-bg: var(--gilion-status-success-bg, #e6f4ea);
-  --color-status-success-fg: var(--gilion-status-success-fg, #137333);
+     Colour means state and nothing else: red blocks, orange waits, yellow is
+     money owed, green is done. Every pair clears 4.5:1 — theme-tokens.test.ts
+     checks the ones an admin can override. design-system.md §1. */
+  --color-status-success-bg: var(--gilion-status-success-bg, #e4f3e9);
+  --color-status-success-fg: var(--gilion-status-success-fg, #1e6b3a);
   --color-status-success-strong: #10b981;
-  --color-status-warning-bg: var(--gilion-status-warning-bg, #fff3e0);
-  --color-status-warning-fg: var(--gilion-status-warning-fg, #bf4600);
-  --color-status-error-bg: var(--gilion-status-error-bg, #ffdad6);
-  --color-status-error-fg: var(--gilion-status-error-fg, #93000a);
-  --color-status-debt-bg: var(--gilion-status-debt-bg, #fed65b);
-  --color-status-debt-fg: var(--gilion-status-debt-fg, #745c00);
-  --color-status-neutral-bg: var(--gilion-status-neutral-bg, #d8e3fa);
-  --color-status-neutral-fg: var(--gilion-status-neutral-fg, #43474e);
+  --color-status-warning-bg: var(--gilion-status-warning-bg, #fdf0dc);
+  --color-status-warning-fg: var(--gilion-status-warning-fg, #8a4b00);
+  --color-status-error-bg: var(--gilion-status-error-bg, #fbe4e2);
+  --color-status-error-fg: var(--gilion-status-error-fg, #a1261e);
+  --color-status-debt-bg: var(--gilion-status-debt-bg, #fff4cc);
+  --color-status-debt-fg: var(--gilion-status-debt-fg, #6b5200);
+  --color-status-neutral-bg: var(--gilion-status-neutral-bg, #edf0f5);
+  --color-status-neutral-fg: var(--gilion-status-neutral-fg, #4a5366);
 
   /* Four more tones, so that no two states share a colour.
      A status colour whose only job is to be TOLD APART from the next status
      is worth nothing if two states repaint the same swatch: "approved" and
      "completed" both green made the badge decorative rather than readable.
      Every state below has exactly one owner — see components/status-tone.ts. */
-  --color-status-info-bg: #dbeafe;
-  --color-status-info-fg: #1e40af;
+  --color-status-info-bg: #e8eef7;
+  --color-status-info-fg: #14305a;
   --color-status-accent-bg: #ede4ff;
   --color-status-accent-fg: #5b21b6;
   --color-status-done-bg: #d5f2ec;
@@ -84,20 +109,23 @@
   /* Muted is the only tone with no hue: a cancelled row should recede, and it
      is the one state the eye is meant to skip over. */
   --color-status-muted-bg: #eceef2;
-  --color-status-muted-fg: #6b7280;
+  --color-status-muted-fg: #5b6478;
 
   /* --- typography — conventions.md §1 ---
-     Frank Ruhl Libre (headings) + Google Sans (UI) replace Libre Caslon /
-     Hanken Grotesk, which have no Hebrew glyphs. Google Sans is self-hosted and
-     replaced Heebo on 23/08/2026. JetBrains Mono stays for Latin metadata only. */
-  --font-serif: var(--font-frank-ruhl), Georgia, "Times New Roman", serif;
-  --font-sans: var(--font-google-sans), system-ui, -apple-system, sans-serif;
+     One family: Rubik, for headings and UI alike (user's choice, 29/09/2026;
+     it replaced Frank Ruhl Libre + Google Sans). Hierarchy comes from weight
+     and size, not from a second face. `font-serif` is kept as the HEADING
+     token so the ~85 headings that use it follow without an edit — the name
+     is historical, the role is "heading". JetBrains Mono stays for Latin
+     metadata only. */
+  --font-serif: var(--font-rubik), system-ui, -apple-system, sans-serif;
+  --font-sans: var(--font-rubik), system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
 
   /* --- radii — values taken from the Stitch code, not its prose --- */
-  --radius-sm: 4px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
+  --radius-sm: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 16px;
 
   /* --- type scale — design-system.md §2 --- */
   --text-headline-lg: 32px;
@@ -105,8 +133,8 @@
 
   /* --- depth — design-system.md §5: tonal layers and hairlines, with only a
      whisper of shadow, to keep the feel of print --- */
-  --shadow-elevation-1: 0 2px 4px rgba(0, 31, 63, 0.05);
-  --shadow-elevation-2: 0 8px 16px rgba(0, 31, 63, 0.1);
+  --shadow-elevation-1: 0 1px 3px rgba(11, 31, 61, 0.06);
+  --shadow-elevation-2: 0 8px 24px rgba(11, 31, 61, 0.12);
 
   /* --- spacing — 4px base unit --- */
   --spacing-gutter: 16px;
@@ -114,7 +142,7 @@
   --container-page: 1440px;
 }
 
-/* Default body typography: body-md (14px/20px Google Sans) — design-system.md §2 */
+/* Default body typography: body-md (14px/20px Rubik) — design-system.md §2 */
 body {
   background-color: var(--color-background);
   color: var(--color-on-surface);
@@ -129,15 +157,13 @@ h3 {
   font-family: var(--font-serif);
 }
 
-/* Page title — headline-lg with the short gold rule under it (app-shell.md §3).
-   Drawn as a background so it works on a flex heading too, where an ::after
-   would become a row item. The rule sits at the START edge: right, in Hebrew. */
+/* Page title — headline-lg in the deep navy, bold. The short gold rule that
+   used to sit under it is gone with the redesign (29/09/2026): gold is kept
+   for the one main action on a screen, and a rule under every title spent it
+   on decoration. */
 .page-title {
-  padding-bottom: 10px;
-  background-image: linear-gradient(var(--color-brand-gold), var(--color-brand-gold));
-  background-repeat: no-repeat;
-  background-size: 56px 3px;
-  background-position: right bottom;
+  color: var(--color-primary-container);
+  font-weight: 700;
 }
 
 /* Latin metadata (invoice ids, dimensions) inside RTL flow — conventions.md §1 */

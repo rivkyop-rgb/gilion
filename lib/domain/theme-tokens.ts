@@ -46,7 +46,7 @@ export type ThemeToken = {
  * badge without reading the word.
  */
 export const THEME_TOKENS: readonly ThemeToken[] = [
-  { key: "primary", label: "צבע ראשי", group: "brand", default: "#000613" },
+  { key: "primary", label: "צבע ראשי", group: "brand", default: "#14305a" },
   {
     key: "on-primary",
     label: "טקסט על הצבע הראשי",
@@ -54,55 +54,62 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
     default: "#ffffff",
     over: "primary",
   },
-  { key: "primary-container", label: "צבע ראשי בהיר", group: "brand", default: "#001f3f" },
+  {
+    key: "primary-container",
+    label: "צבע ראשי כהה (סרגל הצד)",
+    group: "brand",
+    default: "#0b1f3d",
+  },
   { key: "brand-gold", label: "זהב המותג", group: "brand", default: "#d4af37" },
-  { key: "state-active", label: "הדגשת פריט פעיל בתפריט", group: "brand", default: "#fed65b" },
+  { key: "state-active", label: "הדגשת פריט פעיל ובחירה", group: "brand", default: "#f1d57a" },
 
-  { key: "status-success-bg", label: "רקע — הצלחה", group: "status", default: "#e6f4ea" },
+  { key: "status-success-bg", label: "רקע — הצלחה", group: "status", default: "#e4f3e9" },
   {
     key: "status-success-fg",
     label: "טקסט — הצלחה",
     group: "status",
-    default: "#137333",
+    default: "#1e6b3a",
     over: "status-success-bg",
   },
-  { key: "status-warning-bg", label: "רקע — אזהרה", group: "status", default: "#fff3e0" },
+  { key: "status-warning-bg", label: "רקע — אזהרה", group: "status", default: "#fdf0dc" },
   /**
    * Was #e65100 until the contrast check at the bottom of this file was written
    * and failed on it the same minute: 3.46:1 against its own background, under
    * the 4.5:1 that same check warns every admin about. Darkened to the nearest
    * value in the same hue that clears AA (4.68:1). A palette that ships a
    * warning it would itself warn about teaches people to dismiss the warning.
+   * The redesign (29/09/2026) took it darker again, to #8a4b00 on #fdf0dc, so
+   * the orange reads as "waiting" beside the new red and still clears AA.
    */
   {
     key: "status-warning-fg",
     label: "טקסט — אזהרה",
     group: "status",
-    default: "#bf4600",
+    default: "#8a4b00",
     over: "status-warning-bg",
   },
-  { key: "status-error-bg", label: "רקע — שגיאה", group: "status", default: "#ffdad6" },
+  { key: "status-error-bg", label: "רקע — שגיאה", group: "status", default: "#fbe4e2" },
   {
     key: "status-error-fg",
     label: "טקסט — שגיאה",
     group: "status",
-    default: "#93000a",
+    default: "#a1261e",
     over: "status-error-bg",
   },
-  { key: "status-debt-bg", label: "רקע — חוב", group: "status", default: "#fed65b" },
+  { key: "status-debt-bg", label: "רקע — חוב", group: "status", default: "#fff4cc" },
   {
     key: "status-debt-fg",
     label: "טקסט — חוב",
     group: "status",
-    default: "#745c00",
+    default: "#6b5200",
     over: "status-debt-bg",
   },
-  { key: "status-neutral-bg", label: "רקע — ניטרלי", group: "status", default: "#d8e3fa" },
+  { key: "status-neutral-bg", label: "רקע — ניטרלי", group: "status", default: "#edf0f5" },
   {
     key: "status-neutral-fg",
     label: "טקסט — ניטרלי",
     group: "status",
-    default: "#43474e",
+    default: "#4a5366",
     over: "status-neutral-bg",
   },
 ] as const;

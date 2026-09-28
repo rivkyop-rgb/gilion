@@ -17,7 +17,7 @@ describe("merging overrides onto the defaults", () => {
   it("returns every token, defaults included, when nothing is overridden", () => {
     const merged = mergeTokens({});
     expect(Object.keys(merged)).toHaveLength(THEME_TOKENS.length);
-    expect(merged["primary"]).toBe("#000613");
+    expect(merged["primary"]).toBe("#14305a");
   });
 
   it("a missing key falls back to its default — that is the whole mechanism", () => {
@@ -29,7 +29,7 @@ describe("merging overrides onto the defaults", () => {
   it("ignores an override that is not a valid colour rather than emitting it", () => {
     // A bad value must never reach a `style` attribute: an invalid custom
     // property does not fall back, it makes the token resolve to nothing.
-    expect(mergeTokens({ primary: "red" })["primary"]).toBe("#000613");
+    expect(mergeTokens({ primary: "red" })["primary"]).toBe("#14305a");
   });
 
   it("expands shorthand, so stored values are always comparable", () => {
@@ -55,7 +55,7 @@ describe("reading a submitted palette", () => {
   });
 
   it("drops a value equal to the default, so the default stays live", () => {
-    const result = readSubmittedColors({ primary: "#000613", "brand-gold": "#D4AF37" });
+    const result = readSubmittedColors({ primary: "#14305a", "brand-gold": "#D4AF37" });
     expect(result).toEqual({ overrides: {} });
   });
 
