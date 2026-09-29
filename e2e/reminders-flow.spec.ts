@@ -53,13 +53,29 @@ async function addPrintableLine(page: Page, minDays: number): Promise<number> {
   for (let days = minDays; days < minDays + 8; days++) {
     await page.getByTestId("line-date").fill(inDays(days));
     await page.getByTestId("line-price").fill("1000");
-    await expect
-      .poll(async () => {
-        const box = page.getByTestId("confirm-special-edition");
-        if ((await box.count()) > 0 && !(await box.isChecked())) await box.check();
-        return page.getByTestId("add-line").isEnabled();
-      })
-      .toBe(true);
+    // A day the form will not take (a holiday the calendar already refuses)
+    // is moved past, as the comment above promises — not waited on. It used to
+    // poll until the button enabled, and on a date that falls in Sukkot it
+    // never does (30/09/2026).
+    const enabled = await expect
+      .poll(
+        async () => {
+          const box = page.getByTestId("confirm-special-edition");
+          if ((await box.count()) > 0 && !(await box.isChecked())) await box.check();
+          return page.getByTestId("add-line").isEnabled();
+        },
+        // Long enough for a first compile of the form on a dev server; a
+        // refused day still gives up well inside the test's budget.
+        { timeout: 15_000 },
+      )
+      .toBe(true)
+      .then(() => true)
+      .catch(() => false);
+    if (!enabled) {
+      await page.reload();
+      await page.waitForLoadState("networkidle");
+      continue;
+    }
     await page.getByTestId("add-line").click();
 
     const added = await page

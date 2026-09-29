@@ -134,6 +134,8 @@ test("תצוגה מקדימה זמינה גם בשורת הפרסום, גם בס
 
   // --- the customer card --------------------------------------------------
   await page.goto(`/customers/${customer.id}`);
+  // The files are the card's "קבצים" tab since 29/09/2026.
+  await page.getByTestId("customer-tab-files").click();
   await page.getByTestId(`quick-look-${adId}`).click();
   await expect(page.getByTestId("ad-preview-image")).toBeVisible();
   await expect(page.getByTestId("ad-preview-open")).toHaveAttribute(

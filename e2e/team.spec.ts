@@ -119,7 +119,8 @@ test.describe("adding a user", () => {
 test.describe("the two refusals that matter", () => {
   test("an admin cannot remove their own access", async ({ page }) => {
     await login(page, USERS.admin);
-    await page.goto("/settings/users");
+    // The list is paged, newest first; the seeded admin is found by name.
+    await page.goto(`/settings/users?q=${encodeURIComponent(USERS.admin)}`);
 
     const row = page.locator('[data-testid^="member-row-"]', { hasText: USERS.admin });
     await expect(row).toContainText("לא ניתן להסיר את עצמך");
