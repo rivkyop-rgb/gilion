@@ -168,6 +168,7 @@ export function PaymentEditor({
         <NewPaymentForm
           customerId={customerId}
           orders={orders}
+          outstanding={outstanding}
           busy={busy}
           onSubmit={(values, reset) =>
             run(() => recordPaymentAction({ customerId, ...values }), reset)
@@ -534,11 +535,14 @@ function OrderPicker({
 function NewPaymentForm({
   customerId,
   orders,
+  outstanding,
   busy,
   onSubmit,
 }: {
   customerId: string;
   orders: BillableOrder[];
+  /** The customer's open balance — the same figure the window's header says. */
+  outstanding: number;
   busy: boolean;
   onSubmit: (values: FormValues, reset: () => void) => void;
 }) {
@@ -562,6 +566,12 @@ function NewPaymentForm({
   const [preview, setPreview] = useState({ key: "", text: "" });
 
   const selected = orders.find((o) => o.id === orderId);
+  // The two sums people actually hand over, one click away (redesign,
+  // 29/09/2026): what this order still owes, and everything that is open.
+  // The window's own headline figure, not a re-sum of the orders: two numbers
+  // for "everything open" in one window would contradict each other.
+  const totalOpen = Math.round(outstanding * 100) / 100;
+  const typed = Number(amount.replace(/,/g, ""));
   const previewKey = orderId === SPLIT && amount.trim() ? `${orderId}|${amount}` : "";
   const previewText = previewKey && preview.key === previewKey ? preview.text : "";
 
@@ -638,6 +648,28 @@ function NewPaymentForm({
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0.00"
           />
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {selected && selected.open > 0 ? (
+              <button
+                type="button"
+                data-testid="amount-order-open"
+                onClick={() => setAmount(String(selected.open))}
+                className="rounded-full border border-outline-variant bg-surface-container-lowest px-2.5 py-0.5 text-xs text-primary hover:bg-surface-container"
+              >
+                יתרת ההזמנה <Ltr>{MONEY.format(selected.open)}</Ltr>
+              </button>
+            ) : null}
+            {totalOpen > 0 ? (
+              <button
+                type="button"
+                data-testid="amount-all-open"
+                onClick={() => setAmount(String(totalOpen))}
+                className="rounded-full border border-outline-variant bg-surface-container-lowest px-2.5 py-0.5 text-xs text-primary hover:bg-surface-container"
+              >
+                כל היתרה <Ltr>{MONEY.format(totalOpen)}</Ltr>
+              </button>
+            ) : null}
+          </div>
         </div>
         <div>
           <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="payment-date">
@@ -690,7 +722,17 @@ function NewPaymentForm({
       <div className="mt-3 flex items-center gap-2">
         <Button type="submit" size="sm" disabled={busy} data-testid="save-payment">
           <Check className="size-4" />
-          {busy ? "שומר…" : "שמירת תשלום"}
+          {/* The button says what it will record, so the last look before the
+              click is at the number that matters. */}
+          {busy ? (
+            "שומר…"
+          ) : Number.isFinite(typed) && typed > 0 ? (
+            <>
+              רישום <Ltr>{MONEY.format(typed)}</Ltr>
+            </>
+          ) : (
+            "שמירת תשלום"
+          )}
         </Button>
       </div>
     </form>

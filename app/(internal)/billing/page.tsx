@@ -7,6 +7,7 @@ import { getTenantContext, canWriteArea, requireArea } from "@/lib/auth/tenant";
 import {
   billableOrders,
   billingCustomers,
+  billingRowFacts,
   billingTotals,
   customerMonths,
   paymentHistory,
@@ -112,6 +113,14 @@ export default async function BillingPage({
   );
   const shown = rows.slice(skipFor(list), skipFor(list) + list.size);
   const sizeKeep = list.size !== DEFAULT_PAGE_SIZE ? String(list.size) : "";
+  // Who to call first: since when each row has owed printed money, and when
+  // it was last reminded — asked for the rows on screen only.
+  const facts = await billingRowFacts(
+    ctx.businessId,
+    shown.map((r) => r.customerId),
+  );
+  const now = new Date().getTime();
+  const daysSince = (d: Date) => Math.max(0, Math.floor((now - d.getTime()) / 86_400_000));
 
   /** Toggling a row must not throw away the filters above it. */
   const hrefFor = (next: { status?: string; q?: string; customer?: string }) => {
@@ -304,6 +313,7 @@ export default async function BillingPage({
                 <th className="p-3 text-start font-semibold">סה״כ לחיוב</th>
                 <th className="p-3 text-start font-semibold">שולם</th>
                 <th className="p-3 text-start font-semibold">יתרה</th>
+                <th className="p-3 text-start font-semibold">ותק החוב</th>
                 <th className="p-3 text-start font-semibold">לזכות</th>
                 <th className="p-3 text-start font-semibold">סטטוס תשלום</th>
                 <th className="p-3 text-start font-semibold">מספר חשבונית</th>
@@ -333,6 +343,22 @@ export default async function BillingPage({
                     >
                       {row.label}
                     </Link>
+                    {/* When they were last chased — under the name, not a
+                        tenth column: every column added here is paid for by
+                        the narrowest one (the "ריש תשל" lesson). */}
+                    <span
+                      className="block text-xs font-normal text-on-surface-variant"
+                      data-testid={`billing-last-reminder-${row.customerId}`}
+                    >
+                      {facts.get(row.customerId)?.lastReminder ? (
+                        <>
+                          תזכורת אחרונה לפני{" "}
+                          <Ltr>{daysSince(facts.get(row.customerId)!.lastReminder!)}</Ltr> ימים
+                        </>
+                      ) : (
+                        "לא נשלחה תזכורת"
+                      )}
+                    </span>
                   </td>
                   <td className="p-3">
                     <Ltr>{formatMoney(row.billed)}</Ltr>
@@ -346,6 +372,16 @@ export default async function BillingPage({
                     <Ltr data-testid={`billing-outstanding-${row.customerId}`}>
                       {formatMoney(row.outstanding)}
                     </Ltr>
+                  </td>
+                  <td className="p-3">
+                    <DebtAge
+                      days={
+                        facts.get(row.customerId)?.debtSince
+                          ? daysSince(facts.get(row.customerId)!.debtSince!)
+                          : null
+                      }
+                      testId={`billing-debt-age-${row.customerId}`}
+                    />
                   </td>
                   <td className="p-3">
                     {row.credit > 0 ? (
@@ -529,4 +565,33 @@ function describeDelta(oldValue: unknown, newValue: unknown): string {
   }
   if (before["order_id"] !== after["order_id"]) parts.push("שיוך מחדש להזמנה אחרת");
   return parts.length > 0 ? `עדכון ${parts.join(" · ")}` : "עדכון רישום תשלום";
+}
+
+/**
+ * How long printed money has been owed, as a bar and in days — who to call
+ * first, read without reading dates. Blue under a month, orange to two, red
+ * past that; no bar at all when nothing printed is unpaid.
+ */
+function DebtAge({ days, testId }: { days: number | null; testId: string }) {
+  if (days === null) {
+    return (
+      <span className="text-xs text-on-surface-variant" data-testid={testId}>
+        אין חוב
+      </span>
+    );
+  }
+  const tone = days > 60 ? "bg-status-error-fg" : days > 30 ? "bg-status-warning-fg" : "bg-primary";
+  return (
+    <span className="flex items-center gap-2 whitespace-nowrap" data-testid={testId}>
+      <span className="h-1.5 w-16 overflow-hidden rounded-full bg-surface-container-high">
+        <span
+          className={cn("block h-full rounded-full", tone)}
+          style={{ width: `${Math.min(100, Math.round((days / 90) * 100))}%` }}
+        />
+      </span>
+      <span className="text-xs text-on-surface">
+        <Ltr>{days}</Ltr> ימים
+      </span>
+    </span>
+  );
 }

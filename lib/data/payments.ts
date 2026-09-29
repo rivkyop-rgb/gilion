@@ -643,17 +643,24 @@ export async function creditByCustomer(businessId: string): Promise<Map<string, 
 export async function openOrdersOf(businessId: string, customerId: string): Promise<OpenOrder[]> {
   const orders = await tenantDb(businessId).adOrder.findMany({
     where: { customer_id: customerId, status: { in: ["approved", "completed"] } },
-    select: { id: true, number: true, total_price: true, created_at: true },
+    select: { id: true, number: true, created_at: true },
   });
-  const paid = await paidByOrder(
-    businessId,
-    orders.map((o) => o.id),
-  );
+  const ids = orders.map((o) => o.id);
+  // What is owed on an order is its LIVE publications, not `total_price`: that
+  // field is the price at approval and stays as a record when a publication is
+  // cancelled (CLAUDE.md). Allocating against it split a general payment by a
+  // different number than the one the window headlines — the window said
+  // "10,800 open" and the split said "nothing is open, all of it is credit",
+  // and the save then did what the split said (29/09/2026).
+  const [paid, billable] = await Promise.all([
+    paidByOrder(businessId, ids),
+    billableTotalsByOrder(businessId, ids),
+  ]);
   return orders
     .map((o) => ({
       orderId: o.id,
       number: o.number,
-      open: round2(Math.max(0, Number(o.total_price) - (paid.get(o.id) ?? 0))),
+      open: round2(Math.max(0, (billable.get(o.id) ?? 0) - (paid.get(o.id) ?? 0))),
       createdAt: o.created_at,
     }))
     .filter((o) => o.open > 0);
@@ -1005,19 +1012,24 @@ export async function billableOrders(businessId: string, customerId: string) {
     },
     take: 100,
   });
-  const paid = await paidByOrder(
-    businessId,
-    orders.map((o) => o.id),
-  );
+  const ids = orders.map((o) => o.id);
+  // Live publications, as everywhere else that states what an order costs —
+  // see openOrdersOf. The window's per-order table and its headline figure
+  // must be the same money.
+  const [paid, billable] = await Promise.all([
+    paidByOrder(businessId, ids),
+    billableTotalsByOrder(businessId, ids),
+  ]);
   return orders.map((o) => {
     const received = paid.get(o.id) ?? 0;
+    const total = billable.get(o.id) ?? 0;
     return {
       id: o.id,
       number: o.number,
-      totalPrice: round2(Number(o.total_price)),
+      totalPrice: round2(total),
       paid: round2(received),
       // What the per-order table shows, and what the split queue consumes.
-      open: round2(Math.max(0, Number(o.total_price) - received)),
+      open: round2(Math.max(0, total - received)),
       paymentStatus: o.payment_status as PaymentStatus,
       createdAt: o.created_at,
       invoiceNumber: o.external_invoice_number,
@@ -1227,4 +1239,46 @@ export async function livePaymentCount(businessId: string): Promise<number> {
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/**
+ * Two facts per billing row that decide who to call first (redesign,
+ * 29/09/2026): since when a customer has owed money that already printed, and
+ * when they were last reminded.
+ *
+ * Asked only for the rows on screen. "Owed since" is the oldest publication
+ * whose derived status is `debt` — printed and not paid — because that is the
+ * only money that is overdue; an open balance on something not yet printed is
+ * owed and not yet due (the card's own distinction).
+ */
+export async function billingRowFacts(
+  businessId: string,
+  customerIds: string[],
+): Promise<Map<string, { debtSince: Date | null; lastReminder: Date | null }>> {
+  if (customerIds.length === 0) return new Map();
+  const db = tenantDb(businessId);
+  const [debts, reminders] = await Promise.all([
+    db.publication.groupBy({
+      by: ["customer_id"],
+      where: {
+        customer_id: { in: customerIds },
+        payment_status: "debt",
+        status: { not: "canceled" },
+      },
+      _min: { publication_date: true },
+    }),
+    db.reminder.groupBy({
+      by: ["customer_id"],
+      where: { customer_id: { in: customerIds }, sent_at: { not: null } },
+      _max: { sent_at: true },
+    }),
+  ]);
+  const since = new Map(debts.map((d) => [d.customer_id, d._min.publication_date]));
+  const reminded = new Map(reminders.map((r) => [r.customer_id, r._max.sent_at]));
+  return new Map(
+    customerIds.map((id) => [
+      id,
+      { debtSince: since.get(id) ?? null, lastReminder: reminded.get(id) ?? null },
+    ]),
+  );
 }
