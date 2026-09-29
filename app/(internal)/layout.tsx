@@ -11,6 +11,8 @@ import { cssVariables } from "@/lib/domain/theme-tokens";
 import { brandSrc } from "@/components/brand/brand-mark";
 import { SidebarRail } from "@/components/shell/sidebar";
 import { TopBar } from "@/components/shell/top-bar";
+import { CommandPalette } from "@/components/shell/command-palette";
+import { effectiveAccess } from "@/lib/domain/permissions";
 import { switchBusinessAction, signOutAction } from "./actions";
 
 /**
@@ -73,6 +75,18 @@ export default async function InternalLayout({ children }: { children: React.Rea
         isSuperAdmin={isSuperAdmin}
         permissions={permissions}
         brand={{ keys: settings, name: settings.displayName ?? current.businessName }}
+      />
+
+      {/* Ctrl+K from anywhere (redesign, 29/09/2026). A way in, not a way
+          around: every result is an existing screen, and the server returns
+          only what this role may read. */}
+      <CommandPalette
+        role={current.role}
+        isSuperAdmin={isSuperAdmin}
+        permissions={permissions}
+        mayCreateOrder={
+          isSuperAdmin || effectiveAccess(current.role, "orders", permissions) === "write"
+        }
       />
 
       <div className="flex min-w-0 flex-1 flex-col">

@@ -10,6 +10,7 @@ import { effectiveAccess, type PermissionOverrides } from "@/lib/domain/permissi
 import { BrandMark, type BrandKeys } from "@/components/brand/brand-mark";
 import { cn } from "@/lib/utils";
 import { BUILT_THROUGH_STAGE, NAV_GROUP_LABELS, NAV_ITEMS, type NavGroup } from "./nav-items";
+import { OPEN_PALETTE_EVENT } from "./command-palette";
 
 /**
  * Where the collapsed/expanded choice is remembered.
@@ -240,6 +241,29 @@ function SidebarNav({
           <ToggleButton collapsed={collapsed} onToggle={onToggle} />
         </div>
       ) : null}
+
+      {/* Quick search and actions — the same window Ctrl+K opens. */}
+      <button
+        type="button"
+        data-testid="open-command-palette"
+        onClick={() => window.dispatchEvent(new Event(OPEN_PALETTE_EVENT))}
+        title={collapsed ? "חיפוש ופעולות (Ctrl+K)" : undefined}
+        aria-label="חיפוש ופעולות"
+        className={cn(
+          "mb-3 flex h-10 items-center gap-2 rounded-lg border border-sidebar-hover bg-sidebar-hover/60 text-sm text-on-sidebar-muted transition-colors hover:text-inverse-on-surface",
+          collapsed ? "justify-center px-0" : "px-3",
+        )}
+      >
+        <Icons.Search className="size-4 shrink-0" aria-hidden />
+        {collapsed ? null : (
+          <>
+            <span className="flex-1 text-start">חיפוש ופעולות</span>
+            <kbd className="rounded border border-on-sidebar-muted/40 px-1.5 text-xs" dir="ltr">
+              Ctrl K
+            </kbd>
+          </>
+        )}
+      </button>
 
       {groups.map(({ group, items: groupItems }, index) => (
         <div
