@@ -343,7 +343,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         </div>
 
         <aside
-          className="overflow-hidden rounded-xl border border-outline-variant border-t-4 border-t-primary bg-surface-container-lowest shadow-elevation-1 xl:sticky xl:top-6"
+          className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 xl:sticky xl:top-6"
           data-testid="order-summary"
         >
           <div className="p-5">

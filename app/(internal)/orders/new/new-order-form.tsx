@@ -71,7 +71,7 @@ export function NewOrderForm({
         {state.errors?.customerId ? <InlineError>{state.errors.customerId}</InlineError> : null}
       </section>
 
-      <aside className="overflow-hidden rounded-xl border border-outline-variant border-t-4 border-t-primary bg-surface-container-lowest shadow-elevation-1">
+      <aside className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
         <div className="p-5">
           <h2 className="mb-4 border-b border-outline-variant pb-3 font-serif text-xl font-semibold">
             סיכום הזמנה

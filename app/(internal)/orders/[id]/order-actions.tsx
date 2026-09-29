@@ -100,6 +100,7 @@ export function OrderActions({
         <div className={layout === "bar" ? "flex flex-wrap gap-3" : "flex flex-col gap-2"}>
           {status === "draft" && directApproval && canApprove ? (
             <Button
+              variant="gold"
               disabled={busy}
               data-testid="approve-order"
               onClick={guarded(() => approveOrderAction(orderId))}
@@ -109,6 +110,7 @@ export function OrderActions({
             </Button>
           ) : status === "draft" ? (
             <Button
+              variant="gold"
               disabled={busy}
               data-testid="submit-order"
               onClick={guarded(() => submitOrderAction(orderId))}
@@ -120,6 +122,7 @@ export function OrderActions({
           {status === "pending_approval" && canApprove ? (
             <>
               <Button
+                variant="gold"
                 disabled={busy}
                 data-testid="approve-order"
                 onClick={guarded(() => approveOrderAction(orderId))}

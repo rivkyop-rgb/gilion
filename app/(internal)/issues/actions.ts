@@ -182,17 +182,22 @@ const placeSchema = z.object({
   row: z.number().int().min(0),
 });
 
-export async function placeAdAction(input: unknown): Promise<FormState> {
+export async function placeAdAction(
+  input: unknown,
+): Promise<FormState & { placementId?: string }> {
   const ctx = await requireIssueWrite();
   const parsed = placeSchema.safeParse(input);
   if (!parsed.success) return { message: "בקשת שיבוץ לא תקינה" };
 
   try {
-    await placements.placeAd(ctx, parsed.data);
+    // The new row's id goes back to the board, which offers to undo exactly
+    // this placement (redesign, 29/09/2026) — through removePlacementAction,
+    // the same door as removing it by hand.
+    const placement = await placements.placeAd(ctx, parsed.data);
     revalidatePath(`/issues/${parsed.data.issueId}/board`);
     revalidatePath("/issues");
     revalidatePath("/publications");
-    return { ok: true };
+    return { ok: true, placementId: placement.id };
   } catch (error) {
     return asFormState(error);
   }

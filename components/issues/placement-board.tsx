@@ -15,6 +15,7 @@ import {
   PanelLeftOpen,
   Trash2,
   Wand2,
+  Undo2,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -177,6 +178,14 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
   const fail = (text: string) => setNotice({ text, ok: false });
   const say = (text: string) => setNotice({ text, ok: true });
   const [duplicateFor, setDuplicateFor] = useState<BoardCandidate | null>(null);
+  /**
+   * The placement just made, offered back for one undo (redesign, 29/09/2026).
+   *
+   * It lives beside the notice row and never in it: a success leaves the row
+   * empty on purpose (the board is clean after a good drop), and an undo is not
+   * news about the drop — it is a way back from it. Cleared by the next act.
+   */
+  const [lastPlaced, setLastPlaced] = useState<{ placementId: string; label: string } | null>(null);
   // A page added mid-issue is an inner page; the select still offers the rest.
   const [newPageType, setNewPageType] = useState(innerPageTypeId(model.pageTypes) ?? "");
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
@@ -341,6 +350,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
     // under the pointer. A row that empties and refills is read as a message
     // that was dismissed. Whatever the action returns replaces it, and a
     // success clears it explicitly below.
+    setLastPlaced(null);
     startTransition(async () => {
       const result =
         held.kind === "publication"
@@ -361,6 +371,16 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
 
       if (result.ok) {
         setNotice(null);
+        // Only a NEW placement returns an id; a move has nothing to undo here.
+        const placedId = (result as { placementId?: string }).placementId;
+        if (held.kind === "publication" && placedId) {
+          setLastPlaced({
+            placementId: placedId,
+            label:
+              model.candidates.find((c) => c.publicationId === held.publicationId)?.customerName ??
+              "",
+          });
+        }
         setHeld(null);
         setHover(null);
         router.refresh();
@@ -376,6 +396,37 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
       }
     });
   };
+
+  /** Takes back the placement just made — the same removal as by hand. */
+  const undoLast = () => {
+    if (!lastPlaced || !editable) return;
+    const target = lastPlaced;
+    setLastPlaced(null);
+    startTransition(async () => {
+      const result = await removePlacementAction(model.issueId, target.placementId);
+      if (result.ok) {
+        say(`השיבוץ של ${target.label} בוטל`);
+        router.refresh();
+      } else {
+        fail(result.message ?? "לא הצלחנו לבטל את השיבוץ");
+      }
+    });
+  };
+
+  // Ctrl+Z (⌘Z) undoes the last drop — but never while somebody is typing,
+  // where it belongs to the field.
+  useEffect(() => {
+    if (!lastPlaced) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z" || e.shiftKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      e.preventDefault();
+      undoLast();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   const selectedPlacement =
     held?.kind === "placement"
@@ -616,6 +667,25 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
             the box rather than pushing anything, because a reason is worth
             reading in full and never worth moving the page for. */}
           <div className="relative mb-2 h-14 shrink-0">
+            {lastPlaced && !held && editable ? (
+              /* Pinned to the end of the reserved row, above whatever the row
+                 holds: it takes no height, so nothing under it moves. */
+              <button
+                type="button"
+                data-testid="undo-placement"
+                onClick={undoLast}
+                className="absolute end-2 top-2 z-10 flex h-9 items-center gap-2 rounded-lg bg-primary-container px-3 text-sm font-medium text-inverse-on-surface shadow-elevation-1 hover:bg-primary"
+              >
+                <Undo2 className="size-4" aria-hidden />
+                ביטול השיבוץ
+                <kbd
+                  className="rounded bg-inverse-on-surface/15 px-1.5 font-sans text-xs"
+                  dir="ltr"
+                >
+                  Ctrl+Z
+                </kbd>
+              </button>
+            ) : null}
             {held && verdict ? (
               /* One testid for the whole row, whatever is in it.
                
