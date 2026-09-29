@@ -3,6 +3,7 @@
  * tenant-scoped client, so another business's file is not reachable even by
  * id (conventions.md §2).
  */
+import { clampPage, skipFor, type ListParams } from "@/lib/domain/list-view";
 import { Prisma } from "@prisma/client";
 import { basePrisma, tenantDb } from "./db";
 
@@ -24,8 +25,9 @@ const AD_INCLUDE = {
   _count: { select: { publications: true } },
 };
 
-export async function listAdvertisements(businessId: string, filters: AdFilters = {}) {
-  const where: Prisma.AdvertisementWhereInput = {
+function adWhere(filters: AdFilters, search = ""): Prisma.AdvertisementWhereInput {
+  const q = search.trim();
+  return {
     ...(filters.unassigned
       ? { customer_id: null }
       : filters.customerId && filters.customerId !== "all"
@@ -50,14 +52,45 @@ export async function listAdvertisements(businessId: string, filters: AdFilters 
           },
         }
       : {}),
+    // A file is found by what it is called or whose it is.
+    ...(q
+      ? {
+          OR: [
+            { name: { contains: q, mode: "insensitive" as const } },
+            { customer: { business_name: { contains: q, mode: "insensitive" as const } } },
+          ],
+        }
+      : {}),
   };
+}
 
+export async function listAdvertisements(businessId: string, filters: AdFilters = {}) {
   return tenantDb(businessId).advertisement.findMany({
-    where,
+    where: adWhere(filters),
     orderBy: [{ uploaded_at: "desc" }],
     include: AD_INCLUDE,
     take: 200,
   });
+}
+
+/** One page, and the whole count — the pager needs both. */
+export async function listAdvertisementsPage(
+  businessId: string,
+  filters: AdFilters,
+  list: ListParams,
+) {
+  const db = tenantDb(businessId);
+  const where = adWhere(filters, list.q);
+  const total = await db.advertisement.count({ where });
+  const page = clampPage(list, total);
+  const rows = await db.advertisement.findMany({
+    where,
+    orderBy: [{ uploaded_at: "desc" }],
+    include: AD_INCLUDE,
+    skip: skipFor(page),
+    take: page.size,
+  });
+  return { rows, total, list: page };
 }
 
 function dayAfter(iso: string): Date {

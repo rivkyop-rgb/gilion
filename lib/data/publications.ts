@@ -1,6 +1,7 @@
 /**
  * Publication reads and cancellation (FR-4, FR-5, US-001).
  */
+import { clampPage, skipFor, type ListParams } from "@/lib/domain/list-view";
 import { Prisma } from "@prisma/client";
 import { basePrisma, tenantDb } from "./db";
 import { MISSING_AD_STATES, READY_TO_PLACE_STATES } from "@/lib/domain/dashboard";
@@ -127,12 +128,30 @@ export async function listPublications(businessId: string, filters: PublicationF
  * that does not say it is truncated reads as a full answer. The count is what
  * lets a screen say "200 מתוך 340" instead of lying by omission.
  */
-export async function listPublicationsPage(businessId: string, filters: PublicationFilters = {}) {
-  const [rows, total] = await Promise.all([
-    listPublications(businessId, filters),
-    countPublications(businessId, filters),
-  ]);
-  return { rows, total, pageSize: PUBLICATION_PAGE_SIZE };
+export async function listPublicationsPage(
+  businessId: string,
+  filters: PublicationFilters = {},
+  /** Paged in the database when given; the old 200-row cap when not. */
+  list?: ListParams,
+) {
+  if (!list) {
+    const [rows, total] = await Promise.all([
+      listPublications(businessId, filters),
+      countPublications(businessId, filters),
+    ]);
+    return { rows, total, pageSize: PUBLICATION_PAGE_SIZE, list: undefined };
+  }
+  const total = await countPublications(businessId, filters);
+  // Past the end — a search typed on page 7 — shows the last page that exists.
+  const page = clampPage(list, total);
+  const rows = await tenantDb(businessId).publication.findMany({
+    where: whereFor(filters),
+    orderBy: [{ publication_date: "asc" }, { created_at: "asc" }],
+    include: PUBLICATION_INCLUDE,
+    skip: skipFor(page),
+    take: page.size,
+  });
+  return { rows, total, pageSize: page.size, list: page };
 }
 
 export async function countPublications(businessId: string, filters: PublicationFilters = {}) {

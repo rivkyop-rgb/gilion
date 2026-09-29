@@ -9,6 +9,8 @@ import { netByCustomer } from "@/lib/data/payments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Ltr } from "@/components/ui/ltr";
+import { ListPager, ListToolbar } from "@/components/ui/list-toolbar";
+import { clampPage, DEFAULT_PAGE_SIZE, parseListParams } from "@/lib/domain/list-view";
 import { EmailLink, PhoneLink } from "@/components/contact-links";
 import { EmptyState } from "@/components/states";
 import { formatMoney } from "../../orders/format";
@@ -25,20 +27,36 @@ export const metadata: Metadata = { title: "לקוחות · Gilion" };
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; size?: string }>;
 }) {
   const ctx = await getTenantContext();
   requireArea(ctx, "customers");
 
-  const { q = "" } = await searchParams;
+  const raw = await searchParams;
+  const requested = parseListParams(raw);
+  const q = requested.q;
   const mayEdit = canWriteArea(ctx, "customers");
   // FR-8: a designer must not see money anywhere. The debt column is not
   // hidden with CSS — it is never queried or rendered for that role.
   const maySeeMoney = ctx.role !== "designer";
 
-  const { rows, total } = await listCustomers(ctx.businessId, {
+  // Paged in the database. It used to stop at 25 with no pager and nothing on
+  // screen saying so — the twenty-sixth customer simply did not exist here.
+  let { rows, total } = await listCustomers(ctx.businessId, {
     search: q,
+    page: requested.page,
+    perPage: requested.size,
   });
+  // Somebody on page 7 typed a search and the list is now two pages long:
+  // show the last page that exists, not an empty table that reads "no results".
+  const list = clampPage(requested, total);
+  if (list.page !== requested.page) {
+    ({ rows, total } = await listCustomers(ctx.businessId, {
+      search: q,
+      page: list.page,
+      perPage: list.size,
+    }));
+  }
   const nets = maySeeMoney
     ? await netByCustomer(
         ctx.businessId,
@@ -76,8 +94,14 @@ export default async function CustomersPage({
             data-testid="customer-search"
           />
         </div>
+        {/* A new search keeps the chosen page size; the page itself starts over. */}
+        {list.size !== DEFAULT_PAGE_SIZE ? (
+          <input type="hidden" name="size" value={list.size} />
+        ) : null}
         <ResetFilters href="/customers" active={Boolean(q)} />
       </form>
+
+      <ListToolbar prefix="" params={list} total={total} baseHref="/customers" searchable={false} />
 
       {rows.length === 0 ? (
         <EmptyState
@@ -147,6 +171,7 @@ export default async function CustomersPage({
           </table>
         </div>
       )}
+      {total > 0 ? <ListPager prefix="" params={list} total={total} baseHref="/customers" /> : null}
     </>
   );
 }

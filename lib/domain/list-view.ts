@@ -101,3 +101,23 @@ export function orderNumberNeedle(q: string): number | null {
   const n = Number(digits);
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
+
+/**
+ * The page's own URL with one list's page/size/q taken off — what the toolbar
+ * writes its three parameters back onto, so every filter the page owns
+ * survives a page turn. `prefix` as in ListToolbar ("" for a page's one list).
+ */
+export function baseHrefFor(
+  path: string,
+  params: Record<string, string | string[] | undefined>,
+  prefix = "",
+): string {
+  const own = new Set(["page", "size", "q"].map((n) => (prefix ? `${prefix}_${n}` : n)));
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (own.has(k) || v === undefined) continue;
+    for (const one of Array.isArray(v) ? v : [v]) if (one !== "") qs.append(k, one);
+  }
+  const s = qs.toString();
+  return s ? `${path}?${s}` : path;
+}

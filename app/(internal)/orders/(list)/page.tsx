@@ -4,7 +4,7 @@ import { Plus } from "lucide-react";
 
 import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { getCustomer } from "@/lib/data/customers";
-import { countOrdersByStatus, listOrders, pendingPortalRequests } from "@/lib/data/orders";
+import { countOrdersByStatus, listOrdersPage, pendingPortalRequests } from "@/lib/data/orders";
 import { Send } from "lucide-react";
 import { ORDER_STATUS_LABELS, ORDER_STATUSES, type OrderStatus } from "@/lib/domain/order-status";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,8 @@ import {
 import { PAYMENT_TONE } from "@/components/status-tone";
 import { Badge } from "@/components/ui/badge";
 import { Ltr } from "@/components/ui/ltr";
+import { ListPager, ListToolbar } from "@/components/ui/list-toolbar";
+import { baseHrefFor, DEFAULT_PAGE_SIZE, parseListParams } from "@/lib/domain/list-view";
 import { EmptyState } from "@/components/states";
 import { ORDER_TONE, TONE_ROW } from "@/components/status-tone";
 import { cn } from "@/lib/utils";
@@ -43,6 +45,9 @@ export default async function OrdersPage({
     payment?: string;
     from?: string;
     to?: string;
+    page?: string;
+    size?: string;
+    q?: string;
   }>;
 }) {
   const ctx = await getTenantContext();
@@ -54,9 +59,19 @@ export default async function OrdersPage({
   // FR-8: whoever reads orders but not money does not filter by it either.
   const maySeeMoney = ctx.role !== "designer";
 
-  const [orders, counts, pendingFromPortal, customerRow, papers, shapes, customers] =
-    await Promise.all([
-      listOrders(ctx.businessId, {
+  const requested = parseListParams(params);
+  const [
+    { rows: orders, total, list },
+    counts,
+    pendingFromPortal,
+    customerRow,
+    papers,
+    shapes,
+    customers,
+  ] = await Promise.all([
+    listOrdersPage(
+      ctx.businessId,
+      {
         status,
         source,
         customerId: customer,
@@ -65,15 +80,17 @@ export default async function OrdersPage({
         payment: maySeeMoney ? params.payment : undefined,
         from: params.from,
         to: params.to,
-      }),
-      // The chips count what they would show — the same customer, if one is set.
-      countOrdersByStatus(ctx.businessId, customer),
-      pendingPortalRequests(ctx.businessId),
-      customer !== "all" ? getCustomer(ctx.businessId, customer) : Promise.resolve(null),
-      listNewspapers(ctx.businessId),
-      shapeOptions(ctx.businessId),
-      customerOptions(ctx.businessId),
-    ]);
+      },
+      requested,
+    ),
+    // The chips count what they would show — the same customer, if one is set.
+    countOrdersByStatus(ctx.businessId, customer),
+    pendingPortalRequests(ctx.businessId),
+    customer !== "all" ? getCustomer(ctx.businessId, customer) : Promise.resolve(null),
+    listNewspapers(ctx.businessId),
+    shapeOptions(ctx.businessId),
+    customerOptions(ctx.businessId),
+  ]);
   // The filter bar's parameters. Every other link on the page (status chips,
   // "new order") carries them along — a chip that drops the customer the list
   // was opened for is a chip that quietly shows someone else's orders.
@@ -185,7 +202,13 @@ export default async function OrdersPage({
         <div className="min-w-0 flex-1">
           <FilterBuilder
             basePath="/orders"
-            keep={{ status }}
+            // The list's own size and search survive a filter change; the
+            // page does not, because the rows under it are different now.
+            keep={{
+              status,
+              size: list.size !== DEFAULT_PAGE_SIZE ? String(list.size) : undefined,
+              q: list.q || undefined,
+            }}
             values={builderValues}
             fields={[
               {
@@ -235,9 +258,23 @@ export default async function OrdersPage({
         />
       </div>
 
+      <ListToolbar
+        prefix=""
+        params={list}
+        total={total}
+        baseHref={baseHrefFor("/orders", params)}
+        searchLabel="מספר הזמנה או לקוח"
+      />
+
       {orders.length === 0 ? (
         <EmptyState
-          title={status === "all" ? "עדיין אין הזמנות" : "אין הזמנות בסטטוס הזה"}
+          title={
+            list.q
+              ? "לא נמצאו הזמנות"
+              : status === "all"
+                ? "עדיין אין הזמנות"
+                : "אין הזמנות בסטטוס הזה"
+          }
           body="הזמנה מרכזת כמה פרסומים ללקוח אחד. באישור שלה נוצרים הפרסומים המחייבים."
           action={
             mayEdit && status === "all" ? (
@@ -314,11 +351,19 @@ export default async function OrdersPage({
           </table>
         </div>
       )}
+      {total > 0 ? (
+        <ListPager
+          prefix=""
+          params={list}
+          total={total}
+          baseHref={baseHrefFor("/orders", params)}
+        />
+      ) : null}
     </>
   );
 }
 
-type OrderRow = Awaited<ReturnType<typeof listOrders>>[number];
+type OrderRow = Awaited<ReturnType<typeof listOrdersPage>>["rows"][number];
 
 /** What the arrow opens: the order's lines, and the facts not in the columns. */
 function OrderDetails({ order, maySeeMoney }: { order: OrderRow; maySeeMoney: boolean }) {

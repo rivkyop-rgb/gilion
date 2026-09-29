@@ -74,7 +74,7 @@ test("שינוי מספר השורות לעמוד", async ({ page }) => {
   await page.goto(`/customers/${customer.id}`);
   // Applies on change — a separate button was a second click for a choice
   // that has no other meaning.
-  await page.getByTestId("o-size").selectOption("50");
+  await page.getByTestId("o-size-50").click();
 
   await expect(page.getByTestId("customer-orders").locator("tbody tr")).toHaveCount(12);
   await expect(page.getByTestId("o-page")).toContainText("1 / 1");

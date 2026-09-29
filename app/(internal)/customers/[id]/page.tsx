@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { deletionBlockedMessage } from "@/lib/domain/customer";
 import { PAYMENT_STATUS_LABELS, type PaymentStatus } from "@/lib/domain/customer-account";
 import { clampPage, parseListParams, type ListParams } from "@/lib/domain/list-view";
-import { ListToolbar } from "@/components/ui/list-toolbar";
+import { ListPager, ListToolbar } from "@/components/ui/list-toolbar";
 import { AD_FILE_TYPE_LABELS, formatBytes, type AdFileType } from "@/lib/domain/ad-file";
 import { PUBLICATION_STATUS_LABELS, type PublicationStatus } from "@/lib/domain/publication-status";
 import { DeleteCustomer } from "./delete-customer";
@@ -476,6 +476,12 @@ export default async function CustomerPage({
               <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3">
                 <MonthTable customerId={customer.id} months={shownMonths} collapseSettled={false} />
               </div>
+              <ListPager
+                prefix="m"
+                params={monthPage}
+                total={matchedMonths.length}
+                baseHref={baseHref("m")}
+              />
             </div>
           ) : null}
         </section>
@@ -572,6 +578,12 @@ export default async function CustomerPage({
             {paymentsPhrase(payments.rows.filter((p) => p.status !== "canceled").length)} מוצגים
             בעמוד הזה.
           </p>
+          <ListPager
+            prefix="y"
+            params={paymentsParams}
+            total={payments.total}
+            baseHref={baseHref("y")}
+          />
         </section>
       ) : null}
 
@@ -662,6 +674,12 @@ export default async function CustomerPage({
               </table>
             </div>
           )}
+          <ListPager
+            prefix="o"
+            params={ordersParams}
+            total={orders.total}
+            baseHref={baseHref("o")}
+          />
         </section>
       ) : null}
 
@@ -760,6 +778,12 @@ export default async function CustomerPage({
             </table>
           </div>
         )}
+        <ListPager
+          prefix="p"
+          params={pubsParams}
+          total={publications.total}
+          baseHref={baseHref("p")}
+        />
       </section>
 
       {maySeeAds ? (
@@ -847,6 +871,7 @@ export default async function CustomerPage({
               ))}
             </ul>
           )}
+          <ListPager prefix="a" params={adsParams} total={ads.total} baseHref={baseHref("a")} />
         </section>
       ) : null}
     </>

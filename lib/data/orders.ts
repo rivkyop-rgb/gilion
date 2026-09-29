@@ -10,6 +10,7 @@ import { basePrisma, tenantDb } from "./db";
 import { roundMoney } from "@/lib/domain/order";
 import { discountedPrice, orderPricing } from "@/lib/domain/ad-package";
 import { packagesByNewspaper } from "./newspapers";
+import { clampPage, orderNumberNeedle, skipFor, type ListParams } from "@/lib/domain/list-view";
 
 export type OrderFilters = {
   status?: string;
@@ -66,26 +67,63 @@ function lineFilter(filters: OrderFilters): Prisma.AdOrderWhereInput {
   return Object.keys(line).length > 0 ? { items: { some: line } } : {};
 }
 
+function orderWhere(filters: OrderFilters, search = ""): Prisma.AdOrderWhereInput {
+  const q = search.trim();
+  const number = orderNumberNeedle(q);
+  return {
+    ...(filters.status && filters.status !== "all"
+      ? { status: filters.status as Prisma.EnumOrderStatusFilter }
+      : {}),
+    ...(filters.source && filters.source !== "all"
+      ? { source: filters.source as Prisma.EnumOrderSourceFilter }
+      : {}),
+    ...(filters.customerId && filters.customerId !== "all"
+      ? { customer_id: filters.customerId }
+      : {}),
+    ...(filters.payment && filters.payment !== "all"
+      ? { payment_status: filters.payment as Prisma.EnumPaymentStatusFilter }
+      : {}),
+    ...lineFilter(filters),
+    // What a person types is what they read on the screen: the order number
+    // as shown (ORD-0042, 0042, 42) or the customer's name.
+    ...(q
+      ? {
+          OR: [
+            ...(number !== null ? [{ number }] : []),
+            { customer: { business_name: { contains: q, mode: "insensitive" as const } } },
+          ],
+        }
+      : {}),
+  };
+}
+
 export async function listOrders(businessId: string, filters: OrderFilters = {}) {
   return tenantDb(businessId).adOrder.findMany({
-    where: {
-      ...(filters.status && filters.status !== "all"
-        ? { status: filters.status as Prisma.EnumOrderStatusFilter }
-        : {}),
-      ...(filters.source && filters.source !== "all"
-        ? { source: filters.source as Prisma.EnumOrderSourceFilter }
-        : {}),
-      ...(filters.customerId && filters.customerId !== "all"
-        ? { customer_id: filters.customerId }
-        : {}),
-      ...(filters.payment && filters.payment !== "all"
-        ? { payment_status: filters.payment as Prisma.EnumPaymentStatusFilter }
-        : {}),
-      ...lineFilter(filters),
-    },
+    where: orderWhere(filters),
     orderBy: { created_at: "desc" },
     include: ORDER_INCLUDE,
   });
+}
+
+/** One page of the list, and how many there are in all — the pager needs both. */
+export async function listOrdersPage(
+  businessId: string,
+  filters: OrderFilters,
+  list: ListParams,
+): Promise<{ rows: Awaited<ReturnType<typeof listOrders>>; total: number; list: ListParams }> {
+  const db = tenantDb(businessId);
+  const where = orderWhere(filters, list.q);
+  const total = await db.adOrder.count({ where });
+  const page = clampPage(list, total);
+  const rows = await db.adOrder.findMany({
+    where,
+    orderBy: { created_at: "desc" },
+    include: ORDER_INCLUDE,
+    skip: skipFor(page),
+    take: page.size,
+  });
+  // `list` is the page actually shown: past the end, it is the last one.
+  return { rows, total, list: page };
 }
 
 /** Portal requests nobody has acted on yet — the number on the "מהפורטל" chip. */

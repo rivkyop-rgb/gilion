@@ -8,6 +8,7 @@ import {
   parseListParams,
   rangeLabel,
   skipFor,
+  baseHrefFor,
 } from "./list-view";
 
 describe("parseListParams", () => {
@@ -104,5 +105,23 @@ describe("orderNumberNeedle", () => {
     expect(orderNumberNeedle("")).toBeNull();
     expect(orderNumberNeedle("ORD-")).toBeNull();
     expect(orderNumberNeedle("0")).toBeNull();
+  });
+});
+
+describe("baseHrefFor", () => {
+  it("keeps the page's own filters and drops the list's page, size and search", () => {
+    expect(baseHrefFor("/orders", { status: "approved", page: "3", size: "50", q: "ORD-7" })).toBe(
+      "/orders?status=approved",
+    );
+  });
+
+  it("drops only its own prefix when a page holds several lists", () => {
+    expect(baseHrefFor("/c/1", { o_page: "2", p_page: "4", p_q: "x" }, "o")).toBe(
+      "/c/1?p_page=4&p_q=x",
+    );
+  });
+
+  it("skips empty and missing values, and a bare path stays bare", () => {
+    expect(baseHrefFor("/customers", { q: "abc", from: "", to: undefined })).toBe("/customers");
   });
 });

@@ -29,6 +29,8 @@ import {
 } from "@/lib/domain/payment-status";
 import { Badge } from "@/components/ui/badge";
 import { Ltr } from "@/components/ui/ltr";
+import { ListPager, ListToolbar } from "@/components/ui/list-toolbar";
+import { baseHrefFor, DEFAULT_PAGE_SIZE, parseListParams } from "@/lib/domain/list-view";
 import { EmptyState } from "@/components/states";
 import { PAYMENT_TONE, PUBLICATION_TONE, TONE_ROW } from "@/components/status-tone";
 import { cn } from "@/lib/utils";
@@ -64,6 +66,8 @@ export default async function PublicationsPage({
     source?: string;
     /** Search inside the filtered list (lib/data/publications.ts). */
     q?: string;
+    page?: string;
+    size?: string;
   }>;
 }) {
   const ctx = await getTenantContext();
@@ -80,7 +84,13 @@ export default async function PublicationsPage({
     payment = "all",
     source = "all",
     q = "",
+    page: pageParam,
+    size: sizeParam,
   } = await searchParams;
+  const requested = parseListParams({ page: pageParam, size: sizeParam, q });
+  // Carried by every link that changes a filter: the rows change, the chosen
+  // page size does not.
+  const sizeKeep = requested.size !== DEFAULT_PAGE_SIZE ? String(requested.size) : undefined;
   // Named apart: `q` is also every URLSearchParams below.
   const search = q;
 
@@ -101,6 +111,7 @@ export default async function PublicationsPage({
     if (payment !== "all") q.set("payment", payment);
     if (source !== "all") q.set("source", source);
     if (search) q.set("q", search);
+    if (sizeKeep) q.set("size", sizeKeep);
     const query = q.toString();
     return query ? `/publications?${query}` : "/publications";
   };
@@ -119,18 +130,22 @@ export default async function PublicationsPage({
   const mayOpenIssues = canWriteArea(ctx, "issues");
 
   const [page, papers, ads, customerRow, shapes, customers, datesByNewspaper] = await Promise.all([
-    listPublicationsPage(ctx.businessId, {
-      newspaperId: newspaper,
-      status,
-      from,
-      to,
-      customerId: customer,
-      attention,
-      shapeId: shape,
-      payment: maySeeMoney ? payment : "all",
-      source,
-      q,
-    }),
+    listPublicationsPage(
+      ctx.businessId,
+      {
+        newspaperId: newspaper,
+        status,
+        from,
+        to,
+        customerId: customer,
+        attention,
+        shapeId: shape,
+        payment: maySeeMoney ? payment : "all",
+        source,
+        q,
+      },
+      requested,
+    ),
     listNewspapers(ctx.businessId),
     mayLinkAds ? placeableAds(ctx.businessId) : Promise.resolve([]),
     customer !== "all" ? getCustomer(ctx.businessId, customer) : Promise.resolve(null),
@@ -140,6 +155,18 @@ export default async function PublicationsPage({
   ]);
   const customerName = customerRow?.business_name ?? null;
   const { rows, total } = page;
+  const list = page.list ?? requested;
+  const listBase = baseHrefFor("/publications", {
+    newspaper: newspaper !== "all" ? newspaper : undefined,
+    status: status !== "all" ? status : undefined,
+    from: from || undefined,
+    to: to || undefined,
+    customer: customer !== "all" ? customer : undefined,
+    attention: attention !== "all" ? attention : undefined,
+    shape: shape !== "all" ? shape : undefined,
+    payment: payment !== "all" ? payment : undefined,
+    source: source !== "all" ? source : undefined,
+  });
   // The arrow, eight fixed columns, and the ones a role may or may not see.
   const columnCount = 9 + (mayLinkAds ? 1 : 0) + (maySeeMoney ? 2 : 0) + (mayCancel ? 1 : 0);
 
@@ -262,15 +289,9 @@ export default async function PublicationsPage({
       <p className="mb-4 text-xs text-on-surface-variant" data-testid="publications-count">
         {/* `take` without a count is a silent truncation, and a cut list that
             does not say it was cut reads as a complete answer. */}
-        {total > rows.length ? (
-          <>
-            מוצגים <Ltr>{rows.length}</Ltr> מתוך <Ltr>{total}</Ltr> פרסומים
-          </>
-        ) : (
-          <>
-            <Ltr>{total}</Ltr> פרסומים
-          </>
-        )}
+        {/* The whole count; which of them are on screen is the pager's line
+            under the table ("11–20 מתוך 84"). */}
+        <Ltr>{total}</Ltr> פרסומים
       </p>
 
       {/* Eight statuses, eight colours — the row is the legend for the table. */}
@@ -317,6 +338,7 @@ export default async function PublicationsPage({
         keep={{
           status,
           attention,
+          size: sizeKeep,
           customer,
           shape,
           payment,
@@ -336,6 +358,7 @@ export default async function PublicationsPage({
               attention,
               newspaper,
               q,
+              size: sizeKeep,
               ...(from && from === to ? { from, to } : {}),
             }}
             values={{
@@ -392,6 +415,8 @@ export default async function PublicationsPage({
           }
         />
       </div>
+
+      <ListToolbar prefix="" params={list} total={total} baseHref={listBase} searchable={false} />
 
       {rows.length === 0 ? (
         <EmptyState
@@ -613,6 +638,7 @@ export default async function PublicationsPage({
           </table>
         </div>
       )}
+      {total > 0 ? <ListPager prefix="" params={list} total={total} baseHref={listBase} /> : null}
     </>
   );
 }

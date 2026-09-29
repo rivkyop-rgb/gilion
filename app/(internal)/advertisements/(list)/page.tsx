@@ -4,7 +4,7 @@ import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
-import { listAdvertisements, newspaperLimits } from "@/lib/data/advertisements";
+import { listAdvertisementsPage, newspaperLimits } from "@/lib/data/advertisements";
 import { listCustomerOptions } from "@/lib/data/customers";
 import {
   AD_FILE_TYPES,
@@ -18,6 +18,8 @@ import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
+import { ListPager, ListToolbar } from "@/components/ui/list-toolbar";
+import { DEFAULT_PAGE_SIZE, parseListParams } from "@/lib/domain/list-view";
 import { CustomerScopeBanner } from "@/components/customer-scope";
 import { cn } from "@/lib/utils";
 import { AdCard, type AdCardModel } from "../ad-card";
@@ -42,6 +44,9 @@ type Search = {
   view?: string;
   /** Files used in a publication of this newspaper. */
   newspaper?: string;
+  page?: string;
+  size?: string;
+  q?: string;
 };
 
 export default async function AdvertisementsPage({
@@ -61,20 +66,29 @@ export default async function AdvertisementsPage({
     unassigned = "",
     view = "grid",
     newspaper = "all",
+    page: pageParam,
+    size: sizeParam,
+    q = "",
   } = await searchParams;
+  const requested = parseListParams({ page: pageParam, size: sizeParam, q });
+  const sizeKeep = requested.size !== DEFAULT_PAGE_SIZE ? String(requested.size) : "";
 
   const unassignedOnly = unassigned === "1";
 
-  const [rows, papers, customers] = await Promise.all([
-    listAdvertisements(ctx.businessId, {
-      customerId: customer,
-      status,
-      fileType: type,
-      from,
-      to,
-      unassigned: unassignedOnly,
-      newspaperId: newspaper,
-    }),
+  const [{ rows, total, list }, papers, customers] = await Promise.all([
+    listAdvertisementsPage(
+      ctx.businessId,
+      {
+        customerId: customer,
+        status,
+        fileType: type,
+        from,
+        to,
+        unassigned: unassignedOnly,
+        newspaperId: newspaper,
+      },
+      requested,
+    ),
     newspaperLimits(ctx.businessId),
     listCustomerOptions(ctx.businessId),
   ]);
@@ -112,6 +126,9 @@ export default async function AdvertisementsPage({
       unassigned,
       view,
       newspaper,
+      // Search and size survive every link; the page does not.
+      q: requested.q || undefined,
+      size: sizeKeep || undefined,
       ...patch,
     };
     for (const [key, value] of Object.entries(merged)) {
@@ -192,6 +209,8 @@ export default async function AdvertisementsPage({
       <form className="mb-6 flex flex-wrap items-end gap-3">
         <input type="hidden" name="view" value={view} />
         <input type="hidden" name="unassigned" value={unassigned} />
+        {q ? <input type="hidden" name="q" value={q} /> : null}
+        {sizeKeep ? <input type="hidden" name="size" value={sizeKeep} /> : null}
         <div>
           <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="customer">
             לקוח
@@ -302,9 +321,17 @@ export default async function AdvertisementsPage({
         />
       </form>
 
+      <ListToolbar
+        prefix=""
+        params={list}
+        total={total}
+        baseHref={hrefWith({ q: undefined, size: undefined })}
+        searchLabel="שם קובץ או לקוח"
+      />
+
       {model.length === 0 ? (
         <EmptyState
-          title="אין עדיין קבצי מודעות"
+          title={q ? "לא נמצאו קבצים" : "אין עדיין קבצי מודעות"}
           body="כל קובץ שיועלה יופיע כאן — עם הלקוח שלו, גודלו ותוצאת הבדיקה."
         />
       ) : (
@@ -328,6 +355,14 @@ export default async function AdvertisementsPage({
           ) : null}
         </div>
       )}
+      {total > 0 ? (
+        <ListPager
+          prefix=""
+          params={list}
+          total={total}
+          baseHref={hrefWith({ q: undefined, size: undefined })}
+        />
+      ) : null}
     </>
   );
 }
