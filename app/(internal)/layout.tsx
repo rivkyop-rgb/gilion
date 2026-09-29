@@ -12,7 +12,9 @@ import { brandSrc } from "@/components/brand/brand-mark";
 import { SidebarRail } from "@/components/shell/sidebar";
 import { TopBar } from "@/components/shell/top-bar";
 import { CommandPalette } from "@/components/shell/command-palette";
+import { MobileTabBar } from "@/components/shell/mobile-tab-bar";
 import { effectiveAccess } from "@/lib/domain/permissions";
+import type { Area } from "@/lib/auth/rbac";
 import { switchBusinessAction, signOutAction } from "./actions";
 
 /**
@@ -61,6 +63,12 @@ export default async function InternalLayout({ children }: { children: React.Rea
   // `var(--gilion-<name>, <default>)`, so setting the overridden ones on this
   // element repaints the system and setting none falls through to the
   // stylesheet — no rebuild, no deploy, and no conditional anywhere.
+  // The same matrix the sidebar and the guards read.
+  const mayRead = (area: Area) =>
+    isSuperAdmin || effectiveAccess(current.role, area, permissions) !== "none";
+  const mayWrite = (area: Area) =>
+    isSuperAdmin || effectiveAccess(current.role, area, permissions) === "write";
+
   const [settings, mail] = await Promise.all([
     loadSettings(current.businessId),
     mailClient(current.businessId),
@@ -84,9 +92,12 @@ export default async function InternalLayout({ children }: { children: React.Rea
         role={current.role}
         isSuperAdmin={isSuperAdmin}
         permissions={permissions}
-        mayCreateOrder={
-          isSuperAdmin || effectiveAccess(current.role, "orders", permissions) === "write"
-        }
+        mayCreateOrder={mayWrite("orders")}
+      />
+      <MobileTabBar
+        mayCustomers={mayRead("customers")}
+        mayCreateOrder={mayWrite("orders")}
+        mayBilling={mayRead("billing")}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -100,7 +111,8 @@ export default async function InternalLayout({ children }: { children: React.Rea
           onSelectBusiness={switchBusinessAction}
           onSignOut={signOutAction}
         />
-        <main className="flex-1">
+        {/* Room under the content for the phone's bottom bar. */}
+        <main className="flex-1 pb-20 lg:pb-0">
           <ContentFrame>
             <Breadcrumbs />
             <MailClientProvider value={mail}>{children}</MailClientProvider>
