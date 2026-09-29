@@ -9,6 +9,9 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary: "bg-primary text-on-primary hover:bg-primary-container",
+        // The logo gold, for the ONE main action on a screen (redesign,
+        // 29/09/2026). Two gold buttons on a page and neither is the main one.
+        gold: "bg-brand-gold font-semibold text-on-brand-gold hover:brightness-95",
         secondary:
           "bg-surface-container text-on-surface hover:bg-surface-container-high border border-outline-variant",
         ghost: "text-on-surface-variant hover:bg-surface-container-low",

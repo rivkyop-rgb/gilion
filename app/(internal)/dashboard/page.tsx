@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { Plus } from "lucide-react";
 
 import { canReadArea, canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import type { Area } from "@/lib/auth/rbac";
@@ -24,6 +26,7 @@ import {
 } from "@/lib/domain/publication-status";
 import type { PaymentStatus } from "@/lib/domain/payment-status";
 import { ROLE_LABELS } from "@/lib/auth/labels";
+import { Button } from "@/components/ui/button";
 import { Ltr } from "@/components/ui/ltr";
 import { cn } from "@/lib/utils";
 import { KpiCard } from "./kpi-card";
@@ -210,7 +213,19 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   return (
     <>
-      <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">לוח בקרה</h1>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="page-title font-serif text-headline-lg font-semibold">לוח בקרה</h1>
+        {/* The one gold button on the screen: the thing this business does
+            most, one click from where every day starts. */}
+        {canWriteArea(ctx, "orders") ? (
+          <Button asChild variant="gold" size="lg" data-testid="dashboard-new-order">
+            <Link href="/orders/new">
+              <Plus className="size-5" aria-hidden />
+              הזמנה חדשה
+            </Link>
+          </Button>
+        ) : null}
+      </div>
       <p className="mb-3 text-sm text-on-surface-variant" data-testid="dashboard-period-sentence">
         נכנסת כ־{ROLE_LABELS[ctx.role]}. מוצגים נתוני{" "}
         <strong className="text-on-surface">

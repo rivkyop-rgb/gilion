@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { Ltr } from "@/components/ui/ltr";
-import { TONE_BORDER, TONE_TEXT, type Tone } from "@/components/status-tone";
+import { TONE_SOLID, TONE_TEXT, type Tone } from "@/components/status-tone";
 import { cn } from "@/lib/utils";
 
 /**
@@ -40,31 +40,44 @@ export function KpiCard({
       href={href}
       data-testid={testId}
       data-value={value}
-      className={cn(
-        "group flex flex-col justify-between rounded-xl border border-outline-variant border-s-4 bg-surface-container-lowest p-4 shadow-elevation-1 transition-all hover:bg-surface-container-low hover:shadow-elevation-2",
-        TONE_BORDER[tone],
-      )}
+      // No coloured side stripe (redesign, 29/09/2026): the tone lives in the
+      // icon and in the number, where it says something, and a stripe on every
+      // card made six cards shout at once.
+      className="group flex flex-col gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 transition-all hover:border-primary/30 hover:shadow-elevation-2"
     >
-      <p className="flex items-center justify-between gap-2 text-sm font-medium text-on-surface">
-        <span className="flex items-center gap-2">
-          <Icon className={cn("size-4 shrink-0", TONE_TEXT[tone])} aria-hidden />
+      <p className="flex items-center justify-between gap-2 text-sm font-medium text-on-surface-variant">
+        <span className="flex items-center gap-2.5">
+          <span
+            className={cn(
+              "flex size-8 shrink-0 items-center justify-center rounded-lg",
+              TONE_SOLID[tone],
+            )}
+          >
+            <Icon className="size-4" aria-hidden />
+          </span>
           {label}
         </span>
         {/* RTL: the arrow pointing left is the one that means "onwards". */}
-        <ArrowLeft className="size-4 shrink-0 text-on-surface-variant opacity-0 transition-opacity group-hover:opacity-100" />
+        <ArrowLeft className="size-4 shrink-0 text-primary opacity-0 transition-opacity group-hover:opacity-100" />
       </p>
-      {/* Zero is quiet: a red "0" under "חסרי מודעה" reads as an alarm about
-          nothing. The colour arrives with something to act on. */}
-      <p
-        className={cn(
-          "mt-2 font-serif text-4xl font-semibold",
-          value === 0 ? "text-on-surface-variant" : TONE_TEXT[tone],
-        )}
-        data-testid={`${testId}-value`}
-      >
-        <Ltr>{value}</Ltr>
-      </p>
-      <p className="mt-1 text-xs text-on-surface-variant">{hint}</p>
+      <div>
+        {/* Zero is quiet: a red "0" under "חסרי מודעה" reads as an alarm about
+            nothing. The colour arrives with something to act on. */}
+        <p
+          className={cn(
+            "text-[34px] leading-none font-bold tabular-nums",
+            value === 0
+              ? "text-on-surface-variant"
+              : tone === "neutral"
+                ? "text-primary-container"
+                : TONE_TEXT[tone],
+          )}
+          data-testid={`${testId}-value`}
+        >
+          <Ltr>{value}</Ltr>
+        </p>
+        <p className="mt-1.5 text-xs text-on-surface-variant">{hint}</p>
+      </div>
     </Link>
   );
 }
