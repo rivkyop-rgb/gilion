@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { Ltr } from "@/components/ui/ltr";
-import { TONE_SOLID, TONE_TEXT, type Tone } from "@/components/status-tone";
+import { TONE_DOT, TONE_SOLID, TONE_TEXT, type Tone } from "@/components/status-tone";
 import { cn } from "@/lib/utils";
 
 /**
@@ -40,44 +40,46 @@ export function KpiCard({
       href={href}
       data-testid={testId}
       data-value={value}
-      // No coloured side stripe (redesign, 29/09/2026): the tone lives in the
-      // icon and in the number, where it says something, and a stripe on every
-      // card made six cards shout at once.
-      className="group flex flex-col gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 transition-all hover:border-primary/30 hover:shadow-elevation-2"
+      // A row of the "מה דורש אותי" list (redesign, 29/09/2026): what it is,
+      // what it means, how many, and — the whole row — the way to them.
+      className="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-surface-container-low"
     >
-      <p className="flex items-center justify-between gap-2 text-sm font-medium text-on-surface-variant">
-        <span className="flex items-center gap-2.5">
-          <span
-            className={cn(
-              "flex size-8 shrink-0 items-center justify-center rounded-lg",
-              TONE_SOLID[tone],
-            )}
-          >
-            <Icon className="size-4" aria-hidden />
-          </span>
-          {label}
-        </span>
-        {/* RTL: the arrow pointing left is the one that means "onwards". */}
-        <ArrowLeft className="size-4 shrink-0 text-primary opacity-0 transition-opacity group-hover:opacity-100" />
+      <span
+        aria-hidden
+        className={cn(
+          "w-1 self-stretch rounded-full",
+          value === 0 ? "bg-outline-variant" : TONE_DOT[tone],
+        )}
+      />
+      <span
+        className={cn(
+          "flex size-9 shrink-0 items-center justify-center rounded-lg",
+          value === 0 ? "bg-surface-container text-on-surface-variant" : TONE_SOLID[tone],
+        )}
+      >
+        <Icon className="size-4" aria-hidden />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="text-sm font-semibold text-on-surface">{label}</span>
+        <span className="truncate text-xs text-on-surface-variant">{hint}</span>
+      </span>
+      {/* Zero is quiet: a red "0" under "חסרי מודעה" reads as an alarm about
+          nothing. The colour arrives with something to act on. */}
+      <p
+        className={cn(
+          "text-2xl leading-none font-bold tabular-nums",
+          value === 0
+            ? "text-on-surface-variant"
+            : tone === "neutral"
+              ? "text-primary-container"
+              : TONE_TEXT[tone],
+        )}
+        data-testid={`${testId}-value`}
+      >
+        <Ltr>{value}</Ltr>
       </p>
-      <div>
-        {/* Zero is quiet: a red "0" under "חסרי מודעה" reads as an alarm about
-            nothing. The colour arrives with something to act on. */}
-        <p
-          className={cn(
-            "text-[34px] leading-none font-bold tabular-nums",
-            value === 0
-              ? "text-on-surface-variant"
-              : tone === "neutral"
-                ? "text-primary-container"
-                : TONE_TEXT[tone],
-          )}
-          data-testid={`${testId}-value`}
-        >
-          <Ltr>{value}</Ltr>
-        </p>
-        <p className="mt-1.5 text-xs text-on-surface-variant">{hint}</p>
-      </div>
+      {/* RTL: the arrow pointing left is the one that means "onwards". */}
+      <ArrowLeft className="size-4 shrink-0 text-primary opacity-0 transition-opacity group-hover:opacity-100" />
     </Link>
   );
 }

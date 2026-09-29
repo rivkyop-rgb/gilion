@@ -18,7 +18,7 @@ import { readAllowedCells } from "./ad-shapes";
 import type { DerivedGrid } from "@/lib/domain/grid";
 import { ON_PAGE_STATES, type ReservedArea, type ShapeSpec } from "@/lib/domain/placement";
 import { isBackward, transition, type IssueStatus } from "@/lib/domain/issue-status";
-import { PAGES_PER_SHEET } from "@/lib/domain/issue-layout";
+import { PAGES_PER_SHEET, pageFill } from "@/lib/domain/issue-layout";
 import { OPEN_ISSUE_STATES } from "@/lib/domain/dashboard";
 import { withAudit } from "./audit";
 
@@ -907,4 +907,33 @@ export async function setIssueStatus(
     },
   );
   return next;
+}
+
+/**
+ * How full each page of one issue is — the dashboard's small page map
+ * (redesign, 29/09/2026).
+ *
+ * The same `pageFill` the placement board meters every page with, fed the same
+ * snapshot, placements and reserved areas: a map on the dashboard that
+ * disagreed with the board it opens would be read as one of them being wrong.
+ * `null` when the issue's grid cannot be resolved — the board says so in
+ * words, and the dashboard simply shows no map.
+ */
+export async function issuePageMap(businessId: string, issueId: string) {
+  const issue = await getIssue(businessId, issueId);
+  if (!issue) return null;
+  const grid = gridOfIssue(issue);
+  if (!grid) return null;
+  return issue.pages.map((page) => {
+    const fill = pageFill(
+      { id: page.id, number: page.page_number, pageTypeName: page.page_type.name },
+      issue.placements
+        .filter((p) => p.issue_page_id === page.id)
+        .map((p) => ({ col: p.col, row: p.row, cols: p.cols, rows: p.rows })),
+      grid,
+      shapeSpecsOf(page),
+      reservedOf(page).map((area) => area.rect),
+    );
+    return { number: page.page_number, percent: fill.percent, full: fill.full };
+  });
 }

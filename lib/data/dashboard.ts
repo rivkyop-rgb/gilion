@@ -164,3 +164,33 @@ export async function paymentStatusByOrder(
   });
   return new Map(rows.map((r) => [r.id, r.payment_status as string]));
 }
+
+/**
+ * Sales by week, for the dashboard's first card (redesign, 29/09/2026).
+ *
+ * "Sales" is the net price of every live publication DATED in the week — the
+ * same money the billing screens count (`price` is net of the quantity
+ * discount, and a cancelled publication is money nobody will be asked for).
+ * Dated by the publication, not by the order, because the question on the card
+ * is "what goes out this week", not "what was signed".
+ */
+export async function weeklySales(
+  businessId: string,
+  weeks: { from: Date; to: Date }[],
+): Promise<{ total: number; count: number }[]> {
+  if (weeks.length === 0) return [];
+  const rows = await tenantDb(businessId).publication.findMany({
+    where: {
+      status: { not: "canceled" },
+      publication_date: { gte: weeks[0]!.from, lte: weeks[weeks.length - 1]!.to },
+    },
+    select: { publication_date: true, price: true },
+  });
+  return weeks.map((w) => {
+    const inWeek = rows.filter((r) => r.publication_date >= w.from && r.publication_date <= w.to);
+    return {
+      total: Math.round(inWeek.reduce((s, r) => s + Number(r.price), 0) * 100) / 100,
+      count: inWeek.length,
+    };
+  });
+}

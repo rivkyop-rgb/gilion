@@ -6,6 +6,7 @@ import { canReadArea, canWriteArea, getTenantContext, requireArea } from "@/lib/
 import type { Area } from "@/lib/auth/rbac";
 import {
   dashboardCounts,
+  weeklySales,
   dashboardWeek,
   paymentStatusByOrder,
   reminderWidget,
@@ -13,11 +14,12 @@ import {
 import { listPublicationsPage } from "@/lib/data/publications";
 import { listNewspapers } from "@/lib/data/newspapers";
 import { customerOptions } from "@/lib/data/customers";
-import { issuesForPublications, openIssuesForPlacement } from "@/lib/data/issues";
+import { issuePageMap, issuesForPublications, openIssuesForPlacement } from "@/lib/data/issues";
+import { billingTotals } from "@/lib/data/payments";
 import { refreshReminders } from "@/lib/data/reminders";
 import { cardsFor, showsMoney, visibleCards, type DashboardCardKey } from "@/lib/domain/dashboard";
 import { internalOrdersNeedApproval } from "@/lib/data/orders";
-import { monthRange, isoDay } from "@/lib/domain/calendar";
+import { monthRange, isoDay, weekRange } from "@/lib/domain/calendar";
 import { daysUntil } from "@/lib/domain/reminders";
 import {
   PUBLICATION_STATUSES,
@@ -32,6 +34,7 @@ import { baseHrefFor, parseListParams } from "@/lib/domain/list-view";
 import { Ltr } from "@/components/ui/ltr";
 import { cn } from "@/lib/utils";
 import { KpiCard } from "./kpi-card";
+import { NextIssueCard, OpenBillingCard, SalesCard } from "./hero-cards";
 import { DashboardPeriod } from "./period";
 import {
   BellRing,
@@ -74,6 +77,13 @@ type Search = {
  * makes FR-8 hold against a reader of the payload and not only against a
  * reader of the screen.
  */
+const nextIssueDate = new Intl.DateTimeFormat("he-IL", {
+  weekday: "long",
+  day: "numeric",
+  month: "numeric",
+  timeZone: "UTC",
+});
+
 /** Each card borrows the icon of the screen it opens (components/shell/nav-items.ts). */
 const KPI_ICON: Record<DashboardCardKey, React.ComponentType<{ className?: string }>> = {
   week: CalendarDays,
@@ -153,6 +163,29 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     mayReadIssues ? openIssuesForPlacement(ctx.businessId) : Promise.resolve([]),
     mayReadReminders ? reminderWidget(ctx.businessId) : Promise.resolve({ rows: [], total: 0 }),
   ]);
+
+  // The top cards (redesign, 29/09/2026). Eight weeks of sales, this one last;
+  // the period's own figure; the money still out; and the next issue's pages.
+  const eightWeeks = Array.from({ length: 8 }, (_, i) => {
+    const day = new Date(week.from);
+    day.setUTCDate(day.getUTCDate() - 7 * (7 - i));
+    return weekRange(day);
+  });
+  const nextIssue = issues[0] ?? null;
+  const [salesByWeek, periodSalesRows, billing, nextIssueMap] = await Promise.all([
+    money ? weeklySales(ctx.businessId, eightWeeks) : Promise.resolve([]),
+    money
+      ? weeklySales(ctx.businessId, [
+          {
+            from: filters.from ? new Date(filters.from) : new Date(0),
+            to: filters.to ? new Date(filters.to) : new Date("9999-12-31"),
+          },
+        ])
+      : Promise.resolve([{ total: 0, count: 0 }]),
+    money ? billingTotals(ctx.businessId) : Promise.resolve(null),
+    nextIssue ? issuePageMap(ctx.businessId, nextIssue.id) : Promise.resolve(null),
+  ]);
+  const periodSales = periodSalesRows[0] ?? { total: 0, count: 0 };
 
   // Two lookups the table needs, both one query for the whole page rather than
   // one per row. The payment one is skipped entirely for a designer (FR-8).
@@ -266,49 +299,97 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         }}
       />
 
+      {/* The three cards across the top (redesign, 29/09/2026). Money only for
+          a role that may see it (FR-8) — a designer gets the count instead. */}
       <div
-        className={cn(
-          "mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3",
-          shown.length > 6 ? "xl:grid-cols-7" : "xl:grid-cols-6",
-        )}
-        data-testid="dashboard-kpis"
+        className={cn("mb-6 grid gap-4", money ? "lg:grid-cols-3" : "lg:grid-cols-2")}
+        data-testid="dashboard-hero"
       >
-        {shown.map((card) => (
-          <KpiCard
-            key={card.key}
+        {money ? (
+          <SalesCard
             label={
-              card.key === "week"
-                ? filters.all
-                  ? "כל הפרסומים"
-                  : showingThisWeek
-                    ? "פרסומים השבוע"
-                    : isMonth
-                      ? "פרסומים החודש"
-                      : "פרסומים בתקופה"
-                : card.label
+              filters.all
+                ? "מכירות · כל הזמן"
+                : showingThisWeek
+                  ? "מכירות השבוע"
+                  : isMonth
+                    ? "מכירות החודש"
+                    : "מכירות בתקופה"
             }
-            hint={
-              card.key === "week"
-                ? filters.all
-                  ? "מכל התאריכים"
-                  : showingThisWeek
-                    ? "ראשון עד שבת"
-                    : periodLabel
-                : card.hint
-            }
-            value={counts[card.key] ?? 0}
-            tone={card.tone}
-            href={hrefFor[card.key]}
-            testId={`kpi-${card.key}`}
-            icon={KPI_ICON[card.key]}
+            total={periodSales.total}
+            count={periodSales.count}
+            weeks={salesByWeek.map((w) => w.total)}
+            href={hrefFor.week}
           />
-        ))}
+        ) : null}
+        {money && billing ? (
+          <OpenBillingCard
+            outstanding={billing.outstanding}
+            customersInDebt={billing.customersInDebt}
+          />
+        ) : null}
+        {mayReadIssues ? (
+          <NextIssueCard
+            issue={
+              nextIssue
+                ? {
+                    id: nextIssue.id,
+                    newspaperName: nextIssue.newspaperName,
+                    date: nextIssueDate.format(nextIssue.date),
+                    placedCount: nextIssue.placedCount,
+                    plannedCount: nextIssue.plannedCount,
+                  }
+                : null
+            }
+            pages={nextIssueMap}
+          />
+        ) : null}
       </div>
 
-      {/* RTL: the first grid column is the RIGHT one, so the widgets sit beside
-          the sidebar and the table takes the width it needs. */}
+      {/* RTL: the first grid column is the RIGHT one — "what needs me", then
+          the widgets — and the table takes the width it needs. */}
       <div className="grid items-start gap-6 xl:grid-cols-[20rem_1fr]">
         <div className="space-y-4 xl:order-first">
+          <section
+            aria-labelledby="needs-me"
+            className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3"
+          >
+            <h2 id="needs-me" className="px-3 pt-2 pb-1 font-serif text-lg font-bold">
+              מה דורש אותי
+            </h2>
+            <div className="flex flex-col" data-testid="dashboard-kpis">
+              {shown.map((card) => (
+                <KpiCard
+                  key={card.key}
+                  label={
+                    card.key === "week"
+                      ? filters.all
+                        ? "כל הפרסומים"
+                        : showingThisWeek
+                          ? "פרסומים השבוע"
+                          : isMonth
+                            ? "פרסומים החודש"
+                            : "פרסומים בתקופה"
+                      : card.label
+                  }
+                  hint={
+                    card.key === "week"
+                      ? filters.all
+                        ? "מכל התאריכים"
+                        : showingThisWeek
+                          ? "ראשון עד שבת"
+                          : periodLabel
+                      : card.hint
+                  }
+                  value={counts[card.key] ?? 0}
+                  tone={card.tone}
+                  href={hrefFor[card.key]}
+                  testId={`kpi-${card.key}`}
+                  icon={KPI_ICON[card.key]}
+                />
+              ))}
+            </div>
+          </section>
           {mayReadIssues ? (
             <OpenIssuesWidget issues={issues} mayOpen={canWriteArea(ctx, "issues")} />
           ) : null}
