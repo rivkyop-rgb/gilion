@@ -27,6 +27,8 @@ import {
 import type { PaymentStatus } from "@/lib/domain/payment-status";
 import { ROLE_LABELS } from "@/lib/auth/labels";
 import { Button } from "@/components/ui/button";
+import { ListPager, ListToolbar } from "@/components/ui/list-toolbar";
+import { baseHrefFor, parseListParams } from "@/lib/domain/list-view";
 import { Ltr } from "@/components/ui/ltr";
 import { cn } from "@/lib/utils";
 import { KpiCard } from "./kpi-card";
@@ -54,6 +56,8 @@ type Search = {
   to?: string;
   /** "1" — every date, not only this week (27/09/2026). */
   all?: string;
+  page?: string;
+  size?: string;
 };
 
 /**
@@ -104,6 +108,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     to: params.all ? "" : (params.to ?? weekTo),
     all: params.all === "1",
   };
+  // The table pages like every other table; the filters above are its own.
+  const requested = parseListParams({ page: params.page, size: params.size });
+  const listBase = baseHrefFor("/dashboard", { ...params });
 
   const mayReadArea = (area: Area) => canReadArea(ctx, area);
   const cards = cardsFor(mayReadArea);
@@ -129,14 +136,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       },
     ),
     mayReadPublications
-      ? listPublicationsPage(ctx.businessId, {
-          newspaperId: filters.newspaper,
-          customerId: filters.customer,
-          status: filters.status,
-          from: filters.from,
-          to: filters.to,
-        })
-      : Promise.resolve({ rows: [], total: 0, pageSize: 0 }),
+      ? listPublicationsPage(
+          ctx.businessId,
+          {
+            newspaperId: filters.newspaper,
+            customerId: filters.customer,
+            status: filters.status,
+            from: filters.from,
+            to: filters.to,
+          },
+          requested,
+        )
+      : Promise.resolve({ rows: [], total: 0, pageSize: 0, list: undefined }),
     mayReadPublications ? listNewspapers(ctx.businessId) : Promise.resolve([]),
     mayReadPublications ? customerOptions(ctx.businessId) : Promise.resolve([]),
     mayReadIssues ? openIssuesForPlacement(ctx.businessId) : Promise.resolve([]),
@@ -343,16 +354,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   )}
                 </h2>
                 <p className="text-xs text-on-surface-variant" data-testid="week-count">
-                  {/* A truncated list that does not say so reads as a full answer. */}
-                  {table.total > rows.length ? (
-                    <>
-                      מוצגים <Ltr>{rows.length}</Ltr> מתוך <Ltr>{table.total}</Ltr>
-                    </>
-                  ) : (
-                    <>
-                      <Ltr>{table.total}</Ltr> פרסומים
-                    </>
-                  )}
+                  {/* The whole count; which of them are on screen is the pager's
+                      line under the table. */}
+                  <Ltr>{table.total}</Ltr> פרסומים
                 </p>
               </div>
 
@@ -372,7 +376,26 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               />
             </div>
 
+            <div className="px-5 pt-3">
+              <ListToolbar
+                prefix=""
+                params={table.list ?? requested}
+                total={table.total}
+                baseHref={listBase}
+                searchable={false}
+              />
+            </div>
             <WeekTable rows={rows} showsMoney={money} />
+            {table.total > 0 ? (
+              <div className="border-t border-outline-variant px-5 pb-3">
+                <ListPager
+                  prefix=""
+                  params={table.list ?? requested}
+                  total={table.total}
+                  baseHref={listBase}
+                />
+              </div>
+            ) : null}
           </section>
         ) : null}
       </div>

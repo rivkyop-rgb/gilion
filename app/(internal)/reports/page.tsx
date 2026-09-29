@@ -1,4 +1,6 @@
 import { ResetFilters } from "@/components/ui/reset-filters";
+import { ListPager, ListToolbar } from "@/components/ui/list-toolbar";
+import { clampPage, parseListParams, skipFor, type ListParams } from "@/lib/domain/list-view";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -48,6 +50,8 @@ type Params = {
   newspaper?: string;
   customer?: string;
   lens?: string;
+  page?: string;
+  size?: string;
 };
 
 /**
@@ -82,6 +86,8 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     : "all";
 
   const range = resolvePeriod(period, anchor, { from: params.from ?? "", to: params.to ?? "" });
+  // Both tables page the same way; only one of them is on screen at a time.
+  const list = parseListParams({ page: params.page, size: params.size });
 
   const hrefFor = (next: Partial<Params>) => {
     const merged: Params = {
@@ -300,13 +306,20 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       </form>
 
       {tab === "payments" ? (
-        <PaymentsTab businessId={ctx.businessId} filters={filters} />
+        <PaymentsTab
+          businessId={ctx.businessId}
+          filters={filters}
+          list={list}
+          listBase={hrefFor({})}
+        />
       ) : (
         <PublicationsTab
           businessId={ctx.businessId}
           filters={filters}
           lens={lens}
           hrefFor={hrefFor}
+          list={list}
+          listBase={hrefFor({})}
         />
       )}
     </>
@@ -344,8 +357,21 @@ function TabLink({
 type Filters = { from: string; to: string; newspaperId: string; customerId: string };
 
 /** The four numbers PRD §7 says a bookkeeper opens this report to see. */
-async function PaymentsTab({ businessId, filters }: { businessId: string; filters: Filters }) {
-  const { rows, totals } = await billingReport(businessId, filters);
+async function PaymentsTab({
+  businessId,
+  filters,
+  list: requested,
+  listBase,
+}: {
+  businessId: string;
+  filters: Filters;
+  list: ListParams;
+  listBase: string;
+}) {
+  const { rows: all, totals } = await billingReport(businessId, filters);
+  // The totals above the table are of everyone; the table is paged.
+  const list = clampPage(requested, all.length);
+  const rows = all.slice(skipFor(list), skipFor(list) + list.size);
 
   if (rows.length === 0) {
     return (
@@ -383,6 +409,13 @@ async function PaymentsTab({ businessId, filters }: { businessId: string; filter
         </div>
       </div>
 
+      <ListToolbar
+        prefix=""
+        params={list}
+        total={all.length}
+        baseHref={listBase}
+        searchable={false}
+      />
       <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
         <table className="w-full text-sm" data-testid="payments-report-table">
           <thead className="bg-surface-container">
@@ -437,6 +470,7 @@ async function PaymentsTab({ businessId, filters }: { businessId: string; filter
           </tbody>
         </table>
       </div>
+      <ListPager prefix="" params={list} total={all.length} baseHref={listBase} />
 
       {/*
         A payment is recorded against an ORDER, and an order can run across
@@ -463,13 +497,19 @@ async function PublicationsTab({
   filters,
   lens,
   hrefFor,
+  list: requested,
+  listBase,
 }: {
   businessId: string;
   filters: Filters;
   lens: PublicationLens;
   hrefFor: (next: Partial<Params>) => string;
+  list: ListParams;
+  listBase: string;
 }) {
-  const { rows, all } = await publicationReport(businessId, { ...filters, lens });
+  const { rows: matching, all } = await publicationReport(businessId, { ...filters, lens });
+  const list = clampPage(requested, matching.length);
+  const rows = matching.slice(skipFor(list), skipFor(list) + list.size);
   const counts = lensCounts(all);
 
   return (
@@ -500,6 +540,14 @@ async function PublicationsTab({
       <p className="mb-4 text-xs text-on-surface-variant" data-testid="lens-explanation">
         {LENS_EXPLANATIONS[lens]}
       </p>
+
+      <ListToolbar
+        prefix=""
+        params={list}
+        total={matching.length}
+        baseHref={listBase}
+        searchable={false}
+      />
 
       {rows.length === 0 ? (
         <EmptyState
@@ -568,8 +616,11 @@ async function PublicationsTab({
         </div>
       )}
 
+      {matching.length > 0 ? (
+        <ListPager prefix="" params={list} total={matching.length} baseHref={listBase} />
+      ) : null}
       <p className="mt-2 text-xs text-on-surface-variant" data-testid="lens-count">
-        {publicationsPhrase(rows.length)} בתצוגה.
+        {publicationsPhrase(matching.length)} בתצוגה.
       </p>
     </>
   );
