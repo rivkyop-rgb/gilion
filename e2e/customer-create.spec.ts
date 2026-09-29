@@ -38,6 +38,8 @@ test.describe("creating a customer (US-002)", () => {
     await expect(page.getByTestId("customer-name")).toHaveText(name);
     await expect(page.getByTestId("customer-tax-id")).toHaveText("515555555");
     await expect(page.getByTestId("customer-main-contact")).toHaveText("רון לוי · הנהלת חשבונות");
+    // Contacts and notes live on their own tab of the card (29/09/2026).
+    await page.getByTestId("customer-tab-contacts").click();
     await expect(page.getByTestId("customer-contacts")).toContainText("מיכל");
     await expect(page.getByTestId("customer-notes")).toContainText("משלמים בהעברה בנקאית");
   });

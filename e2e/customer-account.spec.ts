@@ -85,7 +85,9 @@ test("כרטיס הלקוח מציג הזמנות, יתרה, פרסומים וק
 
   await page.goto(`/customers/${customer.id}`);
 
-  // Orders, with the money on them.
+  // The lists sit behind tabs (29/09/2026); each is opened the way a person
+  // opens it. Orders, with the money on them.
+  await page.getByTestId("customer-tab-orders").click();
   const orders = page.getByTestId("customer-orders");
   await expect(orders).toBeVisible();
   await expect(orders).toContainText("1,500");
@@ -101,12 +103,15 @@ test("כרטיס הלקוח מציג הזמנות, יתרה, פרסומים וק
   await expect(page.getByTestId("account-source")).toContainText("רישומי התשלום בפועל");
 
   // No payment was recorded, so the section says so rather than showing a table.
+  await page.getByTestId("customer-tab-payments").click();
   await expect(page.getByTestId("customer-payments-section")).toContainText("עוד לא נרשם תשלום");
 
   // Publications, and which of them are still missing artwork.
+  await page.getByTestId("customer-tab-publications").click();
   await expect(page.getByTestId("customer-publications")).toContainText("חסר קובץ");
 
   // The customer's files.
+  await page.getByTestId("customer-tab-files").click();
   await expect(page.getByTestId("customer-ads")).toContainText(file.name);
 });
 
@@ -140,8 +145,11 @@ test("מנהלת חשבונות רואה את הכסף ולא את הקבצים 
   await page.goto(`/customers/${customer.id}`);
 
   await expect(page.getByTestId("customer-account")).toBeVisible();
+  await page.getByTestId("customer-tab-orders").click();
   await expect(page.getByTestId("customer-orders")).toContainText("700");
-  // accounting has no access to artwork anywhere, this screen included.
+  // accounting has no access to artwork anywhere, this screen included — not
+  // even a tab for it.
+  await expect(page.getByTestId("customer-tab-files")).toHaveCount(0);
   await expect(page.getByTestId("customer-ads")).toHaveCount(0);
 });
 
@@ -209,7 +217,8 @@ test("חמשת המספרים בכרטיס הלקוח, וההפרש בין 'הו
   await expect(page.getByTestId("account-net")).toContainText("900");
   await expect(page.getByTestId("account-credit-tile")).toContainText("אין יתרה לזכותו");
 
-  // And the detail under the summary.
+  // And the detail, one tab away.
+  await page.getByTestId("customer-tab-months").click();
   await expect(page.getByTestId("customer-month-detail")).toBeVisible();
 });
 

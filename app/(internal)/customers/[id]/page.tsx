@@ -174,28 +174,65 @@ export default async function CustomerPage({
   const portalLink = await portalUrl(await businessSlug(ctx.businessId));
   const mainContact = customer.contacts[0];
 
+  // The tabs this viewer may open — a role that cannot read a list does not
+  // get its tab (FR-8), the same rule the sections always followed.
+  const tabs: { key: string; label: string; count?: number }[] = [
+    { key: "publications", label: "פרסומים", count: publications.total },
+    ...(maySeeOrders ? [{ key: "orders", label: "הזמנות", count: orders.total }] : []),
+    ...(maySeeMoney ? [{ key: "payments", label: "תשלומים", count: payments.total }] : []),
+    ...(maySeeMoney && maySeeOrders
+      ? [{ key: "months", label: "לפי חודש", count: monthly.months.length }]
+      : []),
+    ...(maySeeAds ? [{ key: "files", label: "קבצים", count: ads.total }] : []),
+    { key: "contacts", label: "אנשי קשר ותזכורות", count: customer.contacts.length },
+  ];
+  const tab = tabs.some((t) => t.key === query.tab) ? query.tab! : "publications";
+  /** Another tab, with every list's own page and search left where they were. */
+  const tabHref = (key: string) => {
+    const kept = new URLSearchParams();
+    for (const [k, v] of Object.entries(query)) if (v && k !== "tab") kept.set(k, v);
+    if (key !== "publications") kept.set("tab", key);
+    const qs = kept.toString();
+    return qs ? `/customers/${id}?${qs}` : `/customers/${id}`;
+  };
+
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1
-            className="mb-2 page-title font-serif text-headline-lg font-semibold"
-            data-testid="customer-name"
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-5">
+        <div className="flex min-w-0 items-center gap-4">
+          <span
+            aria-hidden
+            className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-primary-container font-serif text-2xl font-bold text-state-active"
           >
-            {customer.business_name}
-          </h1>
-          {mainContact ? (
-            <p className="text-sm text-on-surface-variant" data-testid="customer-main-contact">
-              {mainContact.name}
-              {mainContact.role ? ` · ${mainContact.role}` : null}
-            </p>
-          ) : null}
+            {customer.business_name.trim().charAt(0)}
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1
+                className="page-title font-serif text-headline-lg font-semibold"
+                data-testid="customer-name"
+              >
+                {customer.business_name}
+              </h1>
+              {maySeeMoney && net > 0 ? (
+                <Badge tone="debt" data-testid="customer-owes-badge">
+                  חייב <Ltr>{formatMoney(net)}</Ltr>
+                </Badge>
+              ) : null}
+            </div>
+            {mainContact ? (
+              <p className="text-sm text-on-surface-variant" data-testid="customer-main-contact">
+                {mainContact.name}
+                {mainContact.role ? ` · ${mainContact.role}` : null}
+              </p>
+            ) : null}
+          </div>
         </div>
 
         {mayEdit || canWriteArea(ctx, "orders") ? (
           <div className="flex flex-wrap gap-2">
             {canWriteArea(ctx, "orders") ? (
-              <Button asChild>
+              <Button asChild variant="gold">
                 <Link href={`/orders/new?customer=${customer.id}`} data-testid="customer-new-order">
                   <Plus className="size-4" />
                   הזמנה חדשה
@@ -240,7 +277,7 @@ export default async function CustomerPage({
         </div>
       ) : null}
 
-      <dl className="mb-8 grid gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-6 sm:grid-cols-2 lg:grid-cols-4">
+      <dl className="mb-6 grid gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-6 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <dt className="text-xs text-on-surface-variant">טלפון העסק</dt>
           <dd className="mt-1">{customer.phone ? <PhoneLink phone={customer.phone} /> : "—"}</dd>
@@ -274,63 +311,6 @@ export default async function CustomerPage({
           </div>
         ) : null}
       </dl>
-
-      <ReminderRecipients
-        customerId={customer.id}
-        editable={mayEdit}
-        options={[
-          {
-            target: "main",
-            label: "פרטי העסק",
-            phone: customer.phone,
-            email: customer.email,
-            on: customer.reminders_to_main,
-          },
-          ...customer.contacts.map((c) => ({
-            target: c.id,
-            label: c.role ? `${c.name} · ${c.role}` : c.name,
-            phone: c.phone,
-            email: c.email,
-            on: c.receives_reminders,
-          })),
-        ]}
-      />
-
-      {customer.contacts.length > 0 || customer.notes ? (
-        <div className="mb-8 grid gap-4 lg:grid-cols-2">
-          {customer.contacts.length > 0 ? (
-            <section
-              className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-6"
-              data-testid="customer-contacts"
-            >
-              <h2 className="mb-3 text-sm font-semibold">אנשי קשר</h2>
-              <ul className="space-y-3">
-                {customer.contacts.map((c) => (
-                  <li key={c.id} className="text-sm">
-                    <span className="font-medium">{c.name}</span>
-                    {c.role ? <span className="text-on-surface-variant"> · {c.role}</span> : null}
-                    {c.phone || c.email ? (
-                      <span className="mt-0.5 flex flex-wrap gap-x-4 text-on-surface-variant">
-                        {c.phone ? <PhoneLink phone={c.phone} /> : null}
-                        {c.email ? <EmailLink email={c.email} /> : null}
-                      </span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-          {customer.notes ? (
-            <section
-              className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-6"
-              data-testid="customer-notes"
-            >
-              <h2 className="mb-3 text-sm font-semibold">הערות</h2>
-              <p className="whitespace-pre-line text-sm">{customer.notes}</p>
-            </section>
-          ) : null}
-        </div>
-      ) : null}
 
       {maySeeMoney && maySeeOrders ? (
         <section className="mb-8" data-testid="customer-account">
@@ -456,38 +436,44 @@ export default async function CustomerPage({
               made of — the same table and the same apportioning rule the
               billing window uses, so the two screens cannot quote different
               numbers for the same month. */}
-          {monthly.months.length > 0 ? (
-            <div className="mt-6" data-testid="customer-month-detail">
-              <h3 className="mb-2 text-sm font-semibold">פירוט לפי חודש</h3>
-              <p
-                className="mb-2 text-xs text-on-surface-variant"
-                data-testid="customer-open-months"
-              >
-                {openMonthsPhrase(monthly.months)}
-              </p>
-              <ListToolbar
-                prefix="m"
-                params={monthPage}
-                total={matchedMonths.length}
-                baseHref={baseHref("m")}
-                searchLabel="חודש"
-                exportHref={exportHref("months", monthsParams)}
-              />
-              <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3">
-                <MonthTable customerId={customer.id} months={shownMonths} collapseSettled={false} />
-              </div>
-              <ListPager
-                prefix="m"
-                params={monthPage}
-                total={matchedMonths.length}
-                baseHref={baseHref("m")}
-              />
-            </div>
-          ) : null}
         </section>
       ) : null}
 
-      {maySeeMoney ? (
+      {/* The lists live behind tabs (redesign, 29/09/2026): the card opened as
+          one long page of six lists, and the one somebody came for was usually
+          the fourth. The tab is in the URL, so it survives a refresh, a link
+          can open straight onto it, and "back" returns to the tab before. */}
+      <nav
+        aria-label="פרטי הלקוח"
+        className="mb-5 flex gap-1 overflow-x-auto border-b border-outline-variant"
+        data-testid="customer-tabs"
+      >
+        {tabs.map((t) => (
+          <Link
+            key={t.key}
+            href={tabHref(t.key)}
+            scroll={false}
+            aria-current={tab === t.key ? "page" : undefined}
+            data-testid={`customer-tab-${t.key}`}
+            className={cn(
+              "-mb-px flex shrink-0 items-center gap-2 border-b-[3px] px-3 py-3 text-sm whitespace-nowrap transition-colors",
+              tab === t.key
+                ? "border-brand-gold font-semibold text-on-surface"
+                : "border-transparent text-on-surface-variant hover:text-on-surface",
+            )}
+          >
+            {t.label}
+            {/* `!== undefined`: a tab with nothing in it says 0 — an answer. */}
+            {t.count !== undefined ? (
+              <span className="text-xs font-normal text-on-surface-variant tabular-nums">
+                <Ltr>{t.count}</Ltr>
+              </span>
+            ) : null}
+          </Link>
+        ))}
+      </nav>
+
+      {maySeeMoney && tab === "payments" ? (
         <section className="mb-8" data-testid="customer-payments-section">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="font-serif text-xl font-semibold">תשלומים</h2>
@@ -587,7 +573,7 @@ export default async function CustomerPage({
         </section>
       ) : null}
 
-      {maySeeOrders ? (
+      {maySeeOrders && tab === "orders" ? (
         <section className="mb-8">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="font-serif text-xl font-semibold">הזמנות</h2>
@@ -683,110 +669,114 @@ export default async function CustomerPage({
         </section>
       ) : null}
 
-      <section className="mb-8">
-        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-serif text-xl font-semibold">פרסומים</h2>
-          <Link
-            href={`/publications?customer=${customer.id}`}
-            data-testid="customer-all-publications"
-            className="text-sm underline underline-offset-2"
-          >
-            לכל הפרסומים של הלקוח
-          </Link>
-        </div>
-        <ListToolbar
-          prefix="p"
-          params={pubsParams}
-          total={publications.total}
-          baseHref={baseHref("p")}
-          searchLabel="עיתון, צורה או מספר הזמנה"
-          exportHref={exportHref("publications", pubsParams)}
-        />
-        {publications.rows.length === 0 ? (
-          <EmptyState
-            title="אין עדיין פרסומים"
-            body="פרסומים נוצרים כשהזמנה מאושרת. טיוטה אינה יוצרת פרסומים."
+      {tab === "publications" ? (
+        <section className="mb-8">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-serif text-xl font-semibold">פרסומים</h2>
+            <Link
+              href={`/publications?customer=${customer.id}`}
+              data-testid="customer-all-publications"
+              className="text-sm underline underline-offset-2"
+            >
+              לכל הפרסומים של הלקוח
+            </Link>
+          </div>
+          <ListToolbar
+            prefix="p"
+            params={pubsParams}
+            total={publications.total}
+            baseHref={baseHref("p")}
+            searchLabel="עיתון, צורה או מספר הזמנה"
+            exportHref={exportHref("publications", pubsParams)}
           />
-        ) : (
-          <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
-            <table className="w-full text-sm" data-testid="customer-publications">
-              <thead className="bg-surface-container">
-                <tr>
-                  <th className="p-3 text-start font-semibold">עיתון</th>
-                  <th className="p-3 text-start font-semibold">תאריך</th>
-                  <th className="p-3 text-start font-semibold">צורה</th>
-                  <th className="p-3 text-start font-semibold">סטטוס</th>
-                  <th className="p-3 text-start font-semibold">מודעה</th>
-                  {/* A publication exists only because an order was approved.
+          {publications.rows.length === 0 ? (
+            <EmptyState
+              title="אין עדיין פרסומים"
+              body="פרסומים נוצרים כשהזמנה מאושרת. טיוטה אינה יוצרת פרסומים."
+            />
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
+              <table className="w-full text-sm" data-testid="customer-publications">
+                <thead className="bg-surface-container">
+                  <tr>
+                    <th className="p-3 text-start font-semibold">עיתון</th>
+                    <th className="p-3 text-start font-semibold">תאריך</th>
+                    <th className="p-3 text-start font-semibold">צורה</th>
+                    <th className="p-3 text-start font-semibold">סטטוס</th>
+                    <th className="p-3 text-start font-semibold">מודעה</th>
+                    {/* A publication exists only because an order was approved.
                       That link was reachable from the orders table and not from
                       here — so "which order is this from" meant reading dates
                       off two tables and guessing. */}
-                  <th className="p-3 text-start font-semibold">הזמנה</th>
-                  {maySeeMoney ? <th className="p-3 text-start font-semibold">מחיר</th> : null}
-                </tr>
-              </thead>
-              <tbody>
-                {publications.rows.map((p) => (
-                  <tr key={p.id} className="border-t border-outline-variant">
-                    <td className="p-3">{p.newspaper.name}</td>
-                    <td className="p-3">
-                      <Ltr>{formatDate(p.publication_date)}</Ltr>
-                    </td>
-                    <td className="p-3">{p.ad_shape.name}</td>
-                    <td className="p-3">
-                      <Badge tone={PUBLICATION_TONE[p.status as PublicationStatus]}>
-                        {PUBLICATION_STATUS_LABELS[p.status as PublicationStatus]}
-                      </Badge>
-                    </td>
-                    <td className="p-3">
-                      {p.advertisement_id ? (
-                        maySeeAds ? (
+                    <th className="p-3 text-start font-semibold">הזמנה</th>
+                    {maySeeMoney ? <th className="p-3 text-start font-semibold">מחיר</th> : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {publications.rows.map((p) => (
+                    <tr key={p.id} className="border-t border-outline-variant">
+                      <td className="p-3">{p.newspaper.name}</td>
+                      <td className="p-3">
+                        <Ltr>{formatDate(p.publication_date)}</Ltr>
+                      </td>
+                      <td className="p-3">{p.ad_shape.name}</td>
+                      <td className="p-3">
+                        <Badge tone={PUBLICATION_TONE[p.status as PublicationStatus]}>
+                          {PUBLICATION_STATUS_LABELS[p.status as PublicationStatus]}
+                        </Badge>
+                      </td>
+                      <td className="p-3">
+                        {p.advertisement_id ? (
+                          maySeeAds ? (
+                            <Link
+                              href={`/advertisements/${p.advertisement_id}`}
+                              className="text-xs underline"
+                            >
+                              יש קובץ
+                            </Link>
+                          ) : (
+                            <span className="text-xs">יש קובץ</span>
+                          )
+                        ) : (
+                          <Badge tone="error">חסר קובץ</Badge>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {maySeeOrders ? (
                           <Link
-                            href={`/advertisements/${p.advertisement_id}`}
-                            className="text-xs underline"
+                            href={`/orders/${p.order_id}`}
+                            className="font-mono text-xs underline"
+                            data-testid={`publication-order-${p.id}`}
                           >
-                            יש קובץ
+                            <Ltr>{orderNumber(p.order?.number ?? 0)}</Ltr>
                           </Link>
                         ) : (
-                          <span className="text-xs">יש קובץ</span>
-                        )
-                      ) : (
-                        <Badge tone="error">חסר קובץ</Badge>
-                      )}
-                    </td>
-                    <td className="p-3">
-                      {maySeeOrders ? (
-                        <Link
-                          href={`/orders/${p.order_id}`}
-                          className="font-mono text-xs underline"
-                          data-testid={`publication-order-${p.id}`}
-                        >
-                          <Ltr>{orderNumber(p.order?.number ?? 0)}</Ltr>
-                        </Link>
-                      ) : (
-                        <Ltr className="font-mono text-xs">{orderNumber(p.order?.number ?? 0)}</Ltr>
-                      )}
-                    </td>
-                    {maySeeMoney ? (
-                      <td className="p-3">
-                        <Ltr>{formatMoney(Number(p.price))}</Ltr>
+                          <Ltr className="font-mono text-xs">
+                            {orderNumber(p.order?.number ?? 0)}
+                          </Ltr>
+                        )}
                       </td>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <ListPager
-          prefix="p"
-          params={pubsParams}
-          total={publications.total}
-          baseHref={baseHref("p")}
-        />
-      </section>
+                      {maySeeMoney ? (
+                        <td className="p-3">
+                          <Ltr>{formatMoney(Number(p.price))}</Ltr>
+                        </td>
+                      ) : null}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <ListPager
+            prefix="p"
+            params={pubsParams}
+            total={publications.total}
+            baseHref={baseHref("p")}
+          />
+        </section>
+      ) : null}
 
-      {maySeeAds ? (
+      {maySeeAds && tab === "files" ? (
         <section className="mb-8">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="font-serif text-xl font-semibold">קבצים</h2>
@@ -873,6 +863,105 @@ export default async function CustomerPage({
           )}
           <ListPager prefix="a" params={adsParams} total={ads.total} baseHref={baseHref("a")} />
         </section>
+      ) : null}
+
+      {maySeeMoney && maySeeOrders && tab === "months" ? (
+        <section className="mb-8" data-testid="customer-months-section">
+          {monthly.months.length > 0 ? (
+            <div className="mt-6" data-testid="customer-month-detail">
+              <h3 className="mb-2 text-sm font-semibold">פירוט לפי חודש</h3>
+              <p
+                className="mb-2 text-xs text-on-surface-variant"
+                data-testid="customer-open-months"
+              >
+                {openMonthsPhrase(monthly.months)}
+              </p>
+              <ListToolbar
+                prefix="m"
+                params={monthPage}
+                total={matchedMonths.length}
+                baseHref={baseHref("m")}
+                searchLabel="חודש"
+                exportHref={exportHref("months", monthsParams)}
+              />
+              <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3">
+                <MonthTable customerId={customer.id} months={shownMonths} collapseSettled={false} />
+              </div>
+              <ListPager
+                prefix="m"
+                params={monthPage}
+                total={matchedMonths.length}
+                baseHref={baseHref("m")}
+              />
+            </div>
+          ) : null}
+          {monthly.months.length === 0 ? (
+            <EmptyState title="אין עדיין חודשים לחשבון" body="חודש נוצר כשהזמנה מאושרת." />
+          ) : null}
+        </section>
+      ) : null}
+
+      {tab === "contacts" ? (
+        <div data-testid="customer-contacts-section">
+          <ReminderRecipients
+            customerId={customer.id}
+            editable={mayEdit}
+            options={[
+              {
+                target: "main",
+                label: "פרטי העסק",
+                phone: customer.phone,
+                email: customer.email,
+                on: customer.reminders_to_main,
+              },
+              ...customer.contacts.map((c) => ({
+                target: c.id,
+                label: c.role ? `${c.name} · ${c.role}` : c.name,
+                phone: c.phone,
+                email: c.email,
+                on: c.receives_reminders,
+              })),
+            ]}
+          />
+
+          {customer.contacts.length > 0 || customer.notes ? (
+            <div className="mb-8 grid gap-4 lg:grid-cols-2">
+              {customer.contacts.length > 0 ? (
+                <section
+                  className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-6"
+                  data-testid="customer-contacts"
+                >
+                  <h2 className="mb-3 text-sm font-semibold">אנשי קשר</h2>
+                  <ul className="space-y-3">
+                    {customer.contacts.map((c) => (
+                      <li key={c.id} className="text-sm">
+                        <span className="font-medium">{c.name}</span>
+                        {c.role ? (
+                          <span className="text-on-surface-variant"> · {c.role}</span>
+                        ) : null}
+                        {c.phone || c.email ? (
+                          <span className="mt-0.5 flex flex-wrap gap-x-4 text-on-surface-variant">
+                            {c.phone ? <PhoneLink phone={c.phone} /> : null}
+                            {c.email ? <EmailLink email={c.email} /> : null}
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+              {customer.notes ? (
+                <section
+                  className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-6"
+                  data-testid="customer-notes"
+                >
+                  <h2 className="mb-3 text-sm font-semibold">הערות</h2>
+                  <p className="whitespace-pre-line text-sm">{customer.notes}</p>
+                </section>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       ) : null}
     </>
   );

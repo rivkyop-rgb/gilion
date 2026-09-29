@@ -36,7 +36,7 @@ test("ברירת המחדל היא עשר שורות, עם דפדוף ומונה
   await loginAsAdmin(page);
   const customer = await customerWithHistory(page, 12);
 
-  await page.goto(`/customers/${customer.id}`);
+  await page.goto(`/customers/${customer.id}?tab=orders`);
 
   // Twelve orders, ten shown, and the count says so rather than the list simply
   // ending — which is what the old `take: 100` did at a hundred.
@@ -57,13 +57,17 @@ test("כל קטגוריה מדפדפת בנפרד", async ({ page }) => {
   await loginAsAdmin(page);
   const customer = await customerWithHistory(page, 12);
 
-  await page.goto(`/customers/${customer.id}`);
+  await page.goto(`/customers/${customer.id}?tab=orders`);
   await page.getByTestId("o-next").click();
-
-  // The orders moved; the publications did not. Five lists share this page and
-  // each has to page without disturbing the other four.
   await expect(page.getByTestId("o-page")).toContainText("2 / 2");
+
+  // The orders moved; the publications did not. The lists sit on tabs of one
+  // card, and each pages without disturbing the others — switching tabs and
+  // back finds the orders still on their second page.
+  await page.getByTestId("customer-tab-publications").click();
   await expect(page.getByTestId("p-page")).toContainText("1 / 2");
+  await page.getByTestId("customer-tab-orders").click();
+  await expect(page.getByTestId("o-page")).toContainText("2 / 2");
 });
 
 test("שינוי מספר השורות לעמוד", async ({ page }) => {
@@ -71,7 +75,7 @@ test("שינוי מספר השורות לעמוד", async ({ page }) => {
   await loginAsAdmin(page);
   const customer = await customerWithHistory(page, 12);
 
-  await page.goto(`/customers/${customer.id}`);
+  await page.goto(`/customers/${customer.id}?tab=orders`);
   // Applies on change — a separate button was a second click for a choice
   // that has no other meaning.
   await page.getByTestId("o-size-50").click();
@@ -88,7 +92,7 @@ test("חיפוש לפי מספר הזמנה מוצא את ההזמנה ואת ה
   // The number as a person reads it off their own screen.
   const orderNumber = customer.refs[0]!;
 
-  await page.goto(`/customers/${customer.id}`);
+  await page.goto(`/customers/${customer.id}?tab=orders`);
   await page.getByTestId("o-search").fill(orderNumber);
   await page.getByTestId("o-search-go").click();
 
@@ -131,7 +135,7 @@ test("חיפוש שמצמצם את הרשימה לא משאיר אותך בעמ�
 
   // On page 2, then a search that leaves one row. An un-clamped page 2 would
   // show an empty table, which reads as "no results" when there is one.
-  await page.goto(`/customers/${customer.id}?o_page=2`);
+  await page.goto(`/customers/${customer.id}?tab=orders&o_page=2`);
   await page.getByTestId("o-search").fill(orderNumber);
   await page.getByTestId("o-search-go").click();
 
@@ -191,7 +195,7 @@ test("חיפוש ודפדוף לא מחזירים את העמוד לראש", asy
   await loginAsAdmin(page);
   const customer = await customerWithHistory(page, 12);
 
-  await page.goto(`/customers/${customer.id}`);
+  await page.goto(`/customers/${customer.id}?tab=orders`);
 
   // Scroll down to the orders list, the way somebody working through a card is.
   await page.getByTestId("customer-orders").scrollIntoViewIfNeeded();

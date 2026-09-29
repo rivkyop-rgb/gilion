@@ -78,6 +78,7 @@ test("קישור ישיר מכרטיס הלקוח פותח את החלון", asy
   await approvedOrder(page, customer.name, [BILLING_DATES.march[0]], "350");
 
   await page.goto(`/customers/${customer.id}`);
+  await page.getByTestId("customer-tab-payments").click();
   await page.getByTestId("go-to-billing").click();
 
   await expect(page.getByRole("dialog")).toBeVisible();
