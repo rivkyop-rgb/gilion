@@ -20,6 +20,14 @@ import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
 import { PAYMENT_TONE, TONE_ROW } from "@/components/status-tone";
 import { cn } from "@/lib/utils";
+import { ListPager, ListToolbar } from "@/components/ui/list-toolbar";
+import {
+  baseHrefFor,
+  clampPage,
+  DEFAULT_PAGE_SIZE,
+  parseListParams,
+  skipFor,
+} from "@/lib/domain/list-view";
 import { formatMoney, orderNumber } from "../orders/format";
 import { StatusChip } from "../orders/order-badges";
 import type { HistoryEntry, PaymentRow } from "./payment-editor";
@@ -57,12 +65,20 @@ const DATE_TIME = new Intl.DateTimeFormat("he-IL", {
 export default async function BillingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; customer?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    q?: string;
+    customer?: string;
+    page?: string;
+    size?: string;
+  }>;
 }) {
   const ctx = await getTenantContext();
   requireArea(ctx, "billing");
 
-  const { status = "all", q = "", customer = "" } = await searchParams;
+  const raw = await searchParams;
+  const { status = "all", q = "", customer = "" } = raw;
+  const requested = parseListParams(raw);
   const mayWrite = canWriteArea(ctx, "billing");
 
   const historyCutoff = new Date();
@@ -73,7 +89,14 @@ export default async function BillingPage({
     billingCustomers(ctx.businessId, { status, q }),
   ]);
 
+  // The dialog looks its customer up in the WHOLE list: the row may sit on
+  // another page, and a link from the customer card does not know the page.
   const open = rows.find((r) => r.customerId === customer) ?? null;
+  // The list is computed per customer in code (billingCustomers), so it is
+  // paged here, after it is whole — the totals above are of everyone.
+  const list = clampPage(requested, rows.length);
+  const shown = rows.slice(skipFor(list), skipFor(list) + list.size);
+  const sizeKeep = list.size !== DEFAULT_PAGE_SIZE ? String(list.size) : "";
 
   /** Toggling a row must not throw away the filters above it. */
   const hrefFor = (next: { status?: string; q?: string; customer?: string }) => {
@@ -82,6 +105,7 @@ export default async function BillingPage({
     if (merged.status && merged.status !== "all") params.set("status", merged.status);
     if (merged.q) params.set("q", merged.q);
     if (merged.customer) params.set("customer", merged.customer);
+    if (sizeKeep) params.set("size", sizeKeep);
     const query = params.toString();
     return query ? `/billing?${query}` : "/billing";
   };
@@ -217,6 +241,7 @@ export default async function BillingPage({
 
       <form className="mb-4 flex flex-wrap items-end gap-3">
         <input type="hidden" name="status" value={status} />
+        {sizeKeep ? <input type="hidden" name="size" value={sizeKeep} /> : null}
         <div>
           <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="q">
             חיפוש לקוח
@@ -234,6 +259,14 @@ export default async function BillingPage({
           <Link href="/reports">לדוחות</Link>
         </Button>
       </form>
+
+      <ListToolbar
+        prefix=""
+        params={list}
+        total={rows.length}
+        baseHref={baseHrefFor("/billing", { status: raw.status })}
+        searchable={false}
+      />
 
       {rows.length === 0 ? (
         <EmptyState
@@ -256,7 +289,7 @@ export default async function BillingPage({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {shown.map((row) => (
                 <tr
                   key={row.customerId}
                   data-testid={`billing-row-${row.customerId}`}
@@ -350,6 +383,14 @@ export default async function BillingPage({
           </table>
         </div>
       )}
+      {rows.length > 0 ? (
+        <ListPager
+          prefix=""
+          params={list}
+          total={rows.length}
+          baseHref={baseHrefFor("/billing", { status: raw.status })}
+        />
+      ) : null}
 
       {/* Rendered only when the URL names a customer, which is also what opens
           it. The data it needs was fetched above for exactly that reason. */}

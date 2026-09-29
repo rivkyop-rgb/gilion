@@ -8,6 +8,7 @@
  * Writes only. There is deliberately no update or delete export here, and no
  * Server Action that reaches one.
  */
+import { clampPage, skipFor, type ListParams } from "@/lib/domain/list-view";
 import { Prisma } from "@prisma/client";
 import { basePrisma } from "./db";
 
@@ -87,12 +88,34 @@ export async function withAudit<T>(
   }, options);
 }
 
-/** Reading the trail is allowed; the admin-only audit screen uses this. */
-export async function auditLogFor(businessId: string, limit = 100) {
-  return basePrisma.auditLog.findMany({
-    where: { business_id: businessId },
+/**
+ * Reading the trail is allowed; the admin-only audit screen uses this.
+ *
+ * One page of the log, and how many entries there are. The screen used to
+ * read the last 50 and stop, and a log that silently ends reads as a complete
+ * record — the one kind of list that must never look whole when it is not.
+ */
+export async function auditLogPage(businessId: string, list: ListParams) {
+  const q = list.q.trim();
+  const where: Prisma.AuditLogWhereInput = {
+    business_id: businessId,
+    ...(q
+      ? {
+          OR: [
+            { user: { name: { contains: q, mode: "insensitive" } } },
+            { target_type: { contains: q, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+  };
+  const total = await basePrisma.auditLog.count({ where });
+  const page = clampPage(list, total);
+  const rows = await basePrisma.auditLog.findMany({
+    where,
     orderBy: { created_at: "desc" },
-    take: limit,
+    skip: skipFor(page),
+    take: page.size,
     include: { user: { select: { name: true, email: true } } },
   });
+  return { rows, total, list: page };
 }

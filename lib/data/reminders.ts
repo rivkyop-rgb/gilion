@@ -4,6 +4,8 @@
  * The decision of WHO needs a reminder lives in lib/domain/reminders.ts; this
  * module only reads the candidates and records the answer.
  */
+import { clampPage, skipFor, type ListParams } from "@/lib/domain/list-view";
+import type { Prisma } from "@prisma/client";
 import { basePrisma, tenantDb } from "./db";
 import { dueReminders, reminderResolved, type ReminderCandidate } from "@/lib/domain/reminders";
 
@@ -109,14 +111,37 @@ export async function clearReminderFor(businessId: string, publicationId: string
   });
 }
 
-export async function listReminders(businessId: string, status = "open") {
-  return tenantDb(businessId).reminder.findMany({
-    where:
-      status === "all"
-        ? {}
-        : status === "open"
-          ? { status: { in: ["needed", "approved_to_send", "failed"] } }
-          : { status: status as never },
+function reminderWhere(status: string, search = ""): Prisma.ReminderWhereInput {
+  const q = search.trim();
+  return {
+    ...(status === "all"
+      ? {}
+      : status === "open"
+        ? { status: { in: ["needed", "approved_to_send", "failed"] } }
+        : { status: status as never }),
+    // Found the way people ask for them: by customer or by newspaper.
+    ...(q
+      ? {
+          OR: [
+            { customer: { business_name: { contains: q, mode: "insensitive" as const } } },
+            { publication: { newspaper: { name: { contains: q, mode: "insensitive" as const } } } },
+          ],
+        }
+      : {}),
+  };
+}
+
+/**
+ * One page of reminders, and how many there are in all. Without a list it is
+ * the old read, capped at 300.
+ */
+export async function listReminders(businessId: string, status = "open", list?: ListParams) {
+  const db = tenantDb(businessId);
+  const where = reminderWhere(status, list?.q);
+  const total = await db.reminder.count({ where });
+  const page = list ? clampPage(list, total) : undefined;
+  const rows = await db.reminder.findMany({
+    where,
     orderBy: { publication: { publication_date: "asc" } },
     select: {
       id: true,
@@ -156,8 +181,9 @@ export async function listReminders(businessId: string, status = "open") {
         },
       },
     },
-    take: 300,
+    ...(page ? { skip: skipFor(page), take: page.size } : { take: 300 }),
   });
+  return { rows, total, list: page };
 }
 
 export async function countOpenReminders(businessId: string) {

@@ -17,6 +17,8 @@ import { businessSlug } from "@/lib/data/portal-link";
 import { portalUrl } from "@/lib/portal-origin";
 import { EmptyState } from "@/components/states";
 import { cn } from "@/lib/utils";
+import { ListPager, ListToolbar } from "@/components/ui/list-toolbar";
+import { baseHrefFor, DEFAULT_PAGE_SIZE, parseListParams } from "@/lib/domain/list-view";
 import { businessName, loadSettings } from "@/lib/data/business-settings";
 import { textFor } from "@/lib/domain/business-settings";
 import { ReminderTable, type ReminderRow } from "./reminder-table";
@@ -27,19 +29,21 @@ export const metadata: Metadata = { title: "תזכורות · Gilion" };
 export default async function RemindersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; page?: string; size?: string; q?: string }>;
 }) {
   const ctx = await getTenantContext();
   requireArea(ctx, "reminders");
 
-  const { status = "open" } = await searchParams;
+  const raw = await searchParams;
+  const status = raw.status ?? "open";
+  const requested = parseListParams(raw);
 
   // Lazy computation, per FR-11: there is no cron in the MVP, so the list is
   // brought up to date when someone looks at it.
   await refreshReminders(ctx.businessId);
 
-  const [rows, window, settings, business] = await Promise.all([
-    listReminders(ctx.businessId, status),
+  const [{ rows, total, list: shownPage }, window, settings, business] = await Promise.all([
+    listReminders(ctx.businessId, status, requested),
     reminderWindow(ctx.businessId),
     loadSettings(ctx.businessId),
     businessName(ctx.businessId),
@@ -85,6 +89,9 @@ export default async function RemindersPage({
   }));
 
   const mayAct = canWriteArea(ctx, "reminders");
+  const list = shownPage ?? requested;
+  const listBase = baseHrefFor("/reminders", { status: raw.status });
+  const sizeKeep = list.size !== DEFAULT_PAGE_SIZE ? `&size=${list.size}` : "";
 
   return (
     <>
@@ -126,7 +133,7 @@ export default async function RemindersPage({
           { value: "sent", label: "נשלחו" },
           { value: "all", label: "הכל" },
         ].map((f) => (
-          <Link key={f.value} href={`/reminders?status=${f.value}`}>
+          <Link key={f.value} href={`/reminders?status=${f.value}${sizeKeep}`}>
             <span
               data-testid={`reminder-filter-${f.value}`}
               className={cn(
@@ -144,10 +151,24 @@ export default async function RemindersPage({
 
       {model.length > 0 ? <ReminderWording text={template} /> : null}
 
+      <ListToolbar
+        prefix=""
+        params={list}
+        total={total}
+        baseHref={listBase}
+        searchLabel="לקוח או עיתון"
+      />
+
       {model.length === 0 ? (
         <div data-testid="reminders-empty">
           <EmptyState
-            title={status === "sent" ? "עוד לא סומנה אף תזכורת כנשלחה" : "אין תזכורות נדרשות"}
+            title={
+              list.q
+                ? "לא נמצאו תזכורות"
+                : status === "sent"
+                  ? "עוד לא סומנה אף תזכורת כנשלחה"
+                  : "אין תזכורות נדרשות"
+            }
             body={
               status === "sent"
                 ? "תזכורת שתסמני כנשלחה תופיע כאן, עם מי ומתי."
@@ -159,6 +180,7 @@ export default async function RemindersPage({
       ) : (
         <ReminderTable rows={model} mayAct={mayAct} />
       )}
+      {total > 0 ? <ListPager prefix="" params={list} total={total} baseHref={listBase} /> : null}
     </>
   );
 }

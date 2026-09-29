@@ -166,7 +166,8 @@ export function ReminderTable({ rows, mayAct }: { rows: ReminderRow[]; mayAct: b
                 <th className="p-3 text-start">
                   <input
                     type="checkbox"
-                    aria-label="בחירת הכל"
+                    aria-label="בחירת כל השורות בעמוד הזה"
+                    title="בחירת כל השורות בעמוד הזה"
                     data-testid="select-all-reminders"
                     checked={allSelected}
                     onChange={() =>

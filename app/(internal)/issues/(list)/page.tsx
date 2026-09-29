@@ -3,7 +3,15 @@ import Link from "next/link";
 import { ClipboardList, FileDown, Newspaper, Plus } from "lucide-react";
 
 import { canReadArea, canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
-import { listIssues } from "@/lib/data/issues";
+import { issueSummaries, withPlacementCounts } from "@/lib/data/issues";
+import { ListPager, ListToolbar } from "@/components/ui/list-toolbar";
+import {
+  baseHrefFor,
+  clampPage,
+  DEFAULT_PAGE_SIZE,
+  parseListParams,
+  skipFor,
+} from "@/lib/domain/list-view";
 import { ISSUE_STATUS_LABELS, type IssueStatus } from "@/lib/domain/issue-status";
 import { OPEN_ISSUE_STATES } from "@/lib/domain/dashboard";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +32,7 @@ const dateFormat = new Intl.DateTimeFormat("he-IL", {
 export default async function IssuesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; page?: string; size?: string; q?: string }>;
 }) {
   const ctx = await getTenantContext();
   requireArea(ctx, "issues");
@@ -32,14 +40,35 @@ export default async function IssuesPage({
   // `open` is what the dashboard's "גיליונות פתוחים" card counted (FR-20), and
   // the filter here applies exactly the states it counted — a card that opens a
   // list of everything has not answered the question it was clicked for.
-  const { status: filter = "all" } = await searchParams;
-  const all = await listIssues(ctx.businessId);
-  const issues =
+  const raw = await searchParams;
+  const filter = raw.status ?? "all";
+  const requested = parseListParams(raw);
+  const all = await issueSummaries(ctx.businessId);
+  const byStatus =
     filter === "open"
       ? all.filter((i) => (OPEN_ISSUE_STATES as string[]).includes(i.status))
       : filter === "closed"
         ? all.filter((i) => i.status === "closed")
         : all;
+  // Searched the way an issue is named on its card: the newspaper, or the
+  // date as printed (15.6.2027).
+  const needle = requested.q.toLowerCase();
+  const matched = needle
+    ? byStatus.filter(
+        (i) =>
+          i.newspaper.name.toLowerCase().includes(needle) ||
+          dateFormat.format(i.issue_date).includes(needle),
+      )
+    : byStatus;
+  const list = clampPage(requested, matched.length);
+  // The placement counts are two grouped queries — asked for the page shown,
+  // not for every issue of every year.
+  const issues = await withPlacementCounts(
+    ctx.businessId,
+    matched.slice(skipFor(list), skipFor(list) + list.size),
+  );
+  const listBase = baseHrefFor("/issues", { status: raw.status });
+  const sizeKeep = list.size !== DEFAULT_PAGE_SIZE ? `size=${list.size}` : "";
   const mayWrite = canWriteArea(ctx, "issues");
   // Sales reads the final PDF but never produces one (07-pdf.md §הרשאות).
   const mayDownloadPdf = canReadArea(ctx, "pdf");
@@ -93,7 +122,11 @@ export default async function IssuesPage({
         ).map((tab) => (
           <Link
             key={tab.value}
-            href={tab.value === "all" ? "/issues" : `/issues?status=${tab.value}`}
+            href={
+              tab.value === "all"
+                ? `/issues${sizeKeep ? `?${sizeKeep}` : ""}`
+                : `/issues?status=${tab.value}${sizeKeep ? `&${sizeKeep}` : ""}`
+            }
             data-testid={`issue-filter-${tab.value}`}
             aria-current={filter === tab.value ? "page" : undefined}
             className={
@@ -108,6 +141,14 @@ export default async function IssuesPage({
           </Link>
         ))}
       </div>
+
+      <ListToolbar
+        prefix=""
+        params={list}
+        total={matched.length}
+        baseHref={listBase}
+        searchLabel="עיתון או תאריך"
+      />
 
       {issues.length === 0 ? (
         <EmptyState
@@ -202,6 +243,9 @@ export default async function IssuesPage({
           })}
         </ul>
       )}
+      {matched.length > 0 ? (
+        <ListPager prefix="" params={list} total={matched.length} baseHref={listBase} />
+      ) : null}
     </>
   );
 }

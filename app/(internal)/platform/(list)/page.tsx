@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { ListPager, ListToolbar } from "@/components/ui/list-toolbar";
+import { clampPage, parseListParams, skipFor } from "@/lib/domain/list-view";
 import Link from "next/link";
 import { Building2, Plus } from "lucide-react";
 
@@ -15,11 +17,20 @@ import type { BusinessStatus } from "@/lib/domain/platform";
 
 export const metadata: Metadata = { title: "ניהול עסקים · Gilion" };
 
-export default async function PlatformPage() {
+export default async function PlatformPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; size?: string; q?: string }>;
+}) {
   const ctx = await getTenantContext();
   requireSuperAdmin(ctx.isSuperAdmin);
 
-  const businesses = await listBusinesses();
+  const all = await listBusinesses();
+  const requested = parseListParams(await searchParams);
+  const needle = requested.q.toLowerCase();
+  const matched = needle ? all.filter((b) => b.name.toLowerCase().includes(needle)) : all;
+  const list = clampPage(requested, matched.length);
+  const businesses = matched.slice(skipFor(list), skipFor(list) + list.size);
 
   return (
     <>
@@ -40,8 +51,19 @@ export default async function PlatformPage() {
         </Button>
       </div>
 
+      <ListToolbar
+        prefix=""
+        params={list}
+        total={matched.length}
+        baseHref="/platform"
+        searchLabel="שם העסק"
+      />
+
       {businesses.length === 0 ? (
-        <EmptyState title="אין עדיין עסקים" body="עסק ראשון נוצר יחד עם המנהל שלו." />
+        <EmptyState
+          title={needle ? "לא נמצאו עסקים" : "אין עדיין עסקים"}
+          body="עסק ראשון נוצר יחד עם המנהל שלו."
+        />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
           <table className="w-full text-sm" data-testid="businesses-table">
@@ -137,6 +159,9 @@ export default async function PlatformPage() {
           </table>
         </div>
       )}
+      {matched.length > 0 ? (
+        <ListPager prefix="" params={list} total={matched.length} baseHref="/platform" />
+      ) : null}
 
       <p className="mt-4 text-xs text-on-surface-variant">
         כדי לעבוד בתוך עסק מסוים — החליפי עסק פעיל מהסרגל העליון. כמנהל־על כל העסקים פתוחים לך,

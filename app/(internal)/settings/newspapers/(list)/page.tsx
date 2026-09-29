@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { ListPager, ListToolbar } from "@/components/ui/list-toolbar";
+import { clampPage, parseListParams, skipFor } from "@/lib/domain/list-view";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 
@@ -19,12 +21,21 @@ export const metadata: Metadata = { title: "עיתונים · Gilion" };
  * /settings/newspapers/[id] answering 404 to a cross-tenant id.
  * Same lesson as docs/plan/02-customers.md §סטיות.
  */
-export default async function NewspapersPage() {
+export default async function NewspapersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; size?: string; q?: string }>;
+}) {
   const ctx = await getTenantContext();
   requireArea(ctx, "settings");
   const mayEdit = canWriteArea(ctx, "settings");
 
-  const papers = await listNewspapers(ctx.businessId);
+  const all = await listNewspapers(ctx.businessId);
+  const requested = parseListParams(await searchParams);
+  const needle = requested.q.toLowerCase();
+  const matched = needle ? all.filter((p) => p.name.toLowerCase().includes(needle)) : all;
+  const list = clampPage(requested, matched.length);
+  const papers = matched.slice(skipFor(list), skipFor(list) + list.size);
 
   return (
     <>
@@ -45,9 +56,19 @@ export default async function NewspapersPage() {
         ) : null}
       </div>
 
+      {all.length > 0 ? (
+        <ListToolbar
+          prefix=""
+          params={list}
+          total={matched.length}
+          baseHref="/settings/newspapers"
+          searchLabel="שם העיתון"
+        />
+      ) : null}
+
       {papers.length === 0 ? (
         <EmptyState
-          title="עדיין אין עיתונים"
+          title={needle ? "לא נמצאו עיתונים" : "עדיין אין עיתונים"}
           body="עיתון הוא נקודת ההתחלה — בלעדיו אין חלוקת עמוד, אין צורות פרסום ואין מחירון."
           action={
             mayEdit ? (
@@ -93,6 +114,9 @@ export default async function NewspapersPage() {
           ))}
         </div>
       )}
+      {matched.length > 0 ? (
+        <ListPager prefix="" params={list} total={matched.length} baseHref="/settings/newspapers" />
+      ) : null}
     </>
   );
 }

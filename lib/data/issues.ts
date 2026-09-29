@@ -39,16 +39,25 @@ export function gridOfIssue(issue: NewspaperRow): DerivedGrid | null {
 
 /* ------------------------------------------------------------------ reading */
 
-export async function listIssues(businessId: string) {
-  const issues = await tenantDb(businessId).issue.findMany({
+/**
+ * Every issue, without the per-issue counts — cheap enough to filter, search
+ * and page in memory. The counts are then fetched for the one page shown.
+ */
+export async function issueSummaries(businessId: string, take = 1000) {
+  return tenantDb(businessId).issue.findMany({
     orderBy: [{ issue_date: "desc" }],
     include: {
       newspaper: { select: { id: true, name: true } },
       _count: { select: { pages: true } },
     },
-    take: 100,
+    take,
   });
+}
 
+export async function withPlacementCounts(
+  businessId: string,
+  issues: Awaited<ReturnType<typeof issueSummaries>>,
+) {
   // "X of Y placed" per card, in two grouped queries rather than two per card.
   // A count per issue is the shape that quietly turns a list of forty into
   // eighty round trips, and it does not announce itself — the page merely gets

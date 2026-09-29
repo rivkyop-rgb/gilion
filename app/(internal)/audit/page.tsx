@@ -1,18 +1,27 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
-import { auditLogFor } from "@/lib/data/audit";
+import { auditLogPage } from "@/lib/data/audit";
+import { ListPager, ListToolbar } from "@/components/ui/list-toolbar";
+import { parseListParams } from "@/lib/domain/list-view";
 import { auditActionLabel } from "@/lib/domain/audit-labels";
 import { EmptyState } from "@/components/states";
 import { Ltr } from "@/components/ui/ltr";
 
 export const metadata: Metadata = { title: "לוג ביקורת · Gilion" };
 
-export default async function AuditPage() {
+export default async function AuditPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; size?: string; q?: string }>;
+}) {
   const ctx = await getTenantContext();
   requireArea(ctx, "audit");
 
-  const rows = await auditLogFor(ctx.businessId, 50);
+  const { rows, total, list } = await auditLogPage(
+    ctx.businessId,
+    parseListParams(await searchParams),
+  );
 
   return (
     <>
@@ -21,9 +30,17 @@ export default async function AuditPage() {
         רישום בלתי הפיך של הפעולות הרגישות. אין דרך לערוך או למחוק רשומה.
       </p>
 
+      <ListToolbar
+        prefix=""
+        params={list}
+        total={total}
+        baseHref="/audit"
+        searchLabel="משתמש או סוג רשומה"
+      />
+
       {rows.length === 0 ? (
         <EmptyState
-          title="עוד לא נרשמה אף פעולה"
+          title={list.q ? "לא נמצאו רשומות" : "עוד לא נרשמה אף פעולה"}
           body="רשומות ייווצרו כשיאושרו הזמנות, ייסגרו גיליונות או יעודכנו תשלומים."
         />
       ) : (
@@ -64,6 +81,7 @@ export default async function AuditPage() {
           </table>
         </div>
       )}
+      {total > 0 ? <ListPager prefix="" params={list} total={total} baseHref="/audit" /> : null}
     </>
   );
 }

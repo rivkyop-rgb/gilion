@@ -10,15 +10,33 @@ import { AddMemberForm } from "./add-member-form";
 import { ResetPasswordDialog } from "@/components/account/reset-password-dialog";
 import { resetMemberPasswordAction } from "./actions";
 import { AccessButton, RoleSelect } from "./member-controls";
+import { ListPager, ListToolbar } from "@/components/ui/list-toolbar";
+import { clampPage, parseListParams, skipFor } from "@/lib/domain/list-view";
 
 export const metadata: Metadata = { title: "משתמשים · Gilion" };
 
-export default async function UsersPage() {
+export default async function UsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; size?: string; q?: string }>;
+}) {
   const ctx = await getTenantContext();
   requireArea(ctx, "settings", "write");
 
-  const members = await listMembers(ctx.businessId);
-  const activeAdmins = members.filter((m) => m.status === "active" && m.role === "admin").length;
+  const everyone = await listMembers(ctx.businessId);
+  // Counted over everyone, not over the page: "the last active admin" is a
+  // fact about the business, and a filter must not make a second one vanish.
+  const activeAdmins = everyone.filter((m) => m.status === "active" && m.role === "admin").length;
+  const requested = parseListParams(await searchParams);
+  const needle = requested.q.toLowerCase();
+  const matched = needle
+    ? everyone.filter(
+        (m) =>
+          m.user.name.toLowerCase().includes(needle) || m.user.email.toLowerCase().includes(needle),
+      )
+    : everyone;
+  const list = clampPage(requested, matched.length);
+  const members = matched.slice(skipFor(list), skipFor(list) + list.size);
 
   return (
     <>
@@ -28,6 +46,14 @@ export default async function UsersPage() {
       </p>
 
       <AddMemberForm />
+
+      <ListToolbar
+        prefix=""
+        params={list}
+        total={matched.length}
+        baseHref="/settings/users"
+        searchLabel="שם או מייל"
+      />
 
       <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
         <table className="w-full text-sm" data-testid="members-table">
@@ -110,6 +136,7 @@ export default async function UsersPage() {
           </tbody>
         </table>
       </div>
+      <ListPager prefix="" params={list} total={matched.length} baseHref="/settings/users" />
 
       <p className="mt-4 text-xs text-on-surface-variant">
         הסרת גישה אינה מוחקת את החשבון: המשתמש נשאר על כל ההזמנות שאישר ובלוג הביקורת, ואפשר להחזיר
