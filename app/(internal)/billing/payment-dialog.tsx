@@ -60,13 +60,14 @@ export function PaymentDialog({
   return (
     <DialogPrimitive.Root open onOpenChange={(next) => (next ? undefined : close())}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-primary/40" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-primary-container/30" />
         <DialogPrimitive.Content
           data-testid={`billing-open-${customerId}`}
-          // Centred with inset-x-0 + mx-auto rather than a translate, so it
-          // lands in the middle in both directions with no RTL special case and
-          // no `left-`/`right-` utility, which the lint bans (confirm-dialog).
-          className="fixed inset-x-0 top-1/2 z-50 mx-auto flex max-h-[88dvh] w-[min(56rem,calc(100vw-2rem))] -translate-y-1/2 flex-col rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-2"
+          // A drawer at the END edge — the left, in Hebrew — full height
+          // (redesign, 29/09/2026). The list it was opened from stays in view
+          // beside it, so the row whose balance is about to change is still
+          // on screen. `end-0` is the logical edge; the lint bans `left-`.
+          className="fixed inset-y-0 end-0 z-50 flex w-[min(52rem,100vw)] flex-col border-s border-outline-variant bg-surface-container-lowest shadow-elevation-2"
         >
           <div className="flex items-start justify-between gap-4 border-b border-outline-variant p-5">
             <div>
@@ -99,7 +100,7 @@ export function PaymentDialog({
           {/* The body scrolls, the header does not: the name and the balance are
               what the window is about, and they must not scroll away while
               somebody is reading the months under them. */}
-          <div className="overflow-y-auto p-5">
+          <div className="min-h-0 flex-1 overflow-y-auto p-5">
             <PaymentEditor
               customerId={customerId}
               outstanding={outstanding}

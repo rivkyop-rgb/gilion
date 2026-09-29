@@ -84,10 +84,17 @@ export default async function BillingPage({
   const historyCutoff = new Date();
   historyCutoff.setMonth(historyCutoff.getMonth() - HISTORY_MONTHS);
 
-  const [totals, rows] = await Promise.all([
+  const [totals, rows, everyStatus] = await Promise.all([
     billingTotals(ctx.businessId),
     billingCustomers(ctx.businessId, { status, q }),
+    // The chips count what each of them would show — under the same search,
+    // across every status — so the number is there before the click.
+    status === "all"
+      ? Promise.resolve(null)
+      : billingCustomers(ctx.businessId, { status: "all", q }),
   ]);
+  const counted = everyStatus ?? rows;
+  const statusCount = (s: string) => counted.filter((r) => r.status === s).length;
 
   // The dialog looks its customer up in the WHOLE list: the row may sit on
   // another page, and a link from the customer card does not know the page.
@@ -232,6 +239,9 @@ export default async function BillingPage({
             )}
           >
             כל הסטטוסים
+            <span className="ms-2 text-xs opacity-80 tabular-nums">
+              <Ltr>{counted.length}</Ltr>
+            </span>
           </span>
         </Link>
         {PAYMENT_STATUSES.map((s) => (
@@ -244,6 +254,7 @@ export default async function BillingPage({
             <StatusChip
               tone={PAYMENT_TONE[s]}
               label={PAYMENT_STATUS_LABELS[s]}
+              count={statusCount(s)}
               active={status === s}
             />
           </Link>
