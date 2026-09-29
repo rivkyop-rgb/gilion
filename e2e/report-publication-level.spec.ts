@@ -23,7 +23,7 @@ test("ארבעת הצ׳יפים קיימים, עם מונה לכל אחד", asyn
   // worth asserting separately.
   await approvedOrder(page, customer.name, BILLING_DATES.march, "500");
 
-  await page.goto(REPORT);
+  await page.goto(`${REPORT}&customer=${customer.id}`);
 
   await expect(page.getByTestId("lens-running")).toContainText("מי מפרסם");
   await expect(page.getByTestId("lens-missing_ad")).toContainText("למי חסרה מודעה");
@@ -51,7 +51,7 @@ test("'למי חסרה מודעה' מחזיר בדיוק את מי שאין לו
   const customer = await createCustomer(page, "לקוח חסרה מודעה");
   await approvedOrder(page, customer.name, [BILLING_DATES.march[0]], "500");
 
-  await page.goto(`${REPORT}&lens=missing_ad`);
+  await page.goto(`${REPORT}&customer=${customer.id}&lens=missing_ad`);
   await expect(page.getByTestId("publications-report-table")).toContainText(customer.name);
   await expect(page.getByTestId("lens-explanation")).toContainText("אין להם קובץ מודעה");
 });
@@ -63,7 +63,7 @@ test("'מי לא שובץ' מחזיר את מי שטרם קיבל מקום בע�
   const customer = await createCustomer(page, "לקוח לא שובץ");
   await approvedOrder(page, customer.name, [BILLING_DATES.march[0]], "500");
 
-  await page.goto(`${REPORT}&lens=unplaced`);
+  await page.goto(`${REPORT}&customer=${customer.id}&lens=unplaced`);
   const row = page
     .getByTestId("publications-report-table")
     .locator("tr")
@@ -80,7 +80,7 @@ test("'מי חייב כסף' ריק כל עוד שום דבר לא יצא לדפ
 
   // Not printed is not owed — `owing` is published-and-unpaid, and that
   // distinction is the whole reason the chip is not "unpaid".
-  await page.goto(`${REPORT}&lens=owing`);
+  await page.goto(`${REPORT}&customer=${customer.id}&lens=owing`);
   const row = page
     .getByTestId("publications-report-table")
     .locator("tr")
@@ -95,7 +95,7 @@ test("הלשונית מציגה את שלושת הסטטוסים בכל שורה
   const customer = await createCustomer(page, "לקוח שלושה סטטוסים");
   await approvedOrder(page, customer.name, [BILLING_DATES.march[0]], "500");
 
-  await page.goto(REPORT);
+  await page.goto(`${REPORT}&customer=${customer.id}`);
   const table = page.getByTestId("publications-report-table");
   // Publication status · placement status · payment status — US-010 asks for
   // all three and the design showed one.

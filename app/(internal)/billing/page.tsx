@@ -94,18 +94,29 @@ export default async function BillingPage({
   const open = rows.find((r) => r.customerId === customer) ?? null;
   // The list is computed per customer in code (billingCustomers), so it is
   // paged here, after it is whole — the totals above are of everyone.
-  const list = clampPage(requested, rows.length);
+  // A link that names a customer (the card's "רישום תשלום", a reminder) does
+  // not know which page that customer's row is on — so the list opens on it.
+  // Otherwise the dialog opens over a table that does not show the row it is
+  // about, and the balance it just changed is nowhere to be seen.
+  const openIndex = open && !raw.page ? rows.indexOf(open) : -1;
+  const list = clampPage(
+    openIndex >= 0 ? { ...requested, page: Math.floor(openIndex / requested.size) + 1 } : requested,
+    rows.length,
+  );
   const shown = rows.slice(skipFor(list), skipFor(list) + list.size);
   const sizeKeep = list.size !== DEFAULT_PAGE_SIZE ? String(list.size) : "";
 
   /** Toggling a row must not throw away the filters above it. */
   const hrefFor = (next: { status?: string; q?: string; customer?: string }) => {
+    // Opening and closing a row keeps the page; changing a filter starts over.
+    const keepsPage = next.status === undefined && next.q === undefined;
     const params = new URLSearchParams();
     const merged = { status, q, customer, ...next };
     if (merged.status && merged.status !== "all") params.set("status", merged.status);
     if (merged.q) params.set("q", merged.q);
     if (merged.customer) params.set("customer", merged.customer);
     if (sizeKeep) params.set("size", sizeKeep);
+    if (keepsPage && list.page > 1) params.set("page", String(list.page));
     const query = params.toString();
     return query ? `/billing?${query}` : "/billing";
   };

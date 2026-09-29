@@ -69,6 +69,6 @@ test("הפירוט לפי תאריך נמצא בפרסומים, שורה לכל 
   await expect(page.getByTestId("order-status")).toHaveText("מאושרת");
 
   const ref = await orderRef(page);
-  await page.goto("/publications");
+  await page.goto(`/publications?q=${ref}`);
   await expect(page.locator("tbody tr").filter({ hasText: ref })).toHaveCount(2);
 });

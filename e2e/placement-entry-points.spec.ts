@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { USERS, login, loginAsAdmin } from "./helpers";
-import { ISSUE_FIXTURES, resetFixtureIssue } from "./issue-helpers";
+import { BOARD_DATE, ISSUE_FIXTURES, resetFixtureIssue } from "./issue-helpers";
 
 /**
  * How somebody GETS to a placement board (backlog item 16).
@@ -39,7 +39,9 @@ test.describe("getting to a board", () => {
 
   test("a publication that is not placed links to the board it belongs on", async ({ page }) => {
     await loginAsAdmin(page);
-    await page.goto("/publications");
+    // The list is paged: narrowed to the fixture board's own day, as the date
+    // bar above the list would.
+    await page.goto(`/publications?from=${BOARD_DATE}&to=${BOARD_DATE}&size=50`);
 
     // "לא שובץ" was a statement. Somebody reading it wants to go and place it.
     const link = page.getByTestId(`go-to-board-${ISSUE_FIXTURES.quarterA}`);

@@ -14,7 +14,10 @@ import type { AssignableRole } from "@/lib/domain/team";
 export async function listMembers(businessId: string) {
   return tenantDb(businessId).userMembership.findMany({
     where: { role: { not: "customer" } },
-    orderBy: [{ status: "asc" }, { created_at: "asc" }],
+    // Newest first within each status: the list is paged, and the person who
+    // was just added has to be on the screen the "add" button returns to —
+    // not at the end of page three, which reads as "it did not work".
+    orderBy: [{ status: "asc" }, { created_at: "desc" }],
     select: {
       id: true,
       role: true,

@@ -135,9 +135,11 @@ test("הכניסה לרישום היא כפתור שאומר מה הוא עוש�
   await openBillingRow(page, settled.id);
   await recordPayment(page, { amount: "400" });
 
-  await page.goto("/billing");
   // The label says what the click leads to, and it differs by whether there is
-  // anything to collect.
+  // anything to collect. Each row is found the way a person finds it — by
+  // name — since the list is paged and a new customer is rarely on page one.
+  await page.goto(`/billing?q=${encodeURIComponent(owing.name)}`);
   await expect(page.getByTestId(`billing-expand-${owing.id}`)).toContainText("רישום תשלום");
+  await page.goto(`/billing?q=${encodeURIComponent(settled.name)}`);
   await expect(page.getByTestId(`billing-expand-${settled.id}`)).toContainText("פירוט תשלומים");
 });

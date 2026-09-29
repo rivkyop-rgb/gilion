@@ -9,7 +9,9 @@ test.describe("shell smoke", () => {
     await expect(page.locator("html")).toHaveAttribute("lang", "he");
   });
 
-  test("all three fonts load with real Hebrew glyphs, not a browser fallback", async ({ page }) => {
+  test("the UI font and the mono font load with real glyphs, not a browser fallback", async ({
+    page,
+  }) => {
     await page.goto("/login");
     await page.evaluate(() => document.fonts.ready);
 
@@ -27,8 +29,10 @@ test.describe("shell smoke", () => {
       };
     });
 
-    expect(stacks.serif).toMatch(/Frank[_ ]Ruhl/);
-    expect(stacks.sans).toMatch(/[Gg]oogle[_ ]?[Ss]ans/);
+    // One family for headings and UI since 29/09/2026: Rubik. `--font-serif`
+    // is kept as the HEADING token, so it must resolve to the same face.
+    expect(stacks.serif).toMatch(/Rubik/);
+    expect(stacks.sans).toMatch(/Rubik/);
     expect(stacks.mono).toMatch(/[Jj]et[Bb]rains/);
 
     // Chromium activates a @font-face only when something needs it, so status
@@ -52,11 +56,11 @@ test.describe("shell smoke", () => {
     expect(loaded[stacks.sans], `${stacks.sans} must cover Hebrew`).toBeGreaterThan(0);
     expect(loaded[stacks.mono], `${stacks.mono} must cover Latin`).toBeGreaterThan(0);
 
-    // And the heading must actually resolve to the serif face.
+    // And the heading must actually resolve to the heading face.
     const h1 = await page
       .getByRole("heading", { level: 1 })
       .evaluate((el) => getComputedStyle(el).fontFamily);
-    expect(h1).toMatch(/Frank[_ ]Ruhl/);
+    expect(h1).toMatch(/Rubik/);
   });
 
   test("no console errors", async ({ page }) => {

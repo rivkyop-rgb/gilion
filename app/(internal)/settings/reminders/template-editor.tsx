@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, MessageSquareText, RotateCcw } from "lucide-react";
 
@@ -23,8 +23,13 @@ import { saveReminderTemplateAction } from "./template-actions";
  * the customer as "{לקחו}". The preview is the message with sample data, the
  * way it opens in WhatsApp.
  *
- * Controlled, and safely so: it mounts on a fresh page with the saved text, and
- * no browser restores a textarea on this route before hydration.
+ * Controlled — and read-only until hydrated. Text typed into the server's
+ * textarea before React took over was MERGED with the saved wording at
+ * hydration ("שלום " + the whole old text), and the chip then went into the
+ * merged text. Adopting the DOM value on mount cannot help: by then the merge
+ * has happened. A box that cannot be typed into until it is live can: people
+ * and Playwright's `fill` both wait for it to become editable (29/09/2026,
+ * reminder-template.spec — same family as `adoptTypedDate` in CLAUDE.md).
  */
 export function ReminderTemplateEditor({
   current,
@@ -42,6 +47,13 @@ export function ReminderTemplateEditor({
   const [busy, start] = useTransition();
   const router = useRouter();
   const areaRef = useRef<HTMLTextAreaElement>(null);
+  // false on the server and during hydration, true from the first client
+  // render after it — no effect and no extra render to find out.
+  const hydrated = useSyncExternalStore(
+    noSubscription,
+    () => true,
+    () => false,
+  );
 
   const unknown = unknownFields(text);
   const dirty = text !== current;
@@ -104,6 +116,8 @@ export function ReminderTemplateEditor({
 
       <textarea
         ref={areaRef}
+        readOnly={!hydrated}
+        aria-busy={!hydrated}
         rows={7}
         maxLength={maxLength}
         value={text}
@@ -182,4 +196,9 @@ export function ReminderTemplateEditor({
       ) : null}
     </section>
   );
+}
+
+/** Hydration never changes back, so there is nothing to subscribe to. */
+function noSubscription() {
+  return () => {};
 }

@@ -101,7 +101,7 @@ test("a sales rep builds, previews and approves 10 publications well inside 3 mi
   const ref = await orderRef(page);
 
   // And they are real: the publications list shows them under this order.
-  await page.goto(`/publications?newspaper=${NEWSPAPERS.alpha}`);
+  await page.goto(`/publications?newspaper=${NEWSPAPERS.alpha}&q=${ref}`);
   await expect(page.getByRole("link", { name: ref })).toHaveCount(10);
 
   expect(Date.now() - started).toBeLessThan(BUDGET_MS);

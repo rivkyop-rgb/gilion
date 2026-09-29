@@ -8,7 +8,8 @@ import { CUSTOMERS, USERS, login } from "./helpers";
 test.describe("what a designer sees of a customer (FR-8)", () => {
   test("reads the list but gets no debt column and no create button", async ({ page }) => {
     await login(page, USERS.designer);
-    await page.goto("/customers");
+    // Paged, and ten other customers may sort ahead of it: found by name.
+    await page.goto(`/customers?q=${encodeURIComponent("מרכז הרפואה")}`);
 
     // Row counts drift as other specs create customers, so assert on the
     // seeded names and on what must be absent — never on a total.
@@ -40,7 +41,8 @@ test.describe("what a designer sees of a customer (FR-8)", () => {
 
   test("an accountant reads customers but cannot create them", async ({ page }) => {
     await login(page, USERS.accounting);
-    await page.goto("/customers");
+    // Paged, and ten other customers may sort ahead of it: found by name.
+    await page.goto(`/customers?q=${encodeURIComponent("מרכז הרפואה")}`);
 
     await expect(page.getByText("מרכז הרפואה")).toBeVisible();
     // accounting has read access, so money is visible to them

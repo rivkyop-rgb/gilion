@@ -98,10 +98,13 @@ test.describe("newspaper configuration (US-006)", () => {
     const name = `סוג ${Date.now()}`;
     await page.getByTestId("page-type-name").fill(name);
     await page.getByTestId("add-page-type").click();
-    await expect(page.getByText(name)).toBeVisible();
+    // The name now appears twice — in this list, and in the auto-placement
+    // table that names every page type (24f08c6) — so the row is found by
+    // where it lives, not by the text alone.
+    const row = page.locator("li", { hasText: name });
+    await expect(row).toBeVisible();
 
     // A brand-new page type starts with nothing allowed; turn one shape on.
-    const row = page.locator("li", { hasText: name });
     const shape = row.locator('[data-testid^="shape-"]').first();
     await expect(shape).toHaveAttribute("aria-pressed", "false");
     await shape.click();

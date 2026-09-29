@@ -98,7 +98,7 @@ test("סגירת גיליון על הזמנה לא־משולמת → חוב", as
     shapeId: SHAPES.quarter,
   });
 
-  await page.goto("/billing");
+  await page.goto(`/billing?q=${encodeURIComponent(customer.name)}`);
   await expect(page.getByTestId(`billing-status-${customer.id}`)).toHaveText("לא שולם");
 
   // Artwork, then a place on the board — a publication with no file is a
@@ -126,11 +126,13 @@ test("סגירת גיליון על הזמנה לא־משולמת → חוב", as
   // Waits for something only the server can have made true (CLAUDE.md).
   await expect(page.getByTestId("close-issue-dialog")).toBeHidden({ timeout: 180_000 });
 
-  await page.goto("/billing");
+  await page.goto(`/billing?q=${encodeURIComponent(customer.name)}`);
   // It ran, and nobody paid: that is a debt, and no one chose it.
   await expect(page.getByTestId(`billing-status-${customer.id}`)).toHaveText("חוב");
 
   // And the report's "who owes money" chip now finds it (US-010 AC-3).
-  await page.goto(`/reports?tab=publications&period=month&anchor=${CLOSE_DATE}&lens=owing`);
+  await page.goto(
+    `/reports?tab=publications&period=month&anchor=${CLOSE_DATE}&lens=owing&customer=${customer.id}`,
+  );
   await expect(page.getByTestId("publications-report-table")).toContainText(customer.name);
 });

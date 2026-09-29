@@ -19,7 +19,9 @@ test("דוח שבועי קיים, ומראה רק את השבוע שנבחר", a
   // 1,000 × 3, one per week.
   await approvedOrder(page, customer.name, BILLING_DATES.march, "1000");
 
-  await page.goto(`/reports?tab=payments&period=week&anchor=${MARCH_FIRST_WEEK.anchor}`);
+  await page.goto(
+    `/reports?tab=payments&period=week&anchor=${MARCH_FIRST_WEEK.anchor}&customer=${customer.id}`,
+  );
 
   // The week is Sunday–Saturday, and the header says which.
   await expect(page.getByTestId("period-range")).toContainText(MARCH_FIRST_WEEK.from);
@@ -42,7 +44,9 @@ test("חצים מזיזים שבוע קדימה ואחורה", async ({ page }) 
   const customer = await createCustomer(page, "לקוח ניווט שבועות");
   await approvedOrder(page, customer.name, BILLING_DATES.march, "1000");
 
-  await page.goto(`/reports?tab=payments&period=week&anchor=${MARCH_FIRST_WEEK.anchor}`);
+  await page.goto(
+    `/reports?tab=payments&period=week&anchor=${MARCH_FIRST_WEEK.anchor}&customer=${customer.id}`,
+  );
   await expect(page.getByTestId(`report-row-${customer.id}`)).toBeVisible();
 
   // Forward one week: the second Tuesday.
@@ -68,10 +72,14 @@ test("החודשי סוכם את שלושת השבועות יחד", async ({ pag
   const customer = await createCustomer(page, "לקוח חודשי מול שבועי");
   await approvedOrder(page, customer.name, BILLING_DATES.march, "1000");
 
-  await page.goto(`/reports?tab=payments&period=month&anchor=${BILLING_DATES.march[0]}`);
+  await page.goto(
+    `/reports?tab=payments&period=month&anchor=${BILLING_DATES.march[0]}&customer=${customer.id}`,
+  );
   await expect(page.getByTestId(`report-row-${customer.id}`)).toContainText("3,000");
 
-  await page.goto(`/reports?tab=payments&period=week&anchor=${MARCH_FIRST_WEEK.anchor}`);
+  await page.goto(
+    `/reports?tab=payments&period=week&anchor=${MARCH_FIRST_WEEK.anchor}&customer=${customer.id}`,
+  );
   await expect(page.getByTestId(`report-row-${customer.id}`)).toContainText("1,000");
 });
 
@@ -82,7 +90,7 @@ test("סינון לפי עיתון, וגם 'כל העיתונים'", async ({ pa
   const customer = await createCustomer(page, "לקוח סינון עיתון");
   await approvedOrder(page, customer.name, [BILLING_DATES.march[0]], "1000");
 
-  const url = `/reports?tab=payments&period=month&anchor=${BILLING_DATES.march[0]}`;
+  const url = `/reports?tab=payments&period=month&anchor=${BILLING_DATES.march[0]}&customer=${customer.id}`;
   await page.goto(url);
   // "All newspapers" is the default question, and it finds the row.
   await expect(page.getByTestId("report-newspaper")).toHaveValue("all");

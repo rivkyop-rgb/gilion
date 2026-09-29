@@ -33,7 +33,8 @@ test("a publication waiting for artwork gets it from the portal", async ({ page 
 
   // Inside, the publication has its artwork and moved on through the machine.
   await loginAsAdmin(page);
-  await page.goto("/publications");
+  const day = PORTAL_DATES.alpha[6];
+  await page.goto(`/publications?customer=${PORTAL_CUSTOMERS.one.id}&from=${day}&to=${day}`);
   await expect(page.getByTestId(`publication-row-${publicationId}`)).toContainText("מוכן לשיבוץ");
 });
 

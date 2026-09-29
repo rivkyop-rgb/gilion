@@ -52,7 +52,9 @@ test("מנהלת חשבונות מגיעה לדוח ורואה את אותם מ�
   // accounting has write on billing and on reports — this is their screen.
   await login(page, USERS.accounting);
 
-  await page.goto(`/reports?tab=payments&period=month&anchor=${BILLING_DATES.march[0]}`);
+  await page.goto(
+    `/reports?tab=payments&period=month&anchor=${BILLING_DATES.march[0]}&customer=${customer.id}`,
+  );
   await expect(page.getByTestId(`report-row-${customer.id}`)).toContainText("800");
 });
 
