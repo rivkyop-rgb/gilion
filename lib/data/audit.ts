@@ -10,7 +10,7 @@
  */
 import { clampPage, skipFor, type ListParams } from "@/lib/domain/list-view";
 import { Prisma } from "@prisma/client";
-import { basePrisma } from "./db";
+import { basePrisma, tenantDb } from "./db";
 
 export type AuditAction =
   | "approve_order"
@@ -118,4 +118,36 @@ export async function auditLogPage(businessId: string, list: ListParams) {
     include: { user: { select: { name: true, email: true } } },
   });
   return { rows, total, list: page };
+}
+
+/**
+ * One customer's history, for the card's "יומן" tab (redesign, 29/09/2026).
+ *
+ * The audit trail already holds every sensitive act; this reads the part of it
+ * that is about THIS customer — the customer row, its orders, publications
+ * and payments — newest first. Nothing new is recorded for it, so the tab can
+ * never disagree with /audit: they are two views of the same rows.
+ */
+export async function customerActivity(businessId: string, customerId: string, take = 30) {
+  const db = tenantDb(businessId);
+  const [orders, publications, payments] = await Promise.all([
+    db.adOrder.findMany({ where: { customer_id: customerId }, select: { id: true } }),
+    db.publication.findMany({ where: { customer_id: customerId }, select: { id: true } }),
+    db.payment.findMany({ where: { customer_id: customerId }, select: { id: true } }),
+  ]);
+  const ids = (rows: { id: string }[]) => rows.map((r) => r.id);
+  return basePrisma.auditLog.findMany({
+    where: {
+      business_id: businessId,
+      OR: [
+        { target_type: "Customer", target_id: customerId },
+        { target_type: "AdOrder", target_id: { in: ids(orders) } },
+        { target_type: "Publication", target_id: { in: ids(publications) } },
+        { target_type: "Payment", target_id: { in: ids(payments) } },
+      ],
+    },
+    orderBy: { created_at: "desc" },
+    take,
+    include: { user: { select: { name: true } } },
+  });
 }

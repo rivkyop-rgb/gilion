@@ -21,6 +21,8 @@ import { deletionBlockedMessage } from "@/lib/domain/customer";
 import { PAYMENT_STATUS_LABELS, type PaymentStatus } from "@/lib/domain/customer-account";
 import { clampPage, parseListParams, type ListParams } from "@/lib/domain/list-view";
 import { ListPager, ListToolbar } from "@/components/ui/list-toolbar";
+import { customerActivity } from "@/lib/data/audit";
+import { auditActionLabel } from "@/lib/domain/audit-labels";
 import { AD_FILE_TYPE_LABELS, formatBytes, type AdFileType } from "@/lib/domain/ad-file";
 import { PUBLICATION_STATUS_LABELS, type PublicationStatus } from "@/lib/domain/publication-status";
 import { DeleteCustomer } from "./delete-customer";
@@ -173,6 +175,11 @@ export default async function CustomerPage({
   // Backlog 21: the business's portal link, to send this customer.
   const portalLink = await portalUrl(await businessSlug(ctx.businessId));
   const mainContact = customer.contacts[0];
+  const mayReadAudit = canReadArea(ctx, "audit");
+  const activity =
+    mayReadAudit && query.tab === "activity"
+      ? await customerActivity(ctx.businessId, customer.id)
+      : [];
 
   // The tabs this viewer may open — a role that cannot read a list does not
   // get its tab (FR-8), the same rule the sections always followed.
@@ -185,6 +192,9 @@ export default async function CustomerPage({
       : []),
     ...(maySeeAds ? [{ key: "files", label: "קבצים", count: ads.total }] : []),
     { key: "contacts", label: "אנשי קשר ותזכורות", count: customer.contacts.length },
+    // The audit trail of this customer — only for whoever may read /audit,
+    // because it carries payment changes (FR-8).
+    ...(mayReadAudit ? [{ key: "activity", label: "יומן" }] : []),
   ];
   const tab = tabs.some((t) => t.key === query.tab) ? query.tab! : "publications";
   /** Another tab, with every list's own page and search left where they were. */
@@ -901,6 +911,48 @@ export default async function CustomerPage({
         </section>
       ) : null}
 
+      {tab === "activity" ? (
+        <section className="mb-8" data-testid="customer-activity">
+          {activity.length === 0 ? (
+            <EmptyState
+              title="עוד אין רישומים ביומן"
+              body="אישור הזמנה, רישום תשלום, ביטול פרסום ועריכת הלקוח נרשמים כאן."
+            />
+          ) : (
+            <ol className="space-y-1 rounded-xl border border-outline-variant bg-surface-container-lowest p-3">
+              {activity.map((entry) => (
+                <li key={entry.id}>
+                  <Link
+                    href={`/audit/${entry.id}`}
+                    className="flex items-start gap-3 rounded-lg px-3 py-2.5 hover:bg-surface-container-low"
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "mt-1.5 size-2.5 shrink-0 rounded-full",
+                        ACTIVITY_TONE[entry.target_type] ?? "bg-outline",
+                      )}
+                    />
+                    <span className="flex flex-col">
+                      <span className="text-sm font-medium">
+                        {auditActionLabel(entry.action)}
+                        <span className="font-normal text-on-surface-variant">
+                          {" "}
+                          · {ACTIVITY_TARGET[entry.target_type] ?? entry.target_type}
+                        </span>
+                      </span>
+                      <span className="text-xs text-on-surface-variant">
+                        {entry.user.name} · <Ltr>{ACTIVITY_TIME.format(entry.created_at)}</Ltr>
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      ) : null}
+
       {tab === "contacts" ? (
         <div data-testid="customer-contacts-section">
           <ReminderRecipients
@@ -966,3 +1018,25 @@ export default async function CustomerPage({
     </>
   );
 }
+
+/** What each kind of record is called in the יומן. */
+const ACTIVITY_TARGET: Record<string, string> = {
+  Customer: "הלקוח",
+  AdOrder: "הזמנה",
+  Publication: "פרסום",
+  Payment: "תשלום",
+};
+
+/** One colour per kind, so a run of payments reads apart from a run of orders. */
+const ACTIVITY_TONE: Record<string, string> = {
+  Customer: "bg-outline",
+  AdOrder: "bg-primary",
+  Publication: "bg-status-warning-fg",
+  Payment: "bg-status-success-fg",
+};
+
+const ACTIVITY_TIME = new Intl.DateTimeFormat("he-IL", {
+  dateStyle: "short",
+  timeStyle: "short",
+  timeZone: "Asia/Jerusalem",
+});
