@@ -187,8 +187,34 @@ const SEEDED_PAGE_TYPES: Record<string, { newspaperId: string; name: string; sha
   },
   pt_back: {
     newspaperId: "paper_alpha",
-    name: "אחורי",
+    name: "גב",
     shapes: ["shape_full", "shape_half_h"],
+  },
+  pt_cat_back: {
+    newspaperId: "paper_catalog",
+    name: "גב קטלוג",
+    shapes: ["shape_catalog_full", "shape_catalog_half_h"],
+  },
+  pt_beta_cover: {
+    newspaperId: "paper_beta",
+    name: "שער",
+    shapes: ["shape_beta_strip", "shape_beta_quarter"],
+  },
+  pt_beta_inner: {
+    newspaperId: "paper_beta",
+    name: "פנימי",
+    shapes: [
+      "shape_beta_full",
+      "shape_beta_half_h",
+      "shape_beta_half_v",
+      "shape_beta_quarter",
+      "shape_beta_eighth",
+    ],
+  },
+  pt_beta_back: {
+    newspaperId: "paper_beta",
+    name: "גב",
+    shapes: ["shape_beta_full", "shape_beta_half_h"],
   },
 };
 

@@ -365,8 +365,7 @@ async function main() {
     }
   }
 
-  // Page types, with their allowed shapes. Both of the publisher's newspapers
-  // get them: a newspaper with no page type cannot be ordered in at all, and
+  // Page types, with their allowed shapes. Every newspaper gets them: a newspaper with no page type cannot be ordered in at all, and
   // one that only half exists is worse demo data than one that does not.
   const pageTypes = [
     {
@@ -401,8 +400,40 @@ async function main() {
     {
       id: "pt_back",
       newspaper_id: "paper_alpha",
-      name: "אחורי",
+      name: "גב",
       shapes: ["shape_full", "shape_half_h"],
+    },
+    // Every newspaper has a cover, inner pages and a back (04/10/2026) — the
+    // catalogue had no back at all, and the second business's paper had none.
+    {
+      id: "pt_cat_back",
+      newspaper_id: "paper_catalog",
+      name: "גב קטלוג",
+      shapes: ["shape_catalog_full", "shape_catalog_half_h"],
+    },
+    {
+      id: "pt_beta_cover",
+      newspaper_id: "paper_beta",
+      name: "שער",
+      shapes: ["shape_beta_strip", "shape_beta_quarter"],
+    },
+    {
+      id: "pt_beta_inner",
+      newspaper_id: "paper_beta",
+      name: "פנימי",
+      shapes: [
+        "shape_beta_full",
+        "shape_beta_half_h",
+        "shape_beta_half_v",
+        "shape_beta_quarter",
+        "shape_beta_eighth",
+      ],
+    },
+    {
+      id: "pt_beta_back",
+      newspaper_id: "paper_beta",
+      name: "גב",
+      shapes: ["shape_beta_full", "shape_beta_half_h"],
     },
   ];
   for (const pt of pageTypes) {

@@ -185,7 +185,8 @@ export function defaultPageTypeIds(
   const byName = (needle: string) => pageTypes.find((t) => t.name.includes(needle));
   const fallback = pageTypes[0]!;
   const cover = byName("שער") ?? fallback;
-  // "אחורי" is how some papers name the back — the demo's own does.
+  // "אחורי" is how some papers name the back — the demo's own did, until
+  // 04/10/2026; a newspaper set up that way still has its back found.
   const back = byName("גב") ?? byName("אחורי") ?? fallback;
   const inner = pageTypes.find((t) => t.id === innerPageTypeId(pageTypes)) ?? fallback;
 

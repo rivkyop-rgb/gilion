@@ -11,7 +11,11 @@ import { Prisma } from "@prisma/client";
 
 import { basePrisma, tenantDb } from "./db";
 import { copyBaseShapes, listAdShapes, readAllowedCells } from "./ad-shapes";
-import { BASE_PAGE_TYPES, materializeBaseShapes } from "@/lib/domain/base-shapes";
+import {
+  BASE_PAGE_TYPES,
+  BASE_PAGE_TYPE_MATCH,
+  materializeBaseShapes,
+} from "@/lib/domain/base-shapes";
 import {
   gridChanged,
   planRescale,
@@ -146,15 +150,32 @@ export async function createNewspaper(businessId: string, data: NewspaperWrite) 
 
 /** Cover, inner and back, each accepting every shape the newspaper has. */
 async function seedBasePageTypes(newspaperId: string) {
-  const shapes = await basePrisma.adShape.findMany({
-    where: { newspaper_id: newspaperId },
-    select: { id: true },
-  });
+  await ensureBasePageTypes(newspaperId);
+}
 
+/**
+ * Adds whichever of שער / פנימי / גב a newspaper is missing — and nothing
+ * else (04/10/2026).
+ *
+ * A type the newspaper already has under another name ("אחורי", "שער קטלוג")
+ * counts: nothing is renamed, deleted, or has its allowed shapes touched. A
+ * type that IS added accepts every shape the newspaper has, the same as on a
+ * new newspaper; narrowing it is a settings decision, not a default's.
+ * Returns the names it added, so a caller can say what it did.
+ */
+export async function ensureBasePageTypes(newspaperId: string): Promise<string[]> {
+  const [existing, shapes] = await Promise.all([
+    basePrisma.pageType.findMany({ where: { newspaper_id: newspaperId }, select: { name: true } }),
+    basePrisma.adShape.findMany({ where: { newspaper_id: newspaperId }, select: { id: true } }),
+  ]);
+  const added: string[] = [];
   for (const name of BASE_PAGE_TYPES) {
+    const has = existing.some((t) => BASE_PAGE_TYPE_MATCH[name].some((w) => t.name.includes(w)));
+    if (has) continue;
     const pageType = await basePrisma.pageType.create({
       data: { newspaper_id: newspaperId, name },
     });
+    added.push(name);
     if (shapes.length === 0) continue;
     await basePrisma.allowedAdShape.createMany({
       data: shapes.map((shape) => ({
@@ -165,6 +186,7 @@ async function seedBasePageTypes(newspaperId: string) {
       skipDuplicates: true,
     });
   }
+  return added;
 }
 
 /**

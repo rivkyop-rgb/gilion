@@ -38,7 +38,8 @@ export const BASE_SHAPES: readonly BaseShape[] = [
 ];
 
 /**
- * The three page types every newspaper starts with.
+ * The three page types every newspaper starts with (user, 04/10/2026: "בכל
+ * עיתון אמור להיות מוגדר באופן דיפולטיבי — שער, גב ופנימי").
  *
  * A newspaper with no page types cannot be ordered in at all — the order
  * builder has nothing to offer and the issue builder has nothing to compose
@@ -52,7 +53,19 @@ export const BASE_SHAPES: readonly BaseShape[] = [
  * names. They remain ordinary rows: renameable, deletable, and joinable by any
  * number of others the newspaper wants.
  */
-export const BASE_PAGE_TYPES = ["שער", "עמוד פנימי", "גב"] as const;
+export const BASE_PAGE_TYPES = ["שער", "פנימי", "גב"] as const;
+
+/**
+ * How to tell that a newspaper already HAS each base type, whatever it was
+ * named in the end: a type counts when its name contains the word. "אחורי" is
+ * the back too — the demo's own newspaper was named that way before the base
+ * set existed. Same rule as `defaultPageTypeIds` in issue-layout.ts.
+ */
+export const BASE_PAGE_TYPE_MATCH: Record<(typeof BASE_PAGE_TYPES)[number], string[]> = {
+  שער: ["שער"],
+  פנימי: ["פנימי"],
+  גב: ["גב", "אחורי"],
+};
 
 export type MaterializedShape = {
   key: string;

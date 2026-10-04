@@ -171,7 +171,7 @@ test.describe("where it may place — the newspaper's setting (27/09/2026)", () 
   test("only the page types opened in the settings receive ads", async ({ page }) => {
     await page.goto(`/settings/newspapers/${NEWSPAPERS.alpha}`);
     await page.getByTestId("auto-place-type-שער").uncheck();
-    await page.getByTestId("auto-place-type-אחורי").uncheck();
+    await page.getByTestId("auto-place-type-גב").uncheck();
     await page.getByTestId("save-auto-place").click();
     await expect(page.getByTestId("auto-place-saved")).toBeVisible();
 
@@ -186,7 +186,7 @@ test.describe("where it may place — the newspaper's setting (27/09/2026)", () 
       where: {
         issue_id: ISSUE_FIXTURES.issue,
         status: "placed",
-        page: { page_type: { name: { in: ["שער", "אחורי"] } } },
+        page: { page_type: { name: { in: ["שער", "גב"] } } },
       },
     });
     expect(outside).toBe(0);

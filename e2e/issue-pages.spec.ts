@@ -1,7 +1,14 @@
 import { expect, test } from "@playwright/test";
 
 import { loginAsAdmin } from "./helpers";
-import { FIXTURE, ISSUE_FIXTURES, boardUrl, openView, resetFixtureIssue, openDetails } from "./issue-helpers";
+import {
+  FIXTURE,
+  ISSUE_FIXTURES,
+  boardUrl,
+  openView,
+  resetFixtureIssue,
+  openDetails,
+} from "./issue-helpers";
 
 /**
  * Composing the issue after it is open.
@@ -63,9 +70,9 @@ test.describe("the pages of an issue", () => {
   });
 
   test("reorders by number only after two confirmations, and never before", async ({ page }) => {
-    // The back page's TYPE ("אחורי" in the seed) is what makes the move visible on the strip: the
+    // The back page's TYPE ("גב" in the seed since 04/10/2026; "אחורי" before) is what makes the move visible on the strip: the
     // thumb's title carries it, and every inner page shares one type.
-    await expect(page.getByTestId("page-thumb-2")).not.toHaveAttribute("title", /אחורי/);
+    await expect(page.getByTestId("page-thumb-2")).not.toHaveAttribute("title", /גב/);
 
     await page.getByTestId("open-page-order").click();
     await page.getByTestId("order-number-4").fill("2");
@@ -76,7 +83,7 @@ test.describe("the pages of an issue", () => {
     await expect(page.getByTestId("page-order-moves")).toBeVisible();
 
     // Proposed, not written: the strip under the dialog has not moved.
-    await expect(page.getByTestId("page-thumb-2")).not.toHaveAttribute("title", /אחורי/);
+    await expect(page.getByTestId("page-thumb-2")).not.toHaveAttribute("title", /גב/);
 
     await page.getByTestId("apply-page-order").click();
     await expect(page.getByTestId("confirm-page-order")).toContainText("לשנות את סדר העמודים?");
@@ -84,7 +91,7 @@ test.describe("the pages of an issue", () => {
 
     // Wait for the dialog to go — it stays open for the whole write (CLAUDE.md).
     await expect(page.getByTestId("page-order-dialog")).toHaveCount(0);
-    await expect(page.getByTestId("page-thumb-2")).toHaveAttribute("title", /אחורי/);
+    await expect(page.getByTestId("page-thumb-2")).toHaveAttribute("title", /גב/);
     // And the board says so, and rings what moved.
     await expect(page.getByTestId("board-message")).toContainText("סדר העמודים עודכן");
     await expect(page.locator('[data-moved="true"]').first()).toBeVisible();
