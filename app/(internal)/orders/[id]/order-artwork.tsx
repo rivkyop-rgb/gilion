@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FileCheck2, Upload } from "lucide-react";
@@ -31,6 +31,7 @@ export function OrderArtwork({
   lineCount,
   approved,
   missingCount,
+  lines,
 }: {
   orderId: string;
   attached: { id: string; name: string } | null;
@@ -40,8 +41,14 @@ export function OrderArtwork({
   approved: boolean;
   /** How many publications still have no artwork. Zero hides the control. */
   missingCount: number;
+  /**
+   * What the file can go to, for "only some of them" (12/10/2026): the lines
+   * before approval, the publications still without a file after it.
+   */
+  lines: Array<{ id: string; label: string; note?: string }>;
 }) {
   const router = useRouter();
+  const [scope, setScope] = useState<"all" | "some">("all");
 
   const [state, formAction, pending] = useActionState<AdFormState, FormData>(
     async (prev, formData) => {
@@ -59,11 +66,13 @@ export function OrderArtwork({
   // its own, and that is the finer and truer answer.
   if (approved) {
     if (missingCount === 0) return null;
-  } else if (attached) {
-    return (
+  }
+
+  const attachedBox =
+    !approved && attached ? (
       <div
         data-testid="order-artwork-attached"
-        className="mb-8 flex flex-wrap items-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4"
+        className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4"
       >
         <FileCheck2 className="size-5 text-status-success-fg" />
         <div className="min-w-0 flex-1">
@@ -77,56 +86,118 @@ export function OrderArtwork({
           </Link>
         </div>
         <p className="text-xs text-on-surface-variant">
-          תשויך ל־{lineCount} הפרסומים שייווצרו באישור. אפשר להחליף בכל פרסום בנפרד אחר כך.
+          תשויך באישור לכל פרסום שאין לו קובץ משלו (מתוך {lineCount}). אפשר להחליף בכל פרסום בנפרד
+          אחר כך.
         </p>
       </div>
-    );
-  }
+    ) : null;
 
   return (
-    <form
-      action={formAction}
-      data-testid="order-artwork-form"
-      className="mb-8 rounded-lg border border-dashed border-outline-variant bg-surface-container-lowest p-4"
-    >
-      <input type="hidden" name="orderId" value={orderId} />
+    <>
+      {attachedBox}
+      <form
+        action={formAction}
+        data-testid="order-artwork-form"
+        className="mb-8 rounded-lg border border-dashed border-outline-variant bg-surface-container-lowest p-4"
+      >
+        <input type="hidden" name="orderId" value={orderId} />
 
-      <p className="mb-1 flex items-center gap-2 text-sm font-medium">
-        <Upload className="size-4" />
-        {approved ? `מודעה ל־${missingCount} הפרסומים שעדיין בלי קובץ` : "מודעה להזמנה כולה"}
-      </p>
-      <p className="mb-3 text-xs text-on-surface-variant">
-        {approved
-          ? "הקובץ ישויך לכל פרסום בהזמנה שעדיין אין לו מודעה. פרסום שכבר יש לו קובץ לא ייגע."
-          : "אם הלקוח שלח מודעה אחת לכל התאריכים — אפשר להעלות אותה כאן, והיא תשויך אוטומטית לכל הפרסומים באישור ההזמנה."}
-        {limit ? (
-          <>
-            {" "}
-            PDF, JPG, PNG · עד <Ltr className="font-mono">{formatBytes(limit.maxBytes)}</Ltr> (
-            {limit.newspaperName} — המחמיר מבין העיתונים בהזמנה)
-          </>
+        <p className="mb-1 flex items-center gap-2 text-sm font-medium">
+          <Upload className="size-4" />
+          {approved
+            ? `מודעה ל־${missingCount} הפרסומים שעדיין בלי קובץ`
+            : attached
+              ? "קובץ אחר — להזמנה כולה או לחלק מהפרסומים"
+              : "מודעה להזמנה"}
+        </p>
+        <p className="mb-3 text-xs text-on-surface-variant">
+          {approved
+            ? "הקובץ ישויך לכל פרסום בהזמנה שעדיין אין לו מודעה. פרסום שכבר יש לו קובץ לא ייגע."
+            : "אם הלקוח שלח מודעה אחת לכל התאריכים — אפשר להעלות אותה כאן, והיא תשויך לכל הפרסומים באישור ההזמנה. מודעה שונה לחלק מהתאריכים — בוחרים למטה לאילו."}
+          {limit ? (
+            <>
+              {" "}
+              PDF, JPG, PNG · עד <Ltr className="font-mono">{formatBytes(limit.maxBytes)}</Ltr> (
+              {limit.newspaperName} — המחמיר מבין העיתונים בהזמנה)
+            </>
+          ) : null}
+        </p>
+
+        {lines.length > 1 ? (
+          <fieldset className="mb-3" data-testid="artwork-scope">
+            <legend className="mb-1 text-xs font-medium">לאילו פרסומים לשייך את הקובץ?</legend>
+            <div className="flex flex-wrap gap-4 text-sm">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="scope"
+                  value="all"
+                  checked={scope === "all"}
+                  onChange={() => setScope("all")}
+                  // onClick as well: a click that lands before hydration leaves
+                  // the radio checked with React's state still "all", and a
+                  // checked radio fires no change again (CLAUDE.md).
+                  onClick={() => setScope("all")}
+                  data-testid="artwork-scope-all"
+                />
+                {approved ? "לכל הפרסומים שעדיין בלי קובץ" : "לכל הפרסומים בהזמנה"}
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="scope"
+                  value="some"
+                  checked={scope === "some"}
+                  onChange={() => setScope("some")}
+                  onClick={() => setScope("some")}
+                  data-testid="artwork-scope-some"
+                />
+                רק לחלק מהם
+              </label>
+            </div>
+            {scope === "some" ? (
+              <ul className="mt-2 space-y-1 rounded-lg border border-outline-variant p-2 text-sm">
+                {lines.map((line) => (
+                  <li key={line.id}>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        name="lineIds"
+                        value={line.id}
+                        data-testid={`artwork-line-${line.id}`}
+                      />
+                      <span>{line.label}</span>
+                      {line.note ? (
+                        <span className="text-xs text-on-surface-variant">· {line.note}</span>
+                      ) : null}
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </fieldset>
         ) : null}
-      </p>
 
-      <input
-        type="file"
-        name="file"
-        data-testid="order-artwork-file"
-        accept={AD_ACCEPT_ATTRIBUTE}
-        className="w-full max-w-md text-xs file:me-3 file:rounded-sm file:border-0 file:bg-surface-container file:px-3 file:py-2 file:text-xs"
-      />
+        <input
+          type="file"
+          name="file"
+          data-testid="order-artwork-file"
+          accept={AD_ACCEPT_ATTRIBUTE}
+          className="w-full max-w-md text-xs file:me-3 file:rounded-sm file:border-0 file:bg-surface-container file:px-3 file:py-2 file:text-xs"
+        />
 
-      {state.message ? (
-        <div className="mt-2 max-w-md">
-          <InlineError>{state.message}</InlineError>
+        {state.message ? (
+          <div className="mt-2 max-w-md">
+            <InlineError>{state.message}</InlineError>
+          </div>
+        ) : null}
+
+        <div className="mt-3">
+          <Button type="submit" size="sm" disabled={pending} data-testid="order-artwork-submit">
+            {pending ? "מעלה…" : "העלאה וצירוף להזמנה"}
+          </Button>
         </div>
-      ) : null}
-
-      <div className="mt-3">
-        <Button type="submit" size="sm" disabled={pending} data-testid="order-artwork-submit">
-          {pending ? "מעלה…" : "העלאה וצירוף להזמנה"}
-        </Button>
-      </div>
-    </form>
+      </form>
+    </>
   );
 }

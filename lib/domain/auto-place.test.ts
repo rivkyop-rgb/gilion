@@ -123,6 +123,40 @@ describe("the same input gives the same issue", () => {
   });
 });
 
+describe("the page type that was sold", () => {
+  const typed = (n: number, type: string, openToAny = true): AutoPlacePage => ({
+    ...page(n, [quarter]),
+    pageTypeId: type,
+    openToAny,
+  });
+  const sold = (id: string, type: string | null): AutoPlaceItem => ({
+    publicationId: id,
+    shape: quarter,
+    pageTypeId: type,
+  });
+
+  it("puts an ad sold for the cover on the cover, even though the cover is closed to auto-placement", () => {
+    const result = autoPlace([sold("a", "cover")], [typed(1, "cover", false), typed(2, "inner")], grid);
+    expect(result.placements).toEqual([expect.objectContaining({ publicationId: "a", pageId: "p1" })]);
+  });
+
+  it("never puts an inner-page ad on the cover, even when the cover has room", () => {
+    const result = autoPlace([sold("a", "inner")], [typed(1, "cover"), typed(2, "inner")], grid);
+    expect(result.placements[0]).toMatchObject({ pageId: "p2" });
+  });
+
+  it("leaves an ad unplaced rather than on a page of another type", () => {
+    const result = autoPlace([sold("a", "back")], [typed(1, "cover"), typed(2, "inner")], grid);
+    expect(result.placements).toEqual([]);
+    expect(result.unplaced.map((i) => i.publicationId)).toEqual(["a"]);
+  });
+
+  it("an ad with no recorded type goes only on pages open to auto-placement", () => {
+    const result = autoPlace([sold("a", null)], [typed(1, "cover", false), typed(2, "inner")], grid);
+    expect(result.placements[0]).toMatchObject({ pageId: "p2" });
+  });
+});
+
 describe("how many sheets the leftovers need", () => {
   it("is zero when nothing is left over", () => {
     expect(sheetsNeededFor([], grid)).toBe(0);

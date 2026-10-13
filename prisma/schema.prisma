@@ -922,6 +922,10 @@ model Advertisement {
   validation_status   AdValidationStatus @default(pending)
   /// Hebrew, shown verbatim on the card. Null while the file is valid.
   validation_error    String?
+  /// The artwork's proportions, read at upload (12/10/2026). Pixels for an
+  /// image, points for a PDF — only the ratio is read. Null before then.
+  content_width       Float?
+  content_height      Float?
   uploaded_at         DateTime           @default(now())
 
   created_at DateTime @default(now())

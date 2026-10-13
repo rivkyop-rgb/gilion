@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ClipboardList, FileDown, Newspaper, Plus } from "lucide-react";
 
 import { canReadArea, canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
-import { issueSummaries, withPlacementCounts } from "@/lib/data/issues";
+import { issueSummaries, withPlacementCounts, ensureUpcomingIssues } from "@/lib/data/issues";
 import { ListPager, ListToolbar } from "@/components/ui/list-toolbar";
 import {
   baseHrefFor,
@@ -36,6 +36,8 @@ export default async function IssuesPage({
 }) {
   const ctx = await getTenantContext();
   requireArea(ctx, "issues");
+  // Issues open by themselves a week ahead — before the list is read.
+  await ensureUpcomingIssues(ctx.businessId);
 
   // `open` is what the dashboard's "גיליונות פתוחים" card counted (FR-20), and
   // the filter here applies exactly the states it counted — a card that opens a
@@ -92,6 +94,9 @@ export default async function IssuesPage({
               <ClipboardList className="size-4" />
               מעקב גיליונות
             </Link>
+          </Button>
+          <Button asChild variant="secondary" data-testid="occupancy-link">
+            <Link href="/issues/occupancy">תפוסת עמודים</Link>
           </Button>
           {mayWrite ? (
             <Button asChild data-testid="new-issue">

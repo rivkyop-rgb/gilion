@@ -14,7 +14,12 @@ import {
 import { listPublicationsPage } from "@/lib/data/publications";
 import { listNewspapers } from "@/lib/data/newspapers";
 import { customerOptions } from "@/lib/data/customers";
-import { issuePageMap, issuesForPublications, openIssuesForPlacement } from "@/lib/data/issues";
+import {
+  ensureUpcomingIssues,
+  issuePageMap,
+  issuesForPublications,
+  openIssuesForPlacement,
+} from "@/lib/data/issues";
 import { billingTotals } from "@/lib/data/payments";
 import { refreshReminders } from "@/lib/data/reminders";
 import { cardsFor, showsMoney, visibleCards, type DashboardCardKey } from "@/lib/domain/dashboard";
@@ -98,6 +103,8 @@ const KPI_ICON: Record<DashboardCardKey, React.ComponentType<{ className?: strin
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<Search> }) {
   const ctx = await getTenantContext();
   requireArea(ctx, "dashboard");
+  // The week's issues open by themselves (12/10/2026) — before they are counted.
+  await ensureUpcomingIssues(ctx.businessId);
 
   const week = dashboardWeek();
   const weekFrom = isoDay(week.from);

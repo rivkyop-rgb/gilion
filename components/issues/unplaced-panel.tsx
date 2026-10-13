@@ -32,6 +32,10 @@ export type BoardCandidate = {
   blockedReason: string | null;
   /** True when the publication has no artwork yet, so uploading is offered. */
   needsArtwork: boolean;
+  /** The page type it was sold for — said, so the designer knows where it belongs. */
+  soldTypeName: string | null;
+  /** The artwork's proportions do not match the space (orange, 12/10/2026). */
+  fitWarning: string | null;
 };
 
 export type CustomerOption = { id: string; label: string; hint?: string };
@@ -221,7 +225,16 @@ export function UnplacedPanel({
                         <span className="block truncate font-medium">{item.customerName}</span>
                         <span className="block truncate text-xs text-on-surface-variant">
                           {item.shape.name} · {sizeLabel(item.shape, grid)}
+                          {item.soldTypeName ? ` · ${item.soldTypeName}` : ""}
                         </span>
+                        {item.fitWarning ? (
+                          <span
+                            data-testid="candidate-fit-warning"
+                            className="mt-1 block rounded bg-status-warning-bg px-1.5 py-0.5 text-xs text-status-warning-fg"
+                          >
+                            {item.fitWarning}
+                          </span>
+                        ) : null}
                         {item.blockedReason ? (
                           <Badge tone="error" className="mt-1">
                             {item.blockedReason}

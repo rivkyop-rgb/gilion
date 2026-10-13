@@ -8,11 +8,11 @@ import { Label } from "@/components/ui/label";
 import { InlineError } from "@/components/states";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Ltr } from "@/components/ui/ltr";
+import { agrees, counted } from "@/lib/domain/hebrew-count";
 import { canDeleteOrder, type OrderStatus } from "@/lib/domain/order-status";
 import {
   approveOrderAction,
   cancelOrderAction,
-  completeOrderAction,
   deleteOrderAction,
   rejectOrderAction,
   submitOrderAction,
@@ -28,7 +28,6 @@ export function OrderActions({
   orderRef,
   status,
   canApprove,
-  canComplete,
   publicationCount,
   lineCount,
   total,
@@ -36,12 +35,12 @@ export function OrderActions({
   directApproval = false,
   missingAd = false,
   soonDate = null,
+  capacity = [],
 }: {
   orderId: string;
   orderRef: string;
   status: OrderStatus;
   canApprove: boolean;
-  canComplete: boolean;
   publicationCount: number;
   lineCount: number;
   total: string;
@@ -60,6 +59,8 @@ export function OrderActions({
   missingAd?: boolean;
   /** The earliest line date, formatted, when it falls in the coming week. */
   soonDate?: string | null;
+  /** Covers and backs this order would oversell (lib/data/page-load.ts). */
+  capacity?: CapacityNote[];
 }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
@@ -74,14 +75,21 @@ export function OrderActions({
    * different warnings, each confirmed on its own, never one dialog carrying
    * both where the second sentence is read past.
    */
-  const [warning, setWarning] = useState<{ step: "no-ad" | "soon"; go: () => void } | null>(null);
-  const guarded = (fn: () => Promise<FormState>) => () => {
+  const [warning, setWarning] = useState<{ steps: WarnStep[]; go: () => void } | null>(null);
+  const guarded = (fn: () => Promise<FormState>, approving: boolean) => () => {
     const go = () => {
       setWarning(null);
       run(fn);
     };
-    if (!missingAd) return go();
-    setWarning({ step: "no-ad", go });
+    // The page-capacity question is about APPROVING — sending for approval
+    // oversells nothing (12/10/2026). It must be confirmed to go on.
+    const steps: WarnStep[] = [
+      ...(missingAd ? (["no-ad"] as const) : []),
+      ...(missingAd && soonDate ? (["soon"] as const) : []),
+      ...(approving && capacity.length > 0 ? (["capacity"] as const) : []),
+    ];
+    if (steps.length === 0) return go();
+    setWarning({ steps, go });
   };
 
   return (
@@ -103,7 +111,7 @@ export function OrderActions({
               variant="gold"
               disabled={busy}
               data-testid="approve-order"
-              onClick={guarded(() => approveOrderAction(orderId))}
+              onClick={guarded(() => approveOrderAction(orderId), true)}
             >
               <Check className="size-4" />
               אישור ההזמנה
@@ -113,7 +121,7 @@ export function OrderActions({
               variant="gold"
               disabled={busy}
               data-testid="submit-order"
-              onClick={guarded(() => submitOrderAction(orderId))}
+              onClick={guarded(() => submitOrderAction(orderId), false)}
             >
               שליחה לאישור
             </Button>
@@ -125,7 +133,7 @@ export function OrderActions({
                 variant="gold"
                 disabled={busy}
                 data-testid="approve-order"
-                onClick={guarded(() => approveOrderAction(orderId))}
+                onClick={guarded(() => approveOrderAction(orderId), true)}
               >
                 <Check className="size-4" />
                 אישור ההזמנה
@@ -140,28 +148,6 @@ export function OrderActions({
                 דחייה
               </Button>
             </>
-          ) : null}
-
-          {status === "approved" && canComplete ? (
-            <span className={layout === "bar" ? "flex items-center gap-2" : "flex flex-col gap-2"}>
-              <Button
-                variant="secondary"
-                disabled={busy}
-                data-testid="complete-order"
-                onClick={() => run(() => completeOrderAction(orderId))}
-              >
-                סימון כהושלמה
-              </Button>
-              {/*
-                "Completed" was a word with no explanation next to it, and the
-                question it raises — does this change anything for the
-                customer? — has a real answer: it closes the order for good.
-              */}
-              <span className="text-xs text-on-surface-variant" data-testid="complete-hint">
-                סגירה סופית: כל הפרסומים כבר רצו או בוטלו, ומכאן ההזמנה היסטוריה — אי אפשר לשנות
-                אותה ואי אפשר לבטל אותה.
-              </span>
-            </span>
           ) : null}
 
           {status !== "completed" && status !== "canceled" ? (
@@ -214,15 +200,14 @@ export function OrderActions({
       )}
       {warning ? (
         <OrderWarning
-          step={warning.step}
+          step={warning.steps[0]!}
           soonDate={soonDate}
+          capacity={capacity}
           onCancel={() => setWarning(null)}
           onConfirm={() => {
-            if (warning.step === "no-ad" && soonDate) {
-              setWarning({ step: "soon", go: warning.go });
-            } else {
-              warning.go();
-            }
+            const rest = warning.steps.slice(1);
+            if (rest.length > 0) setWarning({ steps: rest, go: warning.go });
+            else warning.go();
           }}
         />
       ) : null}
@@ -230,19 +215,34 @@ export function OrderActions({
   );
 }
 
+type WarnStep = "no-ad" | "soon" | "capacity";
+
+export type CapacityNote = {
+  newspaperName: string;
+  /** Already formatted for display. */
+  date: string;
+  pageTypeName: string;
+  approved: number;
+  pending: number;
+  mine: number;
+  overflow: number;
+};
+
 /** One warning at a time — see `guarded`. */
 function OrderWarning({
   step,
   soonDate,
+  capacity,
   onCancel,
   onConfirm,
 }: {
-  step: "no-ad" | "soon";
+  step: WarnStep;
   soonDate: string | null;
+  capacity: CapacityNote[];
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  const testId = step === "no-ad" ? "order-warn-no-ad" : "order-warn-soon";
+  const testId = `order-warn-${step}`;
   return (
     <DialogPrimitive.Root open onOpenChange={(open) => (open ? null : onCancel())}>
       <DialogPrimitive.Portal>
@@ -254,10 +254,14 @@ function OrderWarning({
           <DialogPrimitive.Title className="mb-2 flex items-center gap-2 font-serif text-lg font-semibold">
             <AlertTriangle
               className={
-                step === "soon" ? "size-5 text-status-error-fg" : "size-5 text-status-warning-fg"
+                step === "no-ad" ? "size-5 text-status-warning-fg" : "size-5 text-status-error-fg"
               }
             />
-            {step === "no-ad" ? "לאשר בלי מודעה?" : "שימי לב — העיתון יורד לדפוס"}
+            {step === "no-ad"
+              ? "לאשר בלי מודעה?"
+              : step === "soon"
+                ? "שימי לב — העיתון יורד לדפוס"
+                : "אין מקום פנוי בעמוד שנבחר"}
           </DialogPrimitive.Title>
           <DialogPrimitive.Description asChild>
             <div className="mb-4 text-sm text-on-surface-variant">
@@ -266,6 +270,8 @@ function OrderWarning({
                   להזמנה עדיין לא צורף קובץ מודעה. אפשר להמשיך ולהוסיף את הקובץ אחר כך — הפרסומים
                   יסומנו &quot;חסר קובץ&quot; עד שיגיע.
                 </p>
+              ) : step === "capacity" ? (
+                <CapacityBody notes={capacity} />
               ) : (
                 <p>
                   הפרסום הראשון בהזמנה הוא ב־<Ltr>{soonDate}</Ltr>, השבוע. העיתון יורד לדפוס וצריך
@@ -276,7 +282,11 @@ function OrderWarning({
           </DialogPrimitive.Description>
           <div className="flex gap-3 border-t border-outline-variant pt-4">
             <Button onClick={onConfirm} data-testid={`${testId}-confirm`}>
-              {step === "no-ad" ? "כן, להמשיך בלי מודעה" : "הבנתי, להמשיך"}
+              {step === "no-ad"
+                ? "כן, להמשיך בלי מודעה"
+                : step === "capacity"
+                  ? "לאשר בכל זאת"
+                  : "הבנתי, להמשיך"}
             </Button>
             <Button variant="ghost" onClick={onCancel}>
               ביטול
@@ -286,6 +296,54 @@ function OrderWarning({
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   );
+}
+
+/**
+ * Which cover or back would be oversold, and by what. Pending orders are named
+ * separately: "it is full" and "it is full if the order waiting since Sunday is
+ * approved" are different conversations with the customer.
+ */
+function CapacityBody({ notes }: { notes: CapacityNote[] }) {
+  return (
+    <div className="space-y-2">
+      <p>אישור ההזמנה ימכור יותר ממה שנכנס בעמודים האלה:</p>
+      <ul className="space-y-1.5" data-testid="capacity-notes">
+        {notes.map((n) => (
+          <li
+            key={`${n.newspaperName}-${n.date}-${n.pageTypeName}`}
+            className="rounded-lg bg-status-error-bg p-2 text-status-error-fg"
+          >
+            <strong>
+              {n.pageTypeName} · {n.newspaperName} · <Ltr>{n.date}</Ltr>
+            </strong>
+            <br />
+            {soldSentence(n)}
+          </li>
+        ))}
+      </ul>
+      <p>
+        אפשר לאשר בכל זאת — למשל אם עמוד נוסף מהסוג הזה ייפתח בגיליון — אבל זו החלטה, לא ברירת מחדל.
+      </p>
+    </div>
+  );
+}
+
+function soldSentence(n: CapacityNote): string {
+  const parts: string[] = [];
+  if (n.approved > 0) {
+    parts.push(
+      `${agrees(n.approved, "כבר נמכר", "כבר נמכרו")} ${counted(n.approved, "פרסום מאושר אחד", "פרסומים מאושרים")}`,
+    );
+  }
+  if (n.pending > 0) {
+    parts.push(
+      n.pending === 1
+        ? "עוד שורה אחת ממתינה לאישור בהזמנה אחרת"
+        : `עוד ${n.pending} שורות ממתינות לאישור בהזמנות אחרות`,
+    );
+  }
+  const before = parts.length > 0 ? `${parts.join(", ")}, ו` : "";
+  return `${before}ההזמנה הזאת מוסיפה ${counted(n.mine, "פרסום אחד", "פרסומים")}. ${counted(n.overflow, "פרסום אחד לא ייכנס", "פרסומים לא ייכנסו")}.`;
 }
 
 function RejectForm({ orderId, onCancel }: { orderId: string; onCancel: () => void }) {

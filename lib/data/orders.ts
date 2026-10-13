@@ -11,6 +11,7 @@ import { roundMoney } from "@/lib/domain/order";
 import { discountedPrice, orderPricing } from "@/lib/domain/ad-package";
 import { packagesByNewspaper } from "./newspapers";
 import { clampPage, orderNumberNeedle, skipFor, type ListParams } from "@/lib/domain/list-view";
+import { completionFollows, type OrderStatus } from "@/lib/domain/order-status";
 
 export type OrderFilters = {
   status?: string;
@@ -27,7 +28,7 @@ export type OrderFilters = {
 const ORDER_INCLUDE = {
   customer: { select: { id: true, business_name: true } },
   /// Artwork attached to the order as a whole — see AdOrder.advertisement_id.
-  advertisement: { select: { id: true, name: true } },
+  advertisement: { select: { id: true, name: true, content_width: true, content_height: true } },
   items: {
     orderBy: { created_at: "asc" as const },
     include: {
@@ -41,7 +42,15 @@ const ORDER_INCLUDE = {
       ad_package: { select: { id: true, name: true } },
       /// The line's own file, when the customer sent one per line (backlog 26).
       advertisement: {
-        select: { id: true, name: true, file_type: true, file_size: true, preview_url: true },
+        select: {
+          id: true,
+          name: true,
+          file_type: true,
+          file_size: true,
+          preview_url: true,
+          content_width: true,
+          content_height: true,
+        },
       },
     },
   },
@@ -155,6 +164,8 @@ export async function getOrder(businessId: string, id: string) {
           // will actually be enforced on it (FR-21).
           newspaper: { select: { id: true, name: true, max_ad_file_size: true } },
           ad_shape: { select: { name: true, cols: true, rows: true } },
+          // The page type it was sold for — the preview names it (12/10/2026).
+          order_item: { select: { page_type: { select: { name: true } } } },
           // The row shows a thumbnail and opens a full preview, so it needs
           // more than a name — a name is not a file.
           advertisement: {
@@ -166,6 +177,8 @@ export async function getOrder(businessId: string, id: string) {
               file_url: true,
               preview_url: true,
               uploaded_at: true,
+              content_width: true,
+              content_height: true,
             },
           },
         },
@@ -603,4 +616,41 @@ export async function setInternalOrdersNeedApproval(businessId: string, value: b
 /** Orders waiting for someone to approve them — the dashboard card. */
 export async function countPendingOrders(businessId: string): Promise<number> {
   return tenantDb(businessId).adOrder.count({ where: { status: "pending_approval" } });
+}
+
+/**
+ * Completes — or un-completes — the orders behind these publications.
+ *
+ * Called in the same transaction as whatever changed a publication's fate:
+ * closing an issue (they ran), reopening one (they no longer did), cancelling a
+ * publication (it never will). Completion used to be a button; nobody pressed
+ * it, and the user asked why it existed (12/10/2026). The rule lives in
+ * `completionFollows`.
+ */
+export async function syncOrderCompletion(
+  tx: Prisma.TransactionClient,
+  businessId: string,
+  publicationIds: string[],
+): Promise<void> {
+  if (publicationIds.length === 0) return;
+  const owners = await tx.publication.findMany({
+    where: { id: { in: publicationIds }, business_id: businessId },
+    select: { order_id: true },
+  });
+  for (const orderId of new Set(owners.map((o) => o.order_id))) {
+    const order = await tx.adOrder.findFirst({
+      where: { id: orderId, business_id: businessId },
+      select: { status: true, publications: { select: { status: true } } },
+    });
+    if (!order) continue;
+    const next = completionFollows(
+      order.status as OrderStatus,
+      order.publications.map((p) => p.status),
+    );
+    if (!next) continue;
+    await tx.adOrder.update({
+      where: { id: orderId },
+      data: { status: next, completed_at: next === "completed" ? new Date() : null },
+    });
+  }
 }

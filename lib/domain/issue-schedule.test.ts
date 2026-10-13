@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { jewishDay } from "./jewish-calendar";
 import {
+  autoOpenDates,
   describeDate,
   isUsableDate,
   nextIssueDate,
@@ -99,3 +100,41 @@ function findDay(kind: "chag" | "erev_chag"): string {
   }
   throw new Error(`no ${kind} found in the year ahead`);
 }
+
+describe("which issues open by themselves", () => {
+  // Monday 12/10/2026; the Tuesdays after it are the 13th and the 20th.
+  const base = {
+    today: "2026-10-12",
+    publicationDays: TUESDAYS,
+    lastClosedDate: null,
+    soldDates: [],
+    existingDates: [],
+  };
+
+  it("opens every printing day within a week", () => {
+    expect(autoOpenDates(base)).toEqual(["2026-10-13"]);
+  });
+
+  it("does not open what already exists", () => {
+    expect(autoOpenDates({ ...base, existingDates: ["2026-10-13"] })).toEqual([]);
+  });
+
+  it("opens the next issue as soon as the previous one closed, even weeks ahead", () => {
+    expect(
+      autoOpenDates({ ...base, lastClosedDate: "2026-10-27", existingDates: ["2026-10-13"] }),
+    ).toEqual(["2026-11-03"]);
+  });
+
+  it("opens a special edition that has ads sold on it within the week", () => {
+    expect(autoOpenDates({ ...base, soldDates: ["2026-10-15", "2026-11-30"] })).toEqual([
+      "2026-10-13",
+      "2026-10-15",
+    ]);
+  });
+
+  it("never opens anything in the past", () => {
+    expect(
+      autoOpenDates({ ...base, soldDates: ["2026-10-01"], lastClosedDate: "2026-09-01" }),
+    ).toEqual(["2026-10-13"]);
+  });
+});

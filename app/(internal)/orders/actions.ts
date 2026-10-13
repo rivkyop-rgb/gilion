@@ -9,7 +9,6 @@ import { withAudit } from "@/lib/data/audit";
 import * as data from "@/lib/data/orders";
 import * as pubs from "@/lib/data/publications";
 import {
-  completionBlockedMessage,
   itemsEditable,
   orderDeletionBlocked,
   transition,
@@ -236,6 +235,68 @@ export async function removeOrderItemAction(orderId: string, itemId: string): Pr
   return { ok: true };
 }
 
+/**
+ * Changes one line's date and price, from the preview table (12/10/2026).
+ *
+ * Newspaper, page type and shape are not edited here: they decide the price
+ * and what the line even is, and changing them is a delete and an add. The
+ * date goes through the same three checks a new line does — chag refused,
+ * off-schedule only when confirmed, and the price rule.
+ */
+export async function updateOrderItemAction(
+  orderId: string,
+  itemId: string,
+  input: { date: string; price: string; specialEdition: boolean },
+): Promise<FormState> {
+  const ctx = await requireOrderWrite();
+
+  const parsed = z
+    .object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "תאריך לא תקין"),
+      price: z
+        .string()
+        .trim()
+        .min(1, "יש להזין מחיר")
+        .transform(Number)
+        .pipe(z.number({ error: "מחיר לא תקין" }).finite().min(0, "המחיר לא יכול להיות שלילי")),
+      specialEdition: z.boolean(),
+    })
+    .safeParse(input);
+  if (!parsed.success) return { message: parsed.error.issues[0]?.message ?? "הטופס לא תקין" };
+
+  const order = await data.getOrder(ctx.businessId, orderId);
+  if (!order) return { message: "ההזמנה לא נמצאה" };
+  if (!itemsEditable(order.status as OrderStatus)) {
+    return { message: "לא ניתן לערוך שורות בהזמנה במצב הזה" };
+  }
+  const item = order.items.find((i) => i.id === itemId);
+  if (!item) return { message: "השורה לא נמצאה בהזמנה הזאת" };
+
+  const chag = noPaperReason(parsed.data.date);
+  if (chag) return { message: `${parsed.data.date}: ${chag}` };
+
+  const schedule = await data.newspaperPublicationDays(ctx.businessId, item.newspaper_id);
+  if (schedule === null) return { message: "העיתון לא נמצא" };
+  const offSchedule = !isPublicationDay(schedule, parsed.data.date);
+  // A line already ordered as a special edition keeps that choice while its
+  // date stays put — re-asking about a decision nobody is changing is noise.
+  const sameDate = item.publication_date.toISOString().slice(0, 10) === parsed.data.date;
+  if (offSchedule && !parsed.data.specialEdition && !(sameDate && item.off_schedule)) {
+    return {
+      message: "התאריך אינו יום הדפסה של העיתון. יש לאשר שמדובר במהדורה מיוחדת.",
+      errors: { specialEdition: "offSchedule" },
+    };
+  }
+
+  await data.updateOrderItem(ctx.businessId, itemId, {
+    publication_date: new Date(parsed.data.date),
+    price: parsed.data.price,
+    off_schedule: offSchedule,
+  });
+  revalidatePath(`/orders/${orderId}`);
+  return { ok: true };
+}
+
 /** The checks a draft must pass to leave draft — by submission or by direct approval. */
 function submissionProblem(order: NonNullable<Awaited<ReturnType<typeof data.getOrder>>>) {
   const errors = validateForSubmission({
@@ -416,33 +477,6 @@ export async function cancelOrderAction(orderId: string): Promise<FormState> {
   return { ok: true };
 }
 
-/** Completion is an accounting act, not a sales one (stage 04 permissions). */
-export async function completeOrderAction(orderId: string): Promise<FormState> {
-  const ctx = await getTenantContext();
-  if (!(ctx.role === "admin" || ctx.role === "accounting")) {
-    return { message: "רק מנהל או הנהלת חשבונות יכולים לסמן הזמנה כהושלמה" };
-  }
-
-  const order = await data.getOrder(ctx.businessId, orderId);
-  if (!order) return { message: "ההזמנה לא נמצאה" };
-
-  // Rule 9: every publication must have run or been cancelled first.
-  const statuses = await pubs.publicationStatusesForOrder(ctx.businessId, orderId);
-  const blocked = completionBlockedMessage(statuses);
-  if (blocked) return { message: blocked };
-
-  try {
-    const next = transition(order.status as OrderStatus, "COMPLETE");
-    await data.setOrderStatus(ctx.businessId, orderId, next, { completed_at: new Date() });
-  } catch (e) {
-    if (e instanceof InvalidTransitionError) return { message: e.message };
-    throw e;
-  }
-
-  revalidatePath(`/orders/${orderId}`);
-  return { ok: true };
-}
-
 /**
  * Cancelling a single publication (rule 18). Stage 06 will extend this to drop
  * the placement in the same transaction; the audit wrapper is already here so
@@ -471,6 +505,8 @@ export async function cancelPublicationAction(publicationId: string): Promise<Fo
     { action: "cancel_publication", targetType: "Publication", targetId: publicationId },
     async (tx) => {
       await pubs.setPublicationStatus(tx, publicationId, "canceled");
+      // Cancelling the last one still in flight completes the order.
+      await data.syncOrderCompletion(tx, ctx.businessId, [publicationId]);
       return { old: { status: publication.status }, new: { status: "canceled" } };
     },
   );

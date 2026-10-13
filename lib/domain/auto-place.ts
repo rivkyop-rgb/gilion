@@ -31,12 +31,26 @@ import { positionAllowed, type GridRect } from "./slot-geometry";
 export type AutoPlaceItem = {
   publicationId: string;
   shape: ShapeSpec;
+  /**
+   * The page type the customer BOUGHT (AdOrderItem.page_type_id) — the price
+   * was set by it, so the packer is bound by it. A half page sold at the cover
+   * price lands on the cover or nowhere. Null only for a publication with no
+   * order line behind it; that one may go on any page open to auto-placement.
+   */
+  pageTypeId?: string | null;
 };
 
 /** A page the packer may use, in the order it appears in the issue. */
 export type AutoPlacePage = {
   pageId: string;
   pageNumber: number;
+  pageTypeId?: string;
+  /**
+   * The newspaper's setting (PageType.auto_place): may auto-placement put an
+   * ad here that was not sold for this type? The cover and the back are
+   * usually closed — but an ad SOLD for the cover still goes on the cover.
+   */
+  openToAny?: boolean;
   /** Shapes this page type accepts (FR-14). */
   allowedShapes: ShapeSpec[];
   /** Rectangles already on it — auto-placement never moves existing ads. */
@@ -169,6 +183,7 @@ export function autoPlace(
     let landed = false;
 
     for (const page of pages) {
+      if (!pageAccepts(page, item)) continue;
       // FR-14: the page type has to accept the shape at all.
       if (!page.allowedShapes.some((s) => s.id === item.shape.id)) continue;
 
@@ -190,6 +205,12 @@ export function autoPlace(
   }
 
   return { placements, unplaced };
+}
+
+/** The page type it was sold for, or — when none is recorded — any open page. */
+export function pageAccepts(page: AutoPlacePage, item: AutoPlaceItem): boolean {
+  if (item.pageTypeId) return page.pageTypeId === item.pageTypeId;
+  return page.openToAny !== false;
 }
 
 /**

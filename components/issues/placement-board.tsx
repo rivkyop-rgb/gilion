@@ -101,6 +101,12 @@ export type BoardModel = {
   pages: BoardPage[];
   placements: CanvasPlacement[];
   candidates: BoardCandidate[];
+  /**
+   * The page type each publication was SOLD for, by publication id. Placing it
+   * on a page of another type is allowed — a designer may have a reason — but
+   * never silently: the price was set by the type (orange, never red).
+   */
+  soldPageTypes: Record<string, { id: string; name: string }>;
   /** Existing customers, for selling a page to one of them from here. */
   customers: Array<{ id: string; label: string; hint?: string }>;
   /**
@@ -338,6 +344,15 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
       duplicateOverrideApproved: false,
     });
   }, [candidate, held, model.pages, placementsByPage, model.grid, model.status, model.isAdmin]);
+
+  /** Allowed, but not where it was sold for — said in orange, blocks nothing. */
+  const typeWarning: string | null = useMemo(() => {
+    if (!candidate || !held || verdict) return null;
+    const sold = model.soldPageTypes[held.publicationId];
+    const page = model.pages.find((p) => p.id === candidate.pageId);
+    if (!sold || !page || page.pageTypeId === sold.id) return null;
+    return `הפרסום נמכר לעמוד ${sold.name}, וכאן העמוד הוא ${page.pageTypeName}. אפשר להניח אותו כאן — המחיר נקבע לפי ${sold.name}.`;
+  }, [candidate, held, verdict, model.soldPageTypes, model.pages]);
 
   const commit = (pageId: string, cell: Cell) => {
     if (!held || !editable) return;
@@ -710,6 +725,16 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                 className="absolute inset-0 overflow-y-auto rounded-lg bg-status-error-bg p-2 text-sm text-status-error-fg"
               >
                 {verdict.message}
+              </p>
+            ) : held && typeWarning ? (
+              <p
+                role="status"
+                data-testid="board-message"
+                data-kind="type-warning"
+                className="absolute inset-0 flex items-start gap-2 overflow-y-auto rounded-lg bg-status-warning-bg p-2 text-sm text-status-warning-fg"
+              >
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <span>{typeWarning}</span>
               </p>
             ) : notice ? (
               <p

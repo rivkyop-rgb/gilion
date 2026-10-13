@@ -148,3 +148,51 @@ export function upcomingIssueDates(
   }
   return out;
 }
+
+/** How far ahead an issue opens by itself (the user, 12/10/2026). */
+export const AUTO_OPEN_DAYS = 7;
+
+/**
+ * Which issues should exist by now and do not (the user, 12/10/2026).
+ *
+ * An issue opens by itself at the EARLIER of two moments: the previous issue
+ * of the same newspaper closing, or a week before its date. So:
+ *
+ *  - every printing day from today to a week ahead;
+ *  - every date in that week that already has a publication sold on it, even
+ *    off the schedule — a special edition with ads waiting is an issue;
+ *  - the first printing day after the last CLOSED issue, however far off.
+ *
+ * Days no newspaper prints (yom tov) are never opened. Dates that already
+ * have an issue are dropped. Nothing before today — an issue that should have
+ * been opened in the past is a decision for a person, not a gap to backfill.
+ */
+export function autoOpenDates(input: {
+  today: string;
+  publicationDays: readonly number[];
+  lastClosedDate: string | null;
+  soldDates: readonly string[];
+  existingDates: readonly string[];
+}): string[] {
+  const start = fromIso(input.today);
+  if (!start) return [];
+  const until = iso(addDays(start, AUTO_OPEN_DAYS));
+  const wanted = new Set<string>();
+
+  if (hasSchedule(input.publicationDays)) {
+    for (let offset = 0; offset <= AUTO_OPEN_DAYS; offset++) {
+      const day = iso(addDays(start, offset));
+      if (isPublicationDay(input.publicationDays, day) && !isNoPaperDay(day)) wanted.add(day);
+    }
+  }
+  for (const day of input.soldDates) {
+    if (day >= input.today && day <= until && !isNoPaperDay(day)) wanted.add(day);
+  }
+  if (input.lastClosedDate) {
+    const next = nextIssueDate(input.lastClosedDate, input.publicationDays);
+    if (next && next.date >= input.today) wanted.add(next.date);
+  }
+
+  const existing = new Set(input.existingDates);
+  return [...wanted].filter((d) => !existing.has(d)).sort();
+}

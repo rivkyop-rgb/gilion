@@ -11,6 +11,7 @@ import { clearReminderFor } from "@/lib/data/reminders";
 import { LINKABLE_STATUSES } from "@/lib/domain/ad-link";
 import { afterAdLinked, type PublicationStatus } from "@/lib/domain/publication-status";
 import * as data from "@/lib/data/portal";
+import { setAdDimensions } from "@/lib/data/advertisements";
 import { todayIso } from "@/lib/domain/publication-days";
 import { orderPricing } from "@/lib/domain/ad-package";
 import {
@@ -127,6 +128,7 @@ async function intake(
   try {
     const key = adKey(scope.businessId, ad.id, "original", inspected.file.fileType);
     await storeAdFile(key, inspected.file);
+    await setAdDimensions(scope.businessId, ad.id, inspected.file);
 
     const preview = await renderPreview(inspected.file);
     let previewKey: string | null = null;

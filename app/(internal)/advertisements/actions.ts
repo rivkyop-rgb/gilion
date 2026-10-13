@@ -76,6 +76,16 @@ export async function uploadAdvertisementAction(
   const file = readFile(formData);
   if (!file) return { message: "לא נבחר קובץ" };
 
+  // Only part of the order (12/10/2026): line ids before approval, publication
+  // ids after. Absent means the whole order, exactly as before.
+  const pickedIds =
+    formData.get("scope") === "some"
+      ? formData.getAll("lineIds").filter((v): v is string => typeof v === "string" && v !== "")
+      : null;
+  if (pickedIds && pickedIds.length === 0) {
+    return { message: "לא סומן אף פרסום — סמני לאילו פרסומים לשייך את הקובץ" };
+  }
+
   // --- uploading INTO a publication ---------------------------------------
   //
   // The publication decides both things the library form has to ask about, so
@@ -172,6 +182,7 @@ export async function uploadAdvertisementAction(
     // Step 5 — the original and the live file are the SAME object on a first
     // upload. They only diverge once someone replaces the file (AC-3).
     await storeAdFile(key, inspected.file);
+    await data.setAdDimensions(ctx.businessId, ad.id, inspected.file);
 
     // Step 6 — "where possible": a preview that cannot be rendered is not a
     // failed upload, it is a card that falls back to a file icon.
@@ -214,10 +225,18 @@ export async function uploadAdvertisementAction(
     // there is nothing to wait for — it goes to the publications that are
     // still without artwork, and leaves the covered ones exactly as they are.
     if (orderTarget) {
-      await data.setOrderAdvertisement(ctx.businessId, orderTarget.id, ad.id);
+      // Part of the order: the file belongs to those lines, not to the order —
+      // the order's own file stays what the other lines will get.
+      if (!pickedIds) {
+        await data.setOrderAdvertisement(ctx.businessId, orderTarget.id, ad.id);
+      } else if (orderTarget.beforeApproval) {
+        await data.setItemsAdvertisement(ctx.businessId, orderTarget.id, pickedIds, ad.id);
+      }
 
       if (!orderTarget.beforeApproval) {
-        const waiting = await data.publicationsAwaitingArtwork(ctx.businessId, orderTarget.id);
+        const waiting = (
+          await data.publicationsAwaitingArtwork(ctx.businessId, orderTarget.id)
+        ).filter((p) => !pickedIds || pickedIds.includes(p.id));
         for (const publication of waiting) {
           const next = afterAdLinked(publication.status as PublicationStatus, {
             validationPassed: true,
@@ -398,6 +417,7 @@ export async function replaceAdFileAction(
 
   const newKey = adRevisionKey(ctx.businessId, adId, inspected.file.fileType);
   await storeAdFile(newKey, inspected.file);
+  await data.setAdDimensions(ctx.businessId, adId, inspected.file);
 
   const keys = {
     fileUrl: ad.file_url,

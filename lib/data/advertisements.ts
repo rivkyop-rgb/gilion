@@ -184,6 +184,18 @@ export async function finishAdvertisement(
   });
 }
 
+/** The artwork's proportions (12/10/2026) — written after every good upload. */
+export async function setAdDimensions(
+  businessId: string,
+  id: string,
+  file: { width: number | null; height: number | null },
+) {
+  return tenantDb(businessId).advertisement.update({
+    where: { id },
+    data: { content_width: file.width, content_height: file.height },
+  });
+}
+
 export async function deleteAdvertisement(businessId: string, id: string) {
   return tenantDb(businessId).advertisement.delete({ where: { id } });
 }
@@ -423,6 +435,31 @@ export async function setOrderAdvertisement(
     where: { id: orderId },
     data: { advertisement_id: adId },
   });
+}
+
+/**
+ * Gives a file to SOME lines of an order before approval (12/10/2026) — the
+ * per-line file approval prefers over the order's (backlog 26). Ids that are
+ * not lines of this order are ignored, not trusted.
+ */
+export async function setItemsAdvertisement(
+  businessId: string,
+  orderId: string,
+  itemIds: string[],
+  adId: string,
+) {
+  const order = await tenantDb(businessId).adOrder.findUnique({
+    where: { id: orderId },
+    select: { items: { select: { id: true } } },
+  });
+  const own = new Set(order?.items.map((i) => i.id) ?? []);
+  const ids = itemIds.filter((id) => own.has(id));
+  if (ids.length === 0) return 0;
+  const result = await basePrisma.adOrderItem.updateMany({
+    where: { id: { in: ids }, order_id: orderId },
+    data: { advertisement_id: adId },
+  });
+  return result.count;
 }
 
 /** The publications of one order that are still waiting for artwork. */

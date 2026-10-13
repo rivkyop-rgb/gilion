@@ -242,7 +242,7 @@ export async function orderRef(page: Page): Promise<string> {
  * click, so a short wait is enough.
  */
 export async function passOrderWarnings(page: Page) {
-  for (const id of ["order-warn-no-ad", "order-warn-soon"]) {
+  for (const id of ["order-warn-no-ad", "order-warn-soon", "order-warn-capacity"]) {
     const confirm = page.getByTestId(`${id}-confirm`);
     try {
       await confirm.waitFor({ state: "visible", timeout: 1500 });

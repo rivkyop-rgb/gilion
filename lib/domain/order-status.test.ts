@@ -4,6 +4,7 @@ import {
   canDeleteOrder,
   canTransition,
   completionBlockedMessage,
+  completionFollows,
   InvalidTransitionError,
   itemsEditable,
   ORDER_EVENTS,
@@ -25,7 +26,7 @@ const EXPECTED: Record<OrderStatus, Partial<Record<OrderEvent, OrderStatus>>> = 
   approved: { COMPLETE: "completed", CANCEL: "canceled" },
   rejected: { CANCEL: "canceled" },
   canceled: {},
-  completed: {},
+  completed: { REOPEN: "approved" },
 };
 
 describe("every state × event pair is decided, not left to chance", () => {
@@ -64,8 +65,8 @@ describe("approved is one-way (rule 8)", () => {
 });
 
 describe("terminal states", () => {
-  it("completed accepts nothing at all, not even cancel", () => {
-    expect(availableEvents("completed")).toEqual([]);
+  it("completed accepts nothing but the derived walk-back — not even cancel", () => {
+    expect(availableEvents("completed")).toEqual(["REOPEN"]);
   });
 
   it("canceled accepts nothing", () => {
@@ -136,5 +137,24 @@ describe("orderDeletionBlocked", () => {
     expect(canDeleteOrder("pending_approval", 0)).toBe(false);
     expect(canDeleteOrder("approved", 0)).toBe(false);
     expect(canDeleteOrder("completed", 0)).toBe(false);
+  });
+});
+
+describe("completion follows the publications", () => {
+  it("completes an approved order once every publication ran or was cancelled", () => {
+    expect(completionFollows("approved", ["published", "canceled"])).toBe("completed");
+  });
+  it("leaves it approved while anything is still in flight", () => {
+    expect(completionFollows("approved", ["published", "placed"])).toBeNull();
+  });
+  it("never completes an order with no publications", () => {
+    expect(completionFollows("approved", [])).toBeNull();
+  });
+  it("walks a completed order back when an issue is reopened", () => {
+    expect(completionFollows("completed", ["placed"])).toBe("approved");
+  });
+  it("does not touch drafts or cancelled orders", () => {
+    expect(completionFollows("draft", ["published"])).toBeNull();
+    expect(completionFollows("canceled", ["published"])).toBeNull();
   });
 });

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { footprintMm, type DerivedGrid } from "@/lib/domain/grid";
+import { adFitMessage, adFitProblem } from "@/lib/domain/ad-fit";
 import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import {
   getIssue,
@@ -132,6 +134,11 @@ export default async function BoardPage({
         fileUrl: placement.advertisement.file_url,
       },
     })),
+    soldPageTypes: Object.fromEntries(
+      publications.flatMap((pub) =>
+        pub.order_item ? [[pub.id, pub.order_item.page_type] as const] : [],
+      ),
+    ),
     // Publications ALREADY placed are sent too, and hidden behind a toggle.
     // Without them FR-16's duplicate override would be unreachable: a panel
     // that only ever lists what is unplaced makes placing something twice
@@ -149,6 +156,8 @@ export default async function BoardPage({
       blockedReason: blockedReason(pub),
       // The one blocked reason with a fix the designer can apply right here.
       needsArtwork: pub.advertisement === null,
+      soldTypeName: pub.order_item?.page_type.name ?? null,
+      fitWarning: fitWarningOf(pub, grid),
     })),
   };
 
@@ -174,6 +183,22 @@ function shapeOf(shape: {
     rows: shape.rows,
     positions: shape.position_mode === "region" ? readAllowedCells(shape.allowed_cells) : null,
   };
+}
+
+/** The artwork's shape against the space's (12/10/2026) — orange, never blocking. */
+function fitWarningOf(
+  pub: {
+    ad_shape: { name: string; cols: number; rows: number };
+    advertisement: { content_width: number | null; content_height: number | null } | null;
+  },
+  grid: DerivedGrid,
+): string | null {
+  if (!pub.advertisement) return null;
+  const fit = adFitProblem(
+    { width: pub.advertisement.content_width, height: pub.advertisement.content_height },
+    footprintMm(pub.ad_shape, grid),
+  );
+  return fit ? adFitMessage(fit, pub.ad_shape.name) : null;
 }
 
 /** Why this publication cannot be dragged at all, or null when it can. */

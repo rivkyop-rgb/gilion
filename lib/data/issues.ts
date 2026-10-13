@@ -18,7 +18,9 @@ import { readAllowedCells } from "./ad-shapes";
 import type { DerivedGrid } from "@/lib/domain/grid";
 import { ON_PAGE_STATES, type ReservedArea, type ShapeSpec } from "@/lib/domain/placement";
 import { isBackward, transition, type IssueStatus } from "@/lib/domain/issue-status";
-import { PAGES_PER_SHEET, pageFill } from "@/lib/domain/issue-layout";
+import { PAGES_PER_SHEET, defaultPageTypeIds, pageFill } from "@/lib/domain/issue-layout";
+import { AUTO_OPEN_DAYS, autoOpenDates } from "@/lib/domain/issue-schedule";
+import { addDays, isoDay, jerusalemDay } from "@/lib/domain/calendar";
 import { OPEN_ISSUE_STATES } from "@/lib/domain/dashboard";
 import { withAudit } from "./audit";
 
@@ -255,8 +257,13 @@ export async function publicationsForIssue(
           preview_url: true,
           status: true,
           validation_status: true,
+          content_width: true,
+          content_height: true,
         },
       },
+      // The page type the customer bought — the board warns when an ad goes
+      // on a page of another type.
+      order_item: { select: { page_type: { select: { id: true, name: true } } } },
     },
   });
 }
@@ -936,4 +943,85 @@ export async function issuePageMap(businessId: string, issueId: string) {
     );
     return { number: page.page_number, percent: fill.percent, full: fill.full };
   });
+}
+
+/**
+ * Opens every issue that should exist by now (the user, 12/10/2026): the next
+ * one as soon as the previous closes, or a week before its date — whichever is
+ * first. The rule is `autoOpenDates`; this only gathers its inputs.
+ *
+ * There is no cron (see reminders/actions.ts), so this runs when someone opens
+ * the issues list, the dashboard or a board, and right after an issue closes.
+ * Cheap when there is nothing to do: one query per kind, not per newspaper.
+ *
+ * Composition is copied from the newspaper's latest issue, exactly as "open
+ * the next issue" does by hand; a newspaper with no issue yet starts from the
+ * default cover / inner / back.
+ */
+export async function ensureUpcomingIssues(businessId: string, now = new Date()) {
+  const db = tenantDb(businessId);
+  const today = jerusalemDay(now);
+  const todayIso = isoDay(today);
+  const weekEnd = addDays(today, AUTO_OPEN_DAYS);
+
+  const [papers, closed, existing, sold] = await Promise.all([
+    db.newspaper.findMany({
+      select: {
+        id: true,
+        publication_days: true,
+        page_types: { orderBy: { created_at: "asc" }, select: { id: true, name: true } },
+      },
+    }),
+    db.issue.groupBy({
+      by: ["newspaper_id"],
+      where: { status: "closed" },
+      _max: { issue_date: true },
+    }),
+    db.issue.findMany({
+      where: { issue_date: { gte: today } },
+      select: { newspaper_id: true, issue_date: true },
+    }),
+    db.publication.groupBy({
+      by: ["newspaper_id", "publication_date"],
+      where: { publication_date: { gte: today, lte: weekEnd }, status: { not: "canceled" } },
+    }),
+  ]);
+
+  const opened: Array<{ newspaperId: string; date: string }> = [];
+  for (const paper of papers) {
+    if (paper.page_types.length === 0) continue;
+    const lastClosed = closed.find((c) => c.newspaper_id === paper.id)?._max.issue_date;
+    const dates = autoOpenDates({
+      today: todayIso,
+      publicationDays: paper.publication_days,
+      lastClosedDate: lastClosed ? isoDay(lastClosed) : null,
+      soldDates: sold
+        .filter((s) => s.newspaper_id === paper.id)
+        .map((s) => isoDay(s.publication_date)),
+      existingDates: existing
+        .filter((e) => e.newspaper_id === paper.id)
+        .map((e) => isoDay(e.issue_date)),
+    });
+    if (dates.length === 0) continue;
+
+    const latest = await db.issue.findFirst({
+      where: { newspaper_id: paper.id },
+      orderBy: { issue_date: "desc" },
+      select: { pages: { orderBy: { page_number: "asc" }, select: { page_type_id: true } } },
+    });
+    const pageTypeIds = latest?.pages.length
+      ? latest.pages.map((p) => p.page_type_id)
+      : defaultPageTypeIds(paper.page_types);
+
+    for (const date of dates) {
+      try {
+        await createIssue(businessId, { newspaperId: paper.id, date, pageTypeIds });
+        opened.push({ newspaperId: paper.id, date });
+      } catch (error) {
+        // Two tabs opening the same list at once: the other one won. Fine.
+        if (!(error instanceof DuplicateIssueError)) throw error;
+      }
+    }
+  }
+  return opened;
 }

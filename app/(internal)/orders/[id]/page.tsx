@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { counted } from "@/lib/domain/hebrew-count";
 import Link from "next/link";
+import { orderCapacityWarnings } from "@/lib/data/page-load";
+import { gridsOf } from "@/lib/data/newspapers";
+import { footprintMm } from "@/lib/domain/grid";
+import { adFitMessage, adFitProblem } from "@/lib/domain/ad-fit";
 import { notFound } from "next/navigation";
 import { Info, Send } from "lucide-react";
 
@@ -26,6 +30,7 @@ import { OrderArtwork } from "./order-artwork";
 import { AdThumb } from "@/components/ads/ad-preview";
 import { portalSubmission } from "@/lib/data/portal-accounts";
 import { OrderActions } from "./order-actions";
+import { PreviewLineActions } from "./preview-line-actions";
 import { CreditPrompt } from "./credit-prompt";
 
 export const metadata: Metadata = { title: "הזמנה · Gilion" };
@@ -72,6 +77,34 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     .map((i) => i.publication_date)
     .filter((d) => d >= today && d <= addDays(today, 7))
     .sort((a, b) => a.getTime() - b.getTime())[0];
+  // Room left on a cover or a back (12/10/2026): asked only while the order
+  // can still be approved, because only approving it can oversell the page.
+  const capacity =
+    (status === "draft" || status === "pending_approval") && canWriteArea(ctx, "orders")
+      ? (await orderCapacityWarnings(ctx.businessId, order)).map((w) => ({
+          ...w,
+          date: formatDate(new Date(w.date)),
+        }))
+      : [];
+  // Does each line's artwork have the shape of the space sold (12/10/2026)?
+  // The line's own file, else the order's — the one approval would attach.
+  const grids = await gridsOf(
+    ctx.businessId,
+    order.items.map((i) => i.newspaper_id),
+  );
+  const fitNote = (
+    newspaperId: string,
+    shape: { name: string; cols: number; rows: number },
+    ad: { content_width: number | null; content_height: number | null } | null,
+  ) => {
+    const grid = grids.get(newspaperId);
+    if (!ad || !grid) return null;
+    const fit = adFitProblem(
+      { width: ad.content_width, height: ad.content_height },
+      footprintMm(shape, grid),
+    );
+    return fit ? adFitMessage(fit, shape.name) : null;
+  };
   const directApproval =
     order.source === "internal" && !(await internalOrdersNeedApproval(ctx.businessId));
   // The artwork column belongs to whoever may touch files, which is not the
@@ -192,6 +225,20 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               approved={approved}
               lineCount={order.items.length}
               missingCount={order.publications.filter((p) => !p.advertisement_id).length}
+              lines={
+                approved
+                  ? order.publications
+                      .filter((p) => !p.advertisement_id)
+                      .map((p) => ({
+                        id: p.id,
+                        label: `${formatDate(p.publication_date)} · ${p.newspaper.name} · ${p.ad_shape.name}`,
+                      }))
+                  : order.items.map((i) => ({
+                      id: i.id,
+                      label: `${formatDate(i.publication_date)} · ${i.newspaper.name} · ${i.page_type.name} · ${i.ad_shape.name}`,
+                      note: i.advertisement ? `כבר יש קובץ: ${i.advertisement.name}` : undefined,
+                    }))
+              }
               limit={
                 strictest
                   ? {
@@ -215,10 +262,10 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             </h2>
             <p className="mb-3 text-sm text-on-surface-variant" data-testid="preview-caption">
               {approved
-                ? `${counted(order.publications.length, "פרסום מחייב אחד נוצר", `${order.publications.length} פרסומים מחייבים נוצרו`)} מההזמנה הזאת.`
+                ? `${counted(order.publications.length, "פרסום מחייב אחד נוצר", "פרסומים מחייבים נוצרו")} מההזמנה הזאת.`
                 : order.items.length === 0
                   ? "אחרי הוספת שורות יופיע כאן בדיוק מה ייווצר."
-                  : `${counted(order.items.length, "פרסום אחד ייווצר", `${order.items.length} פרסומים ייווצרו`)} לאחר אישור ההזמנה.`}
+                  : `${counted(order.items.length, "פרסום אחד ייווצר", "פרסומים ייווצרו")} לאחר אישור ההזמנה.`}
             </p>
 
             {(approved ? order.publications.length : order.items.length) > 0 ? (
@@ -229,6 +276,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                       <th className="p-3 text-start font-semibold">לקוח</th>
                       <th className="p-3 text-start font-semibold">עיתון</th>
                       <th className="p-3 text-start font-semibold">תאריך</th>
+                      <th className="p-3 text-start font-semibold">סוג עמוד</th>
                       <th className="p-3 text-start font-semibold">צורה</th>
                       <th className="p-3 text-start font-semibold">מחיר</th>
                       {approved ? <th className="p-3 text-start font-semibold">סטטוס</th> : null}
@@ -236,6 +284,11 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                       (!approved && order.items.some((i) => i.advertisement)) ? (
                         <th className="p-3 text-start font-semibold" data-testid="col-order-ad">
                           מודעה
+                        </th>
+                      ) : null}
+                      {!approved && mayEdit ? (
+                        <th className="p-3 text-start font-semibold">
+                          <span className="sr-only">פעולות</span>
                         </th>
                       ) : null}
                     </tr>
@@ -256,7 +309,13 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                             <td className="p-3">
                               <Ltr>{formatDate(p.publication_date)}</Ltr>
                             </td>
-                            <td className="p-3">{p.ad_shape.name}</td>
+                            <td className="p-3">{p.order_item?.page_type.name ?? "—"}</td>
+                            <td className="p-3">
+                              {p.ad_shape.name}
+                              <FitNote
+                                text={fitNote(p.newspaper.id, p.ad_shape, p.advertisement)}
+                              />
+                            </td>
                             <td className="p-3">
                               <Ltr>{formatMoney(Number(p.price))}</Ltr>
                             </td>
@@ -308,7 +367,17 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                             <td className="p-3">
                               <Ltr>{formatDate(i.publication_date)}</Ltr>
                             </td>
-                            <td className="p-3">{i.ad_shape.name}</td>
+                            <td className="p-3">{i.page_type.name}</td>
+                            <td className="p-3">
+                              {i.ad_shape.name}
+                              <FitNote
+                                text={fitNote(
+                                  i.newspaper_id,
+                                  i.ad_shape,
+                                  i.advertisement ?? order.advertisement,
+                                )}
+                              />
+                            </td>
                             <td className="p-3">
                               <Ltr>{formatMoney(Number(i.price))}</Ltr>
                             </td>
@@ -331,6 +400,17 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                                 ) : (
                                   "—"
                                 )}
+                              </td>
+                            ) : null}
+                            {mayEdit ? (
+                              <td className="p-3">
+                                <PreviewLineActions
+                                  orderId={order.id}
+                                  itemId={i.id}
+                                  label={`${formatDate(i.publication_date)} · ${i.newspaper.name} · ${i.page_type.name} · ${i.ad_shape.name}`}
+                                  dateIso={i.publication_date.toISOString().slice(0, 10)}
+                                  price={String(Number(i.price))}
+                                />
                               </td>
                             ) : null}
                           </tr>
@@ -408,11 +488,11 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                   directApproval={directApproval}
                   missingAd={missingAd}
                   soonDate={soon ? formatDate(soon) : null}
+                  capacity={capacity}
                   orderId={order.id}
                   orderRef={orderNumber(order.number)}
                   status={status}
                   canApprove={canWriteArea(ctx, "orders")}
-                  canComplete={ctx.role === "admin" || ctx.role === "accounting"}
                   publicationCount={order.publications.length}
                   lineCount={order.items.length}
                   total={formatMoney(money.total)}
@@ -430,5 +510,18 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         </aside>
       </div>
     </>
+  );
+}
+
+/** Orange: the file may print badly, and nothing is blocked (12/10/2026). */
+function FitNote({ text }: { text: string | null }) {
+  if (!text) return null;
+  return (
+    <p
+      data-testid="ad-fit-warning"
+      className="mt-1 max-w-56 rounded bg-status-warning-bg px-2 py-1 text-xs text-status-warning-fg"
+    >
+      {text}
+    </p>
   );
 }

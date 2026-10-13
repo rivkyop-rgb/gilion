@@ -80,6 +80,14 @@ export function gridOf(paper: NewspaperRow) {
   });
 }
 
+/** The current grid of each newspaper named — for measuring sold spaces. */
+export async function gridsOf(businessId: string, ids: string[]) {
+  const papers = await tenantDb(businessId).newspaper.findMany({
+    where: { id: { in: [...new Set(ids)] } },
+  });
+  return new Map(papers.map((p) => [p.id, gridOf(p)]));
+}
+
 /** The newspaper plus its resolved grid — what every shape screen needs. */
 export async function newspaperGrid(businessId: string, newspaperId: string) {
   const paper = await tenantDb(businessId).newspaper.findUnique({ where: { id: newspaperId } });

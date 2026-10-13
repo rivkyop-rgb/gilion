@@ -18,7 +18,7 @@ export const ORDER_STATUSES = [
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
-export const ORDER_EVENTS = ["SUBMIT", "APPROVE", "REJECT", "COMPLETE", "CANCEL"] as const;
+export const ORDER_EVENTS = ["SUBMIT", "APPROVE", "REJECT", "COMPLETE", "REOPEN", "CANCEL"] as const;
 export type OrderEvent = (typeof ORDER_EVENTS)[number];
 
 export class InvalidTransitionError extends Error {
@@ -42,8 +42,11 @@ const TRANSITIONS: Record<OrderStatus, Partial<Record<OrderEvent, OrderStatus>>>
   approved: { COMPLETE: "completed", CANCEL: "canceled" },
   rejected: { CANCEL: "canceled" },
   canceled: {},
-  // Terminal: a completed order is history, and even cancelling it is refused.
-  completed: {},
+  // A completed order is history, and even cancelling it is refused. The one
+  // way back is REOPEN, and nobody presses it: completion is DERIVED (the user,
+  // 12/10/2026 — the "mark as completed" button went), so an issue reopened
+  // after printing walks its orders back with it.
+  completed: { REOPEN: "approved" },
 };
 
 export function canTransition(from: OrderStatus, event: OrderEvent): boolean {
@@ -78,6 +81,27 @@ export function completionBlockedMessage(publicationStatuses: readonly string[])
   );
   if (outstanding.length === 0) return null;
   return `לא ניתן לסמן את ההזמנה כהושלמה — ${outstanding.length} מהפרסומים שלה עדיין פעילים.`;
+}
+
+/**
+ * What an order's status should be, given its publications — or null when it
+ * should stay as it is.
+ *
+ * Completion is not a button: an approved order completes itself the moment
+ * its last publication has run or been cancelled, and comes back to approved
+ * if one of them stops having run (an issue reopened). `length > 0` first,
+ * because "every publication has run" is vacuously true of none — the same
+ * trap that once turned an empty order into a debt.
+ */
+export function completionFollows(
+  status: OrderStatus,
+  publicationStatuses: readonly string[],
+): OrderStatus | null {
+  const settled =
+    publicationStatuses.length > 0 && completionBlockedMessage(publicationStatuses) === null;
+  if (status === "approved" && settled) return transition(status, "COMPLETE");
+  if (status === "completed" && !settled) return transition(status, "REOPEN");
+  return null;
 }
 
 /**

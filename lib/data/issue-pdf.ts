@@ -28,6 +28,7 @@ import { basePrisma, tenantDb } from "./db";
 import { ON_PAGE_STATES } from "@/lib/domain/placement";
 import { withAudit } from "./audit";
 import { recalcOrdersForPublications } from "./payments";
+import { syncOrderCompletion } from "./orders";
 import { loadSettings } from "./business-settings";
 import { textFor } from "@/lib/domain/business-settings";
 import { publicationsForIssue, gridOfIssue } from "./issues";
@@ -407,6 +408,8 @@ export async function closeIssue(ctx: Actor, issueId: string): Promise<CloseResu
       // that only notices somebody owes money the next time a human happens to
       // open a payment form.
       await recalcOrdersForPublications(tx, ctx.businessId, placedIds);
+      // And an order whose last publication just ran is done.
+      await syncOrderCompletion(tx, ctx.businessId, placedIds);
 
       // One row per FILE, because the log's job is to say what was produced —
       // and two documents went out, not one.
@@ -500,6 +503,11 @@ export async function reopenIssue(ctx: Actor, issueId: string, to: IssueStatus =
       // publications no longer claim to have run, and the status would be the
       // one thing on the screen still saying they did.
       await recalcOrdersForPublications(
+        tx,
+        ctx.businessId,
+        rows.map((r) => r.id),
+      );
+      await syncOrderCompletion(
         tx,
         ctx.businessId,
         rows.map((r) => r.id),

@@ -182,9 +182,7 @@ const placeSchema = z.object({
   row: z.number().int().min(0),
 });
 
-export async function placeAdAction(
-  input: unknown,
-): Promise<FormState & { placementId?: string }> {
+export async function placeAdAction(input: unknown): Promise<FormState & { placementId?: string }> {
   const ctx = await requireIssueWrite();
   const parsed = placeSchema.safeParse(input);
   if (!parsed.success) return { message: "בקשת שיבוץ לא תקינה" };
@@ -515,11 +513,11 @@ export async function autoPlaceIssueAction(
     revalidatePath("/issues");
     revalidatePath("/publications");
 
-    // What could not go down even after growing — a shape no auto-placeable
-    // page type allows, usually. Said, not swallowed.
+    // What could not go down even after growing — usually an ad sold for the
+    // cover or the back when that page is already full. Said, not swallowed.
     const leftNote =
       outcome.left > 0
-        ? ` ${counted(outcome.left, "פרסום אחד לא נכנס", "פרסומים לא נכנסו")} — אין להם מקום בסוגי העמודים שמותרים לשיבוץ אוטומטי.`
+        ? ` ${counted(outcome.left, "פרסום אחד לא נכנס", "פרסומים לא נכנסו")} — אין להם מקום בסוג העמוד שנמכר להם (למשל שער או גב שכבר מלאים).`
         : "";
 
     if (outcome.placed === 0) {
@@ -595,6 +593,8 @@ export async function closeIssueAction(
   const ctx = await requirePdfWrite();
   try {
     const result = await pdf.closeIssue(ctx, issueId);
+    // The next issue opens the moment this one closes (12/10/2026).
+    const opened = await issues.ensureUpcomingIssues(ctx.businessId);
     revalidatePath(`/issues/${issueId}/validate`);
     revalidatePath(`/issues/${issueId}/board`);
     revalidatePath("/issues");
@@ -605,7 +605,11 @@ export async function closeIssueAction(
       // The number the SERVER wrote, not one the form counted: a confirmation
       // that quotes client state is a confirmation that can be true before the
       // save has happened (CLAUDE.md).
-      message: `הגיליון נסגר · ${publicationsPhrase(result.publishedCount)} ${agrees(result.publishedCount, "סומן כפורסם", "סומנו כפורסמו")}`,
+      message:
+        `הגיליון נסגר · ${publicationsPhrase(result.publishedCount)} ${agrees(result.publishedCount, "סומן כפורסם", "סומנו כפורסמו")}` +
+        (opened.length > 0
+          ? ` · ${opened.length === 1 ? "הגיליון הבא נפתח" : `נפתחו ${opened.length} גיליונות הבאים`} לשיבוץ`
+          : ""),
     };
   } catch (error) {
     return asPdfFormState(error);

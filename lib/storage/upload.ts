@@ -32,6 +32,9 @@ export type StoredFile = {
   fileType: AdFileType;
   size: number;
   bytes: Buffer;
+  /** The first page / the image, as printed — only the ratio is used. */
+  width: number | null;
+  height: number | null;
 };
 
 export type PipelineFailure = {
@@ -68,7 +71,7 @@ export async function inspectAdFile(
     return { ok: false, code: checked.rejection.code, message: checked.rejection.message };
   }
 
-  const openable = await canOpen(bytes, checked.fileType);
+  const openable = await measure(bytes, checked.fileType);
   if (!openable) {
     return {
       ok: false,
@@ -78,25 +81,42 @@ export async function inspectAdFile(
     };
   }
 
-  return { ok: true, file: { fileType: checked.fileType, size: bytes.length, bytes } };
+  return {
+    ok: true,
+    file: { fileType: checked.fileType, size: bytes.length, bytes, ...openable },
+  };
 }
 
 /**
- * Step 4 — the difference between "starts with %PDF" and "is a PDF".
+ * Step 4 — the difference between "starts with %PDF" and "is a PDF", and the
+ * file's proportions while it is open anyway (12/10/2026).
  *
  * A truncated file passes the magic-byte check and fails here, which is
  * exactly the case US-005 AC-2 calls a corrupt file.
  */
-async function canOpen(bytes: Buffer, type: AdFileType): Promise<boolean> {
+async function measure(
+  bytes: Buffer,
+  type: AdFileType,
+): Promise<{ width: number | null; height: number | null } | null> {
   try {
     if (type === "pdf") {
       const doc = await PDFDocument.load(bytes, { updateMetadata: false });
-      return doc.getPageCount() > 0;
+      if (doc.getPageCount() === 0) return null;
+      // The page as it is SHOWN: a rotated page reports its unrotated size.
+      const page = doc.getPage(0);
+      const { width, height } = page.getSize();
+      const turned = Math.abs(page.getRotation().angle) % 180 === 90;
+      return turned ? { width: height, height: width } : { width, height };
     }
     const meta = await sharp(bytes).metadata();
-    return Boolean(meta.width && meta.height);
+    if (!meta.width || !meta.height) return null;
+    // EXIF orientations 5-8 are a quarter turn: a phone photo stored sideways.
+    const turned = (meta.orientation ?? 1) >= 5;
+    return turned
+      ? { width: meta.height, height: meta.width }
+      : { width: meta.width, height: meta.height };
   } catch {
-    return false;
+    return null;
   }
 }
 

@@ -599,7 +599,9 @@ export async function autoPlaceIssue(
     }
 
     left = plan.unplaced.length;
-    if (plan.unplaced.length === 0) break;
+    // What remains was sold for a page type that growing does not add (the
+    // cover, the back) — more inner sheets would not make room for it.
+    if (plan.growable === 0) break;
     // Nothing landed AND nothing fits: growing again would not help.
     if (plan.placements.length === 0 && sheetsAdded > 0 && plan.sheets === 0) break;
 
@@ -699,6 +701,8 @@ async function planAutoPlacement(ctx: ActorContext, issueId: string, seed: numbe
           },
         },
         advertisement: { select: { customer_id: true, status: true, validation_status: true } },
+        // The page type the customer bought — the packer is bound by it.
+        order_item: { select: { page_type_id: true } },
       },
     })
   ).filter(
@@ -719,25 +723,43 @@ async function planAutoPlacement(ctx: ActorContext, issueId: string, seed: numbe
       positions:
         p.ad_shape.position_mode === "region" ? readAllowedCells(p.ad_shape.allowed_cells) : null,
     },
+    pageTypeId: p.order_item?.page_type_id ?? null,
   }));
 
-  // Only page types the newspaper opened to auto-placement (27/09/2026).
-  const pages: AutoPlacePage[] = issue.pages
-    .filter((page) => page.page_type.auto_place)
-    .map((page) => ({
-      pageId: page.id,
-      pageNumber: page.page_number,
-      allowedShapes: shapeSpecsOf(page),
-      // A reserved area is not a placement and never will be, but to a packer it
-      // is exactly as unavailable as one (backlog item 14).
-      occupied: [
-        ...(occupiedByPage.get(page.id) ?? []),
-        ...reservedOf(page).map((area) => area.rect),
-      ],
-    }));
+  // Every page, each with its type: an ad goes on the type it was sold for
+  // (even the cover, which is closed to anything else), and only an ad with
+  // no recorded type falls back to the pages the newspaper opened (27/09/2026).
+  const pages: AutoPlacePage[] = issue.pages.map((page) => ({
+    pageId: page.id,
+    pageNumber: page.page_number,
+    pageTypeId: page.page_type_id,
+    openToAny: page.page_type.auto_place,
+    allowedShapes: shapeSpecsOf(page),
+    // A reserved area is not a placement and never will be, but to a packer it
+    // is exactly as unavailable as one (backlog item 14).
+    occupied: [
+      ...(occupiedByPage.get(page.id) ?? []),
+      ...reservedOf(page).map((area) => area.rect),
+    ],
+  }));
 
   const result = autoPlace(items, pages, grid, seed);
-  return { ...result, sheets: sheetsNeededFor(result.unplaced, grid) };
+  // Growing adds inner sheets, so only leftovers sold for THAT type (or for no
+  // type) can be helped by it. A cover ad with no room on the cover stays
+  // left over — another sheet of inner pages would not make room for it.
+  const growType = await growPageTypeId(ctx.businessId, issue.newspaper_id);
+  const growable = result.unplaced.filter((i) => !i.pageTypeId || i.pageTypeId === growType);
+  return { ...result, sheets: sheetsNeededFor(growable, grid), growable: growable.length };
+}
+
+/** The type auto-placement adds when the issue runs out of room. */
+async function growPageTypeId(businessId: string, newspaperId: string) {
+  const types = await tenantDb(businessId).pageType.findMany({
+    where: { newspaper_id: newspaperId },
+    orderBy: { created_at: "asc" },
+    select: { id: true, name: true, auto_grow: true },
+  });
+  return types.find((t) => t.auto_grow)?.id ?? innerPageTypeId(types) ?? null;
 }
 
 /**
@@ -757,14 +779,8 @@ async function addSheetTo(businessId: string, issueId: string, newspaperId: stri
   // Always an INNER page, by the same rule the board's "+" uses
   // (innerPageTypeId). It used to copy page 2's type, which after a reorder
   // could be the back or the cover — and the issue grew with pages of that.
-  const types = await tenantDb(businessId).pageType.findMany({
-    where: { newspaper_id: newspaperId },
-    orderBy: { created_at: "asc" },
-    select: { id: true, name: true, auto_grow: true },
-  });
   // The type the newspaper chose to grow with, else the inner one by name.
-  const pageTypeId =
-    types.find((t) => t.auto_grow)?.id ?? innerPageTypeId(types) ?? pages[0]?.page_type_id;
+  const pageTypeId = (await growPageTypeId(businessId, newspaperId)) ?? pages[0]?.page_type_id;
   if (!pageTypeId) throw new Error("לעיתון אין סוג עמוד להוסיף");
 
   const before = pages.length >= 2 ? pages[pages.length - 2]! : pages[0]!;
