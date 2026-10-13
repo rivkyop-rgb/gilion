@@ -25,7 +25,6 @@ import { InvalidPublicationTransitionError } from "@/lib/domain/publication-stat
 import { PAGES_PER_SHEET } from "@/lib/domain/issue-layout";
 import {
   describeDate,
-  upcomingIssueDates,
   type IssueDateSuggestion,
 } from "@/lib/domain/issue-schedule";
 
@@ -374,40 +373,6 @@ export async function boardPriceAction(
 
 /* ------------------------------------------------ the issue's own calendar */
 
-/**
- * The dates the next issue could come out on.
- *
- * Yom tov is filtered out here rather than shown and refused: nobody is at the
- * press, so it is not a warning to click past. Dates that already have an issue
- * are marked rather than hidden — "there is already one" is the answer somebody
- * is looking for.
- */
-export async function nextIssueOptionsAction(issueId: string): Promise<{
-  suggested: IssueDateSuggestion | null;
-  options: Array<IssueDateSuggestion & { taken: boolean }>;
-  newspaperName: string;
-}> {
-  const ctx = await requireIssueWrite();
-  const context = await issues.nextIssueContext(ctx.businessId, issueId);
-  if (!context) return { suggested: null, options: [], newspaperName: "" };
-
-  const upcoming = upcomingIssueDates(context.afterDate, context.publicationDays, 5);
-  const taken = new Set(
-    await issues.issueDatesTaken(
-      ctx.businessId,
-      context.newspaperId,
-      upcoming.map((u) => u.date),
-    ),
-  );
-
-  const options = upcoming.map((u) => ({ ...u, taken: taken.has(u.date) }));
-  return {
-    suggested: options.find((o) => !o.taken) ?? null,
-    options,
-    newspaperName: context.newspaperName,
-  };
-}
-
 /** Everything worth saying about one date, for the picker's live readout. */
 export async function describeIssueDateAction(
   issueId: string,
@@ -420,43 +385,6 @@ export async function describeIssueDateAction(
     ? (await issues.issueDatesTaken(ctx.businessId, context.newspaperId, [date])).length > 0
     : false;
   return { ...described, taken };
-}
-
-/**
- * Opens the next issue, composed like the one that was just closed.
- *
- * Copying the composition is the point: a weekly that runs 16 pages runs 16
- * next week too, and re-picking them from scratch every time is the busywork
- * this is meant to remove.
- */
-export async function openNextIssueAction(
-  issueId: string,
-  date: string,
-): Promise<FormState & { issueId?: string }> {
-  const ctx = await requireIssueWrite();
-  const parsed = z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .safeParse(date);
-  if (!parsed.success) return { message: "תאריך לא תקין" };
-
-  const context = await issues.nextIssueContext(ctx.businessId, issueId);
-  if (!context) return { message: "הגיליון לא נמצא" };
-
-  const previous = await issues.getIssue(ctx.businessId, issueId);
-  const pageTypeIds = (previous?.pages ?? []).map((p) => p.page_type.id);
-
-  try {
-    const created = await issues.createIssue(ctx.businessId, {
-      newspaperId: context.newspaperId,
-      date: parsed.data,
-      pageTypeIds,
-    });
-    revalidatePath("/issues");
-    return { ok: true, issueId: created.id };
-  } catch (error) {
-    return asFormState(error);
-  }
 }
 
 /**
@@ -589,12 +517,13 @@ export async function validateIssueAction(issueId: string) {
 
 export async function closeIssueAction(
   issueId: string,
-): Promise<FormState & { publishedCount?: number }> {
+): Promise<FormState & { publishedCount?: number; nextIssue?: { id: string; date: string } }> {
   const ctx = await requirePdfWrite();
   try {
     const result = await pdf.closeIssue(ctx, issueId);
     // The next issue opens the moment this one closes (12/10/2026).
     const opened = await issues.ensureUpcomingIssues(ctx.businessId);
+    const nextIssue = (await issues.nextIssueAfter(ctx.businessId, issueId)) ?? undefined;
     revalidatePath(`/issues/${issueId}/validate`);
     revalidatePath(`/issues/${issueId}/board`);
     revalidatePath("/issues");
@@ -602,6 +531,7 @@ export async function closeIssueAction(
     return {
       ok: true,
       publishedCount: result.publishedCount,
+      ...(nextIssue ? { nextIssue } : {}),
       // The number the SERVER wrote, not one the form counted: a confirmation
       // that quotes client state is a confirmation that can be true before the
       // save has happened (CLAUDE.md).

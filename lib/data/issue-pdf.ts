@@ -31,6 +31,7 @@ import { recalcOrdersForPublications } from "./payments";
 import { syncOrderCompletion } from "./orders";
 import { loadSettings } from "./business-settings";
 import { textFor } from "@/lib/domain/business-settings";
+import { pageMarks } from "@/lib/domain/page-marks";
 import { publicationsForIssue, gridOfIssue } from "./issues";
 import { checkIssue, loadIssueForValidation, toValidationInput } from "./issue-validation";
 import { validateIssue } from "@/lib/domain/issue-validation";
@@ -72,7 +73,18 @@ const DATE = new Intl.DateTimeFormat("he-IL", {
  * snapshotted anywhere because it describes how to print, not what to print.
  */
 const PRINT_INCLUDE = {
-  newspaper: { select: { id: true, name: true, print_quality: true } },
+  newspaper: {
+    select: {
+      id: true,
+      name: true,
+      print_quality: true,
+      folio_enabled: true,
+      folio_size_mm: true,
+      header_name: true,
+      header_date: true,
+      header_size_mm: true,
+    },
+  },
   pages: {
     orderBy: { page_number: "asc" as const },
     include: {
@@ -154,6 +166,8 @@ export async function toPrintModel(
     draft,
     layout,
     footer: textFor("pdf_footer", settings.texts),
+    // The folio and the running head, as this newspaper prints them (14/10/2026).
+    marks: pageMarks(issue.newspaper, issue.issue_date.toISOString().slice(0, 10)),
     pages: issue.pages.map((page) => ({
       number: page.page_number,
       pageTypeName: page.page_type.name,

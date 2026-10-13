@@ -11,13 +11,18 @@ const ITEMS = [
     match: (p: string) => p === "/portal" || p.startsWith("/portal/requests"),
   },
   {
+    href: "/portal/tear-sheets",
+    label: "הוכחות פרסום",
+    match: (p: string) => p.startsWith("/portal/tear-sheets"),
+  },
+  {
     href: "/portal/account",
     label: "החשבון שלי",
     match: (p: string) => p.startsWith("/portal/account"),
   },
 ];
 
-/** Two places, not a menu: the portal's whole map (app-shell.md §4). */
+/** Three places, not a menu: the portal's whole map (app-shell.md §4). */
 export function PortalNav() {
   const path = usePathname();
   return (
@@ -29,7 +34,7 @@ export function PortalNav() {
             key={item.href}
             href={item.href}
             aria-current={active ? "page" : undefined}
-            data-testid={`portal-nav-${item.href === "/portal" ? "requests" : "account"}`}
+            data-testid={`portal-nav-${item.href === "/portal" ? "requests" : item.href.slice("/portal/".length)}`}
             className={cn(
               "rounded-sm px-3 py-1.5 text-sm",
               active

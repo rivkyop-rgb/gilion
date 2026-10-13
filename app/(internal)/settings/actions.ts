@@ -23,6 +23,7 @@ import {
 import { normalizePositions, validPositionCount, type Cell } from "@/lib/domain/slot-geometry";
 import { checkReservation, RESERVATION_IMAGE_TYPES } from "@/lib/domain/reservation";
 import { sniffFileType } from "@/lib/domain/ad-file";
+import { HEADER_DATE_MODES, MARK_SIZE_MAX_MM, MARK_SIZE_MIN_MM } from "@/lib/domain/page-marks";
 import { CONTENT_TYPES, putObject } from "@/lib/storage/minio";
 import { validatePrice } from "@/lib/domain/pricing";
 import { validatePackage } from "@/lib/domain/ad-package";
@@ -697,6 +698,30 @@ export async function setAutoPlaceSettingsAction(
   }
 
   await papers.setAutoPlaceSettings(ctx.businessId, newspaperId, autoPlaceTypeIds, growTypeId);
+  revalidatePath(`/settings/newspapers/${newspaperId}`);
+  return {};
+}
+
+const pageMarksSchema = z.object({
+  folioEnabled: z.boolean(),
+  folioSizeMm: z.number().min(MARK_SIZE_MIN_MM).max(MARK_SIZE_MAX_MM),
+  headerName: z.boolean(),
+  headerDate: z.enum(HEADER_DATE_MODES),
+  headerSizeMm: z.number().min(MARK_SIZE_MIN_MM).max(MARK_SIZE_MAX_MM),
+  tearSheetHeader: z.boolean(),
+});
+
+/** The folio, the running head and the tear-sheet caption (14/10/2026). */
+export async function setPageMarksAction(newspaperId: string, input: unknown): Promise<FormState> {
+  const ctx = await requireAdmin();
+  const parsed = pageMarksSchema.safeParse(input);
+  if (!parsed.success) {
+    return { message: `גודל הטקסט צריך להיות בין ${MARK_SIZE_MIN_MM} ל־${MARK_SIZE_MAX_MM} מ״מ` };
+  }
+  const paper = await papers.getNewspaper(ctx.businessId, newspaperId);
+  if (!paper) return { message: "העיתון לא נמצא" };
+
+  await papers.setPageMarks(ctx.businessId, newspaperId, parsed.data);
   revalidatePath(`/settings/newspapers/${newspaperId}`);
   return {};
 }

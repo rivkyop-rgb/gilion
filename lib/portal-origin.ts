@@ -15,3 +15,11 @@ export async function portalUrl(slug: string): Promise<string> {
   const proto = h.get("x-forwarded-proto") ?? "http";
   return `${proto}://${host}${portalPath(slug)}`;
 }
+
+/** The origin the person reached the app at — for links they will send on. */
+export async function requestOrigin(): Promise<string> {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost";
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  return `${proto}://${host}`;
+}

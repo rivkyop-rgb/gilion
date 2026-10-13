@@ -12,6 +12,9 @@ import { updateNewspaperAction } from "../../actions";
 import { NewspaperTabs } from "./tabs";
 import { PageTypes } from "./page-types";
 import { AutoPlaceSettings } from "./auto-place-settings";
+import { PageMarksSettings } from "./page-marks-settings";
+import { HEADER_DATE_MODES, headerDate, type HeaderDateMode } from "@/lib/domain/page-marks";
+import { isoDay, jerusalemDay } from "@/lib/domain/calendar";
 
 export const metadata: Metadata = { title: "הגדרות עיתון · Gilion" };
 
@@ -36,6 +39,8 @@ export default async function NewspaperPage({ params }: { params: Promise<{ id: 
 
   const mayEdit = canWriteArea(ctx, "settings");
   const catalogue = await shapesForRescale(ctx.businessId, paper.id);
+
+  const todayIso = isoDay(jerusalemDay(new Date()));
 
   return (
     <>
@@ -72,6 +77,25 @@ export default async function NewspaperPage({ params }: { params: Promise<{ id: 
           }}
         />
       </section>
+
+      <PageMarksSettings
+        newspaperId={paper.id}
+        newspaperName={paper.name}
+        readOnly={!mayEdit}
+        initial={{
+          folioEnabled: paper.folio_enabled,
+          folioSizeMm: Number(paper.folio_size_mm),
+          headerName: paper.header_name,
+          headerDate: paper.header_date as HeaderDateMode,
+          headerSizeMm: Number(paper.header_size_mm),
+          tearSheetHeader: paper.tear_sheet_header,
+        }}
+        previews={
+          Object.fromEntries(
+            HEADER_DATE_MODES.map((mode) => [mode, headerDate(todayIso, mode)]),
+          ) as Record<HeaderDateMode, string | null>
+        }
+      />
 
       <AutoPlaceSettings
         newspaperId={paper.id}

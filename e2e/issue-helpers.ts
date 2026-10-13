@@ -189,6 +189,16 @@ export async function resetFixtureIssue() {
 }
 
 /** Removes any issue on the "open a new issue" date, so the spec can re-run. */
+/** How many issues exist on a date — auto-opening must never make it two. */
+export async function issuesOn(date: string): Promise<number> {
+  const prisma = client();
+  try {
+    return await prisma.issue.count({ where: { issue_date: new Date(date) } });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 export async function clearIssuesOn(date: string) {
   const prisma = client();
   try {
@@ -338,6 +348,11 @@ export async function resetCloseIssue() {
     const shape = await prisma.adShape.findUnique({ where: { id: "shape_quarter" } });
     if (!shape) throw new Error("shape_quarter is missing — has the seed run?");
 
+    // Tear sheets sent for the fixture publication (14/10/2026): "never sent"
+    // is the state every spec starts from.
+    await prisma.tearSheetDelivery.deleteMany({
+      where: { publication_id: ISSUE_FIXTURES.closePublication },
+    });
     await prisma.pdfGenerationLog.deleteMany({ where: { issue_id: ISSUE_FIXTURES.closeIssue } });
     await prisma.placement.deleteMany({ where: { issue_id: ISSUE_FIXTURES.closeIssue } });
     await prisma.issuePage.deleteMany({ where: { issue_id: ISSUE_FIXTURES.closeIssue } });

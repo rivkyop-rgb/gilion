@@ -130,7 +130,6 @@ test.describe("closing an issue", () => {
     await page.getByTestId("close-issue").click();
     await page.getByTestId("confirm-close-issue").click();
     await expect(page.getByTestId("close-issue-dialog")).toBeHidden({ timeout: 120_000 });
-    await page.getByTestId("next-issue-dismiss").click();
 
     // The "produce" button is gone once the file exists — re-rendering would
     // answer "what would this look like" when the question is "what did we
@@ -189,10 +188,6 @@ test.describe("reopening a closed issue", () => {
     await page.getByTestId("confirm-close-issue").click();
     await expect(page.getByTestId("close-issue-dialog")).toBeHidden({ timeout: 120_000 });
 
-    // Closing offers the next issue, over everything else. Dismissing it is
-    // part of the flow, not test noise: the offer is modal on purpose, because
-    // "when is the next one" is a question that gets answered now or never.
-    await page.getByTestId("next-issue-dismiss").click();
 
     await page.getByTestId("reopen-issue").click();
     await expect(page.getByTestId("check-message")).toContainText("נפתח מחדש");

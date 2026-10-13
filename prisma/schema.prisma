@@ -163,6 +163,8 @@ model Business {
   payments       Payment[]
   settings       BusinessSettings?
 
+  tear_sheet_deliveries TearSheetDelivery[]
+
   @@map("Business")
 }
 
@@ -226,6 +228,8 @@ model User {
   duplicate_overrides Placement[]
   pdf_generations     PdfGenerationLog[]
   payments            Payment[]
+
+  tear_sheets_sent TearSheetDelivery[]
 
   @@map("User")
 }
@@ -298,10 +302,12 @@ model Customer {
   /// nothing at all is ticked — this or any contact — reminders go here anyway
   /// (lib/domain/reminders.ts `reminderRecipients`).
   reminders_to_main Boolean  @default(false)
+  /// This customer gets proof of publication — a tear sheet (14/10/2026).
+  wants_tear_sheets Boolean  @default(false)
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
 
-  business       Business          @relation(fields: [business_id], references: [id], onDelete: Restrict)
+  business       Business            @relation(fields: [business_id], references: [id], onDelete: Restrict)
   /// The people at the business, first one = main contact. Part of the
   /// customer, so they go with it.
   contacts       CustomerContact[]
@@ -312,6 +318,7 @@ model Customer {
   advertisements Advertisement[]
   reminders      Reminder[]
   payments       Payment[]
+  tear_sheets    TearSheetDelivery[]
 
   @@unique([business_id, tax_id])
   @@index([business_id, business_name])
@@ -438,6 +445,18 @@ model Newspaper {
   /// (every other week, holiday eves only) is expressed by the dates the user
   /// ticks on the order, not by a recurrence stored here.
   publication_days Int[] @default([])
+
+  /// What the page carries in its margins (the user, 14/10/2026). The folio —
+  /// the running page number — sits in the bottom margin; the newspaper's
+  /// name and date in the top one. Both margins are bands the grid never
+  /// sells, so nothing here can land on an ad.
+  folio_enabled     Boolean        @default(true)
+  folio_size_mm     Decimal        @default(3) @db.Decimal(4, 1)
+  header_name       Boolean        @default(false)
+  header_date       HeaderDateMode @default(none)
+  header_size_mm    Decimal        @default(3.5) @db.Decimal(4, 1)
+  /// Put "name · date · page" in a band above each tear sheet.
+  tear_sheet_header Boolean        @default(true)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -849,6 +868,8 @@ model Publication {
   advertisement Advertisement? @relation(fields: [advertisement_id], references: [id], onDelete: SetNull)
   reminder      Reminder?
   placements    Placement[]
+
+  tear_sheet_deliveries TearSheetDelivery[]
 
   @@index([business_id, publication_date, status])
   @@index([business_id, newspaper_id, publication_date])
@@ -1335,4 +1356,36 @@ model Payment {
   @@index([external_invoice_number])
   @@index([group_id])
   @@map("Payment")
+}
+
+/// Which date a page header shows (14/10/2026).
+enum HeaderDateMode {
+  none
+  gregorian
+  hebrew
+  both
+}
+
+/// One tear sheet sent to a customer (14/10/2026). Rows of one click share a
+/// `batch_id`, so "undo that send" removes exactly that send. "Sent" means a
+/// person pressed send and the mail client opened — the product cannot see
+/// whether the mail itself left, and the screen says so.
+model TearSheetDelivery {
+  id              String   @id @default(cuid())
+  business_id     String
+  publication_id  String
+  customer_id     String
+  batch_id        String
+  sent_by_user_id String
+  sent_at         DateTime @default(now())
+
+  business    Business    @relation(fields: [business_id], references: [id], onDelete: Restrict)
+  publication Publication @relation(fields: [publication_id], references: [id], onDelete: Cascade)
+  customer    Customer    @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  sent_by     User        @relation(fields: [sent_by_user_id], references: [id], onDelete: Restrict)
+
+  @@index([business_id, customer_id])
+  @@index([publication_id])
+  @@index([batch_id])
+  @@map("TearSheetDelivery")
 }

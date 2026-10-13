@@ -20,6 +20,10 @@ const gate = authEdge((req) => {
   // so it belongs with /portal/login in every rule below.
   const isPortalLogin = path === "/portal/login" || /^\/p\/[^/]+\/?$/.test(path);
 
+  // A tear sheet's signed link (14/10/2026) — opened from a customer's mail,
+  // with or without any session. The signature is checked by the route itself.
+  if (path.startsWith("/api/tear-sheet/")) return NextResponse.next();
+
   if (!session?.user) {
     if (isAuthRoute || isPortalLogin) return NextResponse.next();
     // A business's logo on its own portal door, before sign-in. The route

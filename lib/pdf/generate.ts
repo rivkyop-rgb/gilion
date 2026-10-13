@@ -125,3 +125,28 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
     }),
   ]).finally(() => clearTimeout(timer)) as Promise<T>;
 }
+
+/**
+ * An HTML page to a PNG — the tear sheet (14/10/2026). Chromium, like the PDF,
+ * because the caption is Hebrew and nothing else on the box shapes Hebrew text
+ * correctly; the page itself arrives as an image, so this only composes.
+ */
+export async function renderPng(html: string, widthPx: number): Promise<Buffer> {
+  const { chromium } = await import("playwright-core");
+  let browser: Browser | null = null;
+  try {
+    browser = await chromium.launch({
+      args: ["--no-sandbox", "--disable-dev-shm-usage"],
+      timeout: PDF_TIMEOUT_MS,
+    });
+    const page = await browser.newPage({ viewport: { width: widthPx, height: 100 } });
+    page.setDefaultTimeout(PDF_TIMEOUT_MS);
+    await page.setContent(html, { waitUntil: "load", timeout: PDF_TIMEOUT_MS });
+    return Buffer.from(await page.screenshot({ fullPage: true, type: "png" }));
+  } catch (error) {
+    console.error("[tear-sheet] render failed", error);
+    throw new PdfGenerationError("יצירת הגזיר נכשלה");
+  } finally {
+    await browser?.close().catch(() => {});
+  }
+}

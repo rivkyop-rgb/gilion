@@ -1025,3 +1025,19 @@ export async function ensureUpcomingIssues(businessId: string, now = new Date())
   }
   return opened;
 }
+
+/** The first issue of the same newspaper after this one — what closing leads to. */
+export async function nextIssueAfter(businessId: string, issueId: string) {
+  const db = tenantDb(businessId);
+  const issue = await db.issue.findUnique({
+    where: { id: issueId },
+    select: { newspaper_id: true, issue_date: true },
+  });
+  if (!issue) return null;
+  const next = await db.issue.findFirst({
+    where: { newspaper_id: issue.newspaper_id, issue_date: { gt: issue.issue_date } },
+    orderBy: { issue_date: "asc" },
+    select: { id: true, issue_date: true },
+  });
+  return next ? { id: next.id, date: isoDate(next.issue_date) } : null;
+}

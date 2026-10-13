@@ -9,6 +9,7 @@ import { netByCustomer } from "@/lib/data/payments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Ltr } from "@/components/ui/ltr";
+import { tearSheetsWaiting } from "@/lib/data/tear-sheets";
 import { ListPager, ListToolbar } from "@/components/ui/list-toolbar";
 import { clampPage, DEFAULT_PAGE_SIZE, parseListParams } from "@/lib/domain/list-view";
 import { EmailLink, PhoneLink } from "@/components/contact-links";
@@ -36,6 +37,11 @@ export default async function CustomersPage({
   const requested = parseListParams(raw);
   const q = requested.q;
   const mayEdit = canWriteArea(ctx, "customers");
+  // Tear sheets not yet sent to customers who get them (14/10/2026).
+  const waitingTearSheets = (await tearSheetsWaiting(ctx.businessId)).reduce(
+    (n, c) => n + c.waiting,
+    0,
+  );
   // FR-8: a designer must not see money anywhere. The debt column is not
   // hidden with CSS — it is never queried or rendered for that role.
   const maySeeMoney = ctx.role !== "designer";
@@ -73,14 +79,26 @@ export default async function CustomersPage({
             {total === 0 ? "אין לקוחות" : `${total} לקוחות בעסק`}
           </p>
         </div>
-        {mayEdit ? (
-          <Button asChild>
-            <Link href="/customers/new" data-testid="new-customer">
-              <Plus className="size-4" />
-              לקוח חדש
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="secondary">
+            <Link href="/customers/tear-sheets" data-testid="tear-sheets-link">
+              גזירים לשליחה
+              {waitingTearSheets > 0 ? (
+                <span className="rounded-full bg-brand-gold px-2 text-xs font-semibold text-primary">
+                  <Ltr>{waitingTearSheets}</Ltr>
+                </span>
+              ) : null}
             </Link>
           </Button>
-        ) : null}
+          {mayEdit ? (
+            <Button asChild>
+              <Link href="/customers/new" data-testid="new-customer">
+                <Plus className="size-4" />
+                לקוח חדש
+              </Link>
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <form className="mb-4 flex flex-wrap items-center gap-3">

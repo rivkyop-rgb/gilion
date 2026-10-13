@@ -650,3 +650,29 @@ export async function setAutoPlaceSettings(
     },
   });
 }
+
+/** What the pages carry in their margins (14/10/2026). */
+export async function setPageMarks(
+  businessId: string,
+  newspaperId: string,
+  marks: {
+    folioEnabled: boolean;
+    folioSizeMm: number;
+    headerName: boolean;
+    headerDate: "none" | "gregorian" | "hebrew" | "both";
+    headerSizeMm: number;
+    tearSheetHeader: boolean;
+  },
+) {
+  return tenantDb(businessId).newspaper.update({
+    where: { id: newspaperId },
+    data: {
+      folio_enabled: marks.folioEnabled,
+      folio_size_mm: marks.folioSizeMm,
+      header_name: marks.headerName,
+      header_date: marks.headerDate,
+      header_size_mm: marks.headerSizeMm,
+      tear_sheet_header: marks.tearSheetHeader,
+    },
+  });
+}

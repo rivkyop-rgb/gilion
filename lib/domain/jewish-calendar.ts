@@ -96,6 +96,13 @@ export function jewishDay(iso: string): JewishDay | null {
   return { hebrew, holiday, kind };
 }
 
+/** The full Hebrew date with its year, for a page header: "י״ב חשון תשפ״ז". */
+export function hebrewDateLong(iso: string): string | null {
+  const date = localDate(iso);
+  if (!date) return null;
+  return new HDate(date).renderGematriya(true);
+}
+
 /**
  * No newspaper comes out on a chag.
  *

@@ -31,7 +31,6 @@ import {
 } from "@/lib/domain/issue-validation";
 import type { IssueStatus } from "@/lib/domain/issue-status";
 import { closeIssueAction, reopenIssueAction } from "@/app/(internal)/issues/actions";
-import { NextIssueOffer } from "./issue-calendar";
 
 export type PdfLogRow = {
   id: string;
@@ -75,12 +74,11 @@ export function IssueCheckPanel({
   const [pending, startTransition] = useTransition();
   const [notice, setNotice] = useState<{ text: string; ok: boolean } | null>(null);
   /**
-   * The moment an issue closes is the moment the next one starts mattering,
-   * and the moment somebody has the printing schedule in their head. It used to
-   * be offered from the board's status button; the close moved here, and the
-   * offer came with it — asking later means asking nobody (backlog items 6-8).
+   * Where the work goes next. The next issue opens BY ITSELF on close
+   * (12/10/2026) — it used to be offered in a dialog, which after auto-opening
+   * could only propose a second, further one — so this is a link, not a question.
    */
-  const [offerNext, setOfferNext] = useState(false);
+  const [nextIssue, setNextIssue] = useState<{ id: string; date: string } | null>(null);
 
   const closed = status === "closed";
   const closeable = isCloseable(report);
@@ -117,6 +115,19 @@ export function IssueCheckPanel({
           )}
         >
           {notice.text}
+          {notice.ok && nextIssue ? (
+            <>
+              {" · "}
+              <Link
+                href={`/issues/${nextIssue.id}/board`}
+                className="font-semibold underline underline-offset-2"
+                data-testid="next-issue-link"
+              >
+                הגיליון הבא, <Ltr>{nextIssue.date.split("-").reverse().join(".")}</Ltr>, פתוח
+                לשיבוץ
+              </Link>
+            </>
+          ) : null}
         </p>
       ) : null}
 
@@ -197,9 +208,9 @@ export function IssueCheckPanel({
               disabled={!closeable}
               blocking={blockingSummary(report)}
               placedCount={report.placedCount}
-              onDone={(message, ok) => {
+              onDone={(message, ok, next) => {
                 setNotice({ text: message, ok });
-                if (ok) setOfferNext(true);
+                setNextIssue(next ?? null);
                 router.refresh();
               }}
             />
@@ -228,7 +239,6 @@ export function IssueCheckPanel({
         </div>
       </div>
 
-      {offerNext ? <NextIssueOffer issueId={issueId} onClose={() => setOfferNext(false)} /> : null}
     </div>
   );
 }
@@ -441,7 +451,7 @@ function CloseIssueDialog({
   disabled: boolean;
   blocking: string | null;
   placedCount: number;
-  onDone: (message: string, ok: boolean) => void;
+  onDone: (message: string, ok: boolean, next?: { id: string; date: string }) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -521,7 +531,7 @@ function CloseIssueDialog({
                     return;
                   }
                   setOpen(false);
-                  onDone(result.message ?? "הגיליון נסגר", true);
+                  onDone(result.message ?? "הגיליון נסגר", true, result.nextIssue);
                 })
               }
             >

@@ -29,6 +29,9 @@ import { DeleteCustomer } from "./delete-customer";
 import { getCustomer } from "@/lib/data/customers";
 import { EmailLink, PhoneLink } from "@/components/contact-links";
 import { ReminderRecipients } from "./reminder-recipients";
+import { TearSheetFilterBar, TearSheetPanel } from "./tear-sheet-panel";
+import { customerTearSheets, tearSheetFilterOptions } from "@/lib/data/tear-sheets";
+import { tearSheetPath } from "@/lib/tear-sheet-token";
 import { AdQuickLook, AdThumb } from "@/components/ads/ad-preview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -75,6 +78,14 @@ export default async function CustomerPage({
   const adsParams = listOf("a");
   const paymentsParams = listOf("y");
   const monthsParams = listOf("m");
+  const tearParams = listOf("t");
+  const tearFilters = {
+    from: query.t_from ?? "",
+    to: query.t_to ?? "",
+    paper: query.t_paper ?? "",
+    shape: query.t_shape ?? "",
+    sent: query.t_sent === "sent" || query.t_sent === "unsent" ? query.t_sent : "",
+  };
 
   /**
    * This page's URL with ONE section's parameters stripped.
@@ -175,6 +186,33 @@ export default async function CustomerPage({
   // Backlog 21: the business's portal link, to send this customer.
   const portalLink = await portalUrl(await businessSlug(ctx.businessId));
   const mainContact = customer.contacts[0];
+  // Tear sheets — proof of publication (14/10/2026).
+  const tearSheets = await customerTearSheets(
+    ctx.businessId,
+    customer.id,
+    {
+      from: /^\d{4}-\d{2}-\d{2}$/.test(tearFilters.from) ? tearFilters.from : undefined,
+      to: /^\d{4}-\d{2}-\d{2}$/.test(tearFilters.to) ? tearFilters.to : undefined,
+      newspaperId: tearFilters.paper || undefined,
+      shapeId: tearFilters.shape || undefined,
+      sent: (tearFilters.sent || "all") as "all" | "sent" | "unsent",
+    },
+    tearParams,
+  );
+  const tearOptions =
+    query.tab === "tear-sheets"
+      ? await tearSheetFilterOptions(ctx.businessId, customer.id)
+      : { newspapers: [], shapes: [] };
+  /** This page's URL without the tear-sheet filters (and their paging). */
+  const tearFilterBase = (() => {
+    const kept = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (!value || /^t_(from|to|paper|shape|sent|page)$/.test(key)) continue;
+      kept.set(key, value);
+    }
+    kept.set("tab", "tear-sheets");
+    return `/customers/${id}?${kept.toString()}`;
+  })();
   const mayReadAudit = canReadArea(ctx, "audit");
   const activity =
     mayReadAudit && query.tab === "activity"
@@ -191,6 +229,7 @@ export default async function CustomerPage({
       ? [{ key: "months", label: "לפי חודש", count: monthly.months.length }]
       : []),
     ...(maySeeAds ? [{ key: "files", label: "קבצים", count: ads.total }] : []),
+    { key: "tear-sheets", label: "גזירים", count: tearSheets.total },
     { key: "contacts", label: "אנשי קשר ותזכורות", count: customer.contacts.length },
     // The audit trail of this customer — only for whoever may read /audit,
     // because it carries payment changes (FR-8).
@@ -950,6 +989,51 @@ export default async function CustomerPage({
               ))}
             </ol>
           )}
+        </section>
+      ) : null}
+
+      {tab === "tear-sheets" ? (
+        <section data-testid="customer-tear-sheets-section">
+          <TearSheetFilterBar
+            baseHref={tearFilterBase}
+            values={tearFilters}
+            newspapers={tearOptions.newspapers}
+            shapes={tearOptions.shapes}
+          />
+          <ListToolbar
+            prefix="t"
+            params={tearParams}
+            total={tearSheets.total}
+            baseHref={baseHref("t")}
+            searchable={false}
+          />
+          <TearSheetPanel
+            customerId={customer.id}
+            wants={customer.wants_tear_sheets}
+            editable={mayEdit}
+            rows={tearSheets.rows.map((r) => ({
+              publicationId: r.publicationId,
+              date: formatDate(new Date(r.date)),
+              newspaperName: r.newspaperName,
+              pageTypeName: r.pageTypeName,
+              shapeName: r.shapeName,
+              pageNumber: r.pageNumber,
+              url: tearSheetPath(r.publicationId),
+              deliveries: r.deliveries.map((d) => ({
+                batchId: d.batchId,
+                sentAt: ACTIVITY_TIME.format(d.sentAt),
+                sentBy: d.sentBy,
+              })),
+            }))}
+          />
+          {tearSheets.total > 0 ? (
+            <ListPager
+              prefix="t"
+              params={tearParams}
+              total={tearSheets.total}
+              baseHref={baseHref("t")}
+            />
+          ) : null}
         </section>
       ) : null}
 

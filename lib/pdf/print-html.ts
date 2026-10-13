@@ -32,6 +32,7 @@
  * — `Newspaper.logo_url` and `fixed_banner_url` — were never written or read by
  * anything and were dropped on 23/09/2026.
  */
+import type { PageMarks } from "@/lib/domain/page-marks";
 import type { DerivedGrid } from "@/lib/domain/grid";
 import { impose, sideLabel, type PrintedSide } from "@/lib/domain/imposition";
 import { toMillimetres, type GridRect } from "@/lib/domain/slot-geometry";
@@ -74,6 +75,11 @@ export type PrintModel = {
    * nothing at all.
    */
   footer?: string;
+  /**
+   * The folio and the running head, as the newspaper configured them
+   * (14/10/2026). Absent → today's default: a 3mm folio and no head.
+   */
+  marks?: PageMarks;
   /**
    * `reader` — one page per sheet of PDF, in reading order. For proofing.
    * `press`  — one printed SIDE per sheet of PDF, twice as wide, two pages on
@@ -199,6 +205,18 @@ export function buildPrintHtml(model: PrintModel): string {
     font-size: 3mm;
     color: #666;
   }
+  /* The running head. Direction rtl: the name sits on the right, as a Hebrew
+     newspaper reads. (No backticks — this is inside a template literal.) */
+  .page-header {
+    position: absolute;
+    display: flex;
+    justify-content: space-between;
+    direction: rtl;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    line-height: 1.2;
+  }
   /* The business line, inside the bottom margin and ABOVE the folio, so the
      two never sit on each other — on a press sheet the sheet label is down at
      1mm as well. Small and grey: it is a credit, not a headline, and it must
@@ -255,10 +273,29 @@ function renderPage(page: PrintPage, grid: DerivedGrid, model: PrintModel): stri
 
   return `<section class="page" data-page="${page.number}" data-page-type="${escapeHtml(page.pageTypeName)}">
 ${boxes.join("\n")}
-<div class="folio" style="left:0;width:${mm(grid.pageWidthMm)}">${page.number}</div>
+${renderFolio(page.number, model, grid, 0)}
+${renderHeader(model, grid, 0)}
 ${renderFooter(model, grid, 0)}
 ${model.draft ? `<div class="draft-mark"><span>טיוטה</span></div>` : ""}
 </section>`;
+}
+
+/** The running page number, unless the newspaper switched it off. */
+function renderFolio(n: number, model: PrintModel, grid: DerivedGrid, offsetMm: number): string {
+  const folio = model.marks?.folio ?? { enabled: true, sizeMm: 3 };
+  if (!folio.enabled) return "";
+  return `<div class="folio" style="left:${mm(offsetMm)};width:${mm(grid.pageWidthMm)};font-size:${mm(folio.sizeMm)}">${n}</div>`;
+}
+
+/**
+ * The running head — the newspaper's name and the date — inside the top
+ * margin, which the grid never sells. Name on the start side, date on the end.
+ */
+function renderHeader(model: PrintModel, grid: DerivedGrid, offsetMm: number): string {
+  const header = model.marks?.header;
+  if (!header || (!header.name && !header.date)) return "";
+  const top = Math.max((grid.marginMm - header.sizeMm * 1.3) / 2, 1);
+  return `<div class="page-header" style="left:${mm(offsetMm + grid.marginMm)};width:${mm(grid.pageWidthMm - grid.marginMm * 2)};top:${mm(top)};font-size:${mm(header.sizeMm)}"><span>${escapeHtml(header.name ?? "")}</span><span>${escapeHtml(header.date ?? "")}</span></div>`;
 }
 
 /** The business line at the foot of one page, or nothing when unset. */
@@ -291,7 +328,8 @@ function renderSide(
     return [
       ...page.reserved.map((box) => renderBox(box, grid, "reserved", offsetMm)),
       ...page.placements.map((box) => renderBox(box, grid, "ad", offsetMm)),
-      `<div class="folio" style="left:${mm(offsetMm)};width:${mm(grid.pageWidthMm)}">${page.number}</div>`,
+      renderFolio(page.number, model, grid, offsetMm),
+      renderHeader(model, grid, offsetMm),
       // Per half, like the folio: the footer belongs to a PAGE, and a press
       // sheet carries two of them. The side label below is the sheet's.
       renderFooter(model, grid, offsetMm),
