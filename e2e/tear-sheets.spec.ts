@@ -60,6 +60,9 @@ test("a closed issue gives its customer a tear sheet, and sending it is recorded
   expect(decodeURIComponent(mail)).toContain("הוכחת פרסום");
   expect(decodeURIComponent(mail)).toContain(`/api/tear-sheet/${PUB}/`);
 
+  // The header box ticks only what was never sent — and this one now was.
+  await expect(page.getByTestId("pick-unsent-tear-sheets")).toBeDisabled();
+
   // A send the mail never left for can be taken back.
   await row.getByTestId(/^undo-send-/).click();
   await expect(row).toContainText("עוד לא נשלח");

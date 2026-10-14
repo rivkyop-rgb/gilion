@@ -56,7 +56,13 @@ export function TearSheetPanel({
       else next.add(id);
       return next;
     });
-  const allPicked = rows.length > 0 && rows.every((r) => picked.has(r.publicationId));
+  /**
+   * The header box ticks what has NOT been sent yet (the user, 14/10/2026) —
+   * "send the new ones" is the everyday act, and re-sending is a choice made
+   * row by row, not something one click should do to every old proof.
+   */
+  const unsent = rows.filter((r) => r.deliveries.length === 0).map((r) => r.publicationId);
+  const allUnsentPicked = unsent.length > 0 && unsent.every((id) => picked.has(id));
 
   const send = () =>
     start(async () => {
@@ -131,11 +137,12 @@ export function TearSheetPanel({
                   <th className="w-10 p-3">
                     <input
                       type="checkbox"
-                      aria-label="סימון הכל בעמוד"
-                      checked={allPicked}
-                      onChange={() =>
-                        setPicked(allPicked ? new Set() : new Set(rows.map((r) => r.publicationId)))
-                      }
+                      aria-label="סימון כל מה שעוד לא נשלח"
+                      title="סימון כל מה שעוד לא נשלח"
+                      data-testid="pick-unsent-tear-sheets"
+                      disabled={unsent.length === 0}
+                      checked={allUnsentPicked}
+                      onChange={() => setPicked(allUnsentPicked ? new Set() : new Set(unsent))}
                     />
                   </th>
                 ) : null}
