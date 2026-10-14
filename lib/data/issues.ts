@@ -972,10 +972,11 @@ export async function ensureUpcomingIssues(businessId: string, now = new Date())
         page_types: { orderBy: { created_at: "asc" }, select: { id: true, name: true } },
       },
     }),
-    db.issue.groupBy({
-      by: ["newspaper_id"],
-      where: { status: "closed" },
-      _max: { issue_date: true },
+    // Closed issues from a week back on: the successor of anything older is
+    // in the past, and the past is not backfilled.
+    db.issue.findMany({
+      where: { status: "closed", issue_date: { gte: addDays(today, -AUTO_OPEN_DAYS) } },
+      select: { newspaper_id: true, issue_date: true },
     }),
     db.issue.findMany({
       where: { issue_date: { gte: today } },
@@ -990,11 +991,12 @@ export async function ensureUpcomingIssues(businessId: string, now = new Date())
   const opened: Array<{ newspaperId: string; date: string }> = [];
   for (const paper of papers) {
     if (paper.page_types.length === 0) continue;
-    const lastClosed = closed.find((c) => c.newspaper_id === paper.id)?._max.issue_date;
     const dates = autoOpenDates({
       today: todayIso,
       publicationDays: paper.publication_days,
-      lastClosedDate: lastClosed ? isoDay(lastClosed) : null,
+      closedDates: closed
+        .filter((c) => c.newspaper_id === paper.id)
+        .map((c) => isoDay(c.issue_date)),
       soldDates: sold
         .filter((s) => s.newspaper_id === paper.id)
         .map((s) => isoDay(s.publication_date)),

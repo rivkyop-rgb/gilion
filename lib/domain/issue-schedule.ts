@@ -161,7 +161,9 @@ export const AUTO_OPEN_DAYS = 7;
  *  - every printing day from today to a week ahead;
  *  - every date in that week that already has a publication sold on it, even
  *    off the schedule — a special edition with ads waiting is an issue;
- *  - the first printing day after the last CLOSED issue, however far off.
+ *  - the first printing day after EVERY closed issue, however far off. Not
+ *    only the latest one: an issue closed early (a chag edition prepared in
+ *    advance) must not stop the one after next week's from opening.
  *
  * Days no newspaper prints (yom tov) are never opened. Dates that already
  * have an issue are dropped. Nothing before today — an issue that should have
@@ -170,7 +172,8 @@ export const AUTO_OPEN_DAYS = 7;
 export function autoOpenDates(input: {
   today: string;
   publicationDays: readonly number[];
-  lastClosedDate: string | null;
+  /** Dates of closed issues — each one's successor should exist. */
+  closedDates: readonly string[];
   soldDates: readonly string[];
   existingDates: readonly string[];
 }): string[] {
@@ -188,8 +191,8 @@ export function autoOpenDates(input: {
   for (const day of input.soldDates) {
     if (day >= input.today && day <= until && !isNoPaperDay(day)) wanted.add(day);
   }
-  if (input.lastClosedDate) {
-    const next = nextIssueDate(input.lastClosedDate, input.publicationDays);
+  for (const closed of input.closedDates) {
+    const next = nextIssueDate(closed, input.publicationDays);
     if (next && next.date >= input.today) wanted.add(next.date);
   }
 

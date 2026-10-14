@@ -106,7 +106,7 @@ describe("which issues open by themselves", () => {
   const base = {
     today: "2026-10-12",
     publicationDays: TUESDAYS,
-    lastClosedDate: null,
+    closedDates: [] as string[],
     soldDates: [],
     existingDates: [],
   };
@@ -121,8 +121,21 @@ describe("which issues open by themselves", () => {
 
   it("opens the next issue as soon as the previous one closed, even weeks ahead", () => {
     expect(
-      autoOpenDates({ ...base, lastClosedDate: "2026-10-27", existingDates: ["2026-10-13"] }),
+      autoOpenDates({ ...base, closedDates: ["2026-10-27"], existingDates: ["2026-10-13"] }),
     ).toEqual(["2026-11-03"]);
+  });
+
+  it("opens the issue after an early-closed one too, not only after the latest", () => {
+    // A chag edition months ahead is closed; next week's issue closing must
+    // still open the one after it.
+    expect(
+      autoOpenDates({
+        ...base,
+        today: "2026-10-20",
+        closedDates: ["2026-10-20", "2027-07-06"],
+        existingDates: ["2026-10-20", "2027-07-13"],
+      }),
+    ).toEqual(["2026-10-27"]);
   });
 
   it("opens a special edition that has ads sold on it within the week", () => {
@@ -134,7 +147,7 @@ describe("which issues open by themselves", () => {
 
   it("never opens anything in the past", () => {
     expect(
-      autoOpenDates({ ...base, soldDates: ["2026-10-01"], lastClosedDate: "2026-09-01" }),
+      autoOpenDates({ ...base, soldDates: ["2026-10-01"], closedDates: ["2026-09-01"] }),
     ).toEqual(["2026-10-13"]);
   });
 });
