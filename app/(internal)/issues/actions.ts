@@ -522,7 +522,7 @@ export async function closeIssueAction(
   try {
     const result = await pdf.closeIssue(ctx, issueId);
     // The next issue opens the moment this one closes (12/10/2026).
-    const opened = await issues.ensureUpcomingIssues(ctx.businessId);
+    await issues.ensureUpcomingIssues(ctx.businessId);
     const nextIssue = (await issues.nextIssueAfter(ctx.businessId, issueId)) ?? undefined;
     revalidatePath(`/issues/${issueId}/validate`);
     revalidatePath(`/issues/${issueId}/board`);
@@ -535,11 +535,9 @@ export async function closeIssueAction(
       // The number the SERVER wrote, not one the form counted: a confirmation
       // that quotes client state is a confirmation that can be true before the
       // save has happened (CLAUDE.md).
-      message:
-        `הגיליון נסגר · ${publicationsPhrase(result.publishedCount)} ${agrees(result.publishedCount, "סומן כפורסם", "סומנו כפורסמו")}` +
-        (opened.length > 0
-          ? ` · ${opened.length === 1 ? "הגיליון הבא נפתח" : `נפתחו ${opened.length} גיליונות הבאים`} לשיבוץ`
-          : ""),
+      // The next issue is named by the link the screen puts after this (with
+      // its date); saying "the next issue opened" here as well said it twice.
+      message: `הגיליון נסגר · ${publicationsPhrase(result.publishedCount)} ${agrees(result.publishedCount, "סומן כפורסם", "סומנו כפורסמו")}`,
     };
   } catch (error) {
     return asPdfFormState(error);
