@@ -17,7 +17,7 @@ services:
     ports:
       # Host port shifted off the default: another project on this machine
       # already binds 5432/9000/9001. Container-side ports are unchanged.
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       # Postgres 18 wants a single mount at /var/lib/postgresql (it places the
       # data dir in a subdirectory), not the pre-18 /var/lib/postgresql/data.
@@ -39,8 +39,8 @@ services:
       MINIO_ROOT_USER: gilion
       MINIO_ROOT_PASSWORD: gilion_dev_secret
     ports:
-      - "9100:9000"
-      - "9101:9001"
+      - "127.0.0.1:9100:9000"
+      - "127.0.0.1:9101:9001"
     volumes:
       - gilion-minio-data:/data
     healthcheck:
