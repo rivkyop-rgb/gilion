@@ -8,6 +8,7 @@ import {
   loginAsAdmin,
   addOrderLine,
   passOrderWarnings,
+  saveCustomer,
 } from "./helpers";
 import { validPdf, validPng } from "./ad-fixtures";
 import { uploadFile } from "./ad-helpers";
@@ -42,7 +43,7 @@ async function ownCustomer(page: Page): Promise<{ id: string; name: string }> {
   await page.goto("/customers/new");
   await page.fill("#businessName", name);
   await page.fill("#phone", "050-7654321");
-  await page.getByRole("button", { name: "שמירה" }).click();
+  await saveCustomer(page);
   // The id pattern has to exclude "new": /customers/new matches a bare
   // [a-z0-9]+ too, so a wait that permits it can return before the navigation
   // and hand back "new" as the customer id.

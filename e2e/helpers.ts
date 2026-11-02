@@ -214,7 +214,9 @@ export async function addOrderLine(page: Page, date: string, price: string, expe
     .toBe(true);
 
   await page.getByTestId("add-line").click();
-  await expect(page.getByTestId("order-line-count")).toContainText(`${expectedDates} תאריכים`);
+  await expect(page.getByTestId("order-line-count")).toContainText(
+    expectedDates === 1 ? "תאריך אחד" : `${expectedDates} תאריכים`,
+  );
 }
 
 /**
@@ -251,4 +253,24 @@ export async function passOrderWarnings(page: Page) {
       // Not raised for this order — nothing to confirm.
     }
   }
+}
+
+/**
+ * Saves the customer form, saying yes if it asks about a phone or email that
+ * another customer already has (31/10/2026). Fixtures reuse the same numbers
+ * across specs, so the question can come up in any of them; a spec ABOUT the
+ * question clicks "שמירה" itself.
+ */
+export async function saveCustomer(page: Page) {
+  await page.getByRole("button", { name: "שמירה" }).click();
+  const confirm = page.getByTestId("confirm-duplicates");
+  const left = page
+    .waitForURL((u) => !/\/customers\/(new|[^/]+\/edit)$/.test(u.pathname), { timeout: 20_000 })
+    .then(() => "left" as const)
+    .catch(() => "stayed" as const);
+  const asked = confirm
+    .waitFor({ timeout: 20_000 })
+    .then(() => "asked" as const)
+    .catch(() => "none" as const);
+  if ((await Promise.race([left, asked])) === "asked") await confirm.click();
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useRef } from "react";
+import { useRef } from "react";
+import { useFormActionState } from "@/components/use-form-action-state";
 import { FileUp, Loader2 } from "lucide-react";
 
 import { AD_ACCEPT_ATTRIBUTE } from "@/lib/domain/ad-file";
@@ -11,13 +12,18 @@ import { uploadToPublicationAction, type PortalUploadState } from "@/app/(portal
 export function PublicationUpload({ publicationId }: { publicationId: string }) {
   const form = useRef<HTMLFormElement>(null);
   const input = useRef<HTMLInputElement>(null);
-  const [state, action, pending] = useActionState<PortalUploadState, FormData>(
-    uploadToPublicationAction.bind(null, publicationId),
-    {},
-  );
+  const [state, action, pending, keepTypedOnError] = useFormActionState<
+    PortalUploadState,
+    FormData
+  >(uploadToPublicationAction.bind(null, publicationId), {});
 
   return (
-    <form ref={form} action={action} className="flex flex-col items-end gap-1">
+    <form
+      ref={form}
+      action={action}
+      onReset={keepTypedOnError}
+      className="flex flex-col items-end gap-1"
+    >
       <input
         ref={input}
         type="file"

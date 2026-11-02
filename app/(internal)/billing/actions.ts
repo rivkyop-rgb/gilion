@@ -56,6 +56,8 @@ const MONEY = new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS
 export async function recordPaymentAction(form: {
   customerId: string;
   orderId: string;
+  /** Invoices ticked in the form; the split stays inside them. */
+  orderIds?: string[];
   amount: string;
   paymentDate: string;
   externalInvoiceNumber: string;
@@ -82,6 +84,7 @@ export async function recordPaymentAction(form: {
       {
         customerId: parsed.data.customerId,
         orderId: parsed.data.orderId || null,
+        orderIds: (form.orderIds ?? []).filter((id) => typeof id === "string" && id).slice(0, 200),
         amount,
         paymentDate: parsed.data.paymentDate,
         externalInvoiceNumber: parsed.data.externalInvoiceNumber.trim(),
@@ -133,6 +136,7 @@ export async function recordPaymentAction(form: {
 export async function previewAllocationAction(
   customerId: string,
   rawAmount: string,
+  orderIds: string[] = [],
 ): Promise<{ text: string }> {
   const ctx = await getTenantContext();
   requireArea(ctx, "billing", "write");
@@ -140,7 +144,10 @@ export async function previewAllocationAction(
   const amount = parseAmount(rawAmount);
   if (!Number.isFinite(amount) || amount <= 0) return { text: "" };
 
-  const open = await data.openOrdersOf(ctx.businessId, customerId);
+  const ticked = new Set(orderIds);
+  const open = (await data.openOrdersOf(ctx.businessId, customerId)).filter(
+    (o) => ticked.size === 0 || ticked.has(o.orderId),
+  );
   return { text: describeAllocation(allocatePayment(amount, open), orderNumber) };
 }
 

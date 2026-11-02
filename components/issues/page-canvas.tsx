@@ -1,5 +1,6 @@
 "use client";
 
+import type { PlacementTone } from "@/lib/domain/placement-tone";
 import { useRef } from "react";
 
 import type { DerivedGrid } from "@/lib/domain/grid";
@@ -14,6 +15,7 @@ import {
 } from "@/lib/domain/slot-geometry";
 import { fileHref } from "@/components/ads/ad-preview";
 import { cn } from "@/lib/utils";
+import { Ltr } from "@/components/ui/ltr";
 
 export type CanvasPage = {
   id: string;
@@ -46,6 +48,9 @@ export type CanvasPlacement = {
   shapePositions: Cell[] | null;
   previewUrl: string | null;
   duplicate: boolean;
+  /** Green / orange / red — see lib/domain/placement-tone.ts. */
+  tone: PlacementTone;
+  toneReason: string;
   /** The file behind it, for the full-size preview the panel opens. */
   ad: {
     id: string;
@@ -99,6 +104,7 @@ export function PageCanvas({
   onDrop,
   onPlacementPick,
   onLeave,
+  freeSpace = null,
 }: {
   page: CanvasPage;
   totalPages: number;
@@ -131,6 +137,8 @@ export function PageCanvas({
   onDrop: (pageId: string, cell: Cell) => void;
   onPlacementPick: (placement: CanvasPlacement) => void;
   onLeave: () => void;
+  /** The biggest shape that still fits, and its list price — said under the page. */
+  freeSpace?: { shapeName: string; price: number | null } | null;
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -161,7 +169,9 @@ export function PageCanvas({
           gridTemplateRows: `repeat(${grid.rows}, 1fr)`,
         }}
         className={cn(
-          "relative grid gap-px rounded-sm border border-outline bg-outline-variant p-px",
+          // Paper, not a grey slab (01/11/2026): white cells, row rules faint,
+          // column rules drawn stronger over them — the way a dummy sheet looks.
+          "relative grid gap-px rounded-sm border border-outline bg-outline-variant/35 p-px shadow-elevation-1",
           // Dimmed, and the cursor says no before anything is clicked. Not
           // disabled: the page is still a page, and picking up an ad that IS
           // allowed here has to keep working.
@@ -179,10 +189,23 @@ export function PageCanvas({
               onPointerEnter={() => onCellEnter(page.id, [col, row])}
               onFocus={() => onCellEnter(page.id, [col, row])}
               onClick={() => onCellClick(page.id, [col, row])}
-              className="bg-surface-dim"
+              className="bg-surface-container-lowest hover:bg-primary/5"
             />
           )),
         )}
+
+        {/* Column rules: the unit ads are sold in, so the one line worth seeing. */}
+        {Array.from({ length: Math.max(0, grid.columns - 1) }, (_, i) => {
+          const pct = toCanvasPercent({ col: i + 1, row: 0, cols: 1, rows: grid.rows }, grid);
+          return (
+            <span
+              key={`col-rule-${i}`}
+              aria-hidden
+              style={{ insetInlineStart: `${pct.startPct}%`, top: 0, bottom: 0 }}
+              className="pointer-events-none absolute w-px bg-outline-variant"
+            />
+          );
+        })}
 
         {/* Reserved areas, under the ads and over the cells. Not buttons: there
             is nothing to do with one from here, and a button that answers a
@@ -224,7 +247,8 @@ export function PageCanvas({
                  spec counts placements with [data-testid^="placement-"], and a
                  child sharing that prefix silently doubles the count. */
               data-testid={`placement-${placement.id}`}
-              title={`${placement.customerName} · ${placement.shapeName}`}
+              title={`${placement.customerName} · ${placement.shapeName} · ${placement.toneReason}`}
+              data-tone={placement.tone}
               onPointerDown={(event) => {
                 // Stops the page underneath reading this as a drop on the cell
                 // the ad happens to be covering.
@@ -247,7 +271,7 @@ export function PageCanvas({
                   ? "border-2 border-primary shadow-elevation-2"
                   : placement.duplicate
                     ? "border-2 border-dashed border-status-accent-fg"
-                    : "border-outline",
+                    : TONE_BORDER[placement.tone],
               )}
             >
               {placement.previewUrl ? (
@@ -273,8 +297,12 @@ export function PageCanvas({
                   <span className="opacity-70">אין תצוגה מקדימה</span>
                 </span>
               )}
-              <span className="absolute inset-x-0 bottom-0 truncate bg-primary/80 px-1 text-[10px] text-on-primary">
-                {placement.customerName}
+              <span className="absolute inset-x-0 bottom-0 flex items-center gap-1 truncate bg-primary/80 px-1 text-[10px] text-on-primary">
+                <span
+                  aria-hidden
+                  className={cn("size-1.5 shrink-0 rounded-full", TONE_DOT[placement.tone])}
+                />
+                <span className="truncate">{placement.customerName}</span>
               </span>
             </button>
           );
@@ -325,6 +353,18 @@ export function PageCanvas({
         </span>
         <span data-testid={`page-fill-${page.number}`} className="shrink-0">
           {fill.full ? "מלא" : `${fill.percent}%`}
+          {/* What can still be sold here, and for how much (01/11/2026). */}
+          {!fill.full && freeSpace ? (
+            <span data-testid={`page-free-${page.number}`} className="ms-1 text-status-info-fg">
+              · פנוי ל{freeSpace.shapeName}
+              {freeSpace.price !== null ? (
+                <>
+                  {" "}
+                  <Ltr>{MONEY.format(freeSpace.price)}</Ltr>
+                </>
+              ) : null}
+            </span>
+          ) : null}
         </span>
       </div>
     </div>
@@ -340,3 +380,19 @@ function rectStyle(rect: GridRect, grid: DerivedGrid) {
     height: `${pct.heightPct}%`,
   };
 }
+
+const TONE_BORDER: Record<PlacementTone, string> = {
+  ready: "border-2 border-status-success-fg",
+  attention: "border-2 border-status-warning-fg",
+  problem: "border-2 border-status-error-fg",
+};
+const TONE_DOT: Record<PlacementTone, string> = {
+  ready: "bg-status-success-bg",
+  attention: "bg-status-warning-bg",
+  problem: "bg-status-error-bg",
+};
+const MONEY = new Intl.NumberFormat("he-IL", {
+  style: "currency",
+  currency: "ILS",
+  maximumFractionDigits: 0,
+});

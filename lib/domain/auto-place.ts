@@ -38,6 +38,12 @@ export type AutoPlaceItem = {
    * order line behind it; that one may go on any page open to auto-placement.
    */
   pageTypeId?: string | null;
+  /**
+   * A page NUMBER the order (or the customer) asked for (the user,
+   * 31/10/2026). Tried first; when that page cannot take it, the ad goes on
+   * the next page that can rather than staying out of the issue.
+   */
+  requestedPage?: number | null;
 };
 
 /** A page the packer may use, in the order it appears in the issue. */
@@ -108,7 +114,7 @@ function shuffled<T>(items: readonly T[], next: () => number): T[] {
  * rather than scattered: ads settle towards the top-start corner and the page
  * fills the way a person would fill it.
  */
-function firstFit(
+export function firstFit(
   shape: ShapeSpec,
   page: AutoPlacePage,
   grid: DerivedGrid,
@@ -173,7 +179,11 @@ export function autoPlace(
       const [bc, br] = b[0].split("x").map(Number);
       return bc! * br! - ac! * ar!;
     })
-    .flatMap(([, group]) => shuffled(group, next));
+    .flatMap(([, group]) => shuffled(group, next))
+    // Ads that asked for a page go first, so a page is not filled by somebody
+    // who did not ask for it before the one who did gets there. Stable, so the
+    // footprint order above still holds within each half.
+    .sort((a, b) => Number(Boolean(b.requestedPage)) - Number(Boolean(a.requestedPage)));
 
   const taken = new Map<string, GridRect[]>(pages.map((p) => [p.pageId, [...p.occupied]]));
   const placements: AutoPlacement[] = [];
@@ -182,7 +192,13 @@ export function autoPlace(
   for (const item of ordered) {
     let landed = false;
 
-    for (const page of pages) {
+    const order = item.requestedPage
+      ? [
+          ...pages.filter((p) => p.pageNumber === item.requestedPage),
+          ...pages.filter((p) => p.pageNumber !== item.requestedPage),
+        ]
+      : pages;
+    for (const page of order) {
       if (!pageAccepts(page, item)) continue;
       // FR-14: the page type has to accept the shape at all.
       if (!page.allowedShapes.some((s) => s.id === item.shape.id)) continue;
@@ -231,4 +247,22 @@ export function sheetsNeededFor(
 
   const cells = items.reduce((sum, i) => sum + i.shape.cols * i.shape.rows, 0);
   return Math.max(1, Math.ceil(cells / cellsPerPage / pagesPerSheet));
+}
+
+/**
+ * The biggest shape this page still has room for, with where it would go —
+ * what "free space" means to somebody selling it (the user, 01/11/2026: show
+ * the free space and its price). Same rules as auto-placement: allowed
+ * region, nothing overlapping, and no stranded remainder (7א).
+ */
+export function largestThatFits(
+  page: AutoPlacePage,
+  grid: DerivedGrid,
+): { shape: ShapeSpec; rect: GridRect } | null {
+  const bySize = [...page.allowedShapes].sort((a, b) => b.cols * b.rows - a.cols * a.rows);
+  for (const shape of bySize) {
+    const rect = firstFit(shape, page, grid, page.occupied);
+    if (rect) return { shape, rect };
+  }
+  return null;
 }

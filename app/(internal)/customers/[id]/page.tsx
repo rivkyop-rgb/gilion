@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { RecordHistory } from "@/components/record-history";
 import { publicationsPhrase } from "@/lib/domain/hebrew-count";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -275,6 +276,12 @@ export default async function CustomerPage({
                 {mainContact.role ? ` · ${mainContact.role}` : null}
               </p>
             ) : null}
+            <div className="mt-1">
+              <RecordHistory
+                businessId={ctx.businessId}
+                targets={[{ type: "Customer", ids: [customer.id] }]}
+              />
+            </div>
           </div>
         </div>
 
@@ -1048,14 +1055,22 @@ export default async function CustomerPage({
                 label: "פרטי העסק",
                 phone: customer.phone,
                 email: customer.email,
-                on: customer.reminders_to_main,
+                on: {
+                  reminders: customer.reminders_to_main,
+                  tear_sheets: customer.tear_sheets_to_main,
+                  billing: customer.billing_to_main,
+                },
               },
               ...customer.contacts.map((c) => ({
                 target: c.id,
                 label: c.role ? `${c.name} · ${c.role}` : c.name,
                 phone: c.phone,
                 email: c.email,
-                on: c.receives_reminders,
+                on: {
+                  reminders: c.receives_reminders,
+                  tear_sheets: c.receives_tear_sheets,
+                  billing: c.receives_billing,
+                },
               })),
             ]}
           />

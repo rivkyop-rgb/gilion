@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useFormActionState } from "@/components/use-form-action-state";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,7 +70,10 @@ export function NewspaperForm({
    */
   catalogue?: RescaleShape[];
 }) {
-  const [state, formAction, pending] = useActionState<FormState, FormData>(action, {});
+  const [state, formAction, pending, keepTypedOnError] = useFormActionState<FormState, FormData>(
+    action,
+    {},
+  );
   const [pageSize, setPageSize] = useState<PageSizeKey>(initial.pageSize);
   const [days, setDays] = useState<number[]>(initial.publicationDays);
   const toggleDay = (d: number) =>
@@ -138,7 +142,7 @@ export function NewspaperForm({
       : null;
 
   return (
-    <form action={formAction} className="max-w-[560px] space-y-5">
+    <form action={formAction} onReset={keepTypedOnError} className="max-w-[560px] space-y-5">
       <div>
         <Label htmlFor="name">שם העיתון</Label>
         <Input id="name" name="name" defaultValue={initial.name} required />

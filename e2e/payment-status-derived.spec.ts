@@ -50,7 +50,7 @@ test("תשלום חלקי → שולם חלקית; השלמה → שולם", asy
   await expect(page.getByTestId(`billing-outstanding-${customer.id}`)).toContainText("0");
 });
 
-test("תשלום יתר מותר ומוצג כשולם, בלי יתרה שלילית (כלל 2)", async ({ page }) => {
+test("תשלום מעל החשבון שסומן: ההזמנה שולמה והעודף נכנס לזיכוי", async ({ page }) => {
   test.slow();
   await loginAsAdmin(page);
 
@@ -58,18 +58,17 @@ test("תשלום יתר מותר ומוצג כשולם, בלי יתרה שליל
   const orderId = await approvedOrder(page, customer.name, [BILLING_DATES.march[0]], "500");
 
   await openBillingRow(page, customer.id);
-  // The ORDER is named on purpose. Overpaying is a deliberate act, and it is
-  // the only way to reach it: a general payment never pushes an order past its
-  // balance — the surplus becomes the customer's credit instead
-  // (payment-split-and-credit.spec.ts covers that path).
+  // The invoice is TICKED and more is paid than it owes. The surplus is the
+  // customer's credit, not an overpayment on the order (the user, 31/10/2026:
+  // "changing the amount did not put the customer in credit").
   await recordPayment(page, { amount: "800", orderId });
   await page.reload();
 
   await expect(page.getByTestId(`billing-status-${customer.id}`)).toHaveText("שולם");
   await expect(page.getByTestId(`billing-outstanding-${customer.id}`)).toContainText("0");
-  // And the surplus is said out loud on the customer card rather than swallowed.
+  // And the surplus is the customer's, on the card.
   await page.goto(`/customers/${customer.id}`);
-  await expect(page.getByTestId("account-overpaid")).toContainText("300");
+  await expect(page.getByTestId("account-credit")).toContainText("300");
 });
 
 /**

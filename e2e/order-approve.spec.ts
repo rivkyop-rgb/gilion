@@ -156,7 +156,7 @@ test.describe("where the price comes from (rule 4)", () => {
     await page.getByTestId("line-price").fill("");
     await page.getByTestId("add-line").click();
 
-    await expect(page.getByTestId("order-line-count")).toContainText(`${1} תאריכים`);
+    await expect(page.getByTestId("order-line-count")).toContainText("תאריך אחד");
     await expect(page.getByTestId("order-total")).toContainText(
       Number(suggested).toLocaleString("he-IL"),
     );
@@ -190,7 +190,7 @@ test.describe("where the price comes from (rule 4)", () => {
     await newDraft(page);
     await addLine(page, "2026-12-01", "0");
 
-    await expect(page.getByTestId("order-line-count")).toContainText(`${1} תאריכים`);
+    await expect(page.getByTestId("order-line-count")).toContainText("תאריך אחד");
   });
 });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import * as Icons from "lucide-react";
@@ -15,6 +15,19 @@ import { BUILT_THROUGH_STAGE, NAV_ITEMS } from "./nav-items";
 
 /** Anything that opens the window — the sidebar's button — says so with this. */
 export const OPEN_PALETTE_EVENT = "gilion:open-palette";
+
+const noSubscribe = () => () => {};
+/**
+ * "⌘" on a Mac, "Ctrl" elsewhere — what the key is called on the keyboard in
+ * front of the person. The server renders "Ctrl" and the browser corrects it.
+ */
+export function useModKeyLabel(): string {
+  return useSyncExternalStore(
+    noSubscribe,
+    () => (/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl"),
+    () => "Ctrl",
+  );
+}
 
 type Item = {
   key: string;
@@ -52,11 +65,14 @@ export function CommandPalette({
   /** The last answer, stamped with the text that produced it (see payment-editor). */
   const [found, setFound] = useState<{ q: string; results: PaletteResults } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const mod = useModKeyLabel();
 
   // Ctrl+K / ⌘K anywhere, and the sidebar's button.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      // `code` is the physical key, so Ctrl+K still opens with the keyboard on
+      // Hebrew, where `key` is "ל". `key` stays for layouts that move K.
+      if ((e.ctrlKey || e.metaKey) && (e.code === "KeyK" || e.key.toLowerCase() === "k")) {
         e.preventDefault();
         setOpen((v) => !v);
       }
@@ -279,7 +295,8 @@ export function CommandPalette({
           <p className="flex gap-4 border-t border-outline-variant bg-surface-container-low px-5 py-2.5 text-xs text-on-surface-variant">
             <span>↑↓ מעבר</span>
             <span>Enter פתיחה</span>
-            <span className="ms-auto">Ctrl+K פותח מכל מסך</span>
+            <span className="ms-auto" dir="ltr">{`${mod}+K`}</span>
+            <span>פותח מכל מסך</span>
           </p>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

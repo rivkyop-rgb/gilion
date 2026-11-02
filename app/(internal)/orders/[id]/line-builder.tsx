@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useFormActionState } from "@/components/use-form-action-state";
+import { setPendingLines } from "./pending-lines";
 import Link from "next/link";
 import { AlertTriangle, Plus, Settings, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,6 +27,7 @@ import {
 import { groupOrderLines, timesLabel } from "@/lib/domain/order-grouping";
 import { formatMoney } from "../format";
 import { MultiDatePicker } from "./date-picker";
+import { counted } from "@/lib/domain/hebrew-count";
 
 export type PaperOption = {
   id: string;
@@ -43,6 +46,7 @@ export type ExistingLine = {
   isoDate: string;
   offSchedule: boolean;
   price: number;
+  requestedPage: number | null;
 };
 
 /**
@@ -59,14 +63,20 @@ export function LineBuilder({
   papers,
   lines,
   editable,
+  customerPreferredPage = null,
 }: {
   orderId: string;
   papers: PaperOption[];
   lines: ExistingLine[];
   editable: boolean;
+  /** The customer's fixed page — the default for a new line, which may override it. */
+  customerPreferredPage?: number | null;
 }) {
   const bound = addOrderItemAction.bind(null, orderId);
-  const [state, action, pending] = useActionState<FormState, FormData>(bound, {});
+  const [state, action, pending, keepTypedOnError] = useFormActionState<FormState, FormData>(
+    bound,
+    {},
+  );
   const [busy, startTransition] = useTransition();
   const [removeError, setRemoveError] = useState<string | null>(null);
 
@@ -153,6 +163,13 @@ export function LineBuilder({
     }
   }
 
+  // Told to the action bar, so it can refuse to send an order while dates
+  // sit in the picker un-added (pending-lines.ts).
+  useEffect(() => {
+    setPendingLines(dates.length);
+    return () => setPendingLines(0);
+  }, [dates.length]);
+
   const groups = groupOrderLines(lines);
 
   const origin = priceOrigin(price.trim() === "" ? null : Number(price), suggested);
@@ -165,7 +182,8 @@ export function LineBuilder({
 
       {lines.length === 0 ? (
         <p className="mb-4 rounded-lg border border-dashed border-outline-variant p-6 text-center text-sm text-on-surface-variant">
-          עוד לא נוספו שורות. כל שורה תהפוך לפרסום אחד באישור ההזמנה.
+          עוד לא נוספו שורות. בוחרים למטה עיתון, סוג עמוד, צורה ותאריכים, ולוחצים &quot;הוספה
+          להזמנה&quot;. כל תאריך יהפוך לפרסום אחד באישור ההזמנה.
         </p>
       ) : (
         <>
@@ -196,7 +214,14 @@ export function LineBuilder({
                     className="border-t border-outline-variant align-top"
                   >
                     <td className="p-3">{g.newspaperName}</td>
-                    <td className="p-3">{g.pageTypeName}</td>
+                    <td className="p-3">
+                      {g.pageTypeName}
+                      {g.requestedPage ? (
+                        <span className="block text-xs text-on-surface-variant">
+                          עמוד מבוקש <Ltr>{g.requestedPage}</Ltr>
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="p-3">{g.shapeName}</td>
                     <td className="p-3">
                       {/* Short lists cost nothing to show, and a long one is the
@@ -262,7 +287,8 @@ export function LineBuilder({
             publications this order will create, which the grouped rows no
             longer state directly. */}
           <p className="mb-4 text-xs text-on-surface-variant" data-testid="order-line-count">
-            {lines.length} תאריכים · {groups.length} שורות הזמנה
+            {counted(lines.length, "תאריך אחד", "תאריכים")} ·{" "}
+            {counted(groups.length, "שורת הזמנה אחת", "שורות הזמנה")}
           </p>
         </>
       )}
@@ -301,15 +327,21 @@ export function LineBuilder({
       {editable && papers.length > 0 ? (
         <form
           action={action}
+          onReset={keepTypedOnError}
           className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4"
         >
+          <h3 className="mb-1 font-semibold">הוספת פרסום להזמנה</h3>
+          <p className="mb-4 text-xs text-on-surface-variant">
+            1. עיתון, סוג עמוד וצורה · 2. תאריכים · 3. &quot;הוספה להזמנה&quot; בתחתית. אפשר לחזור
+            על זה כמה פעמים שצריך, ורק אחר כך לשלוח את ההזמנה.
+          </p>
           {/* One line per chosen date, all submitted together. */}
           {dates.map((d) => (
             <input key={d} type="hidden" name="dates" value={d} />
           ))}
           <input type="hidden" name="offSchedule" value={specialEdition ? "1" : ""} />
 
-          <div className="mb-4 grid gap-3 sm:grid-cols-4">
+          <div className="mb-4 grid gap-3 sm:grid-cols-5">
             <div>
               <Label htmlFor="newspaperId">עיתון</Label>
               <select
@@ -391,6 +423,25 @@ export function LineBuilder({
                 {PRICE_ORIGIN_LABELS[origin]}
               </p>
             </div>
+
+            <div>
+              <Label htmlFor="requestedPage">עמוד מבוקש</Label>
+              <Input
+                id="requestedPage"
+                name="requestedPage"
+                dir="ltr"
+                inputMode="numeric"
+                placeholder="לא חובה"
+                defaultValue={customerPreferredPage ? String(customerPreferredPage) : ""}
+                aria-invalid={Boolean(state.errors?.requestedPage)}
+                data-testid="line-requested-page"
+              />
+              <p className="mt-1 text-[11px] text-on-surface-variant">
+                {customerPreferredPage
+                  ? `העמוד הקבוע של הלקוח: ${customerPreferredPage}. מה שנכתב כאן גובר.`
+                  : "מספר עמוד, אם הלקוח ביקש עמוד מסוים."}
+              </p>
+            </div>
           </div>
 
           {shapeId ? (
@@ -424,7 +475,11 @@ export function LineBuilder({
                 />
 
                 <p className="mt-3 mb-1 text-xs font-medium text-on-surface-variant">
-                  נבחרו {dates.length} תאריכים
+                  {dates.length === 0
+                    ? "עוד לא נבחרו תאריכים"
+                    : dates.length === 1
+                      ? "נבחר תאריך אחד"
+                      : `נבחרו ${dates.length} תאריכים`}
                 </p>
                 <div
                   className="min-h-24 grow content-start rounded-lg border border-outline-variant bg-surface-container-low p-2"
@@ -472,7 +527,8 @@ export function LineBuilder({
 
                 {previewTotal !== null && dates.length > 0 ? (
                   <p className="mt-2 text-sm" data-testid="lines-preview-total">
-                    {dates.length} שורות × <Ltr>{formatMoney(unitPrice ?? 0)}</Ltr> ={" "}
+                    {counted(dates.length, "תאריך אחד", "תאריכים")} ×{" "}
+                    <Ltr>{formatMoney(unitPrice ?? 0)}</Ltr> ={" "}
                     <strong>
                       <Ltr>{formatMoney(previewTotal)}</Ltr>
                     </strong>
@@ -516,12 +572,11 @@ export function LineBuilder({
             {state.message ? <InlineError>{state.message}</InlineError> : null}
             <Button
               type="submit"
-              variant="secondary"
               disabled={pending || !shapeId || dates.length === 0 || needsAcknowledgement}
               data-testid="add-line"
             >
               <Plus className="size-4" />
-              {dates.length > 1 ? `הוספת ${dates.length} שורות` : "הוספת שורה"}
+              {dates.length > 1 ? `הוספה להזמנה · ${dates.length} תאריכים` : "הוספה להזמנה"}
             </Button>
             {dates.length === 0 ? (
               <span className="ms-3 text-xs text-on-surface-variant">יש לבחור לפחות תאריך אחד</span>

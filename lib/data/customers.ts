@@ -121,6 +121,8 @@ type StoredContact = {
   phone: string | null;
   email: string | null;
   receives_reminders: boolean;
+  receives_tear_sheets: boolean;
+  receives_billing: boolean;
   position: number;
 };
 
@@ -133,6 +135,7 @@ export async function updateCustomer(
     phone?: string | null;
     email?: string | null;
     notes?: string | null;
+    preferred_page?: number | null;
   },
   /** Given → the list is REPLACED by this one; omitted → contacts untouched. */
   contacts?: StoredContact[],
@@ -226,5 +229,151 @@ export async function setContactReceivesReminders(
     data: {
       contacts: { update: { where: { id: contactId }, data: { receives_reminders: on } } },
     },
+  });
+}
+
+/** What a contact can be ticked for on the customer's card (the user, 31/10/2026). */
+export type RecipientKind = "reminders" | "tear_sheets" | "billing";
+
+const MAIN_COLUMN = {
+  reminders: "reminders_to_main",
+  tear_sheets: "tear_sheets_to_main",
+  billing: "billing_to_main",
+} as const;
+const CONTACT_COLUMN = {
+  reminders: "receives_reminders",
+  tear_sheets: "receives_tear_sheets",
+  billing: "receives_billing",
+} as const;
+
+/**
+ * One tick in the "who gets what" table. A contact is written THROUGH the
+ * customer, so the customer's tenant scope covers it (see
+ * setContactReceivesReminders).
+ */
+export async function setRecipient(
+  businessId: string,
+  customerId: string,
+  target: string,
+  kind: RecipientKind,
+  on: boolean,
+) {
+  if (target === "main") {
+    return tenantDb(businessId).customer.update({
+      where: { id: customerId },
+      data: { [MAIN_COLUMN[kind]]: on },
+    });
+  }
+  return tenantDb(businessId).customer.update({
+    where: { id: customerId },
+    data: { contacts: { update: { where: { id: target }, data: { [CONTACT_COLUMN[kind]]: on } } } },
+  });
+}
+
+/**
+ * Who to call about money this customer owes: everyone ticked "חוב וגבייה"
+ * on the card, and the business's own details when ticked — or when nobody is,
+ * because "nobody" cannot be the answer to "who do I call" (31/10/2026).
+ */
+export async function billingContactsOf(businessId: string, customerId: string) {
+  const c = await tenantDb(businessId).customer.findUnique({
+    where: { id: customerId },
+    select: {
+      business_name: true,
+      phone: true,
+      email: true,
+      billing_to_main: true,
+      contacts: {
+        where: { receives_billing: true },
+        orderBy: { position: "asc" },
+        select: { name: true, role: true, phone: true, email: true },
+      },
+    },
+  });
+  if (!c) return [];
+  const people = c.contacts.map((p) => ({
+    label: p.role ? `${p.name} · ${p.role}` : p.name,
+    phone: p.phone,
+    email: p.email,
+  }));
+  const main = { label: "פרטי העסק", phone: c.phone, email: c.email };
+  return c.billing_to_main || people.length === 0 ? [main, ...people] : people;
+}
+
+export type DuplicateHit = {
+  customerId: string;
+  customerName: string;
+  /** What matched, as stored. */
+  value: string;
+  kind: "phone" | "email";
+  /** Whose detail it is at the other customer: the business, or a contact's name. */
+  owner: string | null;
+};
+
+/**
+ * Other customers that already carry one of these phones or emails — on the
+ * business itself or on one of its contacts (the user, 31/10/2026). A warning,
+ * not a refusal: the same bookkeeper can serve two advertisers.
+ */
+export async function findContactDuplicates(
+  businessId: string,
+  values: { phones: string[]; emails: string[] },
+  exceptId?: string,
+): Promise<DuplicateHit[]> {
+  const phones = [...new Set(values.phones.filter(Boolean))];
+  const emails = [...new Set(values.emails.filter(Boolean))];
+  if (phones.length === 0 && emails.length === 0) return [];
+
+  const found = await tenantDb(businessId).customer.findMany({
+    where: {
+      ...(exceptId ? { NOT: { id: exceptId } } : {}),
+      OR: [
+        ...(phones.length ? [{ phone: { in: phones } }] : []),
+        ...(emails.length ? [{ email: { in: emails, mode: "insensitive" as const } }] : []),
+        {
+          contacts: {
+            some: {
+              OR: [
+                ...(phones.length ? [{ phone: { in: phones } }] : []),
+                ...(emails.length ? [{ email: { in: emails, mode: "insensitive" as const } }] : []),
+              ],
+            },
+          },
+        },
+      ],
+    },
+    take: 20,
+    select: {
+      id: true,
+      business_name: true,
+      phone: true,
+      email: true,
+      contacts: { select: { name: true, phone: true, email: true } },
+    },
+  });
+
+  const lower = new Set(emails.map((e) => e.toLowerCase()));
+  const hits: DuplicateHit[] = [];
+  for (const c of found) {
+    const add = (value: string | null, kind: "phone" | "email", owner: string | null) => {
+      if (!value) return;
+      const match = kind === "phone" ? phones.includes(value) : lower.has(value.toLowerCase());
+      if (match) hits.push({ customerId: c.id, customerName: c.business_name, value, kind, owner });
+    };
+    add(c.phone, "phone", null);
+    add(c.email, "email", null);
+    for (const p of c.contacts) {
+      add(p.phone, "phone", p.name);
+      add(p.email, "email", p.name);
+    }
+  }
+  return hits;
+}
+
+/** The customer a ח.פ already belongs to — named in the refusal. */
+export async function taxIdOwner(businessId: string, taxId: string, exceptId?: string) {
+  return tenantDb(businessId).customer.findFirst({
+    where: { tax_id: taxId, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
+    select: { id: true, business_name: true },
   });
 }

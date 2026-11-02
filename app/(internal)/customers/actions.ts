@@ -12,13 +12,15 @@ import {
   validateCustomer,
   type CustomerInput,
 } from "@/lib/domain/customer";
-import { withAudit } from "@/lib/data/audit";
+import { recordAction, withAudit } from "@/lib/data/audit";
 import * as data from "@/lib/data/customers";
 
 /** Field-level errors keyed the way the form renders them. */
 export type FormState = {
   errors?: Partial<Record<string, string>>;
   message?: string;
+  /** Phones/emails another customer already has — asked about, not refused. */
+  duplicates?: Array<{ customerId: string; text: string }>;
 };
 
 const schema = z.object({
@@ -27,6 +29,7 @@ const schema = z.object({
   phone: z.string().optional().nullable(),
   email: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  preferredPage: z.string().optional().nullable(),
   contacts: z
     .array(
       z.object({
@@ -35,6 +38,8 @@ const schema = z.object({
         phone: z.string().nullable().optional(),
         email: z.string().nullable().optional(),
         receivesReminders: z.boolean().optional(),
+        receivesTearSheets: z.boolean().optional(),
+        receivesBilling: z.boolean().optional(),
       }),
     )
     .max(50),
@@ -52,12 +57,16 @@ function readContacts(formData: FormData) {
   const phones = col("contact_phone");
   const emails = col("contact_email");
   const reminders = col("contact_reminders");
+  const tearSheets = col("contact_tear_sheets");
+  const billing = col("contact_billing");
   return names.map((name, i) => ({
     name,
     role: roles[i] ?? null,
     phone: phones[i] ?? null,
     email: emails[i] ?? null,
     receivesReminders: reminders[i] === "1",
+    receivesTearSheets: tearSheets[i] === "1",
+    receivesBilling: billing[i] === "1",
   }));
 }
 
@@ -68,25 +77,55 @@ function readForm(formData: FormData): CustomerInput | null {
     phone: formData.get("phone"),
     email: formData.get("email"),
     notes: formData.get("notes"),
+    preferredPage: formData.get("preferredPage"),
     contacts: readContacts(formData),
   });
   return parsed.success ? parsed.data : null;
 }
 
-/** Email and ח.פ are each unique within a business — said in Hebrew, per field. */
+/**
+ * ח.פ is unique within a business (a database index), so it is refused — and
+ * the refusal names the customer who has it, so the next step is obvious.
+ */
 async function uniquenessErrors(
   businessId: string,
-  stored: { email: string | null; tax_id: string | null },
+  stored: { tax_id: string | null },
   exceptId?: string,
 ): Promise<Record<string, string> | null> {
-  const [emailTaken, taxIdTaken] = await Promise.all([
-    stored.email ? data.emailTaken(businessId, stored.email, exceptId) : false,
-    stored.tax_id ? data.taxIdTaken(businessId, stored.tax_id, exceptId) : false,
-  ]);
-  const errors: Record<string, string> = {};
-  if (emailTaken) errors.email = "כתובת המייל כבר קיימת אצל לקוח אחר בעסק הזה";
-  if (taxIdTaken) errors.taxId = "ח.פ / ע.מ הזה כבר רשום אצל לקוח אחר";
-  return Object.keys(errors).length > 0 ? errors : null;
+  if (!stored.tax_id) return null;
+  const owner = await data.taxIdOwner(businessId, stored.tax_id, exceptId);
+  return owner ? { taxId: `ח.פ / ע.מ הזה כבר רשום אצל "${owner.business_name}"` } : null;
+}
+
+/**
+ * Phones and emails already on another customer — the business's own or a
+ * contact's. Asked about, not refused (the user, 31/10/2026): the form shows
+ * who has them and saves only after "כן, לשמור בכל זאת".
+ */
+async function duplicateWarning(
+  businessId: string,
+  stored: { phone: string | null; email: string | null },
+  contacts: Array<{ phone: string | null; email: string | null }>,
+  exceptId?: string,
+): Promise<FormState | null> {
+  const hits = await data.findContactDuplicates(
+    businessId,
+    {
+      phones: [stored.phone, ...contacts.map((c) => c.phone)].filter((v): v is string => !!v),
+      emails: [stored.email, ...contacts.map((c) => c.email)].filter((v): v is string => !!v),
+    },
+    exceptId,
+  );
+  if (hits.length === 0) return null;
+  return {
+    message: "חלק מהפרטים כבר קיימים אצל לקוח אחר",
+    duplicates: hits.map((h) => ({
+      customerId: h.customerId,
+      text: `${h.kind === "phone" ? "הטלפון" : "המייל"} ${h.value} רשום אצל "${h.customerName}"${
+        h.owner ? ` (איש קשר: ${h.owner})` : ""
+      }`,
+    })),
+  };
 }
 
 function toErrorMap(errors: { field: string; message: string }[]) {
@@ -110,12 +149,19 @@ export async function createCustomerAction(
   const taken = await uniquenessErrors(ctx.businessId, stored);
   if (taken) return { errors: taken };
 
-  const created = await data.createCustomer(
-    ctx.businessId,
-    stored,
-    contactsToStorage(input.contacts),
-  );
+  const contacts = contactsToStorage(input.contacts);
+  if (formData.get("confirmDuplicates") !== "1") {
+    const warning = await duplicateWarning(ctx.businessId, stored, contacts);
+    if (warning) return warning;
+  }
+
+  const created = await data.createCustomer(ctx.businessId, stored, contacts);
   revalidatePath("/customers");
+  await recordAction(ctx, {
+    action: "create_customer",
+    targetType: "Customer",
+    targetId: created.id,
+  });
   redirect(`/customers/${created.id}`);
 }
 
@@ -140,9 +186,16 @@ export async function updateCustomerAction(
   const taken = await uniquenessErrors(ctx.businessId, stored, id);
   if (taken) return { errors: taken };
 
-  await data.updateCustomer(ctx.businessId, id, stored, contactsToStorage(input.contacts));
+  const contacts = contactsToStorage(input.contacts);
+  if (formData.get("confirmDuplicates") !== "1") {
+    const warning = await duplicateWarning(ctx.businessId, stored, contacts, id);
+    if (warning) return warning;
+  }
+
+  await data.updateCustomer(ctx.businessId, id, stored, contacts);
   revalidatePath("/customers");
   revalidatePath(`/customers/${id}`);
+  await recordAction(ctx, { action: "update_customer", targetType: "Customer", targetId: id });
   redirect(`/customers/${id}`);
 }
 
@@ -187,6 +240,8 @@ const reminderTarget = z.object({
   /** "main" — the business's own details — or a contact id. */
   target: z.string().min(1),
   on: z.boolean(),
+  /** Which tick: reminders (the original one), tear sheets or billing. */
+  kind: z.enum(["reminders", "tear_sheets", "billing"]).default("reminders"),
 });
 
 /** A tick in "who gets reminders" on the customer's card. Saved at once. */
@@ -196,17 +251,15 @@ export async function setReminderRecipientAction(input: unknown): Promise<FormSt
 
   const parsed = reminderTarget.safeParse(input);
   if (!parsed.success) return { message: "הבחירה לא נשמרה" };
-  const { customerId, target, on } = parsed.data;
+  const { customerId, target, on, kind } = parsed.data;
 
   const existing = await data.getCustomer(ctx.businessId, customerId);
   if (!existing) return { message: "הלקוח לא נמצא" };
 
-  if (target === "main") {
-    await data.setMainReceivesReminders(ctx.businessId, customerId, on);
-  } else {
-    if (!existing.contacts.some((c) => c.id === target)) return { message: "איש הקשר לא נמצא" };
-    await data.setContactReceivesReminders(ctx.businessId, customerId, target, on);
+  if (target !== "main" && !existing.contacts.some((c) => c.id === target)) {
+    return { message: "איש הקשר לא נמצא" };
   }
+  await data.setRecipient(ctx.businessId, customerId, target, kind, on);
 
   revalidatePath(`/customers/${customerId}`);
   revalidatePath("/reminders");

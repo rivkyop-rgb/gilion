@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
+import { useFormActionState } from "@/components/use-form-action-state";
 import { Plus, Trash2 } from "lucide-react";
 
 import { formatPercent } from "@/lib/domain/ad-package";
@@ -44,7 +45,10 @@ export function Packages({
   readOnly: boolean;
 }) {
   const bound = createPackageAction.bind(null, newspaperId);
-  const [state, action, pending] = useActionState<FormState, FormData>(bound, {});
+  const [state, action, pending, keepTypedOnError] = useFormActionState<FormState, FormData>(
+    bound,
+    {},
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
 
@@ -128,7 +132,11 @@ export function Packages({
       ) : null}
 
       {readOnly ? null : (
-        <form action={action} className="flex flex-wrap items-start gap-2">
+        <form
+          action={action}
+          onReset={keepTypedOnError}
+          className="flex flex-wrap items-start gap-2"
+        >
           <div className="min-w-40 flex-1">
             <Input name="name" placeholder="שם החבילה — למשל: חבילת 4" data-testid="package-name" />
           </div>

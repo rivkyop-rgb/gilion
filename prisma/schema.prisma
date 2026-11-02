@@ -91,6 +91,27 @@ enum AuditAction {
   /// that a person other than the owner holds these credentials now, and the
   /// value is the one thing a log must never be able to give back.
   reset_user_password
+  /// An issue the system opened by itself (ensureUpcomingIssues). user_id is
+  /// the person whose page load triggered it — there is no cron — so "who
+  /// opened this?" has an answer (UX review, 29/10/2026).
+  auto_open_issue
+  /// "Who did it" on every record (the user, 31/10/2026: not only in the log —
+  /// on each order, customer, ad and issue). Plain acts that change a record,
+  /// each one row, shown on the record's own page.
+  create_order
+  update_order_lines
+  submit_order
+  cancel_order
+  create_customer
+  update_customer
+  upload_ad
+  replace_ad
+  archive_ad
+  link_ad
+  open_issue
+  reopen_issue
+  move_issue_date
+  board_sale
 }
 
 /// An independent business in the multi-tenant system (FR-1, FR-2).
@@ -286,26 +307,34 @@ model AuditLog {
 /// Deliberately has no company registration number: that field appeared in the
 /// Stitch mockups but is not in the ERD (docs/design/gaps.md §א).
 model Customer {
-  id                String   @id @default(cuid())
-  business_id       String
+  id                  String   @id @default(cuid())
+  business_id         String
   /// Every customer is a business (decided 23/09/2026). The people at it
   /// are `contacts`.
-  business_name     String
+  business_name       String
   /// ח.פ / ע.מ — 9 digits, optional, unique within the business.
-  tax_id            String?
+  tax_id              String?
   /// At least one of phone/email is required, enforced by a CHECK constraint.
-  phone             String?
-  email             String?
+  phone               String?
+  email               String?
   /// Free text for whoever handles the customer next.
-  notes             String?
+  notes               String?
   /// The business's own phone/email is ticked to receive reminders. When
   /// nothing at all is ticked — this or any contact — reminders go here anyway
   /// (lib/domain/reminders.ts `reminderRecipients`).
-  reminders_to_main Boolean  @default(false)
+  reminders_to_main   Boolean  @default(false)
+  /// The business's own email gets the tear sheets — the default before
+  /// contacts could be ticked for them.
+  tear_sheets_to_main Boolean  @default(true)
+  /// The business's own details are who to call about a debt.
+  billing_to_main     Boolean  @default(true)
   /// This customer gets proof of publication — a tear sheet (14/10/2026).
-  wants_tear_sheets Boolean  @default(false)
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
+  wants_tear_sheets   Boolean  @default(false)
+  /// The page number this advertiser normally runs on. A line's own
+  /// requested_page wins over it (the user, 31/10/2026).
+  preferred_page      Int?
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
 
   business       Business            @relation(fields: [business_id], references: [id], onDelete: Restrict)
   /// The people at the business, first one = main contact. Part of the
@@ -329,19 +358,23 @@ model Customer {
 /// `position` 0 is the main contact.
 /// Tenant-scoped through `customer` (lib/data/tenant-models.ts).
 model CustomerContact {
-  id                 String   @id @default(cuid())
-  customer_id        String
-  name               String
+  id                   String   @id @default(cuid())
+  customer_id          String
+  name                 String
   /// Free text: "הנהלת חשבונות", "גרפיקאית". Not an enum — every customer
   /// names its own people.
-  role               String?
-  phone              String?
-  email              String?
+  role                 String?
+  phone                String?
+  email                String?
   /// Order on the card, as entered.
   /// Ticked on the customer's card: this person gets the reminders.
-  receives_reminders Boolean  @default(false)
-  position           Int
-  created_at         DateTime @default(now())
+  receives_reminders   Boolean  @default(false)
+  /// Gets the tear sheets (proof of publication) mailed after printing.
+  receives_tear_sheets Boolean  @default(false)
+  /// The one to call about money owed (the user, 31/10/2026).
+  receives_billing     Boolean  @default(false)
+  position             Int
+  created_at           DateTime @default(now())
 
   customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
 
@@ -794,6 +827,9 @@ model AdOrderItem {
   /// re-derived so that later changing the newspaper's schedule cannot
   /// retroactively turn a deliberate choice into a warning.
   off_schedule     Boolean  @default(false)
+  /// A page NUMBER the customer asked for on this line ("always page 5").
+  /// Overrides Customer.preferred_page when both are set (the user, 31/10/2026).
+  requested_page   Int?
   /// The quantity discount this line earned, frozen at approval (backlog
   /// item 12). `price` above stays the LIST price — it is what the seller
   /// typed and what the conversation with the customer was about — and the
@@ -1093,6 +1129,10 @@ model Placement {
   rows Int
 
   status                                 PlacementState @default(placed)
+  /// Put here by auto-placement and not touched by hand since. "Another
+  /// arrangement" clears only these — a hand-placed ad, or one a person
+  /// moved, stays where it is (the user, 31/10/2026).
+  auto_placed                            Boolean        @default(false)
   /// FR-16. Admin-only, audited, and the exact flag the partial unique index
   /// filters on — approving the override is what makes the second row legal.
   duplicate_override_approved            Boolean        @default(false)

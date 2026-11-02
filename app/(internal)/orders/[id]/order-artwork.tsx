@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
+import { useFormActionState } from "@/components/use-form-action-state";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FileCheck2, Upload } from "lucide-react";
@@ -50,7 +51,7 @@ export function OrderArtwork({
   const router = useRouter();
   const [scope, setScope] = useState<"all" | "some">("all");
 
-  const [state, formAction, pending] = useActionState<AdFormState, FormData>(
+  const [state, formAction, pending, keepTypedOnError] = useFormActionState<AdFormState, FormData>(
     async (prev, formData) => {
       const next = await uploadAdvertisementAction(prev, formData);
       if (next.ok && !next.message) router.refresh();
@@ -97,6 +98,7 @@ export function OrderArtwork({
       {attachedBox}
       <form
         action={formAction}
+        onReset={keepTypedOnError}
         data-testid="order-artwork-form"
         className="mb-8 rounded-lg border border-dashed border-outline-variant bg-surface-container-lowest p-4"
       >
@@ -105,7 +107,9 @@ export function OrderArtwork({
         <p className="mb-1 flex items-center gap-2 text-sm font-medium">
           <Upload className="size-4" />
           {approved
-            ? `מודעה ל־${missingCount} הפרסומים שעדיין בלי קובץ`
+            ? missingCount === 1
+              ? "מודעה לפרסום היחיד שעדיין בלי קובץ"
+              : `מודעה ל־${missingCount} הפרסומים שעדיין בלי קובץ`
             : attached
               ? "קובץ אחר — להזמנה כולה או לחלק מהפרסומים"
               : "מודעה להזמנה"}

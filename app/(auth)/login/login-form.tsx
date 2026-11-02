@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useFormActionState } from "@/components/use-form-action-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,10 +9,13 @@ import { loginAction, type LoginState } from "./actions";
 
 /** `portal` — the business slug when this form sits on /p/<slug>. */
 export function LoginForm({ portal }: { portal?: string } = {}) {
-  const [state, action, pending] = useActionState<LoginState, FormData>(loginAction, {});
+  const [state, action, pending, keepTypedOnError] = useFormActionState<LoginState, FormData>(
+    loginAction,
+    {},
+  );
 
   return (
-    <form action={action} className="space-y-4">
+    <form action={action} onReset={keepTypedOnError} className="space-y-4">
       {portal ? <input type="hidden" name="portal" value={portal} /> : null}
       <div>
         <Label htmlFor="email">כתובת מייל</Label>

@@ -69,7 +69,7 @@ test("a sales rep builds, previews and approves 10 publications well inside 3 mi
   await page.getByTestId("line-price").fill("500");
   // What the order will cost, before a single row is written.
   await expect(page.getByTestId("lines-preview-total")).toContainText("5,000");
-  await expect(page.getByTestId("add-line")).toContainText("הוספת 10 שורות");
+  await expect(page.getByTestId("add-line")).toContainText("10 תאריכים");
 
   // One click for all ten — the whole reason the criterion is reachable.
   await page.getByTestId("add-line").click();

@@ -13,6 +13,12 @@
  * paying off what I owe you". Anything cleverer (largest first, the one with
  * the invoice number they quoted) is a decision about a specific conversation,
  * and those are made by naming the order instead.
+ *
+ * "Oldest" is the oldest PUBLICATION, not the oldest order. A year-long order
+ * signed in January is created before an October one-off, and sorting by
+ * creation sent ₪1,500 to June 2027 while October — already printed, already
+ * debt — stayed open and the customer stayed on "who owes money" (UX review,
+ * 29/10/2026). What a customer owes first is what ran first.
  */
 
 export type OpenOrder = {
@@ -21,9 +27,13 @@ export type OpenOrder = {
   number: number;
   /** What is still owed on it. Orders with nothing open are not passed in. */
   open: number;
-  /** Used only to sort. Oldest first. */
+  /** Its earliest live publication — the sort key. Null when it has none. */
+  firstPublication: Date | null;
+  /** Tie-break only, so two orders on the same date always split the same way. */
   createdAt: Date;
 };
+
+const NEVER = Number.MAX_SAFE_INTEGER;
 
 export type Allocation = { orderId: string; number: number; amount: number };
 
@@ -46,7 +56,7 @@ function round2(n: number): number {
 }
 
 /**
- * Splits `amount` across the open orders, oldest first.
+ * Splits `amount` across the open orders, oldest publication first.
  *
  * Each order takes at most what is open on it, so no order is ever overpaid by
  * a split — an overpayment is something a person does deliberately by naming
@@ -58,7 +68,10 @@ export function allocatePayment(amount: number, openOrders: OpenOrder[]): Alloca
   const queue = [...openOrders]
     .filter((o) => o.open > 0)
     .sort(
-      (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.orderId.localeCompare(b.orderId),
+      (a, b) =>
+        (a.firstPublication?.getTime() ?? NEVER) - (b.firstPublication?.getTime() ?? NEVER) ||
+        a.createdAt.getTime() - b.createdAt.getTime() ||
+        a.orderId.localeCompare(b.orderId),
     );
 
   const allocations: Allocation[] = [];

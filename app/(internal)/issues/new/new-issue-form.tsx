@@ -225,7 +225,13 @@ export function NewIssueForm({
             </p>
           ) : info.planned > 0 ? (
             <p className="mt-1 text-on-surface-variant">
-              <Ltr>{info.planned}</Ltr> פרסומים כבר מתוכננים לתאריך הזה.
+              {info.planned === 1 ? (
+                "פרסום אחד כבר מתוכנן לתאריך הזה."
+              ) : (
+                <>
+                  <Ltr>{info.planned}</Ltr> פרסומים כבר מתוכננים לתאריך הזה.
+                </>
+              )}
             </p>
           ) : (
             <p className="mt-1 flex items-center gap-2 text-status-warning-fg">

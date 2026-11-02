@@ -21,6 +21,8 @@ export type GroupableLine = {
   publicationDate: string;
   price: number;
   offSchedule: boolean;
+  /** A page number asked for on the line — part of WHAT was ordered. */
+  requestedPage?: number | null;
 };
 
 export type LineGroup = {
@@ -29,6 +31,7 @@ export type LineGroup = {
   newspaperName: string;
   pageTypeName: string;
   shapeName: string;
+  requestedPage: number | null;
   unitPrice: number;
   /** The individual dates behind the group, in order. */
   lines: GroupableLine[];
@@ -49,7 +52,13 @@ export function groupOrderLines(lines: GroupableLine[]): LineGroup[] {
   const groups = new Map<string, LineGroup>();
 
   for (const line of lines) {
-    const key = [line.newspaperName, line.pageTypeName, line.shapeName, line.price].join("|");
+    const key = [
+      line.newspaperName,
+      line.pageTypeName,
+      line.shapeName,
+      line.price,
+      line.requestedPage ?? "",
+    ].join("|");
     const existing = groups.get(key);
     if (existing) {
       existing.lines.push(line);
@@ -63,6 +72,7 @@ export function groupOrderLines(lines: GroupableLine[]): LineGroup[] {
       newspaperName: line.newspaperName,
       pageTypeName: line.pageTypeName,
       shapeName: line.shapeName,
+      requestedPage: line.requestedPage ?? null,
       unitPrice: line.price,
       lines: [line],
       times: 1,

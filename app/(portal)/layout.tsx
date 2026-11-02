@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { IconHints } from "@/components/shell/icon-hints";
 import { LogOut, Newspaper } from "lucide-react";
 
 import { auth } from "@/lib/auth/config";
@@ -79,6 +80,7 @@ export default async function PortalLayout({ children }: { children: React.React
       </header>
 
       <main className="mx-auto max-w-[720px] px-4 py-10">{children}</main>
+      <IconHints />
     </div>
   );
 }

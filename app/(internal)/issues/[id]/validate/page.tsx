@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { RecordHistory } from "@/components/record-history";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClipboardCheck } from "lucide-react";
@@ -63,6 +64,9 @@ export default async function ValidateIssuePage({ params }: { params: Promise<{ 
           <p className="text-sm text-on-surface-variant">
             {check.newspaperName} · <Ltr>{DATE.format(check.issueDate)}</Ltr>
           </p>
+          <div className="mt-1">
+            <RecordHistory businessId={ctx.businessId} targets={[{ type: "Issue", ids: [id] }]} />
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={ISSUE_TONE[status]} data-testid="check-issue-status">

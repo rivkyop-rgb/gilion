@@ -93,7 +93,7 @@ test("העלאה להזמנה מאושרת מכסה רק את הפרסומים �
 
   // The order-level upload now offers to cover the ONE that is still missing.
   const bulk = page.getByTestId("order-artwork-form");
-  await expect(bulk).toContainText("1 הפרסומים שעדיין בלי קובץ");
+  await expect(bulk).toContainText("לפרסום היחיד שעדיין בלי קובץ");
 
   const rest = await validPdf(`rest-${stamp}.pdf`);
   await page.getByTestId("order-artwork-file").setInputFiles(rest);

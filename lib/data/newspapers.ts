@@ -31,7 +31,7 @@ export async function listNewspapers(businessId: string) {
   return tenantDb(businessId).newspaper.findMany({
     orderBy: { name: "asc" },
     include: {
-      _count: { select: { page_types: true, ad_shapes: true } },
+      _count: { select: { page_types: true, ad_shapes: true, price_rules: true } },
     },
   });
 }
@@ -481,8 +481,9 @@ export async function upsertPriceRule(
  *
  * Read live here because this is the SETTINGS side — what the newspaper is
  * from now on. Issues copy these when a page is created (`copyReservations` in
- * lib/data/issues.ts) and never read them again, so editing one here changes
- * every issue opened afterwards and none of the ones already laid out.
+ * lib/data/issues.ts), and every save here also re-copies them into the issues
+ * that are still OPEN (`syncReservationsToOpenIssues`) — a logo uploaded after
+ * the week's issue opened has to reach it. Closed issues keep what printed.
  */
 export async function listReservations(businessId: string, pageTypeId: string) {
   return tenantDb(businessId).pageReservation.findMany({
@@ -675,4 +676,144 @@ export async function setPageMarks(
       tear_sheet_header: marks.tearSheetHeader,
     },
   });
+}
+
+/* ----------------------------------------------------------- duplicating */
+
+/**
+ * A new newspaper with everything this one has set up — page size and grid,
+ * page types, the shape catalogue, which shape goes on which page type,
+ * reserved areas (with their images), the price list and the packages (the
+ * user, 31/10/2026). For opening a regional edition or a sister title without
+ * typing it all again. Orders, issues and publications are NOT copied: they
+ * belong to the original.
+ *
+ * One transaction: a half-copied newspaper would be one nobody can sell in and
+ * nobody would know why.
+ */
+export async function duplicateNewspaper(businessId: string, sourceId: string, name: string) {
+  const db = tenantDb(businessId);
+  const src = await db.newspaper.findUnique({
+    where: { id: sourceId },
+    include: {
+      page_types: { include: { allowed_shapes: true, reservations: true } },
+      ad_shapes: true,
+      price_rules: true,
+      packages: true,
+    },
+  });
+  if (!src) return null;
+
+  return basePrisma.$transaction(async (tx) => {
+    const paper = await tx.newspaper.create({
+      data: {
+        business_id: businessId,
+        name,
+        page_size: src.page_size,
+        margin: src.margin,
+        print_quality: src.print_quality,
+        max_ad_file_size: src.max_ad_file_size,
+        custom_width_mm: src.custom_width_mm,
+        custom_height_mm: src.custom_height_mm,
+        columns: src.columns,
+        row_height_mm: src.row_height_mm,
+        gutter_mm: src.gutter_mm,
+        publication_days: src.publication_days,
+        folio_enabled: src.folio_enabled,
+        folio_size_mm: src.folio_size_mm,
+        header_name: src.header_name,
+        header_date: src.header_date,
+        header_size_mm: src.header_size_mm,
+        tear_sheet_header: src.tear_sheet_header,
+      },
+    });
+
+    const shapeIds = new Map<string, string>();
+    for (const shape of src.ad_shapes) {
+      const copy = await tx.adShape.create({
+        data: {
+          newspaper_id: paper.id,
+          name: shape.name,
+          cols: shape.cols,
+          rows: shape.rows,
+          position_mode: shape.position_mode,
+          allowed_cells: shape.allowed_cells ?? undefined,
+          base_key: shape.base_key,
+        },
+      });
+      shapeIds.set(shape.id, copy.id);
+    }
+
+    const typeIds = new Map<string, string>();
+    for (const type of src.page_types) {
+      const copy = await tx.pageType.create({
+        data: {
+          newspaper_id: paper.id,
+          name: type.name,
+          auto_place: type.auto_place,
+          auto_grow: type.auto_grow,
+        },
+      });
+      typeIds.set(type.id, copy.id);
+      if (type.allowed_shapes.length > 0) {
+        await tx.allowedAdShape.createMany({
+          data: type.allowed_shapes.map((a) => ({
+            newspaper_id: paper.id,
+            page_type_id: copy.id,
+            ad_shape_id: shapeIds.get(a.ad_shape_id)!,
+          })),
+        });
+      }
+      if (type.reservations.length > 0) {
+        await tx.pageReservation.createMany({
+          data: type.reservations.map((r) => ({
+            newspaper_id: paper.id,
+            page_type_id: copy.id,
+            name: r.name,
+            col: r.col,
+            row: r.row,
+            cols: r.cols,
+            rows: r.rows,
+            // The same stored image: it is the business's, and copying the
+            // bytes would only make two files to keep in step.
+            asset_key: r.asset_key,
+          })),
+        });
+      }
+    }
+
+    if (src.price_rules.length > 0) {
+      await tx.priceRule.createMany({
+        data: src.price_rules.map((r) => ({
+          newspaper_id: paper.id,
+          page_type_id: typeIds.get(r.page_type_id)!,
+          ad_shape_id: shapeIds.get(r.ad_shape_id)!,
+          price: r.price,
+        })),
+      });
+    }
+    if (src.packages.length > 0) {
+      await tx.adPackage.createMany({
+        data: src.packages.map((p) => ({
+          newspaper_id: paper.id,
+          name: p.name,
+          min_quantity: p.min_quantity,
+          discount_percent: p.discount_percent,
+          active: p.active,
+        })),
+      });
+    }
+    return paper;
+  });
+}
+
+/** "pageTypeId|shapeId" → list price, for saying what free space is worth. */
+export async function priceMapOf(businessId: string, newspaperId: string) {
+  const rules = await tenantDb(businessId).priceRule.findMany({
+    where: { newspaper_id: newspaperId },
+    select: { page_type_id: true, ad_shape_id: true, price: true },
+  });
+  return Object.fromEntries(
+    rules.map((r) => [`${r.page_type_id}|${r.ad_shape_id}`, Number(r.price)]),
+  );
 }

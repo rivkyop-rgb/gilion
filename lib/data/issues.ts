@@ -23,6 +23,7 @@ import { AUTO_OPEN_DAYS, autoOpenDates } from "@/lib/domain/issue-schedule";
 import { addDays, isoDay, jerusalemDay } from "@/lib/domain/calendar";
 import { OPEN_ISSUE_STATES } from "@/lib/domain/dashboard";
 import { withAudit } from "./audit";
+import { overlaps } from "@/lib/domain/slot-geometry";
 
 /** yyyy-mm-dd, in UTC — the form a @db.Date column round-trips unchanged. */
 export const isoDate = (d: Date): string => d.toISOString().slice(0, 10);
@@ -131,6 +132,8 @@ const BOARD_INCLUDE = {
         select: {
           id: true,
           customer: { select: { id: true, business_name: true } },
+          // For the colour of the ad on the board (the user, 01/11/2026).
+          order: { select: { status: true } },
         },
       },
       advertisement: {
@@ -141,6 +144,8 @@ const BOARD_INCLUDE = {
           file_url: true,
           file_type: true,
           file_size: true,
+          status: true,
+          validation_status: true,
         },
       },
       // position_mode and allowed_cells come along so the board can rebuild the
@@ -238,7 +243,7 @@ export async function publicationsForIssue(
     },
     orderBy: [{ created_at: "asc" }],
     include: {
-      customer: { select: { id: true, business_name: true } },
+      customer: { select: { id: true, business_name: true, preferred_page: true } },
       ad_shape: {
         select: {
           id: true,
@@ -263,7 +268,9 @@ export async function publicationsForIssue(
       },
       // The page type the customer bought — the board warns when an ad goes
       // on a page of another type.
-      order_item: { select: { page_type: { select: { id: true, name: true } } } },
+      order_item: {
+        select: { requested_page: true, page_type: { select: { id: true, name: true } } },
+      },
     },
   });
 }
@@ -958,7 +965,16 @@ export async function issuePageMap(businessId: string, issueId: string) {
  * the next issue" does by hand; a newspaper with no issue yet starts from the
  * default cover / inner / back.
  */
-export async function ensureUpcomingIssues(businessId: string, now = new Date()) {
+export async function ensureUpcomingIssues(
+  businessId: string,
+  /**
+   * The person whose page load set this off. There is no cron, so somebody's
+   * request always is the trigger, and the log names them: "who opened this
+   * issue?" had no answer at all (UX review, 29/10/2026).
+   */
+  actorUserId: string,
+  now = new Date(),
+) {
   const db = tenantDb(businessId);
   const today = jerusalemDay(now);
   const todayIso = isoDay(today);
@@ -968,6 +984,7 @@ export async function ensureUpcomingIssues(businessId: string, now = new Date())
     db.newspaper.findMany({
       select: {
         id: true,
+        name: true,
         publication_days: true,
         page_types: { orderBy: { created_at: "asc" }, select: { id: true, name: true } },
       },
@@ -988,7 +1005,12 @@ export async function ensureUpcomingIssues(businessId: string, now = new Date())
     }),
   ]);
 
-  const opened: Array<{ newspaperId: string; date: string }> = [];
+  const opened: Array<{
+    issueId: string;
+    newspaperId: string;
+    newspaperName: string;
+    date: string;
+  }> = [];
   for (const paper of papers) {
     if (paper.page_types.length === 0) continue;
     const dates = autoOpenDates({
@@ -1017,8 +1039,18 @@ export async function ensureUpcomingIssues(businessId: string, now = new Date())
 
     for (const date of dates) {
       try {
-        await createIssue(businessId, { newspaperId: paper.id, date, pageTypeIds });
-        opened.push({ newspaperId: paper.id, date });
+        const issue = await createIssue(businessId, { newspaperId: paper.id, date, pageTypeIds });
+        await basePrisma.auditLog.create({
+          data: {
+            business_id: businessId,
+            user_id: actorUserId,
+            action: "auto_open_issue",
+            target_type: "Issue",
+            target_id: issue.id,
+            new_value: { newspaper: paper.name, date, pages: pageTypeIds.length },
+          },
+        });
+        opened.push({ issueId: issue.id, newspaperId: paper.id, newspaperName: paper.name, date });
       } catch (error) {
         // Two tabs opening the same list at once: the other one won. Fine.
         if (!(error instanceof DuplicateIssueError)) throw error;
@@ -1042,4 +1074,155 @@ export async function nextIssueAfter(businessId: string, issueId: string) {
     select: { id: true, issue_date: true },
   });
   return next ? { id: next.id, date: isoDate(next.issue_date) } : null;
+}
+
+/* ------------------------------------------- reserved areas into open issues */
+
+export type ReservationSync = {
+  /** Open issues whose pages now carry the newspaper's current areas. */
+  issues: number;
+  /** Areas left off a page because an ad already sits there, or it no longer fits. */
+  skipped: Array<{ date: string; page: number; name: string }>;
+};
+
+/**
+ * Brings the reserved areas of one page type into every issue that is still
+ * open.
+ *
+ * Issues copy the areas when a page is created (`copyReservations`), and that
+ * snapshot is right for what a page IS — but a logo uploaded to the cover's
+ * reserved area three minutes after the week's issue opened never reached it,
+ * and the issue printed without the logo with nothing on screen to say why
+ * (the user, 31/10/2026). Closed issues are left alone: they are printed.
+ *
+ * An area is not forced onto a page where an ad already sits, or where the
+ * issue's own grid snapshot has no room for it; those come back in `skipped`
+ * so the settings screen can say which page lost out.
+ */
+export async function syncReservationsToOpenIssues(
+  businessId: string,
+  pageTypeId: string,
+): Promise<ReservationSync> {
+  const db = tenantDb(businessId);
+  const areas = await db.pageReservation.findMany({ where: { page_type_id: pageTypeId } });
+  const issues = await db.issue.findMany({
+    where: { status: { not: "closed" }, pages: { some: { page_type_id: pageTypeId } } },
+    include: {
+      pages: { where: { page_type_id: pageTypeId }, select: { id: true, page_number: true } },
+      placements: {
+        where: { status: { in: ON_PAGE_STATES } },
+        select: { issue_page_id: true, col: true, row: true, cols: true, rows: true },
+      },
+    },
+  });
+
+  const skipped: ReservationSync["skipped"] = [];
+  for (const issue of issues) {
+    const grid = gridOfIssue(issue);
+    const date = isoDay(issue.issue_date);
+    await basePrisma.$transaction(async (tx) => {
+      const pageIds = issue.pages.map((p) => p.id);
+      await tx.issuePageReservation.deleteMany({
+        where: { issue_id: issue.id, issue_page_id: { in: pageIds } },
+      });
+      const rows = issue.pages.flatMap((page) =>
+        areas.flatMap((area) => {
+          const fits =
+            grid !== null &&
+            area.col + area.cols <= grid.columns &&
+            area.row + area.rows <= grid.rows;
+          const covered = issue.placements.some(
+            (p) => p.issue_page_id === page.id && overlaps(p, area),
+          );
+          if (!fits || covered) {
+            skipped.push({ date, page: page.page_number, name: area.name });
+            return [];
+          }
+          return [
+            {
+              issue_id: issue.id,
+              issue_page_id: page.id,
+              name: area.name,
+              col: area.col,
+              row: area.row,
+              cols: area.cols,
+              rows: area.rows,
+              asset_key: area.asset_key,
+            },
+          ];
+        }),
+      );
+      if (rows.length > 0) await tx.issuePageReservation.createMany({ data: rows });
+    });
+  }
+  return { issues: issues.length, skipped };
+}
+
+/* ------------------------------------------------------- published archive */
+
+export type PublishedFilters = {
+  /** yyyy-mm-dd, inclusive. Empty = no bound. */
+  from: string;
+  to: string;
+  newspaperId: string;
+  /** Part of an advertiser's name — issues that carried one of their ads. */
+  customer: string;
+};
+
+/**
+ * Closed issues, the archive (the user, 31/10/2026): they left the working
+ * list, where they only pushed the issues still being laid out further down,
+ * and are found here by date, newspaper or an advertiser who appeared in them.
+ */
+export async function publishedIssues(
+  businessId: string,
+  filters: PublishedFilters,
+  page: { skip: number; take: number },
+) {
+  const where: Prisma.IssueWhereInput = {
+    status: "closed",
+    ...(filters.from || filters.to
+      ? {
+          issue_date: {
+            ...(filters.from ? { gte: new Date(`${filters.from}T00:00:00Z`) } : {}),
+            ...(filters.to ? { lte: new Date(`${filters.to}T00:00:00Z`) } : {}),
+          },
+        }
+      : {}),
+    ...(filters.newspaperId ? { newspaper_id: filters.newspaperId } : {}),
+    ...(filters.customer
+      ? {
+          placements: {
+            some: {
+              status: { in: ON_PAGE_STATES },
+              publication: {
+                customer: { business_name: { contains: filters.customer, mode: "insensitive" } },
+              },
+            },
+          },
+        }
+      : {}),
+  };
+  const db = tenantDb(businessId);
+  const [rows, total] = await Promise.all([
+    db.issue.findMany({
+      where,
+      orderBy: { issue_date: "desc" },
+      skip: page.skip,
+      take: page.take,
+      select: {
+        id: true,
+        issue_date: true,
+        closed_at: true,
+        final_pdf_url: true,
+        press_pdf_url: true,
+        newspaper: { select: { name: true } },
+        _count: {
+          select: { pages: true, placements: { where: { status: { in: ON_PAGE_STATES } } } },
+        },
+      },
+    }),
+    db.issue.count({ where }),
+  ]);
+  return { rows, total };
 }

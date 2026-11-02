@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useFormActionState } from "@/components/use-form-action-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +13,10 @@ import { updatePortalSlugAction, type SlugState } from "./portal-link-actions";
  * the one part of it the admin may choose.
  */
 export function PortalLinkPanel({ url, slug }: { url: string; slug: string }) {
-  const [state, action, pending] = useActionState<SlugState, FormData>(updatePortalSlugAction, {});
+  const [state, action, pending, keepTypedOnError] = useFormActionState<SlugState, FormData>(
+    updatePortalSlugAction,
+    {},
+  );
   const base = url.slice(0, url.length - slug.length);
 
   return (
@@ -37,7 +40,7 @@ export function PortalLinkPanel({ url, slug }: { url: string; slug: string }) {
         <CopyLink url={url} testId="portal-link-copy" />
       </div>
 
-      <form action={action} className="flex flex-wrap items-end gap-3">
+      <form action={action} onReset={keepTypedOnError} className="flex flex-wrap items-end gap-3">
         <div>
           <Label htmlFor="slug">כתובת</Label>
           {/* dir=ltr on the row: the address reads left to right, prefix then

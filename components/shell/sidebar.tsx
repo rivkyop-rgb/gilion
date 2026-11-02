@@ -10,7 +10,7 @@ import { effectiveAccess, type PermissionOverrides } from "@/lib/domain/permissi
 import { BrandMark, type BrandKeys } from "@/components/brand/brand-mark";
 import { cn } from "@/lib/utils";
 import { BUILT_THROUGH_STAGE, NAV_GROUP_LABELS, NAV_ITEMS, type NavGroup } from "./nav-items";
-import { OPEN_PALETTE_EVENT } from "./command-palette";
+import { OPEN_PALETTE_EVENT, useModKeyLabel } from "./command-palette";
 
 /**
  * Where the collapsed/expanded choice is remembered.
@@ -192,6 +192,7 @@ function SidebarNav({
   onToggle,
 }: NavProps & { collapsed: boolean; onToggle?: () => void }) {
   const pathname = usePathname();
+  const mod = useModKeyLabel();
 
   // The menu is filtered from the same matrix the server guards with, so an
   // item can never appear here while the route rejects it (or vice versa).
@@ -247,7 +248,7 @@ function SidebarNav({
         type="button"
         data-testid="open-command-palette"
         onClick={() => window.dispatchEvent(new Event(OPEN_PALETTE_EVENT))}
-        title={collapsed ? "חיפוש ופעולות (Ctrl+K)" : undefined}
+        title={collapsed ? `חיפוש ופעולות (${mod}+K)` : undefined}
         aria-label="חיפוש ופעולות"
         className={cn(
           "mb-3 flex h-10 items-center gap-2 rounded-lg border border-sidebar-hover bg-sidebar-hover/60 text-sm text-on-sidebar-muted transition-colors hover:text-inverse-on-surface",
@@ -259,7 +260,7 @@ function SidebarNav({
           <>
             <span className="flex-1 text-start">חיפוש ופעולות</span>
             <kbd className="rounded border border-on-sidebar-muted/40 px-1.5 text-xs" dir="ltr">
-              Ctrl K
+              {mod} K
             </kbd>
           </>
         )}

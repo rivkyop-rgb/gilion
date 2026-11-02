@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useTransition } from "react";
+import { useTransition } from "react";
+import { useFormActionState } from "@/components/use-form-action-state";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Check, RotateCcw } from "lucide-react";
 
@@ -38,7 +39,7 @@ export function PanelForm({
   onReset?: (key?: string) => void;
   children: React.ReactNode;
 }) {
-  const [state, formAction, pending] = useActionState(action, {});
+  const [state, formAction, pending, keepTypedOnError] = useFormActionState(action, {});
   const [resetting, startReset] = useTransition();
   const router = useRouter();
 
@@ -50,7 +51,7 @@ export function PanelForm({
     });
 
   return (
-    <form action={formAction} className="space-y-6">
+    <form action={formAction} onReset={keepTypedOnError} className="space-y-6">
       {children}
 
       {/*

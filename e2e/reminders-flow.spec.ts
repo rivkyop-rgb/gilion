@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { USERS, login, loginAsAdmin, orderRef, passOrderWarnings } from "./helpers";
+import { USERS, login, loginAsAdmin, orderRef, passOrderWarnings, saveCustomer } from "./helpers";
 import { validPdf } from "./ad-fixtures";
 import { uploadFile } from "./ad-helpers";
 
@@ -96,7 +96,7 @@ async function ownCustomer(page: Page): Promise<string> {
   await page.goto("/customers/new");
   await page.fill("#businessName", name);
   await page.fill("#phone", "050-1112223");
-  await page.getByRole("button", { name: "שמירה" }).click();
+  await saveCustomer(page);
   await page.waitForURL(/\/customers\/c[a-z0-9]{20,}$/);
   return name;
 }
@@ -136,18 +136,10 @@ test("פרסום קרוב בלי מודעה נכנס לרשימה, ושום דב
   // The promise the screen makes, permanently on display (FR-11).
   await expect(page.getByTestId("reminders-banner")).toContainText("אינה שולחת תזכורות בעצמה");
 
-  /*
-   * The wording the admin set in the panel (`reminder_template`, stage 11).
-   *
-   * The field described itself as "the wording copied when contacting the
-   * customer" and until 23/09/2026 appeared in no screen at all. Copy, not
-   * send: FR-11 keeps the MVP out of the sending business, so the clipboard is
-   * the whole of what the product can honestly offer.
-   */
-  const wording = page.getByTestId("reminder-wording");
-  // The default wording since 27/09/2026 — its {…} fields shown as written.
-  await expect(wording).toContainText("רצינו להזכיר");
-  await expect(page.getByTestId("copy-reminder-wording")).toBeVisible();
+  // The wording itself is not on this screen: it is edited, and read, in
+  // settings · reminders (the user, 31/10/2026). It still fills the message
+  // that opens from each row.
+  await expect(page.getByTestId("reminder-wording")).toHaveCount(0);
 
   const table = page.getByTestId("reminders-table");
   await expect(table).toBeVisible();

@@ -13,7 +13,8 @@ const order = (orderId: string, open: number, day: number): OpenOrder => ({
   orderId,
   number: ++seq,
   open,
-  createdAt: new Date(`2026-03-${String(day).padStart(2, "0")}T00:00:00Z`),
+  firstPublication: new Date(`2026-03-${String(day).padStart(2, "0")}T00:00:00Z`),
+  createdAt: new Date("2026-01-01T00:00:00Z"),
 });
 
 describe("allocatePayment", () => {
@@ -30,6 +31,36 @@ describe("allocatePayment", () => {
       ["newer", 400],
     ]);
     expect(r.leftover).toBe(0);
+  });
+
+  it("settles what ran first, not the order that was signed first", () => {
+    // A year-long order signed in January, running from June, against an
+    // October one-off that has already printed. The October debt goes first.
+    const annual: OpenOrder = {
+      orderId: "annual",
+      number: 1,
+      open: 10800,
+      firstPublication: new Date("2027-06-15T00:00:00Z"),
+      createdAt: new Date("2026-01-05T00:00:00Z"),
+    };
+    const october: OpenOrder = {
+      orderId: "october",
+      number: 2,
+      open: 950,
+      firstPublication: new Date("2026-10-20T00:00:00Z"),
+      createdAt: new Date("2026-10-01T00:00:00Z"),
+    };
+    const r = allocatePayment(1500, [annual, october]);
+    expect(r.allocations.map((x) => [x.orderId, x.amount])).toEqual([
+      ["october", 950],
+      ["annual", 550],
+    ]);
+  });
+
+  it("puts an order with no live publication last", () => {
+    const none: OpenOrder = { ...order("none", 100, 1), firstPublication: null };
+    const r = allocatePayment(150, [none, order("dated", 100, 20)]);
+    expect(r.allocations.map((x) => x.orderId)).toEqual(["dated", "none"]);
   });
 
   it("leaves the last order partly open when the money runs out", () => {
@@ -74,8 +105,8 @@ describe("allocatePayment", () => {
 
   it("is deterministic when two orders share a date", () => {
     const same = new Date("2026-03-01T00:00:00Z");
-    const a = { orderId: "aaa", number: 1, open: 100, createdAt: same };
-    const b = { orderId: "bbb", number: 2, open: 100, createdAt: same };
+    const a = { orderId: "aaa", number: 1, open: 100, firstPublication: same, createdAt: same };
+    const b = { orderId: "bbb", number: 2, open: 100, firstPublication: same, createdAt: same };
     expect(allocatePayment(100, [b, a]).allocations).toEqual([
       { orderId: "aaa", number: 1, amount: 100 },
     ]);

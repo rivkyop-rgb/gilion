@@ -46,8 +46,11 @@ test.describe("tenant isolation (FR-1)", () => {
   test("the listing shows only the active business's rows", async ({ page }) => {
     await login(page, USERS.betaAdmin);
     await page.goto("/audit");
-    const table = page.locator("table tbody tr");
-    await expect(table).toHaveCount(1);
+    // Not a count: the beta business writes its own rows as it is used (an
+    // issue opened automatically on sign-in is on the record since
+    // 31/10/2026). What must hold is that NONE of alpha's rows is listed.
+    await expect(page.locator(`a[href="/audit/${BETA_AUDIT_ID}"]`)).toHaveCount(1);
+    await expect(page.locator(`a[href="/audit/${ALPHA_AUDIT_ID}"]`)).toHaveCount(0);
   });
 
   test("switching business changes which records are reachable", async ({ page }) => {

@@ -54,8 +54,17 @@ export async function sendTearSheetsAction(
 
   const customer = await data.tearSheetRecipient(ctx.businessId, customerId);
   if (!customer) return { message: "הלקוח לא נמצא" };
-  // The business address, else the first contact marked for reminders.
-  const to = customer.email ?? customer.contacts.find((c) => c.email)?.email ?? null;
+  // Everyone ticked for tear sheets on the card (the user, 31/10/2026); with
+  // nobody ticked, the business address, else the first contact with one.
+  const ticked = [
+    ...(customer.tear_sheets_to_main && customer.email ? [customer.email] : []),
+    ...customer.contacts.filter((c) => c.receives_tear_sheets && c.email).map((c) => c.email!),
+  ];
+  const to =
+    [...new Set(ticked)].join(",") ||
+    customer.email ||
+    customer.contacts.find((c) => c.email)?.email ||
+    null;
   if (!to) {
     return {
       message:

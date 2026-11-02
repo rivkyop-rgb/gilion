@@ -21,6 +21,8 @@ export type CustomerInput = {
   phone?: string | null;
   email?: string | null;
   notes?: string | null;
+  /** The page number this advertiser normally runs on — empty for none. */
+  preferredPage?: string | null;
   /** The people at the business, in the order entered; the first is the main one. */
   contacts?: ContactInput[];
 };
@@ -33,6 +35,10 @@ export type ContactInput = {
   /** The reminders tick from the card. Carried through an edit, which
       replaces the rows — without it every save would untick everyone. */
   receivesReminders?: boolean;
+  /** Ticked for tear sheets (the user, 31/10/2026). */
+  receivesTearSheets?: boolean;
+  /** Ticked as the one to call about money owed. */
+  receivesBilling?: boolean;
 };
 
 export const NOTES_MAX = 2000;
@@ -94,6 +100,11 @@ export function validateCustomer(input: CustomerInput): FieldError[] {
     errors.push({ field: "taxId", message: "ח.פ / ע.מ צריך להיות 9 ספרות" });
   }
 
+  // 3א. a fixed page is a page number, when one is given
+  if (input.preferredPage?.trim() && parsePageNumber(input.preferredPage) === null) {
+    errors.push({ field: "preferredPage", message: "מספר עמוד צריך להיות מספר שלם, 1 ומעלה" });
+  }
+
   // 4. phone format, only when one was supplied
   if (phone && !PHONE_DIGITS.test(phone)) {
     errors.push({ field: "phone", message: "מספר טלפון לא תקין — יש להזין 9 או 10 ספרות" });
@@ -144,6 +155,8 @@ export function contactsToStorage(contacts: ContactInput[] | undefined) {
       phone: normalizePhone(c.phone),
       email: normalizeEmail(c.email),
       receives_reminders: c.receivesReminders ?? false,
+      receives_tear_sheets: c.receivesTearSheets ?? false,
+      receives_billing: c.receivesBilling ?? false,
       position,
     }));
 }
@@ -156,7 +169,16 @@ export function toStorage(input: CustomerInput) {
     phone: normalizePhone(input.phone),
     email: normalizeEmail(input.email),
     notes: input.notes?.trim() || null,
+    preferred_page: parsePageNumber(input.preferredPage),
   };
+}
+
+/** "5" → 5; empty, zero or anything else → null. */
+export function parsePageNumber(raw: string | null | undefined): number | null {
+  const t = raw?.trim() ?? "";
+  if (!/^\d{1,3}$/.test(t)) return null;
+  const n = Number(t);
+  return n >= 1 ? n : null;
 }
 
 /**

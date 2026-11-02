@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
+import { useFormActionState } from "@/components/use-form-action-state";
 import { ImageOff, Plus, Trash2 } from "lucide-react";
 
 import type { DerivedGrid } from "@/lib/domain/grid";
@@ -60,6 +61,8 @@ export function ReservedAreas({
 }) {
   const [editing, setEditing] = useState<ReservedAreaRow | "new" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // What the last save did — including which open issues it reached.
+  const [note, setNote] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
 
   const share = reservedShare(areas, grid);
@@ -69,6 +72,7 @@ export function ReservedAreas({
       const result = await action();
       setError(result.message && result.errors ? result.message : null);
       if (result.errors) setError(Object.values(result.errors)[0] ?? null);
+      setNote(result.errors ? null : (result.message ?? null));
     });
 
   return (
@@ -77,7 +81,7 @@ export function ReservedAreas({
         <h4 className="text-sm font-semibold">אזורים שמורים</h4>
         <p className="text-xs text-on-surface-variant">
           {areas.length === 0 ? (
-            "שטח שאינו נמכר — כותרת העיתון, לוגו קבוע. מה שנקבע כאן נכנס לכל גיליון שייפתח מעכשיו."
+            "שטח שאינו נמכר — כותרת העיתון, לוגו קבוע. מה שנקבע כאן נכנס לכל גיליון שייפתח מעכשיו, וגם לגיליונות שעדיין פתוחים."
           ) : (
             <>
               <Ltr>{share}%</Ltr> מהעמוד שמור ואינו נמכר
@@ -87,6 +91,15 @@ export function ReservedAreas({
       </div>
 
       {error ? <InlineError>{error}</InlineError> : null}
+      {note ? (
+        <p
+          role="status"
+          data-testid="reserved-note"
+          className="mb-2 text-xs text-status-success-fg"
+        >
+          {note}
+        </p>
+      ) : null}
 
       {areas.length > 0 ? (
         <ul className="mb-3 space-y-2" data-testid={`reserved-list-${pageTypeId}`}>
@@ -158,7 +171,10 @@ export function ReservedAreas({
           grid={grid}
           area={editing === "new" ? null : editing}
           others={areas.filter((a) => editing === "new" || a.id !== editing.id)}
-          onDone={() => setEditing(null)}
+          onDone={(message) => {
+            setEditing(null);
+            setNote(message ?? null);
+          }}
         />
       ) : (
         <Button
@@ -188,21 +204,28 @@ function ReservedAreaForm({
   grid: DerivedGrid;
   area: ReservedAreaRow | null;
   others: ReservedAreaRow[];
-  onDone: () => void;
+  onDone: (message?: string) => void;
 }) {
   const bound = saveReservationAction.bind(null, newspaperId, pageTypeId);
-  const [state, action, pending] = useActionState<FormState, FormData>(async (prev, data) => {
-    const result = await bound(prev, data);
-    if (!result.errors) onDone();
-    return result;
-  }, {});
+  const [state, action, pending, keepTypedOnError] = useFormActionState<FormState, FormData>(
+    async (prev, data) => {
+      const result = await bound(prev, data);
+      if (!result.errors) onDone(result.message);
+      return result;
+    },
+    {},
+  );
 
   const [rect, setRect] = useState<GridRect | null>(
     area ? { col: area.col, row: area.row, cols: area.cols, rows: area.rows } : null,
   );
 
   return (
-    <form action={action} className="rounded-lg border border-outline-variant p-3">
+    <form
+      action={action}
+      onReset={keepTypedOnError}
+      className="rounded-lg border border-outline-variant p-3"
+    >
       {area ? <input type="hidden" name="id" value={area.id} /> : null}
       <input type="hidden" name="col" value={rect?.col ?? ""} />
       <input type="hidden" name="row" value={rect?.row ?? ""} />
@@ -246,7 +269,7 @@ function ReservedAreaForm({
         <Button type="submit" size="sm" disabled={pending || !rect} data-testid="reserved-save">
           {pending ? "שומר…" : "שמירה"}
         </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={onDone}>
+        <Button type="button" size="sm" variant="ghost" onClick={() => onDone()}>
           ביטול
         </Button>
       </div>

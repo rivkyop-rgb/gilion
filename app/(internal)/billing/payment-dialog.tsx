@@ -1,5 +1,6 @@
 "use client";
 
+import { EmailLink, PhoneLink } from "@/components/contact-links";
 import { useRouter } from "next/navigation";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
@@ -31,6 +32,7 @@ const MONEY = new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS
 export function PaymentDialog({
   customerId,
   customerLabel,
+  billingContacts,
   outstanding,
   credit,
   closeHref,
@@ -38,6 +40,8 @@ export function PaymentDialog({
 }: {
   customerId: string;
   customerLabel: string;
+  /** Who to call about the debt — ticked on the customer's card. */
+  billingContacts: Array<{ label: string; phone: string | null; email: string | null }>;
   outstanding: number;
   credit: number;
   /** The list URL with this customer dropped — where closing goes. */
@@ -87,6 +91,22 @@ export function PaymentDialog({
                   "אין חוב פתוח"
                 )}
               </DialogPrimitive.Description>
+              {billingContacts.some((c) => c.phone || c.email) ? (
+                <div className="mt-2">
+                  <p className="text-xs font-semibold text-on-surface-variant">לפנות בנושא החוב</p>
+                  <ul className="space-y-0.5 text-sm" data-testid="billing-contacts">
+                    {billingContacts
+                      .filter((c) => c.phone || c.email)
+                      .map((c) => (
+                        <li key={c.label} className="flex flex-wrap items-center gap-x-3">
+                          <span className="text-on-surface-variant">{c.label}:</span>
+                          {c.phone ? <PhoneLink phone={c.phone} /> : null}
+                          {c.email ? <EmailLink email={c.email} /> : null}
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
             <DialogPrimitive.Close
               data-testid="close-payment-dialog"

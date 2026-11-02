@@ -37,7 +37,7 @@ test("שלושה תאריכים באותו מחיר הם שורת הזמנה א�
 
   // Three dates, one line — and the counter says both.
   await expect(page.getByTestId("order-line-count")).toContainText("3 תאריכים");
-  await expect(page.getByTestId("order-line-count")).toContainText("1 שורות הזמנה");
+  await expect(page.getByTestId("order-line-count")).toContainText("שורת הזמנה אחת");
   await expect(page.getByTestId("order-total")).toContainText("3,000");
 });
 

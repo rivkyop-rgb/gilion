@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { USERS, login, orderRef, passOrderWarnings } from "./helpers";
+import { USERS, login, orderRef, passOrderWarnings, saveCustomer } from "./helpers";
 import { validJpg, validPdf, validPng } from "./ad-fixtures";
 import { uploadFile } from "./ad-helpers";
 
@@ -17,7 +17,7 @@ async function ownCustomer(page: Page): Promise<{ id: string; name: string }> {
   await page.goto("/customers/new");
   await page.fill("#businessName", name);
   await page.fill("#phone", "050-9998887");
-  await page.getByRole("button", { name: "שמירה" }).click();
+  await saveCustomer(page);
   await page.waitForURL(/\/customers\/c[a-z0-9]{20,}$/);
   return { id: page.url().split("/").pop()!, name };
 }
@@ -40,7 +40,7 @@ async function approvedOrderFor(page: Page, customerName: string, date: string):
   if (await warning.isVisible()) await page.getByTestId("confirm-special-edition").check();
   await expect(page.getByTestId("add-line")).toBeEnabled();
   await page.getByTestId("add-line").click();
-  await expect(page.getByTestId("order-line-count")).toContainText("1 תאריכים");
+  await expect(page.getByTestId("order-line-count")).toContainText("תאריך אחד");
 
   await page.getByTestId("submit-order").click();
 

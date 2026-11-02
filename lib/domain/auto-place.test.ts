@@ -136,8 +136,14 @@ describe("the page type that was sold", () => {
   });
 
   it("puts an ad sold for the cover on the cover, even though the cover is closed to auto-placement", () => {
-    const result = autoPlace([sold("a", "cover")], [typed(1, "cover", false), typed(2, "inner")], grid);
-    expect(result.placements).toEqual([expect.objectContaining({ publicationId: "a", pageId: "p1" })]);
+    const result = autoPlace(
+      [sold("a", "cover")],
+      [typed(1, "cover", false), typed(2, "inner")],
+      grid,
+    );
+    expect(result.placements).toEqual([
+      expect.objectContaining({ publicationId: "a", pageId: "p1" }),
+    ]);
   });
 
   it("never puts an inner-page ad on the cover, even when the cover has room", () => {
@@ -152,8 +158,39 @@ describe("the page type that was sold", () => {
   });
 
   it("an ad with no recorded type goes only on pages open to auto-placement", () => {
-    const result = autoPlace([sold("a", null)], [typed(1, "cover", false), typed(2, "inner")], grid);
+    const result = autoPlace(
+      [sold("a", null)],
+      [typed(1, "cover", false), typed(2, "inner")],
+      grid,
+    );
     expect(result.placements[0]).toMatchObject({ pageId: "p2" });
+  });
+});
+
+describe("a page number that was asked for", () => {
+  it("goes on the requested page, not the first one with room", () => {
+    const asked: AutoPlaceItem = { publicationId: "asked", shape: quarter, requestedPage: 3 };
+    const result = autoPlace(
+      [asked],
+      [page(1, [quarter]), page(2, [quarter]), page(3, [quarter])],
+      grid,
+    );
+    expect(result.placements[0]!.pageId).toBe("p3");
+  });
+
+  it("is placed before ads that asked for nothing, so its page is still free", () => {
+    // Two fulls on two pages: the one that asked for page 1 must get it.
+    const others: AutoPlaceItem[] = [{ publicationId: "any", shape: full }];
+    const asked: AutoPlaceItem = { publicationId: "asked", shape: full, requestedPage: 1 };
+    const result = autoPlace([...others, asked], [page(1, [full]), page(2, [full])], grid);
+    expect(result.placements.find((p) => p.publicationId === "asked")!.pageId).toBe("p1");
+  });
+
+  it("falls back to another page when the requested one is full", () => {
+    const asked: AutoPlaceItem = { publicationId: "asked", shape: quarter, requestedPage: 1 };
+    const fullPage = page(1, [quarter], [{ col: 0, row: 0, cols: 8, rows: 8 }]);
+    const result = autoPlace([asked], [fullPage, page(2, [quarter])], grid);
+    expect(result.placements[0]!.pageId).toBe("p2");
   });
 });
 

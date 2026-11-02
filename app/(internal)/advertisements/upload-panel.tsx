@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useFormActionState } from "@/components/use-form-action-state";
 import { useRouter } from "next/navigation";
 import { CloudUpload, Info, X } from "lucide-react";
 
@@ -38,7 +39,7 @@ export function UploadPanel({
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  const [state, formAction, pending] = useActionState<AdFormState, FormData>(
+  const [state, formAction, pending, keepTypedOnError] = useFormActionState<AdFormState, FormData>(
     async (prev, formData) => {
       const next = await uploadAdvertisementAction(prev, formData);
       if (next.ok) {
@@ -88,6 +89,7 @@ export function UploadPanel({
 
       <form
         action={formAction}
+        onReset={keepTypedOnError}
         data-testid="upload-panel"
         className="mt-4 w-full rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4 lg:w-[500px]"
       >

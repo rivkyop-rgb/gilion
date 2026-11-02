@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { RecordHistory } from "@/components/record-history";
 import { notFound } from "next/navigation";
 import { AlertTriangle, Download, FileText } from "lucide-react";
 
@@ -116,6 +117,12 @@ export default async function AdvertisementPage({ params }: { params: Promise<{ 
             <p className="mt-2 text-xs text-on-surface-variant">
               הועלה על ידי {ad.uploaded_by.name} · <Ltr>{formatDateTime(ad.uploaded_at)}</Ltr>
             </p>
+            <div className="mt-2">
+              <RecordHistory
+                businessId={ctx.businessId}
+                targets={[{ type: "Advertisement", ids: [ad.id] }]}
+              />
+            </div>
 
             <div className="mt-3 flex flex-wrap gap-2">
               {ad.validation_status === "failed" ? (

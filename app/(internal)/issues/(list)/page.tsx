@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import { AutoOpenedNotice } from "@/components/issues/auto-opened-notice";
 import Link from "next/link";
-import { ClipboardList, FileDown, Newspaper, Plus } from "lucide-react";
+import { Archive, ClipboardList, FileDown, Newspaper, Plus } from "lucide-react";
 
 import { canReadArea, canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { issueSummaries, withPlacementCounts, ensureUpcomingIssues } from "@/lib/data/issues";
@@ -37,7 +38,7 @@ export default async function IssuesPage({
   const ctx = await getTenantContext();
   requireArea(ctx, "issues");
   // Issues open by themselves a week ahead — before the list is read.
-  await ensureUpcomingIssues(ctx.businessId);
+  const autoOpened = await ensureUpcomingIssues(ctx.businessId, ctx.userId);
 
   // `open` is what the dashboard's "גיליונות פתוחים" card counted (FR-20), and
   // the filter here applies exactly the states it counted — a card that opens a
@@ -46,12 +47,12 @@ export default async function IssuesPage({
   const filter = raw.status ?? "all";
   const requested = parseListParams(raw);
   const all = await issueSummaries(ctx.businessId);
+  // Closed issues live in the archive (/issues/published), not here: they
+  // pushed the issues still being laid out down the page (the user, 31/10/2026).
+  const working = all.filter((i) => (OPEN_ISSUE_STATES as string[]).includes(i.status));
+  const closedCount = all.length - working.length;
   const byStatus =
-    filter === "open"
-      ? all.filter((i) => (OPEN_ISSUE_STATES as string[]).includes(i.status))
-      : filter === "closed"
-        ? all.filter((i) => i.status === "closed")
-        : all;
+    filter === "all" || filter === "open" ? working : working.filter((i) => i.status === filter);
   // Searched the way an issue is named on its card: the newspaper, or the
   // date as printed (15.6.2027).
   const needle = requested.q.toLowerCase();
@@ -77,6 +78,7 @@ export default async function IssuesPage({
 
   return (
     <>
+      <AutoOpenedNotice opened={autoOpened} />
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="mb-1 flex items-center gap-2 page-title font-serif text-headline-lg font-semibold">
@@ -109,42 +111,46 @@ export default async function IssuesPage({
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2" data-testid="issue-status-filters">
+      <div className="mb-4 flex flex-wrap items-center gap-2" data-testid="issue-status-filters">
         {(
           [
-            { value: "all", label: "הכל", count: all.length },
-            {
-              value: "open",
-              label: "פתוחים",
-              count: all.filter((i) => (OPEN_ISSUE_STATES as string[]).includes(i.status)).length,
-            },
-            {
-              value: "closed",
-              label: "סגורים",
-              count: all.filter((i) => i.status === "closed").length,
-            },
+            { value: "open", label: "כל הפתוחים", count: working.length },
+            ...(["draft", "in_layout", "ready_for_print"] as const).map((st) => ({
+              value: st,
+              label: ISSUE_STATUS_LABELS[st],
+              count: working.filter((i) => i.status === st).length,
+            })),
           ] as const
-        ).map((tab) => (
-          <Link
-            key={tab.value}
-            href={
-              tab.value === "all"
-                ? `/issues${sizeKeep ? `?${sizeKeep}` : ""}`
-                : `/issues?status=${tab.value}${sizeKeep ? `&${sizeKeep}` : ""}`
-            }
-            data-testid={`issue-filter-${tab.value}`}
-            aria-current={filter === tab.value ? "page" : undefined}
-            className={
-              filter === tab.value
-                ? "inline-flex h-8 items-center gap-2 rounded-full bg-primary px-3 text-sm font-medium text-on-primary"
-                : "inline-flex h-8 items-center gap-2 rounded-full bg-surface-container-lowest px-3 text-sm font-medium text-on-surface-variant ring-1 ring-outline-variant hover:bg-surface-container"
-            }
-          >
-            {tab.label}
-            {/* `count !== undefined`, never `count &&` — zero is an answer. */}
-            <span className="ltr-isolate text-xs opacity-70">{tab.count}</span>
-          </Link>
-        ))}
+        ).map((tab) => {
+          const active =
+            tab.value === "open" ? filter === "open" || filter === "all" : filter === tab.value;
+          return (
+            <Link
+              key={tab.value}
+              href={`/issues?status=${tab.value}${sizeKeep ? `&${sizeKeep}` : ""}`}
+              data-testid={`issue-filter-${tab.value}`}
+              aria-current={active ? "page" : undefined}
+              className={
+                active
+                  ? "inline-flex h-8 items-center gap-2 rounded-full bg-primary px-3 text-sm font-medium text-on-primary"
+                  : "inline-flex h-8 items-center gap-2 rounded-full bg-surface-container-lowest px-3 text-sm font-medium text-on-surface-variant ring-1 ring-outline-variant hover:bg-surface-container"
+              }
+            >
+              {tab.label}
+              {/* `count !== undefined`, never `count &&` — zero is an answer. */}
+              <span className="ltr-isolate text-xs opacity-70">{tab.count}</span>
+            </Link>
+          );
+        })}
+        <Link
+          href="/issues/published"
+          data-testid="published-issues-link"
+          className="ms-auto inline-flex h-8 items-center gap-2 rounded-full px-3 text-sm font-medium text-primary underline-offset-4 hover:underline"
+        >
+          <Archive className="size-4" aria-hidden />
+          גיליונות שפורסמו
+          <span className="ltr-isolate text-xs opacity-70">{closedCount}</span>
+        </Link>
       </div>
 
       <ListToolbar
@@ -161,7 +167,7 @@ export default async function IssuesPage({
           body={
             all.length === 0
               ? "גיליון נפתח לתאריך של עיתון, ומרגע שנפתח אפשר לשבץ עליו את הפרסומים שכבר מתוכננים לאותו יום."
-              : 'יש גיליונות, אבל אף אחד מהם אינו בסינון הנוכחי. אפשר לבחור "הכל" למעלה.'
+              : 'אין כרגע גיליון פתוח בסינון הזה. גיליונות שנסגרו נמצאים ב"גיליונות שפורסמו".'
           }
           action={
             mayWrite && all.length === 0 ? (

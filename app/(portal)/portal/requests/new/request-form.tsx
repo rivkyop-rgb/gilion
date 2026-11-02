@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
+import { useFormActionState } from "@/components/use-form-action-state";
 import {
   ChevronLeft,
   ChevronRight,
@@ -87,10 +88,10 @@ export function RequestForm({
   // upload while filling this form.
   const [files, setFiles] = useState<UploadedAd[]>(library);
 
-  const [state, submit, submitting] = useActionState<PortalRequestState, FormData>(
-    submitAdRequestAction,
-    {},
-  );
+  const [state, submit, submitting, keepTypedOnError] = useFormActionState<
+    PortalRequestState,
+    FormData
+  >(submitAdRequestAction, {});
   const errors = state.errors ?? {};
 
   const update = (key: number, patch: Partial<Line>) =>
@@ -144,7 +145,12 @@ export function RequestForm({
   );
 
   return (
-    <form action={submit} className="space-y-6" data-testid="request-form">
+    <form
+      action={submit}
+      onReset={keepTypedOnError}
+      className="space-y-6"
+      data-testid="request-form"
+    >
       <input type="hidden" name="lines" value={payload} />
 
       {lines.map((line, index) => (

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AutoOpenedNotice } from "@/components/issues/auto-opened-notice";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 
@@ -104,7 +105,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const ctx = await getTenantContext();
   requireArea(ctx, "dashboard");
   // The week's issues open by themselves (12/10/2026) — before they are counted.
-  await ensureUpcomingIssues(ctx.businessId);
+  const autoOpened = await ensureUpcomingIssues(ctx.businessId, ctx.userId);
 
   const week = dashboardWeek();
   const weekFrom = isoDay(week.from);
@@ -277,6 +278,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           </Button>
         ) : null}
       </div>
+      <AutoOpenedNotice opened={autoOpened} />
       <p className="mb-3 text-sm text-on-surface-variant" data-testid="dashboard-period-sentence">
         נכנסת כ־{ROLE_LABELS[ctx.role]}. מוצגים נתוני{" "}
         <strong className="text-on-surface">

@@ -1,6 +1,12 @@
 import { expect, type Page } from "@playwright/test";
 
-import { NEWSPAPERS, addOrderLine, pickOrderNewspaper, passOrderWarnings } from "./helpers";
+import {
+  NEWSPAPERS,
+  addOrderLine,
+  pickOrderNewspaper,
+  passOrderWarnings,
+  saveCustomer,
+} from "./helpers";
 
 /**
  * Fixtures for the payment specs (stage 08).
@@ -43,7 +49,7 @@ export async function createCustomer(
   await page.goto("/customers/new");
   await page.fill("#businessName", name);
   await page.fill("#phone", "050-1112233");
-  await page.getByRole("button", { name: "שמירה" }).click();
+  await saveCustomer(page);
   // The id pattern must exclude "new": a bare [a-z0-9]+ matches /customers/new
   // too, and the wait would return before the navigation with "new" as the id.
   await page.waitForURL(/\/customers\/c[a-z0-9]{20,}$/);
@@ -114,8 +120,10 @@ export async function recordPayment(
   page: Page,
   values: { amount: string; date?: string; invoice?: string; orderId?: string },
 ) {
-  if (values.orderId !== undefined) {
-    await page.getByTestId("payment-order").selectOption(values.orderId);
+  // Invoices are ticked, several if need be (31/10/2026); ticking types the
+  // open sum into the amount, and the fill below replaces it.
+  if (values.orderId) {
+    await page.getByTestId(`payment-invoice-${values.orderId}`).check();
   }
   await page.getByTestId("payment-amount").fill(values.amount);
   if (values.date) await page.getByTestId("payment-date").fill(values.date);

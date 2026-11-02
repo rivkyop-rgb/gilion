@@ -22,7 +22,6 @@ import { baseHrefFor, DEFAULT_PAGE_SIZE, parseListParams } from "@/lib/domain/li
 import { businessName, loadSettings } from "@/lib/data/business-settings";
 import { textFor } from "@/lib/domain/business-settings";
 import { ReminderTable, type ReminderRow } from "./reminder-table";
-import { ReminderWording } from "./reminder-wording";
 
 export const metadata: Metadata = { title: "תזכורות · Gilion" };
 
@@ -149,7 +148,6 @@ export default async function RemindersPage({
         ))}
       </div>
 
-      {model.length > 0 ? <ReminderWording text={template} /> : null}
 
       <ListToolbar
         prefix=""

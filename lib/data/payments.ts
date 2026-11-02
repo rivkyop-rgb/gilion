@@ -27,6 +27,13 @@ export type PaymentWriteContext = { businessId: string; userId: string };
 export type PaymentInputRow = {
   customerId: string;
   orderId: string | null;
+  /**
+   * Several invoices ticked in the new-payment form (the user, 31/10/2026).
+   * The sum is split across THESE, oldest publication first; whatever is left
+   * after they are settled is the customer's credit — never an overpayment on
+   * the last one. Empty = all open orders.
+   */
+  orderIds?: string[];
   amount: number;
   paymentDate: string;
   externalInvoiceNumber: string;
@@ -70,7 +77,7 @@ export async function recalcOrderPaymentStatus(
 ): Promise<PaymentStatus | null> {
   const order = await tx.adOrder.findFirst({
     where: { id: orderId, business_id: businessId },
-    select: { id: true, total_price: true, payment_status: true },
+    select: { id: true, payment_status: true },
   });
   if (!order) return null;
 
@@ -81,12 +88,18 @@ export async function recalcOrderPaymentStatus(
     }),
     tx.publication.findMany({
       where: { order_id: orderId, business_id: businessId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, price: true },
     }),
   ]);
 
   const next = derivePaymentStatus({
-    totalPrice: Number(order.total_price),
+    // The LIVE publications, the same sum every money screen shows as owed —
+    // not `total_price`, the price at approval that stays put when a
+    // publication is cancelled. Two totals let one row read "נותר ₪10,800 ·
+    // שולם" (UX review, 29/10/2026).
+    totalPrice: publications
+      .filter((p) => !NOT_BILLABLE.includes(p.status))
+      .reduce((sum, p) => round2(sum + Number(p.price)), 0),
     payments: payments.map((p) => ({
       amount: Number(p.amount),
       canceled: p.status === "canceled",
@@ -158,7 +171,7 @@ export type RecordedPayment = {
  *
  *  - NAMED: one row against that order, exactly as before. Overpaying it is
  *    allowed (rule 2), because doing so is a deliberate act.
- *  - UNNAMED: the sum is split across the open orders oldest first
+ *  - UNNAMED: the sum is split across the open orders, oldest publication first
  *    (lib/domain/payment-allocation.ts) and written as one row per order, plus
  *    a row with no order for whatever is left. Those rows share a `group_id`
  *    so the screen can show them as the single act they were.
@@ -193,9 +206,15 @@ export async function recordPayment(
   // Computed BEFORE the transaction opens so the confirmation can quote it,
   // and recomputed from the same rows inside — see the note in the split
   // branch below.
+  const ticked = input.orderIds?.length ? new Set(input.orderIds) : null;
   const plan = input.orderId
     ? null
-    : allocatePayment(input.amount, await openOrdersOf(ctx.businessId, input.customerId));
+    : allocatePayment(
+        input.amount,
+        (await openOrdersOf(ctx.businessId, input.customerId)).filter(
+          (o) => !ticked || ticked.has(o.orderId),
+        ),
+      );
 
   return withAudit(
     ctx,
@@ -652,15 +671,25 @@ export async function openOrdersOf(businessId: string, customerId: string): Prom
   // different number than the one the window headlines — the window said
   // "10,800 open" and the split said "nothing is open, all of it is credit",
   // and the save then did what the split said (29/09/2026).
-  const [paid, billable] = await Promise.all([
+  const [paid, billable, first] = await Promise.all([
     paidByOrder(businessId, ids),
     billableTotalsByOrder(businessId, ids),
+    // The split's sort key: what ran first is owed first (payment-allocation.ts).
+    ids.length === 0
+      ? Promise.resolve([])
+      : tenantDb(businessId).publication.groupBy({
+          by: ["order_id"],
+          where: { order_id: { in: ids }, status: { notIn: NOT_BILLABLE } },
+          _min: { publication_date: true },
+        }),
   ]);
+  const firstByOrder = new Map(first.map((g) => [g.order_id, g._min.publication_date]));
   return orders
     .map((o) => ({
       orderId: o.id,
       number: o.number,
       open: round2(Math.max(0, (billable.get(o.id) ?? 0) - (paid.get(o.id) ?? 0))),
+      firstPublication: firstByOrder.get(o.id) ?? null,
       createdAt: o.created_at,
     }))
     .filter((o) => o.open > 0);

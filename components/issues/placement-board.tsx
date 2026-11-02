@@ -13,6 +13,9 @@ import {
   Minimize2,
   PanelLeftClose,
   PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  LayoutGrid,
   Trash2,
   Wand2,
   Undo2,
@@ -68,6 +71,9 @@ import { PageOrderDialog } from "./page-order-dialog";
 import { counted } from "@/lib/domain/hebrew-count";
 import { UnplacedPanel, type BoardCandidate } from "./unplaced-panel";
 import { useFittedSpread } from "./use-fitted-spread";
+import { largestThatFits, firstFit } from "@/lib/domain/auto-place";
+import { TONE_LABELS } from "@/lib/domain/placement-tone";
+import { IssueOverview } from "./issue-overview";
 
 export type { BoardCandidate };
 
@@ -95,6 +101,12 @@ export type BoardModel = {
   pageTypes: Array<{ id: string; name: string }>;
   /** The page types auto-placement may use — the newspaper's setting. */
   autoPlaceTypeNames: string[];
+  /** "pageTypeId|shapeId" → list price — what free space on a page is worth. */
+  prices: Record<string, number>;
+  /** publicationId → the page number its order (or customer) asked for. */
+  requestedPages: Record<string, number>;
+  /** Placements auto-placement made — the only ones "another arrangement" clears. */
+  autoPlacedCount: number;
   newspaperId: string;
   /** May open the newspaper settings, where that is changed. */
   mayConfigure: boolean;
@@ -223,7 +235,12 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
       if (e.key === "Escape") setFocus(false);
-      else if ((e.key === "f" || e.key === "כ") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      else if (
+        (e.code === "KeyF" || e.key === "f" || e.key === "כ") &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey
+      ) {
         setFocus((f) => !f);
       }
     };
@@ -284,6 +301,40 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
   }, [model.pages, placementsByPage, model.grid]);
 
   const unfinished = useMemo(() => unfinishedPages([...fills.values()]), [fills]);
+
+  /** Per page: the biggest shape still sellable there, and its list price (01/11/2026). */
+  const freeSpace = useMemo(() => {
+    const map = new Map<string, { shapeName: string; price: number | null } | null>();
+    for (const page of model.pages) {
+      const fit = largestThatFits(
+        {
+          pageId: page.id,
+          pageNumber: page.number,
+          allowedShapes: page.allowedShapes,
+          occupied: [
+            ...(placementsByPage.get(page.id) ?? []),
+            ...page.reserved.map((area) => area.rect),
+          ],
+        },
+        model.grid,
+      );
+      map.set(
+        page.id,
+        fit
+          ? {
+              shapeName: fit.shape.name,
+              price: model.prices[`${page.pageTypeId}|${fit.shape.id}`] ?? null,
+            }
+          : null,
+      );
+    }
+    return map;
+  }, [model.pages, placementsByPage, model.grid, model.prices]);
+
+  // "כל הגיליון": every page small, side by side (01/11/2026).
+  const [overview, setOverview] = useState(false);
+  // The list of ads to place folds to a rail, so the page gets the width.
+  const [listOpen, setListOpen] = useState(true);
   // Only what the packer could actually take: artwork present and usable.
   const unplacedCount = model.candidates.filter(
     (c) => !c.alreadyPlaced && c.blockedReason === null,
@@ -354,7 +405,56 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
     return `הפרסום נמכר לעמוד ${sold.name}, וכאן העמוד הוא ${page.pageTypeName}. אפשר להניח אותו כאן — המחיר נקבע לפי ${sold.name}.`;
   }, [candidate, held, verdict, model.soldPageTypes, model.pages]);
 
+  /**
+   * Placing an ad where it was not ordered asks first (the user, 31/10/2026):
+   * a page of another type than the one sold, a page number other than the
+   * one asked for, or a page another order asked for too. Allowed — a
+   * designer may have a reason — but never silently.
+   */
+  const [offOrder, setOffOrder] = useState<{
+    pageId: string;
+    cell: Cell;
+    reasons: string[];
+  } | null>(null);
+
+  const offOrderReasons = (pageId: string): string[] => {
+    if (!held) return [];
+    const page = model.pages.find((p) => p.id === pageId);
+    if (!page) return [];
+    const reasons: string[] = [];
+    const sold = model.soldPageTypes[held.publicationId];
+    if (sold && page.pageTypeId !== sold.id) {
+      reasons.push(`הפרסום הוזמן לעמוד ${sold.name}, והעמוד כאן הוא ${page.pageTypeName}.`);
+    }
+    const asked = model.requestedPages[held.publicationId];
+    if (asked && asked !== page.number) {
+      reasons.push(`הלקוח ביקש עמוד ${asked}, וזה עמוד ${page.number}.`);
+    }
+    if (asked === page.number) {
+      const rivals = model.placements.filter(
+        (p) =>
+          p.pageId === pageId &&
+          p.publicationId !== held.publicationId &&
+          model.requestedPages[p.publicationId] === page.number,
+      );
+      for (const r of rivals) {
+        reasons.push(`גם ${r.customerName} ביקש את עמוד ${page.number}, והוא כבר משובץ כאן.`);
+      }
+    }
+    return reasons;
+  };
+
   const commit = (pageId: string, cell: Cell) => {
+    if (!held || !editable) return;
+    const reasons = offOrderReasons(pageId);
+    if (reasons.length > 0) {
+      setOffOrder({ pageId, cell, reasons });
+      return;
+    }
+    doCommit(pageId, cell);
+  };
+
+  const doCommit = (pageId: string, cell: Cell) => {
     if (!held || !editable) return;
 
     // The previous notice is NOT cleared here.
@@ -433,7 +533,9 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
   useEffect(() => {
     if (!lastPlaced) return;
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z" || e.shiftKey) return;
+      // `code`, not only `key`: on a Hebrew keyboard Z types "ז" (see Ctrl+K).
+      const isZ = e.code === "KeyZ" || e.key.toLowerCase() === "z";
+      if (!(e.ctrlKey || e.metaKey) || !isZ || e.shiftKey) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
       e.preventDefault();
@@ -578,6 +680,16 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
         <span className="ms-auto flex items-center gap-2">
           <Button
             size="sm"
+            variant={overview ? "primary" : "secondary"}
+            data-testid="board-overview"
+            aria-pressed={overview}
+            onClick={() => setOverview((o) => !o)}
+          >
+            <LayoutGrid className="size-4" aria-hidden />
+            {overview ? "חזרה לעמוד" : "כל הגיליון"}
+          </Button>
+          <Button
+            size="sm"
             variant={focus ? "primary" : "secondary"}
             data-testid="board-focus"
             aria-pressed={focus}
@@ -599,48 +711,80 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
         className={cn(
           "grid min-h-0 flex-1 gap-3 [grid-template-rows:minmax(0,1fr)]",
           focus
-            ? "xl:grid-cols-[16rem_1fr_9rem]"
+            ? listOpen
+              ? "xl:grid-cols-[16rem_1fr_9rem]"
+              : "xl:grid-cols-[2.75rem_1fr_9rem]"
             : detailsOpen
-              ? "xl:grid-cols-[16rem_1fr_9rem_17rem]"
-              : "xl:grid-cols-[16rem_1fr_9rem_2.75rem]",
+              ? listOpen
+                ? "xl:grid-cols-[16rem_1fr_9rem_17rem]"
+                : "xl:grid-cols-[2.75rem_1fr_9rem_17rem]"
+              : listOpen
+                ? "xl:grid-cols-[16rem_1fr_9rem_2.75rem]"
+                : "xl:grid-cols-[2.75rem_1fr_9rem_2.75rem]",
         )}
       >
-        <UnplacedPanel
-          issueId={model.issueId}
-          candidates={model.candidates}
-          placements={model.placements}
-          pageLabelOf={(pageId) =>
-            pageLabel(model.pages.find((p) => p.id === pageId)?.number ?? 0, totalPages)
-          }
-          onJumpToPlacement={(placement) => {
-            jumpToPage(placement.pageId);
-            setHeld(null);
-          }}
-          customers={model.customers}
-          openPages={(view?.pages ?? []).map((p) => {
-            const full = model.pages.find((x) => x.id === p.id);
-            return {
-              id: p.id,
-              label: pageLabel(p.number, totalPages),
-              pageTypeId: full?.pageTypeId ?? "",
-              allowedShapes: full?.allowedShapes ?? [],
-            };
-          })}
-          grid={model.grid}
-          editable={editable}
-          isAdmin={model.isAdmin}
-          holdingPublicationId={held?.kind === "publication" ? held.publicationId : null}
-          onPressStart={() => {
-            pressed.current = true;
-          }}
-          onPick={(item) =>
-            setHeld((prev) =>
-              prev?.kind === "publication" && prev.publicationId === item.publicationId
-                ? null
-                : { kind: "publication", publicationId: item.publicationId, shape: item.shape },
-            )
-          }
-        />
+        {listOpen ? null : (
+          <button
+            type="button"
+            data-testid="list-expand"
+            onClick={() => setListOpen(true)}
+            aria-label="פתיחת רשימת הפרסומים"
+            className="hidden h-full flex-col items-center gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest py-3 text-xs font-medium text-on-surface-variant hover:bg-surface-container xl:flex"
+          >
+            <PanelRightOpen className="size-4" aria-hidden />
+            <span className="[writing-mode:vertical-rl]">
+              לשיבוץ <Ltr>({unplacedCount})</Ltr>
+            </span>
+          </button>
+        )}
+        <div className={cn("relative h-full min-h-0", !listOpen && "xl:hidden")}>
+          <button
+            type="button"
+            data-testid="list-collapse"
+            onClick={() => setListOpen(false)}
+            aria-label="הסתרת רשימת הפרסומים, כדי שהעמוד יהיה גדול יותר"
+            className="absolute bottom-2 end-2 z-10 hidden items-center gap-1 rounded-md border border-outline-variant bg-surface-container-lowest px-2 py-1 text-xs text-on-surface-variant shadow-elevation-1 hover:bg-surface-container xl:flex"
+          >
+            <PanelRightClose className="size-4" aria-hidden />
+            הסתרת הרשימה
+          </button>
+          <UnplacedPanel
+            issueId={model.issueId}
+            candidates={model.candidates}
+            placements={model.placements}
+            pageLabelOf={(pageId) =>
+              pageLabel(model.pages.find((p) => p.id === pageId)?.number ?? 0, totalPages)
+            }
+            onJumpToPlacement={(placement) => {
+              jumpToPage(placement.pageId);
+              setHeld(null);
+            }}
+            customers={model.customers}
+            openPages={(view?.pages ?? []).map((p) => {
+              const full = model.pages.find((x) => x.id === p.id);
+              return {
+                id: p.id,
+                label: pageLabel(p.number, totalPages),
+                pageTypeId: full?.pageTypeId ?? "",
+                allowedShapes: full?.allowedShapes ?? [],
+              };
+            })}
+            grid={model.grid}
+            editable={editable}
+            isAdmin={model.isAdmin}
+            holdingPublicationId={held?.kind === "publication" ? held.publicationId : null}
+            onPressStart={() => {
+              pressed.current = true;
+            }}
+            onPick={(item) =>
+              setHeld((prev) =>
+                prev?.kind === "publication" && prev.publicationId === item.publicationId
+                  ? null
+                  : { kind: "publication", publicationId: item.publicationId, shape: item.shape },
+              )
+            }
+          />
+        </div>
 
         {/* ── Centre: the spread ─────────────────────────────────────────────────
 
@@ -833,85 +977,226 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
               The height budget is what keeps the issue on one screen. The
               subtraction is the chrome around it: the top bar, the page
               heading, the notice row, the pager, the captions and the strip. */}
-            <div
-              ref={spreadRef}
-              dir="rtl"
-              data-testid="spread"
-              className="mx-auto flex h-full items-start justify-center gap-2"
-            >
-              {(view?.pages ?? []).map((page) => {
-                const full = model.pages.find((p) => p.id === page.id);
-                const fill = fills.get(page.id);
-                if (!full || !fill) return null;
-                return (
-                  <PageCanvas
-                    key={page.id}
-                    page={page}
-                    totalPages={totalPages}
-                    size={pageSize}
-                    grid={model.grid}
-                    placements={placementsByPage.get(page.id) ?? []}
-                    reserved={full.reserved}
-                    fill={fill}
-                    editable={editable}
-                    holding={held?.kind === "publication"}
-                    refusesHeld={
-                      held && !full.allowedShapes.some((s) => s.id === held.shape.id)
-                        ? held.shape.name
-                        : null
-                    }
-                    candidate={candidate?.pageId === page.id ? candidate : null}
-                    verdict={candidate?.pageId === page.id ? verdict : null}
-                    selectedPlacementId={selectedPlacement?.id ?? null}
-                    onCellEnter={(pageId, cell) => held && setHover({ pageId, cell })}
-                    onCellClick={(pageId, cell) => {
-                      setSelectedPageId(pageId);
-                      if (held) commit(pageId, cell);
-                    }}
-                    onPointerCell={(pageId, cell) => {
-                      if (!held) return;
-                      setHover({ pageId, cell });
-                      if (pressed.current) setDragging(true);
-                    }}
-                    onDrop={(pageId, cell) => {
-                      if (!held || !dragging) return;
-                      setDragging(false);
-                      pressed.current = false;
-                      commit(pageId, cell);
-                    }}
-                    onPlacementPick={(placement) => {
-                      pressed.current = editable;
-                      setSelectedPageId(placement.pageId);
-                      setHeld((prev) =>
-                        prev?.kind === "placement" && prev.placementId === placement.id
-                          ? null
-                          : {
-                              kind: "placement",
-                              placementId: placement.id,
-                              publicationId: placement.publicationId,
-                              shape: {
-                                // The AD SHAPE's id, never the placement's — see
-                                // CanvasPlacement.shapeId. With the wrong one,
-                                // rule 5 refuses the move on every page in the
-                                // issue, including the one it is already on.
-                                id: placement.shapeId,
-                                name: placement.shapeName,
-                                // The footprint stays the PLACEMENT's own: an ad
-                                // laid out before the catalogue was resized keeps
-                                // the size it was sold at (conventions.md §7).
-                                cols: placement.cols,
-                                rows: placement.rows,
-                                positions: placement.shapePositions,
+            {overview ? (
+              <IssueOverview
+                views={views}
+                grid={model.grid}
+                totalPages={totalPages}
+                placementsByPage={placementsByPage}
+                reservedByPage={new Map(model.pages.map((p) => [p.id, p.reserved]))}
+                fills={fills}
+                holding={Boolean(held)}
+                refusesPage={(pageId) => {
+                  const full = model.pages.find((p) => p.id === pageId);
+                  return Boolean(
+                    held && full && !full.allowedShapes.some((x) => x.id === held.shape.id),
+                  );
+                }}
+                onPageClick={(pageId) => {
+                  const full = model.pages.find((p) => p.id === pageId);
+                  if (!full) return;
+                  if (!held) {
+                    jumpToPage(pageId);
+                    setOverview(false);
+                    return;
+                  }
+                  // The first place it fits, under the auto-placer's own rules;
+                  // the commit then goes through every rule a drop does.
+                  const occupied = [
+                    ...(placementsByPage.get(pageId) ?? []).filter(
+                      (p) => !(held.kind === "placement" && p.id === held.placementId),
+                    ),
+                    ...full.reserved.map((area) => area.rect),
+                  ];
+                  const rect = firstFit(
+                    held.shape,
+                    {
+                      pageId,
+                      pageNumber: full.number,
+                      allowedShapes: full.allowedShapes,
+                      occupied,
+                    },
+                    model.grid,
+                    occupied,
+                  );
+                  if (!rect) {
+                    fail(`אין מקום ל${held.shape.name} ב${pageLabel(full.number, totalPages)}`);
+                    return;
+                  }
+                  commit(pageId, [rect.col, rect.row]);
+                }}
+              />
+            ) : (
+              <div
+                ref={spreadRef}
+                dir="rtl"
+                data-testid="spread"
+                className="mx-auto flex h-full items-start justify-center gap-2"
+              >
+                {(view?.pages ?? []).map((page) => {
+                  const full = model.pages.find((p) => p.id === page.id);
+                  const fill = fills.get(page.id);
+                  if (!full || !fill) return null;
+                  return (
+                    <PageCanvas
+                      key={page.id}
+                      page={page}
+                      totalPages={totalPages}
+                      size={pageSize}
+                      grid={model.grid}
+                      placements={placementsByPage.get(page.id) ?? []}
+                      reserved={full.reserved}
+                      fill={fill}
+                      editable={editable}
+                      holding={held?.kind === "publication"}
+                      refusesHeld={
+                        held && !full.allowedShapes.some((s) => s.id === held.shape.id)
+                          ? held.shape.name
+                          : null
+                      }
+                      candidate={candidate?.pageId === page.id ? candidate : null}
+                      verdict={candidate?.pageId === page.id ? verdict : null}
+                      selectedPlacementId={selectedPlacement?.id ?? null}
+                      onCellEnter={(pageId, cell) => held && setHover({ pageId, cell })}
+                      onCellClick={(pageId, cell) => {
+                        setSelectedPageId(pageId);
+                        if (held) commit(pageId, cell);
+                      }}
+                      onPointerCell={(pageId, cell) => {
+                        if (!held) return;
+                        setHover({ pageId, cell });
+                        if (pressed.current) setDragging(true);
+                      }}
+                      onDrop={(pageId, cell) => {
+                        if (!held || !dragging) return;
+                        setDragging(false);
+                        pressed.current = false;
+                        commit(pageId, cell);
+                      }}
+                      onPlacementPick={(placement) => {
+                        pressed.current = editable;
+                        setSelectedPageId(placement.pageId);
+                        setHeld((prev) =>
+                          prev?.kind === "placement" && prev.placementId === placement.id
+                            ? null
+                            : {
+                                kind: "placement",
+                                placementId: placement.id,
+                                publicationId: placement.publicationId,
+                                shape: {
+                                  // The AD SHAPE's id, never the placement's — see
+                                  // CanvasPlacement.shapeId. With the wrong one,
+                                  // rule 5 refuses the move on every page in the
+                                  // issue, including the one it is already on.
+                                  id: placement.shapeId,
+                                  name: placement.shapeName,
+                                  // The footprint stays the PLACEMENT's own: an ad
+                                  // laid out before the catalogue was resized keeps
+                                  // the size it was sold at (conventions.md §7).
+                                  cols: placement.cols,
+                                  rows: placement.rows,
+                                  positions: placement.shapePositions,
+                                },
                               },
-                            },
-                      );
-                    }}
-                    onLeave={() => setHover(null)}
-                  />
-                );
-              })}
-            </div>
+                        );
+                      }}
+                      onLeave={() => setHover(null)}
+                      freeSpace={freeSpace.get(page.id) ?? null}
+                    />
+                  );
+                })}
+              </div>
+            )}
           </div>
+
+          {/* Under the page as well (the user, 31/10/2026): where the eye is
+              after looking at the page, next/previous and "go to page N".
+              Fixed height, so it never pushes the canvas while aiming. */}
+          <nav
+            aria-label="מעבר בין עמודים"
+            data-testid="board-bottom-nav"
+            className="flex h-11 shrink-0 items-center justify-center gap-2 pt-2"
+          >
+            <span
+              data-testid="tone-legend"
+              className="me-auto hidden items-center gap-3 text-[11px] text-on-surface-variant xl:flex"
+            >
+              {(["ready", "attention", "problem"] as const).map((t) => (
+                <span key={t} className="flex items-center gap-1">
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "size-2.5 rounded-sm border-2",
+                      t === "ready"
+                        ? "border-status-success-fg"
+                        : t === "attention"
+                          ? "border-status-warning-fg"
+                          : "border-status-error-fg",
+                    )}
+                  />
+                  {TONE_LABELS[t]}
+                </span>
+              ))}
+            </span>
+            <Button
+              size="sm"
+              variant="secondary"
+              data-testid="bottom-prev"
+              disabled={viewIndex === 0}
+              onClick={() => setViewIndex((i) => Math.max(0, i - 1))}
+            >
+              <ChevronRight className="size-4" aria-hidden />
+              הקודם
+            </Button>
+            <span className="min-w-20 text-center text-xs text-on-surface-variant">
+              {view?.label ?? "—"} ·{" "}
+              <Ltr>
+                {views.length === 0 ? 0 : viewIndex + 1}/{views.length}
+              </Ltr>
+            </span>
+            <Button
+              size="sm"
+              variant="secondary"
+              data-testid="bottom-next"
+              disabled={viewIndex >= views.length - 1}
+              onClick={() => setViewIndex((i) => Math.min(views.length - 1, i + 1))}
+            >
+              הבא
+              <ChevronLeft className="size-4" aria-hidden />
+            </Button>
+            <form
+              className="ms-4 flex items-center gap-1.5"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const n = Number(new FormData(e.currentTarget).get("page"));
+                const target = model.pages.find((p) => p.number === n);
+                if (target) {
+                  jumpToPage(target.id);
+                  setNotice(null);
+                } else {
+                  setNotice({
+                    text: `אין עמוד ${n || ""} בגיליון הזה — יש ${totalPages} עמודים`,
+                    ok: false,
+                  });
+                }
+              }}
+            >
+              <label htmlFor="go-to-page" className="text-xs text-on-surface-variant">
+                מעבר לעמוד
+              </label>
+              <input
+                id="go-to-page"
+                name="page"
+                inputMode="numeric"
+                dir="ltr"
+                data-testid="go-to-page"
+                className="h-8 w-14 rounded-md border border-outline-variant bg-surface-container px-2 text-center text-sm"
+              />
+              <Button type="submit" size="sm" variant="ghost" data-testid="go-to-page-submit">
+                מעבר
+              </Button>
+            </form>
+          </nav>
         </section>
 
         {/* ── The page column: where you are in the issue, and its pages ─────────
@@ -999,10 +1284,11 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                 </>
               ) : null}
 
-              {/* "Another arrangement" empties the board and packs again, which
-                is the only thing it could honestly mean once everything is
-                already placed. It undoes hand-placed ads as well, so it asks. */}
-              {model.placements.length > 0 ? (
+              {/* "Another arrangement" clears what auto-placement put down and
+                packs again — the only thing it could honestly mean once
+                everything is already placed. Hand-placed ads, and ads a person
+                moved, stay where they are (the user, 31/10/2026). */}
+              {model.autoPlacedCount > 0 ? (
                 <ConfirmDialog
                   testId="reshuffle"
                   trigger={
@@ -1010,8 +1296,16 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                       סידור אחר
                     </Button>
                   }
-                  title="לסדר את הגיליון מחדש?"
-                  body={`כל ${model.placements.length} השיבוצים בגיליון יוסרו, והמערכת תסדר אותו מחדש בפריסה אחרת — כולל מודעות ששובצו ביד.`}
+                  title="לסדר מחדש את מה ששובץ אוטומטית?"
+                  body={`${
+                    model.autoPlacedCount === 1
+                      ? "השיבוץ האוטומטי היחיד יוסר"
+                      : `${model.autoPlacedCount} השיבוצים האוטומטיים יוסרו`
+                  }, והמערכת תסדר אותם מחדש בפריסה אחרת. ${
+                    model.placements.length > model.autoPlacedCount
+                      ? "מודעות ששובצו או הוזזו ביד נשארות במקומן."
+                      : ""
+                  }`}
                   confirmLabel="סדר מחדש"
                   pendingLabel="מסדר…"
                   onConfirm={async () => {
@@ -1250,6 +1544,17 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
         )}
       </div>
 
+      {offOrder ? (
+        <OffOrderDialog
+          reasons={offOrder.reasons}
+          onCancel={() => setOffOrder(null)}
+          onConfirm={() => {
+            const { pageId, cell } = offOrder;
+            setOffOrder(null);
+            doCommit(pageId, cell);
+          }}
+        />
+      ) : null}
       {duplicateFor ? (
         <DuplicateDialog
           item={duplicateFor}
@@ -1287,6 +1592,50 @@ function Row({ label, value }: { label: string; value: string }) {
  * issue is usually a mistake, and the times it is not are worth a decision and
  * an audit row.
  */
+/** "Not where it was ordered — place anyway?" Focus starts on cancel. */
+function OffOrderDialog({
+  reasons,
+  onConfirm,
+  onCancel,
+}: {
+  reasons: string[];
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="שיבוץ שלא לפי ההזמנה"
+      data-testid="off-order-dialog"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-primary/40 p-4"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onCancel();
+      }}
+    >
+      <div className="w-full max-w-[500px] rounded-lg bg-surface-container-lowest p-5 shadow-elevation-2">
+        <h2 className="mb-2 flex items-center gap-2 font-serif text-xl font-semibold">
+          <AlertTriangle className="size-5 text-status-warning-fg" />
+          לשבץ כאן, לא לפי ההזמנה?
+        </h2>
+        <ul className="mb-4 list-inside list-disc space-y-1 text-sm text-on-surface-variant">
+          {reasons.map((r) => (
+            <li key={r}>{r}</li>
+          ))}
+        </ul>
+        <div className="flex gap-2">
+          <Button onClick={onConfirm} data-testid="confirm-off-order">
+            כן, לשבץ כאן
+          </Button>
+          <Button variant="ghost" onClick={onCancel} autoFocus data-testid="cancel-off-order">
+            ביטול
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DuplicateDialog({
   item,
   onApprove,

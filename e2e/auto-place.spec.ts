@@ -70,16 +70,16 @@ test.describe("automatic placement", () => {
     await expect(message).toHaveAttribute("data-ok", "true");
   });
 
-  test("another arrangement empties the board and packs it again", async ({ page }) => {
+  test("another arrangement repacks what auto-placement put down", async ({ page }) => {
     await runAutoPlace(page);
     await expect(page.getByTestId("placed-count")).toHaveText("(4)");
 
     // Deterministic: asking for the same thing gives the same thing, so there
-    // is always a way back. Asking for ANOTHER is an explicit act — and once
-    // everything is placed, the only thing it can honestly mean is "clear it
-    // and pack it again", which also undoes hand-placed ads. So it says so.
+    // is always a way back. Asking for ANOTHER is an explicit act: it clears
+    // what auto-placement put down and packs it again. Hand-placed ads are not
+    // touched (the user, 31/10/2026) — all four here were placed by the packer.
     await page.getByTestId("auto-place-reshuffle").click();
-    await expect(page.getByTestId("reshuffle")).toContainText("כולל מודעות ששובצו ביד");
+    await expect(page.getByTestId("reshuffle")).toContainText("4 השיבוצים האוטומטיים יוסרו");
     await page.getByTestId("reshuffle-confirm").click();
 
     // The dialog stays open until the action returns, so its disappearance is

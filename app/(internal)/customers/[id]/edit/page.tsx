@@ -34,12 +34,15 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ i
           phone: customer.phone ?? "",
           email: customer.email ?? "",
           notes: customer.notes ?? "",
+          preferredPage: customer.preferred_page ? String(customer.preferred_page) : "",
           contacts: customer.contacts.map((c) => ({
             name: c.name,
             role: c.role ?? "",
             phone: c.phone ?? "",
             email: c.email ?? "",
             receivesReminders: c.receives_reminders,
+            receivesTearSheets: c.receives_tear_sheets,
+            receivesBilling: c.receives_billing,
           })),
         }}
         cancelHref={`/customers/${id}`}

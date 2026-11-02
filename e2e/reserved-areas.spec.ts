@@ -80,7 +80,7 @@ test.describe("reserved areas", () => {
     await expect(page.getByText("פס באמצע")).toHaveCount(0);
   });
 
-  test("a new issue gets the area; an issue already laid out does not", async ({ page }) => {
+  test("a new issue gets the area, and so does one still open", async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto(settingsUrl);
 
@@ -92,13 +92,15 @@ test.describe("reserved areas", () => {
       "כותרת העיתון",
     );
 
-    // The fixture issue was opened BEFORE the area existed, and it keeps the
-    // cover it was laid out on (conventions.md §7 rule 2). This is the whole
-    // reason the areas are copied into the issue rather than read live: an ad
-    // sold last month cannot retroactively find itself under a masthead.
+    // The fixture issue was opened BEFORE the area existed, and it is still
+    // open — so it gets the area too. A logo uploaded three minutes after the
+    // week's issue opened never reached it, and the issue printed without it
+    // (the user, 31/10/2026). What stays protected is an ad already on the
+    // page: an area is never laid over one (syncReservationsToOpenIssues), so
+    // an ad sold last month cannot find itself under a masthead.
     await page.goto(boardUrl);
     await expect(page.getByTestId("page-canvas-1")).toBeVisible();
-    await expect(page.getByTestId("reserved-1-כותרת העיתון")).toHaveCount(0);
+    await expect(page.getByTestId("reserved-1-כותרת העיתון")).toBeVisible();
 
     // An issue opened now gets it.
     await page.goto("/issues/new");

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useFormActionState } from "@/components/use-form-action-state";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,7 +51,10 @@ export function ShapeForm({
     ? updateAdShapeAction.bind(null, newspaperId, shape.id)
     : createAdShapeAction.bind(null, newspaperId);
 
-  const [state, formAction, pending] = useActionState<FormState, FormData>(action, {});
+  const [state, formAction, pending, keepTypedOnError] = useFormActionState<FormState, FormData>(
+    action,
+    {},
+  );
   const start = shape ?? { cols: Math.min(3, grid.columns), rows: Math.min(10, grid.rows) };
   const startMm = footprintMm(start, grid);
   const [widthCm, setWidthCm] = useState(String(round1(mmToCm(startMm.widthMm))));
@@ -88,6 +92,7 @@ export function ShapeForm({
   return (
     <form
       action={formAction}
+      onReset={keepTypedOnError}
       onSubmit={() => setSubmitted(true)}
       noValidate
       data-testid="shape-form"

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { CUSTOMERS, USERS, login } from "./helpers";
+import { CUSTOMERS, USERS, login, saveCustomer } from "./helpers";
 
 /**
  * Deleting a customer (US-002).
@@ -31,7 +31,7 @@ test.describe("the confirmation", () => {
     const name = `לקוח למחיקה ${Date.now()}`;
     await page.fill("#businessName", name);
     await page.fill("#phone", "050-1234567");
-    await page.getByRole("button", { name: "שמירה" }).click();
+    await saveCustomer(page);
     await page.waitForURL(/\/customers\/[a-z0-9]+$/);
     const id = page.url().split("/").pop()!;
 

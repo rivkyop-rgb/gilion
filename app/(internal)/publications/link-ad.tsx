@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
+import { useFormActionState } from "@/components/use-form-action-state";
 import { useRouter } from "next/navigation";
 import { Link2, Link2Off, Replace, Upload } from "lucide-react";
 
@@ -63,21 +64,22 @@ export function LinkAdCell({
     });
   };
 
-  const [uploadState, uploadAction, uploading] = useActionState<AdFormState, FormData>(
-    async (prev, formData) => {
-      const next = await uploadAdvertisementAction(prev, formData);
-      if (next.ok && !next.message) {
-        setMode("idle");
-        router.refresh();
-      }
-      return next;
-    },
-    {},
-  );
+  const [uploadState, uploadAction, uploading, keepTypedOnError] = useFormActionState<
+    AdFormState,
+    FormData
+  >(async (prev, formData) => {
+    const next = await uploadAdvertisementAction(prev, formData);
+    if (next.ok && !next.message) {
+      setMode("idle");
+      router.refresh();
+    }
+    return next;
+  }, {});
 
   const uploadForm = (
     <form
       action={uploadAction}
+      onReset={keepTypedOnError}
       data-testid={`row-upload-form-${publicationId}`}
       className="absolute z-20 mt-1 w-72 rounded-lg border border-outline-variant bg-surface-container-lowest p-3 shadow-elevation-2"
     >

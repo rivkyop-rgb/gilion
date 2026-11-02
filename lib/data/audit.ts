@@ -31,7 +31,22 @@ export type AuditAction =
   | "portal_sign_in"
   | "portal_submit_request"
   | "portal_upload_ad"
-  | "portal_cancel_request";
+  | "portal_cancel_request"
+  | "auto_open_issue"
+  | "create_order"
+  | "update_order_lines"
+  | "submit_order"
+  | "cancel_order"
+  | "create_customer"
+  | "update_customer"
+  | "upload_ad"
+  | "replace_ad"
+  | "archive_ad"
+  | "link_ad"
+  | "open_issue"
+  | "reopen_issue"
+  | "move_issue_date"
+  | "board_sale";
 
 export type AuditTarget = {
   action: AuditAction;
@@ -149,5 +164,63 @@ export async function customerActivity(businessId: string, customerId: string, t
     orderBy: { created_at: "desc" },
     take,
     include: { user: { select: { name: true } } },
+  });
+}
+
+/**
+ * One row for an ordinary act on a record — created, sent, cancelled, a file
+ * uploaded — so the record's own page can say who did it and when (the user,
+ * 31/10/2026: "not only in the log, on every action").
+ *
+ * Written after the act succeeded, outside its transaction: these acts are
+ * single writes whose own success is the thing being recorded, and a failure
+ * to log must never undo an order a person just saved. The sensitive acts keep
+ * `withAudit`, where the log and the change commit together.
+ */
+export async function recordAction(
+  ctx: AuditContext,
+  target: AuditTarget,
+  details?: Prisma.InputJsonValue,
+): Promise<void> {
+  try {
+    await basePrisma.auditLog.create({
+      data: {
+        business_id: ctx.businessId,
+        user_id: ctx.userId,
+        action: target.action,
+        target_type: target.targetType,
+        target_id: target.targetId,
+        ...(details === undefined ? {} : { new_value: details }),
+      },
+    });
+  } catch (error) {
+    console.warn("recordAction failed", target, error);
+  }
+}
+
+/**
+ * The history of one or more records, newest first, with who did each act —
+ * what the "מי ביצע" strip on a record's page shows.
+ */
+export async function recordHistory(
+  businessId: string,
+  targets: Array<{ type: string; ids: string[] }>,
+  take = 20,
+) {
+  const or = targets
+    .filter((t) => t.ids.length > 0)
+    .map((t) => ({ target_type: t.type, target_id: { in: t.ids } }));
+  if (or.length === 0) return [];
+  return basePrisma.auditLog.findMany({
+    where: { business_id: businessId, OR: or },
+    orderBy: { created_at: "desc" },
+    take,
+    select: {
+      id: true,
+      action: true,
+      target_type: true,
+      created_at: true,
+      user: { select: { name: true } },
+    },
   });
 }

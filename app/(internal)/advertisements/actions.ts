@@ -1,5 +1,6 @@
 "use server";
 
+import { recordAction } from "@/lib/data/audit";
 import { revalidatePath } from "next/cache";
 import { publicationsPhrase } from "@/lib/domain/hebrew-count";
 import { z } from "zod";
@@ -175,6 +176,11 @@ export async function uploadAdvertisementAction(
         originalFileUrl: key,
         message: inspected.message,
       });
+      await recordAction(ctx, {
+        action: "upload_ad",
+        targetType: "Advertisement",
+        targetId: ad.id,
+      });
       revalidatePath("/advertisements");
       return { adId: ad.id, ok: true, message: inspected.message };
     }
@@ -257,6 +263,7 @@ export async function uploadAdvertisementAction(
     throw error;
   }
 
+  await recordAction(ctx, { action: "upload_ad", targetType: "Advertisement", targetId: ad.id });
   revalidatePath("/advertisements");
   return { adId: ad.id, ok: true };
 }
@@ -327,6 +334,11 @@ export async function linkAdToPublicationAction(
   revalidatePath("/advertisements");
   revalidatePath(`/advertisements/${adId}`);
   revalidatePath("/publications");
+  await recordAction(ctx, {
+    action: "link_ad",
+    targetType: "Publication",
+    targetId: publicationId,
+  });
   return { ok: true };
 }
 
@@ -448,6 +460,7 @@ export async function replaceAdFileAction(
 
   revalidatePath("/advertisements");
   revalidatePath(`/advertisements/${adId}`);
+  await recordAction(ctx, { action: "replace_ad", targetType: "Advertisement", targetId: adId });
   return { ok: true };
 }
 
@@ -494,5 +507,6 @@ export async function archiveAdAction(adId: string): Promise<AdFormState> {
   await data.archiveAdvertisement(ctx.businessId, adId);
   revalidatePath("/advertisements");
   revalidatePath(`/advertisements/${adId}`);
+  await recordAction(ctx, { action: "archive_ad", targetType: "Advertisement", targetId: adId });
   return { ok: true };
 }

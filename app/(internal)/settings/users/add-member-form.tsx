@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useFormActionState } from "@/components/use-form-action-state";
 import { UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,10 @@ import { ASSIGNABLE_ROLES, MIN_PASSWORD_LENGTH } from "@/lib/domain/team";
 import { addMemberAction, type FormState } from "./actions";
 
 export function AddMemberForm() {
-  const [state, action, pending] = useActionState<FormState, FormData>(addMemberAction, {});
+  const [state, action, pending, keepTypedOnError] = useFormActionState<FormState, FormData>(
+    addMemberAction,
+    {},
+  );
   const err = (f: string) => state.errors?.[f];
   // React clears an uncontrolled form once its action resolves; without this a
   // single validation error empties every field, password included.
@@ -20,6 +23,7 @@ export function AddMemberForm() {
   return (
     <form
       action={action}
+      onReset={keepTypedOnError}
       className="mb-8 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4"
       data-testid="add-member-form"
     >

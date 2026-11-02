@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useFormActionState } from "@/components/use-form-action-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,10 +15,10 @@ export function PortalAccountForm({
   customerId: string;
   defaults: { name: string; email: string };
 }) {
-  const [state, action, pending] = useActionState<PortalAccountState, FormData>(
-    createPortalAccountAction.bind(null, customerId),
-    {},
-  );
+  const [state, action, pending, keepTypedOnError] = useFormActionState<
+    PortalAccountState,
+    FormData
+  >(createPortalAccountAction.bind(null, customerId), {});
   const err = (f: string) => state.errors?.[f];
   // After a failed attempt keep what was typed; after a success start clean.
   const was = (f: "name" | "email" | "password") =>
@@ -27,6 +27,7 @@ export function PortalAccountForm({
   return (
     <form
       action={action}
+      onReset={keepTypedOnError}
       data-testid="portal-account-form"
       className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4"
     >

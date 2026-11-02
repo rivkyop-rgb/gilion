@@ -1,11 +1,12 @@
 "use server";
 
+import { parsePageNumber } from "@/lib/domain/customer";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
-import { withAudit } from "@/lib/data/audit";
+import { recordAction, withAudit } from "@/lib/data/audit";
 import * as data from "@/lib/data/orders";
 import * as pubs from "@/lib/data/publications";
 import {
@@ -50,6 +51,7 @@ type LineBatch = {
   base: Omit<OrderLineInput, "publicationDate">;
   dates: string[];
   offSchedule: boolean;
+  requestedPageRaw: string;
 };
 
 function readLines(formData: FormData): LineBatch | null {
@@ -77,6 +79,7 @@ function readLines(formData: FormData): LineBatch | null {
     },
     dates: parsed.data.dates,
     offSchedule: parsed.data.offSchedule,
+    requestedPageRaw: String(formData.get("requestedPage") ?? "").trim(),
   };
 }
 
@@ -90,6 +93,7 @@ export async function createOrderDraftAction(
   if (!customerId) return { errors: { customerId: "יש לבחור לקוח" } };
 
   const order = await data.createOrderDraft(ctx.businessId, customerId);
+  await recordAction(ctx, { action: "create_order", targetType: "AdOrder", targetId: order.id });
   revalidatePath("/orders");
   redirect(`/orders/${order.id}`);
 }
@@ -164,6 +168,13 @@ export async function addOrderItemAction(
     };
   }
 
+  // A page number asked for on these lines (the user, 31/10/2026). Empty is
+  // "no preference"; anything else must be a page number.
+  const requestedPage = parsePageNumber(batch.requestedPageRaw);
+  if (batch.requestedPageRaw && requestedPage === null) {
+    return { errors: { requestedPage: "מספר עמוד צריך להיות מספר שלם, 1 ומעלה" } };
+  }
+
   const created = await data.addOrderItems(
     ctx.businessId,
     orderId,
@@ -174,10 +185,16 @@ export async function addOrderItemAction(
       publication_date: new Date(publicationDate),
       price: price!,
       off_schedule: !isPublicationDay(schedule, publicationDate),
+      requested_page: requestedPage,
     })),
   );
   if (!created) return { message: "ההזמנה לא נמצאה" };
 
+  await recordAction(
+    ctx,
+    { action: "update_order_lines", targetType: "AdOrder", targetId: orderId },
+    { added: batch.dates.length },
+  );
   revalidatePath(`/orders/${orderId}`);
   return { ok: true };
 }
@@ -231,6 +248,11 @@ export async function removeOrderItemAction(orderId: string, itemId: string): Pr
   }
 
   await data.removeOrderItem(ctx.businessId, itemId);
+  await recordAction(
+    ctx,
+    { action: "update_order_lines", targetType: "AdOrder", targetId: orderId },
+    { removed: 1 },
+  );
   revalidatePath(`/orders/${orderId}`);
   return { ok: true };
 }
@@ -293,6 +315,11 @@ export async function updateOrderItemAction(
     price: parsed.data.price,
     off_schedule: offSchedule,
   });
+  await recordAction(
+    ctx,
+    { action: "update_order_lines", targetType: "AdOrder", targetId: orderId },
+    { edited: 1 },
+  );
   revalidatePath(`/orders/${orderId}`);
   return { ok: true };
 }
@@ -329,6 +356,7 @@ export async function submitOrderAction(orderId: string): Promise<FormState> {
     throw e;
   }
 
+  await recordAction(ctx, { action: "submit_order", targetType: "AdOrder", targetId: orderId });
   revalidatePath("/orders");
   revalidatePath(`/orders/${orderId}`);
   return { ok: true };
@@ -472,6 +500,7 @@ export async function cancelOrderAction(orderId: string): Promise<FormState> {
     throw e;
   }
 
+  await recordAction(ctx, { action: "cancel_order", targetType: "AdOrder", targetId: orderId });
   revalidatePath("/orders");
   revalidatePath(`/orders/${orderId}`);
   return { ok: true };

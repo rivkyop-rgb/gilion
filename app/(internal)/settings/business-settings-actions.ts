@@ -186,7 +186,12 @@ export async function updateThemeAction(
     ok: true,
     // The number the SERVER holds, not one the form computed — a count derived
     // from client state can be true before the save even left (CLAUDE.md).
-    message: count === 0 ? "כל הצבעים חזרו לברירת המחדל" : `נשמרו ${count} צבעים מותאמים`,
+    message:
+      count === 0
+        ? "כל הצבעים חזרו לברירת המחדל"
+        : count === 1
+          ? "נשמר צבע מותאם אחד"
+          : `נשמרו ${count} צבעים מותאמים`,
     ...(warnings.length ? { warnings } : {}),
   };
 }

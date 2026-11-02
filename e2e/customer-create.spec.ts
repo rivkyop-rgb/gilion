@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { USERS, login } from "./helpers";
+import { USERS, login, saveCustomer } from "./helpers";
 
 /**
  * Creating a customer (US-002). Every customer is a business (23/09/2026): a
@@ -16,7 +16,7 @@ test.describe("creating a customer (US-002)", () => {
     const name = `עסק ${Date.now()}`;
     await page.fill("#businessName", name);
     await page.fill("#phone", "052-999-8877");
-    await page.getByRole("button", { name: "שמירה" }).click();
+    await saveCustomer(page);
 
     await expect(page).toHaveURL(/\/customers\/[a-z0-9]+$/);
     await expect(page.getByTestId("customer-name")).toHaveText(name);
@@ -70,5 +70,48 @@ test.describe("creating a customer (US-002)", () => {
     await page.getByRole("button", { name: "שמירה" }).click();
 
     await expect(page.getByTestId("form-error").first()).toHaveText("ח.פ / ע.מ צריך להיות 9 ספרות");
+  });
+
+  test("keeps everything typed when the server refuses", async ({ page }) => {
+    // React resets a form after its action — failures included — and one
+    // wrong digit in the ח.פ used to cost the whole card (UX review, 29/10).
+    await page.fill("#businessName", "שומרת על מה שהוקלד");
+    await page.fill("#phone", "0521234567");
+    await page.locator('[name="contact_name"]').first().fill("דנה בודקת");
+    await page.fill("#taxId", "12345");
+    await page.getByRole("button", { name: "שמירה" }).click();
+
+    await expect(page.getByTestId("form-error").first()).toHaveText("ח.פ / ע.מ צריך להיות 9 ספרות");
+    await expect(page.locator("#businessName")).toHaveValue("שומרת על מה שהוקלד");
+    await expect(page.locator("#phone")).toHaveValue("0521234567");
+    await expect(page.locator('[name="contact_name"]').first()).toHaveValue("דנה בודקת");
+    // And the cursor is on the field to fix.
+    await expect(page.locator("#taxId")).toBeFocused();
+  });
+
+  test("asks before saving a phone another customer already has", async ({ page }) => {
+    const phone = `05${String(Date.now()).slice(-8)}`;
+    await page.fill("#businessName", `ראשון ${Date.now()}`);
+    await page.fill("#phone", phone);
+    await saveCustomer(page);
+    await expect(page).toHaveURL(/\/customers\/(?!new)[a-z0-9]+$/);
+
+    await page.goto("/customers/new");
+    const second = `שני ${Date.now()}`;
+    await page.fill("#businessName", second);
+    // On a contact this time — the match is found on either side.
+    await page.locator('[name="contact_name"]').first().fill("הנהלת חשבונות משותפת");
+    await page.locator('[name="contact_phone"]').first().fill(phone);
+    await page.fill("#email", `dup${Date.now()}@example.com`);
+    await page.getByRole("button", { name: "שמירה" }).click();
+
+    const box = page.getByTestId("customer-duplicates");
+    await expect(box).toContainText("רשום אצל");
+    // Nothing saved yet, and nothing lost.
+    await expect(page).toHaveURL(/\/customers\/new$/);
+    await expect(page.locator("#businessName")).toHaveValue(second);
+
+    await page.getByTestId("confirm-duplicates").click();
+    await expect(page).toHaveURL(/\/customers\/(?!new)[a-z0-9]+$/);
   });
 });

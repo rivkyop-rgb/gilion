@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
+import { useFormActionState } from "@/components/use-form-action-state";
 import Link from "next/link";
 import { Info, UserPlus, UserSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,10 @@ export function NewOrderForm({
   customers: ComboboxOption[];
   defaultCustomerId?: string;
 }) {
-  const [state, action, pending] = useActionState<FormState, FormData>(createOrderDraftAction, {});
+  const [state, action, pending, keepTypedOnError] = useFormActionState<FormState, FormData>(
+    createOrderDraftAction,
+    {},
+  );
   const [customerId, setCustomerId] = useState(defaultCustomerId);
 
   if (customers.length === 0) {
@@ -37,7 +41,11 @@ export function NewOrderForm({
     // Design 03: the customer on the right, the summary and the commit on the
     // left. Lines arrive on the next screen, and the summary says so rather
     // than showing an empty table that looks like it should be filled here.
-    <form action={action} className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+    <form
+      action={action}
+      onReset={keepTypedOnError}
+      className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]"
+    >
       <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-6 shadow-elevation-1">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="flex items-center gap-2 font-serif text-xl font-semibold">

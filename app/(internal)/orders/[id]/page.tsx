@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { RecordHistory } from "@/components/record-history";
 import { counted } from "@/lib/domain/hebrew-count";
 import Link from "next/link";
 import { orderCapacityWarnings } from "@/lib/data/page-load";
@@ -6,7 +7,8 @@ import { gridsOf } from "@/lib/data/newspapers";
 import { footprintMm } from "@/lib/domain/grid";
 import { adFitMessage, adFitProblem } from "@/lib/domain/ad-fit";
 import { notFound } from "next/navigation";
-import { Info, Send } from "lucide-react";
+import { AlertTriangle, Info, Send } from "lucide-react";
+import { requestedPageConflicts } from "@/lib/data/orders";
 
 import { canReadArea, canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { customerCredit, paidByOrder } from "@/lib/data/payments";
@@ -86,6 +88,12 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           date: formatDate(new Date(w.date)),
         }))
       : [];
+  // Two orders on one page number of one issue (the user, 31/10/2026) — said
+  // while the order is being entered and for as long as it is live.
+  const pageConflicts =
+    status === "canceled" || status === "rejected" || status === "completed"
+      ? []
+      : await requestedPageConflicts(ctx.businessId, order.id);
   // Does each line's artwork have the shape of the space sold (12/10/2026)?
   // The line's own file, else the order's — the one approval would attach.
   const grids = await gridsOf(
@@ -180,6 +188,15 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               {order.customer.business_name}
             </Link>
           </div>
+          <div className="mt-2">
+            <RecordHistory
+              businessId={ctx.businessId}
+              targets={[
+                { type: "AdOrder", ids: [order.id] },
+                { type: "Publication", ids: order.publications.map((p) => p.id) },
+              ]}
+            />
+          </div>
         </div>
       </div>
 
@@ -194,6 +211,37 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           the lines are being built. RTL: the first column is the right one. */}
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0">
+          {pageConflicts.length > 0 || capacity.length > 0 ? (
+            <div
+              role="alert"
+              data-testid="order-conflicts"
+              className="mb-6 rounded-xl border border-status-warning-fg/30 bg-status-warning-bg p-4 text-sm text-status-warning-fg"
+            >
+              <p className="mb-2 flex items-center gap-2 font-semibold">
+                <AlertTriangle className="size-4 shrink-0" aria-hidden />
+                יש הזמנות אחרות על אותם מקומות בעיתון
+              </p>
+              <ul className="list-inside list-disc space-y-1">
+                {pageConflicts.map((c) => (
+                  <li key={`${c.date}-${c.page}-${c.otherOrderNumber}`}>
+                    {c.newspaperName} <Ltr>{formatDate(new Date(c.date))}</Ltr>: גם{" "}
+                    <Ltr>{orderNumber(c.otherOrderNumber)}</Ltr> ({c.otherCustomer}) ביקשה את עמוד{" "}
+                    <Ltr>{c.page}</Ltr>.
+                  </li>
+                ))}
+                {capacity.map((c) => (
+                  <li key={`${c.date}-${c.pageTypeName}-${c.newspaperName}`}>
+                    {c.pageTypeName} של {c.newspaperName} <Ltr>{c.date}</Ltr> כבר מלא:{" "}
+                    {c.approved > 0 ? `${c.approved} מאושרות` : null}
+                    {c.approved > 0 && c.pending > 0 ? ", " : null}
+                    {c.pending > 0 ? `${c.pending} ממתינות` : null}, וההזמנה הזו מוסיפה{" "}
+                    <Ltr>{c.mine}</Ltr>.
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs">אפשר להמשיך — זו התראה, לא חסימה.</p>
+            </div>
+          ) : null}
           <LineBuilder
             orderId={order.id}
             papers={papers}
@@ -210,7 +258,9 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               isoDate: i.publication_date.toISOString().slice(0, 10),
               offSchedule: i.off_schedule,
               price: Number(i.price),
+              requestedPage: i.requested_page,
             }))}
+            customerPreferredPage={order.customer.preferred_page}
           />
 
           {/* Artwork for the order as a whole.
@@ -485,6 +535,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               <div className="mt-5">
                 <OrderActions
                   layout="card"
+                  customerId={order.customer_id}
                   directApproval={directApproval}
                   missingAd={missingAd}
                   soonDate={soon ? formatDate(soon) : null}

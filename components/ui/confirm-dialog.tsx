@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,10 @@ export function ConfirmDialog({
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
+  // Focus lands on "ביטול", never on the destructive button: Radix focuses the
+  // first button by default, so the Enter that opened the dialog plus one more
+  // deleted an order (UX review, 29/10/2026).
+  const cancelRef = useRef<HTMLButtonElement>(null);
 
   const confirm = () =>
     startTransition(async () => {
@@ -59,6 +63,10 @@ export function ConfirmDialog({
         <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-primary/40" />
         <DialogPrimitive.Content
           data-testid={testId}
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            cancelRef.current?.focus();
+          }}
           // Centred with inset-x-0 + mx-auto rather than a translate, so the
           // panel lands in the middle in both directions with no RTL special
           // case — and with no `left-`/`right-` utility, which the lint bans.
@@ -84,7 +92,7 @@ export function ConfirmDialog({
               {busy ? pendingLabel : confirmLabel}
             </Button>
             <DialogPrimitive.Close asChild>
-              <Button variant="ghost" disabled={busy}>
+              <Button ref={cancelRef} variant="ghost" disabled={busy}>
                 ביטול
               </Button>
             </DialogPrimitive.Close>

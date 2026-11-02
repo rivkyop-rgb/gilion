@@ -26,7 +26,7 @@ export type OrderFilters = {
 };
 
 const ORDER_INCLUDE = {
-  customer: { select: { id: true, business_name: true } },
+  customer: { select: { id: true, business_name: true, preferred_page: true } },
   /// Artwork attached to the order as a whole — see AdOrder.advertisement_id.
   advertisement: { select: { id: true, name: true, content_width: true, content_height: true } },
   items: {
@@ -231,6 +231,8 @@ export type LineWrite = {
   price: number;
   /** The user knowingly picked a date the newspaper does not print on. */
   off_schedule?: boolean;
+  /** A page number asked for on this line; wins over the customer's own. */
+  requested_page?: number | null;
 };
 
 /**
@@ -653,4 +655,97 @@ export async function syncOrderCompletion(
       data: { status: next, completed_at: next === "completed" ? new Date() : null },
     });
   }
+}
+
+export type PageConflict = {
+  /** yyyy-mm-dd. */
+  date: string;
+  newspaperName: string;
+  page: number;
+  otherOrderNumber: number;
+  otherCustomer: string;
+};
+
+/**
+ * Other orders that asked for the same page NUMBER of the same newspaper on
+ * the same date (the user, 31/10/2026). A line's own requested_page wins over
+ * the customer's preferred_page, on both sides of the comparison.
+ *
+ * The filter on `order` sits inside AND: tenantDb merges its own scope into
+ * that key on an indirect model, and a sibling filter would be overwritten
+ * (CLAUDE.md, "tenantDb ממזג").
+ */
+export async function requestedPageConflicts(businessId: string, orderId: string) {
+  const db = tenantDb(businessId);
+  const order = await db.adOrder.findUnique({
+    where: { id: orderId },
+    select: {
+      customer: { select: { preferred_page: true } },
+      items: {
+        select: {
+          newspaper_id: true,
+          publication_date: true,
+          requested_page: true,
+          newspaper: { select: { name: true } },
+        },
+      },
+    },
+  });
+  if (!order) return [];
+  const mine = order.items
+    .map((i) => ({ ...i, page: i.requested_page ?? order.customer.preferred_page }))
+    .filter((i): i is typeof i & { page: number } => i.page !== null);
+  if (mine.length === 0) return [];
+
+  const others = await db.adOrderItem.findMany({
+    where: {
+      AND: [
+        { order: { id: { not: orderId }, status: { notIn: ["canceled", "rejected"] } } },
+        {
+          OR: mine.map((i) => ({
+            newspaper_id: i.newspaper_id,
+            publication_date: i.publication_date,
+          })),
+        },
+      ],
+    },
+    select: {
+      newspaper_id: true,
+      publication_date: true,
+      requested_page: true,
+      order: {
+        select: {
+          number: true,
+          customer: { select: { business_name: true, preferred_page: true } },
+        },
+      },
+    },
+  });
+
+  const seen = new Set<string>();
+  const conflicts: PageConflict[] = [];
+  for (const i of mine) {
+    for (const o of others) {
+      const page = o.requested_page ?? o.order.customer.preferred_page;
+      if (
+        page !== i.page ||
+        o.newspaper_id !== i.newspaper_id ||
+        o.publication_date.getTime() !== i.publication_date.getTime()
+      ) {
+        continue;
+      }
+      const date = i.publication_date.toISOString().slice(0, 10);
+      const key = `${date}|${i.newspaper_id}|${page}|${o.order.number}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      conflicts.push({
+        date,
+        newspaperName: i.newspaper.name,
+        page,
+        otherOrderNumber: o.order.number,
+        otherCustomer: o.order.customer.business_name,
+      });
+    }
+  }
+  return conflicts;
 }

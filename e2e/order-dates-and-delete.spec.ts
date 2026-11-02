@@ -77,7 +77,7 @@ test.describe("the newspaper's print schedule", () => {
     await page.getByTestId("add-line").click();
 
     // The line is kept, and marked as the deliberate exception it was.
-    await expect(page.getByTestId("order-line-count")).toContainText(`${1} תאריכים`);
+    await expect(page.getByTestId("order-line-count")).toContainText("תאריך אחד");
     await expect(page.getByText("מהדורה מיוחדת")).toBeVisible();
   });
 
@@ -104,10 +104,10 @@ test.describe("many dates in one action", () => {
 
     await page.getByTestId("line-price").fill("500");
     await expect(page.getByTestId("lines-preview-total")).toContainText("1,500");
-    await expect(page.getByTestId("add-line")).toContainText("הוספת 3 שורות");
+    await expect(page.getByTestId("add-line")).toContainText("3 תאריכים");
 
     await page.getByTestId("add-line").click();
-    await expect(page.getByTestId("order-line-count")).toContainText(`${3} תאריכים`);
+    await expect(page.getByTestId("order-line-count")).toContainText("3 תאריכים");
     await expect(page.getByTestId("order-total")).toContainText("1,500");
 
     // The picker clears, so a second click cannot silently duplicate the batch.
@@ -121,7 +121,7 @@ test.describe("many dates in one action", () => {
     await page.getByTestId("line-date").fill("2026-12-01");
     await page.getByTestId("line-price").fill("300");
     await page.getByTestId("add-line").click();
-    await expect(page.getByTestId("order-line-count")).toContainText(`${1} תאריכים`);
+    await expect(page.getByTestId("order-line-count")).toContainText("תאריך אחד");
 
     // Navigate the calendar to December 2026 and confirm the day is struck out.
     for (let i = 0; i < 24; i++) {
@@ -140,7 +140,7 @@ test.describe("deleting an order", () => {
     await page.getByTestId("line-date").fill("2026-12-01");
     await page.getByTestId("line-price").fill("250");
     await page.getByTestId("add-line").click();
-    await expect(page.getByTestId("order-line-count")).toContainText(`${1} תאריכים`);
+    await expect(page.getByTestId("order-line-count")).toContainText("תאריך אחד");
 
     await page.getByTestId("delete-order").click();
     const dialog = page.getByTestId("delete-order-dialog");

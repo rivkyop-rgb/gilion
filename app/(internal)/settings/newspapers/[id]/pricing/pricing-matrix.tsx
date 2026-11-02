@@ -178,7 +178,13 @@ export function PricingMatrix({
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <Button disabled={busy || dirty.size === 0} data-testid="save-pricing" onClick={save}>
             <Save className="size-4" />
-            {busy ? "שומרת…" : dirty.size === 0 ? "שמירה" : `שמירה (${dirty.size} שינויים)`}
+            {busy
+              ? "שומרת…"
+              : dirty.size === 0
+                ? "שמירה"
+                : dirty.size === 1
+                  ? "שמירה (שינוי אחד)"
+                  : `שמירה (${dirty.size} שינויים)`}
           </Button>
 
           {dirty.size > 0 ? (
@@ -193,7 +199,7 @@ export function PricingMatrix({
               data-testid="pricing-saved"
               className="text-sm text-status-success-fg"
             >
-              נשמרו {saved} מחירים
+              {saved === 1 ? "נשמר מחיר אחד" : `נשמרו ${saved} מחירים`}
             </span>
           ) : null}
         </div>

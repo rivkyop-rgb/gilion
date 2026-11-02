@@ -375,7 +375,7 @@ function PlacedList({
 
 function Thumb({ previewUrl, name }: { previewUrl: string | null; name: string | null }) {
   return (
-    <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-surface-container">
+    <span className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-sm border border-outline-variant bg-surface-container-lowest">
       {previewUrl ? (
         /* eslint-disable-next-line @next/next/no-img-element */
         <img src={fileHref(previewUrl)} alt={name ?? ""} className="size-full object-contain" />

@@ -46,6 +46,8 @@ export type PlaceInput = {
   publicationId: string;
   col: number;
   row: number;
+  /** Set only by auto-placement — see Placement.auto_placed. */
+  auto?: boolean;
 };
 
 export type ActorContext = {
@@ -292,6 +294,7 @@ export async function placeAd(ctx: ActorContext, input: PlaceInput) {
           cols: loaded.rect.cols,
           rows: loaded.rect.rows,
           status: "placed",
+          auto_placed: input.auto ?? false,
           // Always false: the flag marks a row whose duplicate was FORGIVEN,
           // and the new row is the one the index is meant to still be watching.
           duplicate_override_approved: false,
@@ -439,6 +442,8 @@ export async function movePlacement(
           cols: loaded.rect.cols,
           rows: loaded.rect.rows,
           status: "placed",
+          // A person moved it, so it is theirs now: "another arrangement"
+          // leaves it alone (auto_placed defaults to false).
           // Carried over, not reset: moving an ad that was already forgiven its
           // duplicate must not hand the unique index a second unflagged row.
           duplicate_override_approved: existing.duplicate_override_approved,
@@ -537,9 +542,9 @@ export async function autoPlaceIssue(
    *
    * Without it the packer only ever fills the gaps, so once everything is
    * placed there is nothing left to rearrange and the button that offers a
-   * different layout can do nothing. With it, the issue is emptied and packed
-   * again from a different seed. It removes HAND-placed ads too, which is why
-   * the screen asks first.
+   * different layout can do nothing. With it, what auto-placement put down is
+   * cleared and packed again from a different seed. Hand-placed ads, and ads a
+   * person moved, stay where they are (the user, 31/10/2026).
    */
   reset = false,
 ): Promise<AutoPlaceOutcome> {
@@ -562,7 +567,12 @@ export async function autoPlaceIssue(
       // "Another arrangement" on chosen pages rearranges THOSE pages only.
       // "Another arrangement" rearranges the pages auto-placement may use —
       // an ad a person put on the cover by hand stays where they put it.
-      where: { issue_id: issueId, status: "placed", page: { page_type: { auto_place: true } } },
+      where: {
+        issue_id: issueId,
+        status: "placed",
+        auto_placed: true,
+        page: { page_type: { auto_place: true } },
+      },
       select: { id: true },
     });
     for (const placement of existing) {
@@ -588,6 +598,7 @@ export async function autoPlaceIssue(
           publicationId: placement.publicationId,
           col: placement.col,
           row: placement.row,
+          auto: true,
         });
         placed++;
       } catch (error) {
@@ -702,7 +713,8 @@ async function planAutoPlacement(ctx: ActorContext, issueId: string, seed: numbe
         },
         advertisement: { select: { customer_id: true, status: true, validation_status: true } },
         // The page type the customer bought — the packer is bound by it.
-        order_item: { select: { page_type_id: true } },
+        order_item: { select: { page_type_id: true, requested_page: true } },
+        customer: { select: { preferred_page: true } },
       },
     })
   ).filter(
@@ -724,6 +736,8 @@ async function planAutoPlacement(ctx: ActorContext, issueId: string, seed: numbe
         p.ad_shape.position_mode === "region" ? readAllowedCells(p.ad_shape.allowed_cells) : null,
     },
     pageTypeId: p.order_item?.page_type_id ?? null,
+    // The line's own page wins over the customer's fixed one (31/10/2026).
+    requestedPage: p.order_item?.requested_page ?? p.customer.preferred_page ?? null,
   }));
 
   // Every page, each with its type: an ad goes on the type it was sold for

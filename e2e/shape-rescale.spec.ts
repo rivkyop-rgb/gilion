@@ -63,7 +63,8 @@ async function createNewspaper(page: import("@playwright/test").Page) {
   await page.fill("#columns", "26");
   await page.fill("#rowHeightCm", "1");
   await expect(page.getByTestId("grid-derived")).toContainText("26 עמודות × 41 שורות");
-  await page.getByRole("button", { name: "שמירה" }).click();
+  // The general form's save, not the page-marks one under it (14/10/2026).
+  await page.getByRole("button", { name: "שמירה" }).first().click();
   await expect(page.getByTestId("newspaper-name")).toHaveText(NAME);
 }
 
@@ -108,7 +109,8 @@ test.describe("resizing the page", () => {
     ]);
 
     await page.fill("#rowHeightCm", "1.5");
-    await page.getByRole("button", { name: "שמירה" }).click();
+    // The general form's save, not the page-marks one under it (14/10/2026).
+    await page.getByRole("button", { name: "שמירה" }).first().click();
     // Waits for the confirmation the SERVER sent. `grid-derived` is computed
     // from form state and was already showing 27 rows before the click, so
     // reading the database on it would race the write (CLAUDE.md).
@@ -155,7 +157,8 @@ test.describe("resizing the page", () => {
     // It is not in the list of things that will move.
     await expect(page.getByTestId("rescale-list")).not.toContainText("רבע עמוד");
 
-    await page.getByRole("button", { name: "שמירה" }).click();
+    // The general form's save, not the page-marks one under it (14/10/2026).
+    await page.getByRole("button", { name: "שמירה" }).first().click();
     await expect(page.getByRole("status")).toHaveText("ההגדרות נשמרו");
 
     const after = await shapes();

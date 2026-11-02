@@ -69,10 +69,10 @@ test("אין שדה לקביעת סטטוס תשלום — הוא נגזר בל�
   await expect(form.getByTestId("payment-amount")).toBeVisible();
   await expect(form.getByTestId("payment-date")).toBeVisible();
   await expect(form.getByTestId("payment-invoice")).toBeVisible();
-  // Exactly ONE select on the form — the order picker. A status control would
-  // be the second, and it would be a way to claim money that never arrived.
-  await expect(form.locator("select")).toHaveCount(1);
-  await expect(form.locator("select")).toHaveAttribute("data-testid", "payment-order");
+  // No select at all: invoices are TICKED (31/10/2026). A status control
+  // would be a way to claim money that never arrived.
+  await expect(form.locator("select")).toHaveCount(0);
+  await expect(form.getByTestId("payment-invoices")).toBeVisible();
 });
 
 test("סכום שלילי נדחה, וההודעה אומרת מה לעשות במקום", async ({ page }) => {

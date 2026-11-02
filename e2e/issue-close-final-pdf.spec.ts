@@ -162,14 +162,15 @@ test.describe("closing an issue", () => {
     }
   });
 
-  test("offers the file from the issues list once it exists", async ({ page }) => {
+  test("offers the file from the published archive once it exists", async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto(closeIssueUrl);
     await page.getByTestId("close-issue").click();
     await page.getByTestId("confirm-close-issue").click();
     await expect(page.getByTestId("close-issue-dialog")).toBeHidden({ timeout: 120_000 });
 
-    await page.goto("/issues");
+    // Closed issues live in the archive, not the working list (31/10/2026).
+    await page.goto("/issues/published");
     const card = page.getByTestId(`issue-card-${ISSUE_FIXTURES.closeIssue}`);
     await expect(card.getByTestId("download-final-pdf")).toBeVisible();
     await expect(card.getByTestId("download-press-pdf")).toBeVisible();
@@ -187,7 +188,6 @@ test.describe("reopening a closed issue", () => {
     await page.getByTestId("close-issue").click();
     await page.getByTestId("confirm-close-issue").click();
     await expect(page.getByTestId("close-issue-dialog")).toBeHidden({ timeout: 120_000 });
-
 
     await page.getByTestId("reopen-issue").click();
     await expect(page.getByTestId("check-message")).toContainText("נפתח מחדש");

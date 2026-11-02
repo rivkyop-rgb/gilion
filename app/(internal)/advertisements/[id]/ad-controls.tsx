@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
+import { useFormActionState } from "@/components/use-form-action-state";
 import { useRouter } from "next/navigation";
 import { History, Layers, Link2, Link2Off, Replace, Search, UserPlus } from "lucide-react";
 
@@ -112,7 +113,7 @@ export function ReplaceFile({
   const [open, setOpen] = useState(false);
   const router = useRouter();
 
-  const [state, formAction, pending] = useActionState<AdFormState, FormData>(
+  const [state, formAction, pending, keepTypedOnError] = useFormActionState<AdFormState, FormData>(
     async (prev, formData) => {
       const next = await replaceAdFileAction(adId, prev, formData);
       if (next.ok) {
@@ -141,6 +142,7 @@ export function ReplaceFile({
   return (
     <form
       action={formAction}
+      onReset={keepTypedOnError}
       data-testid="replace-form"
       className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-3"
     >

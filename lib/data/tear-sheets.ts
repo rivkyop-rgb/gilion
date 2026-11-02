@@ -305,7 +305,11 @@ export async function tearSheetRecipient(businessId: string, customerId: string)
       id: true,
       business_name: true,
       email: true,
-      contacts: { where: { receives_reminders: true }, select: { email: true } },
+      tear_sheets_to_main: true,
+      contacts: {
+        orderBy: { position: "asc" },
+        select: { email: true, receives_tear_sheets: true },
+      },
     },
   });
 }

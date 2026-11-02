@@ -483,6 +483,8 @@ function HistoryDialog({ entries, months }: { entries: HistoryEntry[]; months: n
 
 type FormValues = {
   orderId: string;
+  /** New payments only: the invoices ticked. Empty = all that is open. */
+  orderIds?: string[];
   amount: string;
   paymentDate: string;
   externalInvoiceNumber: string;
@@ -548,7 +550,9 @@ function NewPaymentForm({
 }) {
   // A general payment is the default: it is what happens when somebody hands
   // over a sum, and naming one order is the special case.
-  const [orderId, setOrderId] = useState(SPLIT);
+  // Invoices ticked (the user, 31/10/2026). None ticked is the general
+  // payment: split across everything open, oldest publication first.
+  const [ticked, setTicked] = useState<string[]>([]);
   const [amount, setAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState(todayIso());
   const [invoice, setInvoice] = useState("");
@@ -565,14 +569,27 @@ function NewPaymentForm({
    */
   const [preview, setPreview] = useState({ key: "", text: "" });
 
-  const selected = orders.find((o) => o.id === orderId);
+  const openOrders = orders.filter((o) => o.open > 0);
+  const tickedSum =
+    Math.round(
+      openOrders.filter((o) => ticked.includes(o.id)).reduce((sum, o) => sum + o.open, 0) * 100,
+    ) / 100;
+  const toggle = (id: string, on: boolean) => {
+    const next = on ? [...ticked, id] : ticked.filter((t) => t !== id);
+    setTicked(next);
+    // The sum of what is ticked is what is usually being paid; it is typed
+    // in for you and can be changed — more becomes credit, less is split
+    // oldest first among the ticked.
+    const sum = openOrders.filter((o) => next.includes(o.id)).reduce((a, o) => a + o.open, 0);
+    setAmount(next.length ? String(Math.round(sum * 100) / 100) : "");
+  };
   // The two sums people actually hand over, one click away (redesign,
   // 29/09/2026): what this order still owes, and everything that is open.
   // The window's own headline figure, not a re-sum of the orders: two numbers
   // for "everything open" in one window would contradict each other.
   const totalOpen = Math.round(outstanding * 100) / 100;
   const typed = Number(amount.replace(/,/g, ""));
-  const previewKey = orderId === SPLIT && amount.trim() ? `${orderId}|${amount}` : "";
+  const previewKey = amount.trim() ? `${[...ticked].sort().join(",")}|${amount}` : "";
   const previewText = previewKey && preview.key === previewKey ? preview.text : "";
 
   /**
@@ -590,7 +607,12 @@ function NewPaymentForm({
     if (!previewKey) return;
     let live = true;
     const timer = setTimeout(async () => {
-      const { text } = await previewAllocationAction(customerId, previewKey.split("|")[1]!);
+      const [ids, typedAmount] = previewKey.split("|");
+      const { text } = await previewAllocationAction(
+        customerId,
+        typedAmount!,
+        ids ? ids.split(",") : [],
+      );
       if (live) setPreview({ key: previewKey, text });
     }, 300);
     return () => {
@@ -602,6 +624,7 @@ function NewPaymentForm({
   const reset = () => {
     setAmount("");
     setInvoice("");
+    setTicked([]);
   };
 
   return (
@@ -609,7 +632,10 @@ function NewPaymentForm({
       data-testid="record-payment-form"
       onSubmit={(e) => {
         e.preventDefault();
-        onSubmit({ orderId, amount, paymentDate, externalInvoiceNumber: invoice }, reset);
+        onSubmit(
+          { orderId: SPLIT, orderIds: ticked, amount, paymentDate, externalInvoiceNumber: invoice },
+          reset,
+        );
       }}
       className="rounded-lg border border-outline-variant bg-surface-container-low p-4"
     >
@@ -619,22 +645,47 @@ function NewPaymentForm({
           half-row beside the invoice field. Two reads straight down in the
           order the fields are filled. */}
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="payment-order">
-            שיוך
-          </label>
-          <OrderPicker
-            orders={orders}
-            value={orderId}
-            onChange={setOrderId}
-            testId="payment-order"
-          />
-          {selected ? (
-            <p className="mt-1 text-xs text-on-surface-variant" data-testid="payment-open-amount">
-              נותר לתשלום: <Ltr>{MONEY.format(selected.open)}</Ltr>
+        <fieldset className="sm:col-span-2" data-testid="payment-invoices">
+          <legend className="mb-1 text-xs text-on-surface-variant">
+            על אילו חשבונות התשלום? אפשר לסמן כמה.
+          </legend>
+          {openOrders.length === 0 ? (
+            <p className="text-xs text-on-surface-variant">
+              אין חשבון פתוח — התשלום ייזקף ליתרת הלקוח.
             </p>
-          ) : null}
-        </div>
+          ) : (
+            <ul className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-outline-variant bg-surface-container-lowest p-2">
+              {openOrders.map((o) => (
+                <li key={o.id}>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-primary"
+                      checked={ticked.includes(o.id)}
+                      onChange={(e) => toggle(o.id, e.target.checked)}
+                      data-testid={`payment-invoice-${o.id}`}
+                    />
+                    <Ltr>{o.label}</Ltr>
+                    <span className="text-on-surface-variant">
+                      נותר <Ltr>{MONEY.format(o.open)}</Ltr> ·{" "}
+                      {PAYMENT_STATUS_LABELS[o.paymentStatus]}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-1 text-xs text-on-surface-variant" data-testid="payment-open-amount">
+            {ticked.length === 0 ? (
+              "לא סומן חשבון — הסכום יתחלק בין כל החשבונות הפתוחים, מהישן לחדש."
+            ) : (
+              <>
+                {ticked.length === 1 ? "חשבון אחד סומן" : `${ticked.length} חשבונות סומנו`} · נותר
+                בהם <Ltr>{MONEY.format(tickedSum)}</Ltr>. סכום גבוה יותר נכנס ליתרת הלקוח (זיכוי).
+              </>
+            )}
+          </p>
+        </fieldset>
         <div>
           <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="payment-amount">
             סכום ששולם
@@ -649,16 +700,6 @@ function NewPaymentForm({
             placeholder="0.00"
           />
           <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {selected && selected.open > 0 ? (
-              <button
-                type="button"
-                data-testid="amount-order-open"
-                onClick={() => setAmount(String(selected.open))}
-                className="rounded-full border border-outline-variant bg-surface-container-lowest px-2.5 py-0.5 text-xs text-primary hover:bg-surface-container"
-              >
-                יתרת ההזמנה <Ltr>{MONEY.format(selected.open)}</Ltr>
-              </button>
-            ) : null}
             {totalOpen > 0 ? (
               <button
                 type="button"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useFormActionState } from "@/components/use-form-action-state";
 import { KeyRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -35,11 +35,19 @@ export function PasswordForm({
   action: (state: PasswordFormState, formData: FormData) => Promise<PasswordFormState>;
   submitLabel?: string;
 }) {
-  const [state, formAction, pending] = useActionState<PasswordFormState, FormData>(action, {});
+  const [state, formAction, pending, keepTypedOnError] = useFormActionState<
+    PasswordFormState,
+    FormData
+  >(action, {});
   const err = (f: string) => state.errors?.[f];
 
   return (
-    <form action={formAction} className="space-y-4" data-testid="password-form">
+    <form
+      action={formAction}
+      onReset={keepTypedOnError}
+      className="space-y-4"
+      data-testid="password-form"
+    >
       <div>
         <Label htmlFor="current">הסיסמה הנוכחית</Label>
         <Input

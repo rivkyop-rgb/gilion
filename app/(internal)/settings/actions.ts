@@ -30,6 +30,8 @@ import { validatePackage } from "@/lib/domain/ad-package";
 import { normalizeDays } from "@/lib/domain/publication-days";
 import * as papers from "@/lib/data/newspapers";
 import * as shapes from "@/lib/data/ad-shapes";
+import { syncReservationsToOpenIssues, type ReservationSync } from "@/lib/data/issues";
+import { counted } from "@/lib/domain/hebrew-count";
 
 export type FormState = { errors?: Record<string, string>; message?: string };
 
@@ -562,8 +564,27 @@ export async function saveReservationAction(
     await papers.setReservationAsset(ctx.businessId, saved.id, key);
   }
 
+  const sync = await syncReservationsToOpenIssues(ctx.businessId, pageTypeId);
   revalidatePath(`/settings/newspapers/${newspaperId}`);
-  return { message: id ? "האזור עודכן" : "האזור נוסף" };
+  revalidatePath("/issues", "layout");
+  return { message: (id ? "האזור עודכן" : "האזור נוסף") + syncSentence(sync) };
+}
+
+/**
+ * What the save did to issues already open — said, because "the logo is on the
+ * cover" and "the logo is on next week's cover too" are different answers.
+ */
+function syncSentence(sync: ReservationSync): string {
+  if (sync.issues === 0) return "";
+  const head =
+    sync.issues === 1
+      ? " · עודכן גם בגיליון הפתוח"
+      : ` · עודכן גם ב־${sync.issues} גיליונות פתוחים`;
+  if (sync.skipped.length === 0) return head;
+  const where = sync.skipped
+    .map((s) => `${s.date.split("-").reverse().join(".")} עמוד ${s.page}`)
+    .join(", ");
+  return `${head}. לא הוחל איפה שכבר יושבת מודעה: ${where}`;
 }
 
 export async function clearReservationAssetAction(
@@ -579,8 +600,10 @@ export async function clearReservationAssetAction(
   // copy of the key, and deleting the bytes would empty a page that is already
   // printed. Storage is cheap; a hole in an issue is not.
   await papers.setReservationAsset(ctx.businessId, reservationId, null);
+  const sync = await syncReservationsToOpenIssues(ctx.businessId, area.page_type_id);
   revalidatePath(`/settings/newspapers/${newspaperId}`);
-  return { message: "התמונה הוסרה מהאזור" };
+  revalidatePath("/issues", "layout");
+  return { message: "התמונה הוסרה מהאזור" + syncSentence(sync) };
 }
 
 export async function deleteReservationAction(
@@ -593,8 +616,10 @@ export async function deleteReservationAction(
   if (!area) return { message: "האזור לא נמצא" };
 
   await papers.deleteReservation(ctx.businessId, reservationId);
+  const sync = await syncReservationsToOpenIssues(ctx.businessId, area.page_type_id);
   revalidatePath(`/settings/newspapers/${newspaperId}`);
-  return { message: "האזור הוסר" };
+  revalidatePath("/issues", "layout");
+  return { message: "האזור הוסר" + syncSentence(sync) };
 }
 
 /* --------------------------------------------------------- ad packages */
@@ -655,7 +680,7 @@ export async function deletePackageAction(
   const used = await papers.packageInUse(ctx.businessId, packageId);
   if (used > 0) {
     return {
-      message: `החבילה כבר הוחלה על ${used} שורות הזמנה. אפשר להשבית אותה כדי שלא תחול על הזמנות חדשות.`,
+      message: `החבילה כבר הוחלה על ${counted(used, "שורת הזמנה אחת", "שורות הזמנה")}. אפשר להשבית אותה כדי שלא תחול על הזמנות חדשות.`,
     };
   }
 
@@ -724,4 +749,28 @@ export async function setPageMarksAction(newspaperId: string, input: unknown): P
   await papers.setPageMarks(ctx.businessId, newspaperId, parsed.data);
   revalidatePath(`/settings/newspapers/${newspaperId}`);
   return {};
+}
+
+/**
+ * "שכפול לעיתון חדש" (the user, 31/10/2026): a new newspaper with every
+ * setting of this one, under a new name. Lands on the copy, ready to adjust.
+ */
+export async function duplicateNewspaperAction(
+  sourceId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const ctx = await requireAdmin();
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { errors: { name: "יש לתת שם לעיתון החדש" } };
+  if (name.length > 120) return { errors: { name: "השם ארוך מדי" } };
+
+  const taken = (await papers.listNewspapers(ctx.businessId)).some((p) => p.name === name);
+  if (taken) return { errors: { name: "כבר יש עיתון בשם הזה" } };
+
+  const copy = await papers.duplicateNewspaper(ctx.businessId, sourceId, name);
+  if (!copy) return { message: "העיתון לא נמצא" };
+
+  revalidatePath("/settings/newspapers");
+  redirect(`/settings/newspapers/${copy.id}`);
 }

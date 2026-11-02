@@ -1,8 +1,11 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
+import Link from "next/link";
+import { usePendingLines } from "./pending-lines";
+import { useFormActionState } from "@/components/use-form-action-state";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { AlertTriangle, Check, Ban, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, Ban, Trash2, X, Plus, ListOrdered, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { InlineError } from "@/components/states";
@@ -25,6 +28,7 @@ import {
  */
 export function OrderActions({
   orderId,
+  customerId,
   orderRef,
   status,
   canApprove,
@@ -38,6 +42,8 @@ export function OrderActions({
   capacity = [],
 }: {
   orderId: string;
+  /** For the "what next" links after the order is sent or approved. */
+  customerId: string;
   orderRef: string;
   status: OrderStatus;
   canApprove: boolean;
@@ -66,8 +72,26 @@ export function OrderActions({
   const [busy, startTransition] = useTransition();
   const [rejecting, setRejecting] = useState(false);
 
-  const run = (fn: () => Promise<FormState>) =>
-    startTransition(async () => setError((await fn()).message ?? null));
+  const run = (fn: () => Promise<FormState>, after?: "submitted" | "approved") =>
+    startTransition(async () => {
+      const message = (await fn()).message ?? null;
+      setError(message);
+      if (!message && after) setDone(after);
+    });
+
+  // Shown once the order went forward: the three things people do next, so the
+  // page does not just sit there (the user, 31/10/2026).
+  const [done, setDone] = useState<"submitted" | "approved" | null>(null);
+
+  // Nothing to send yet, or dates picked above and not added: the button says
+  // why instead of sending an order without them (the user, 31/10/2026).
+  const pendingLines = usePendingLines();
+  const blockedReason =
+    lineCount === 0
+      ? 'קודם מוסיפים להזמנה לפחות פרסום אחד — בטופס "הוספת פרסום להזמנה".'
+      : pendingLines > 0
+        ? `${pendingLines === 1 ? "נבחר תאריך אחד שעוד לא נוסף" : `נבחרו ${pendingLines} תאריכים שעוד לא נוספו`} — לוחצים "הוספה להזמנה", או מסירים אותם.`
+        : null;
 
   /**
    * Moving an order forward without its artwork asks first — and if the paper
@@ -79,7 +103,7 @@ export function OrderActions({
   const guarded = (fn: () => Promise<FormState>, approving: boolean) => () => {
     const go = () => {
       setWarning(null);
-      run(fn);
+      run(fn, approving ? "approved" : "submitted");
     };
     // The page-capacity question is about APPROVING — sending for approval
     // oversells nothing (12/10/2026). It must be confirmed to go on.
@@ -102,6 +126,44 @@ export function OrderActions({
     >
       {error ? <InlineError>{error}</InlineError> : null}
 
+      {status === "draft" && blockedReason ? (
+        <p className="mb-2 text-xs text-status-warning-fg" data-testid="order-blocked-reason">
+          {blockedReason}
+        </p>
+      ) : null}
+
+      {done ? (
+        <div
+          role="status"
+          data-testid="order-next-steps"
+          className="mb-3 rounded-lg bg-status-success-bg p-3 text-sm text-status-success-fg"
+        >
+          <p className="mb-2 font-semibold">
+            {done === "approved" ? "ההזמנה אושרה." : "ההזמנה נשלחה לאישור."} מה עכשיו?
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild size="sm" variant="secondary">
+              <Link href={`/orders/new?customer=${customerId}`}>
+                <Plus className="size-4" />
+                הזמנה נוספת ללקוח
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="secondary">
+              <Link href={`/customers/${customerId}?tab=orders`}>
+                <ListOrdered className="size-4" />
+                כל ההזמנות של הלקוח
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="secondary">
+              <Link href={`/billing?customer=${customerId}`}>
+                <Wallet className="size-4" />
+                רישום תשלום
+              </Link>
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       {rejecting ? (
         <RejectForm orderId={orderId} onCancel={() => setRejecting(false)} />
       ) : (
@@ -109,7 +171,7 @@ export function OrderActions({
           {status === "draft" && directApproval && canApprove ? (
             <Button
               variant="gold"
-              disabled={busy}
+              disabled={busy || blockedReason !== null}
               data-testid="approve-order"
               onClick={guarded(() => approveOrderAction(orderId), true)}
             >
@@ -119,7 +181,7 @@ export function OrderActions({
           ) : status === "draft" ? (
             <Button
               variant="gold"
-              disabled={busy}
+              disabled={busy || blockedReason !== null}
               data-testid="submit-order"
               onClick={guarded(() => submitOrderAction(orderId), false)}
             >
@@ -348,10 +410,13 @@ function soldSentence(n: CapacityNote): string {
 
 function RejectForm({ orderId, onCancel }: { orderId: string; onCancel: () => void }) {
   const bound = rejectOrderAction.bind(null, orderId);
-  const [state, action, pending] = useActionState<FormState, FormData>(bound, {});
+  const [state, action, pending, keepTypedOnError] = useFormActionState<FormState, FormData>(
+    bound,
+    {},
+  );
 
   return (
-    <form action={action} className="max-w-[500px] space-y-3">
+    <form action={action} onReset={keepTypedOnError} className="max-w-[500px] space-y-3">
       <div>
         <Label htmlFor="reason">סיבת הדחייה</Label>
         <textarea

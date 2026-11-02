@@ -12,6 +12,7 @@ import { brandSrc } from "@/components/brand/brand-mark";
 import { SidebarRail } from "@/components/shell/sidebar";
 import { TopBar } from "@/components/shell/top-bar";
 import { CommandPalette } from "@/components/shell/command-palette";
+import { IconHints } from "@/components/shell/icon-hints";
 import { MobileTabBar } from "@/components/shell/mobile-tab-bar";
 import { effectiveAccess } from "@/lib/domain/permissions";
 import type { Area } from "@/lib/auth/rbac";
@@ -94,6 +95,7 @@ export default async function InternalLayout({ children }: { children: React.Rea
         permissions={permissions}
         mayCreateOrder={mayWrite("orders")}
       />
+      <IconHints />
       <MobileTabBar
         mayCustomers={mayRead("customers")}
         mayCreateOrder={mayWrite("orders")}

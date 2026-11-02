@@ -123,8 +123,7 @@ export function IssueCheckPanel({
                 className="font-semibold underline underline-offset-2"
                 data-testid="next-issue-link"
               >
-                הגיליון הבא, <Ltr>{nextIssue.date.split("-").reverse().join(".")}</Ltr>, פתוח
-                לשיבוץ
+                הגיליון הבא, <Ltr>{nextIssue.date.split("-").reverse().join(".")}</Ltr>, פתוח לשיבוץ
               </Link>
             </>
           ) : null}
@@ -238,7 +237,6 @@ export function IssueCheckPanel({
           ) : null}
         </div>
       </div>
-
     </div>
   );
 }
@@ -495,7 +493,13 @@ function CloseIssueDialog({
               <ul className="list-inside list-disc space-y-1">
                 <li>הגיליון יינעל לעריכה, שיבוץ, הסרה והעברה.</li>
                 <li>
-                  <Ltr>{placedCount}</Ltr> פרסומים יסומנו כ״פורסם״.
+                  {placedCount === 1 ? (
+                    "פרסום אחד יסומן כ״פורסם״."
+                  ) : (
+                    <>
+                      <Ltr>{placedCount}</Ltr> פרסומים יסומנו כ״פורסם״.
+                    </>
+                  )}
                 </li>
                 <li>ייווצר PDF סופי שיישמר לגיליון ויחליף קובץ קודם אם קיים.</li>
               </ul>

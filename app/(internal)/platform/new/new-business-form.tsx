@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useFormActionState } from "@/components/use-form-action-state";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,13 +10,16 @@ import { MIN_PASSWORD_LENGTH } from "@/lib/domain/platform";
 import { createBusinessAction, type FormState } from "../actions";
 
 export function NewBusinessForm() {
-  const [state, action, pending] = useActionState<FormState, FormData>(createBusinessAction, {});
+  const [state, action, pending, keepTypedOnError] = useFormActionState<FormState, FormData>(
+    createBusinessAction,
+    {},
+  );
   const err = (f: string) => state.errors?.[f];
   // Re-seed from what was submitted — see the note on FormState.values.
   const was = (f: string) => state.values?.[f] ?? "";
 
   return (
-    <form action={action} className="space-y-5">
+    <form action={action} onReset={keepTypedOnError} className="space-y-5">
       <div>
         <Label htmlFor="businessName">שם העסק</Label>
         <Input

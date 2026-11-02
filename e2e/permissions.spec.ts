@@ -123,7 +123,7 @@ test.describe("a change takes effect on the server, not only in the menu", () =>
       await admin.getByTestId("cell-designer:billing").selectOption("read");
       await admin.getByTestId("save-permissions").click();
       await expect(admin.getByRole("status")).toContainText("ההרשאות נשמרו");
-      await expect(admin.getByTestId("override-count")).toContainText("1 הרשאות שונו");
+      await expect(admin.getByTestId("override-count")).toContainText("הרשאה אחת שונתה");
 
       // After: the route opens AND the menu agrees — no new sign-in needed,
       // which is itself the claim: the change reaches a session already open.
@@ -136,8 +136,9 @@ test.describe("a change takes effect on the server, not only in the menu", () =>
       await expect(navItem(designer, "גבייה ותשלומים")).toBeVisible();
 
       // Put it back, and confirm the refusal returns.
+      // Reset saves by itself, behind a confirmation (UX review, 29/10/2026).
       await admin.getByTestId("reset-defaults").click();
-      await admin.getByTestId("save-permissions").click();
+      await admin.getByTestId("reset-defaults-dialog-confirm").click();
       // The confirmation, not the counter beside the button: that counter is
       // the FORM's state and flips the instant "reset" is clicked, so waiting
       // for it proves only that the click landed — and the next line then reads
@@ -172,8 +173,9 @@ test.describe("a change takes effect on the server, not only in the menu", () =>
       await expect(sales.getByRole("heading", { name: "אין לך הרשאה לעמוד הזה" })).toBeVisible();
       await expect(navItem(sales, "לקוחות")).toHaveCount(0);
 
+      // Reset saves by itself, behind a confirmation (UX review, 29/10/2026).
       await admin.getByTestId("reset-defaults").click();
-      await admin.getByTestId("save-permissions").click();
+      await admin.getByTestId("reset-defaults-dialog-confirm").click();
       // The confirmation, not the counter beside the button: that counter is
       // the FORM's state and flips the instant "reset" is clicked, so waiting
       // for it proves only that the click landed — and the next line then reads
@@ -208,8 +210,8 @@ test.describe("a change takes effect on the server, not only in the menu", () =>
       await expect(beta.getByTestId("override-count")).toContainText("ברירת המחדל");
 
       await alpha.getByTestId("reset-defaults").click();
-      await alpha.getByTestId("save-permissions").click();
-      await expect(alpha.getByTestId("override-count")).toContainText("ברירת המחדל");
+      await alpha.getByTestId("reset-defaults-dialog-confirm").click();
+      await expect(alpha.getByRole("status")).toContainText("כולן על ברירת המחדל");
     } finally {
       await alphaCtx.close();
       await betaCtx.close();

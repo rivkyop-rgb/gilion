@@ -33,6 +33,7 @@ import { formatMoney, orderNumber } from "../orders/format";
 import { StatusChip } from "../orders/order-badges";
 import type { HistoryEntry, PaymentRow } from "./payment-editor";
 import { PaymentDialog } from "./payment-dialog";
+import { billingContactsOf } from "@/lib/data/customers";
 
 export const metadata: Metadata = { title: "גבייה · Gilion" };
 
@@ -137,13 +138,14 @@ export default async function BillingPage({
     return query ? `/billing?${query}` : "/billing";
   };
 
-  const [orders, payments, monthly] = open
+  const [orders, payments, monthly, billingContacts] = open
     ? await Promise.all([
         billableOrders(ctx.businessId, open.customerId),
         paymentsForCustomer(ctx.businessId, open.customerId),
         customerMonths(ctx.businessId, open.customerId),
+        billingContactsOf(ctx.businessId, open.customerId),
       ])
-    : [[], [], { months: [], totals: { billed: 0, paid: 0, open: 0 } }];
+    : [[], [], { months: [], totals: { billed: 0, paid: 0, open: 0 } }, []];
 
   // The trail is keyed by the payment ids that exist now plus the customer
   // itself — a record CREATED is logged against the customer, because at the
@@ -456,6 +458,7 @@ export default async function BillingPage({
         <PaymentDialog
           customerId={open.customerId}
           customerLabel={open.label}
+          billingContacts={billingContacts}
           outstanding={open.outstanding}
           credit={credit}
           closeHref={hrefFor({ customer: "" })}

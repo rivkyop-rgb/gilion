@@ -1,5 +1,6 @@
 "use server";
 
+import { recordAction } from "@/lib/data/audit";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -23,10 +24,7 @@ import {
 } from "@/lib/domain/issue-status";
 import { InvalidPublicationTransitionError } from "@/lib/domain/publication-status";
 import { PAGES_PER_SHEET } from "@/lib/domain/issue-layout";
-import {
-  describeDate,
-  type IssueDateSuggestion,
-} from "@/lib/domain/issue-schedule";
+import { describeDate, type IssueDateSuggestion } from "@/lib/domain/issue-schedule";
 
 export type FormState = { errors?: Record<string, string>; message?: string; ok?: boolean };
 
@@ -90,6 +88,7 @@ export async function createIssueAction(
 
   try {
     const issue = await issues.createIssue(ctx.businessId, parsed.data);
+    await recordAction(ctx, { action: "open_issue", targetType: "Issue", targetId: issue.id });
     revalidatePath("/issues");
     return { ok: true, issueId: issue.id };
   } catch (error) {
@@ -342,6 +341,11 @@ export async function createBoardSaleAction(
           },
     });
 
+    await recordAction(ctx, {
+      action: "board_sale",
+      targetType: "AdOrder",
+      targetId: created.orderId,
+    });
     revalidatePath(`/issues/${parsed.data.issueId}/board`);
     revalidatePath("/publications");
     revalidatePath("/orders");
@@ -405,6 +409,11 @@ export async function moveIssueDateAction(issueId: string, date: string): Promis
   try {
     await requireOpenIssue(ctx, issueId);
     const moved = await issues.moveIssueDate(ctx, issueId, parsed.data);
+    await recordAction(
+      ctx,
+      { action: "move_issue_date", targetType: "Issue", targetId: issueId },
+      { to: moved.to },
+    );
     revalidatePath(`/issues/${issueId}/board`);
     revalidatePath("/issues");
     revalidatePath("/publications");
@@ -522,7 +531,7 @@ export async function closeIssueAction(
   try {
     const result = await pdf.closeIssue(ctx, issueId);
     // The next issue opens the moment this one closes (12/10/2026).
-    await issues.ensureUpcomingIssues(ctx.businessId);
+    await issues.ensureUpcomingIssues(ctx.businessId, ctx.userId);
     const nextIssue = (await issues.nextIssueAfter(ctx.businessId, issueId)) ?? undefined;
     revalidatePath(`/issues/${issueId}/validate`);
     revalidatePath(`/issues/${issueId}/board`);
@@ -557,6 +566,7 @@ export async function reopenIssueAction(issueId: string): Promise<FormState> {
       { businessId: ctx.businessId, userId: ctx.userId, isAdmin: true },
       issueId,
     );
+    await recordAction(ctx, { action: "reopen_issue", targetType: "Issue", targetId: issueId });
     revalidatePath(`/issues/${issueId}/validate`);
     revalidatePath(`/issues/${issueId}/board`);
     revalidatePath("/issues");

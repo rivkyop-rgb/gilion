@@ -141,6 +141,7 @@ describe("toStorage", () => {
       phone: "0521234567",
       email: "noa@example.com",
       notes: null,
+      preferred_page: null,
     });
   });
 });
@@ -180,6 +181,8 @@ describe("contacts", () => {
         phone: "0521234567",
         email: "ron@x.co.il",
         receives_reminders: false,
+        receives_tear_sheets: false,
+        receives_billing: false,
         position: 0,
       },
       {
@@ -188,6 +191,8 @@ describe("contacts", () => {
         phone: null,
         email: null,
         receives_reminders: false,
+        receives_tear_sheets: false,
+        receives_billing: false,
         position: 1,
       },
     ]);

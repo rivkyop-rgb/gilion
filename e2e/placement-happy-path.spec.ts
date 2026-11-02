@@ -8,7 +8,9 @@ import {
   expectPlacedCount,
   openView,
   placeAt,
-  resetFixtureIssue, openDetails } from "./issue-helpers";
+  resetFixtureIssue,
+  openDetails,
+} from "./issue-helpers";
 
 /**
  * US-007 AC-3 and AC-4: put an ad on the page, see what it is, take it off.

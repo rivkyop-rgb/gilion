@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { placementTone } from "@/lib/domain/placement-tone";
+import { priceMapOf } from "@/lib/data/newspapers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -75,12 +77,13 @@ export default async function BoardPage({
     );
   }
 
-  const [publications, pageTypes, customers] = await Promise.all([
+  const [publications, pageTypes, customers, prices] = await Promise.all([
     publicationsForIssue(ctx.businessId, issue.newspaper_id, issue.issue_date),
     pageTypesOf(ctx.businessId, issue.newspaper_id),
     // Loaded here rather than fetched when the dialog opens: a person who has
     // just decided to sell a page should not then wait for a list.
     boardCustomerOptions(ctx.businessId),
+    priceMapOf(ctx.businessId, issue.newspaper_id),
   ]);
 
   const placedPublicationIds = new Set(issue.placements.map((p) => p.publication_id));
@@ -97,6 +100,10 @@ export default async function BoardPage({
     pageTypes: pageTypes.map((t) => ({ id: t.id, name: t.name })),
     // What auto-placement will use, said under its button (27/09/2026).
     autoPlaceTypeNames: pageTypes.filter((t) => t.auto_place).map((t) => t.name),
+    // What "another arrangement" would clear — hand-placed ads stay.
+    autoPlacedCount: issue.placements.filter((p) => p.auto_placed).length,
+    // What free space is worth: "pageTypeId|shapeId" → list price.
+    prices,
     newspaperId: issue.newspaper_id,
     mayConfigure: canWriteArea(ctx, "settings"),
     customers,
@@ -123,6 +130,17 @@ export default async function BoardPage({
       shapePositions: shapeOf(placement.ad_shape).positions,
       previewUrl: placement.advertisement.preview_url,
       duplicate: placement.duplicate_override_approved,
+      // Green / orange / red on the board (01/11/2026).
+      ...(() => {
+        const t = placementTone({
+          orderStatus: placement.publication.order?.status ?? null,
+          adStatus: placement.advertisement.status,
+          validationStatus: placement.advertisement.validation_status,
+          duplicate: placement.duplicate_override_approved,
+          hasPreview: Boolean(placement.advertisement.preview_url),
+        });
+        return { tone: t.tone, toneReason: t.reason };
+      })(),
       // Enough to open the real file in the same dialog the ad library uses,
       // rather than a second preview that drifts from it.
       ad: {
@@ -134,6 +152,14 @@ export default async function BoardPage({
         fileUrl: placement.advertisement.file_url,
       },
     })),
+    // The page NUMBER asked for — the line's own, else the customer's fixed
+    // page (the user, 31/10/2026). Placing elsewhere asks first.
+    requestedPages: Object.fromEntries(
+      publications.flatMap((pub) => {
+        const page = pub.order_item?.requested_page ?? pub.customer.preferred_page;
+        return page ? [[pub.id, page] as const] : [];
+      }),
+    ),
     soldPageTypes: Object.fromEntries(
       publications.flatMap((pub) =>
         pub.order_item ? [[pub.id, pub.order_item.page_type] as const] : [],

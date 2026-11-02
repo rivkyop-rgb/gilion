@@ -25,11 +25,11 @@ test("מחירון נשמר בלחיצה מפורשת, עם חיווי לפני 
 
   // The change is visible and counted BEFORE it is written.
   await expect(page.getByTestId("pricing-dirty")).toBeVisible();
-  await expect(save).toContainText("1 שינויים");
+  await expect(save).toContainText("שינוי אחד");
   await expect(save).toBeEnabled();
 
   await save.click();
-  await expect(page.getByTestId("pricing-saved")).toContainText("נשמרו 1 מחירים");
+  await expect(page.getByTestId("pricing-saved")).toContainText("נשמר מחיר אחד");
   await expect(page.getByTestId("pricing-dirty")).toHaveCount(0);
   await expect(save).toBeDisabled();
 

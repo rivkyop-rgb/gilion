@@ -50,7 +50,7 @@ test.describe("the palette an admin owns", () => {
     await page.getByTestId("panel-save").click();
     // Wait for something that can only be true after the action RETURNED, and
     // whose number comes from the server rather than from form state.
-    await expect(page.getByTestId("panel-saved")).toContainText("נשמרו 1 צבעים מותאמים");
+    await expect(page.getByTestId("panel-saved")).toContainText("נשמר צבע מותאם אחד");
 
     // The real proof: another screen entirely, after a fresh load, with no
     // build step in between.
