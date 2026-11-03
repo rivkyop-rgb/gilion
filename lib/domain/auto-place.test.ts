@@ -194,6 +194,48 @@ describe("a page number that was asked for", () => {
   });
 });
 
+describe("a place with a flexibility (03/11/2026)", () => {
+  const at = (page: number, flex = 0) => ({
+    kind: "page" as const,
+    page,
+    flex,
+    flexUnit: "pages" as const,
+    note: null,
+  });
+
+  it("the fixed request claims the page and the flexible one moves next door", () => {
+    // Both want page 2 and only one full page fits there. The flexible one
+    // arrives FIRST in the input and still yields.
+    const flexible: AutoPlaceItem = { publicationId: "flex", shape: full, position: at(2, 1) };
+    const fixed: AutoPlaceItem = { publicationId: "fixed", shape: full, position: at(2) };
+    const result = autoPlace(
+      [flexible, fixed],
+      [page(1, [full]), page(2, [full]), page(3, [full]), page(4, [full])],
+      grid,
+    );
+    const where = (id: string) => result.placements.find((p) => p.publicationId === id)!.pageId;
+    expect(where("fixed")).toBe("p2");
+    expect(where("flex")).toBe("p3");
+  });
+
+  it("both fit on the asked page when the ads are small enough", () => {
+    const a: AutoPlaceItem = { publicationId: "a", shape: quarter, position: at(2, 1) };
+    const b: AutoPlaceItem = { publicationId: "b", shape: quarter, position: at(2) };
+    const result = autoPlace([a, b], [page(1, [quarter]), page(2, [quarter]), page(3, [quarter])], grid);
+    expect(result.placements.map((p) => p.pageId)).toEqual(["p2", "p2"]);
+  });
+
+  it("right means an even page", () => {
+    const right: AutoPlaceItem = {
+      publicationId: "r",
+      shape: quarter,
+      position: { kind: "right", page: null, flex: 0, flexUnit: "pages", note: null },
+    };
+    const result = autoPlace([right], [1, 2, 3, 4].map((n) => page(n, [quarter])), grid);
+    expect(result.placements[0]!.pageId).toBe("p2");
+  });
+});
+
 describe("how many sheets the leftovers need", () => {
   it("is zero when nothing is left over", () => {
     expect(sheetsNeededFor([], grid)).toBe(0);

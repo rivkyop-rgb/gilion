@@ -243,7 +243,11 @@ export async function publicationsForIssue(
     },
     orderBy: [{ created_at: "asc" }],
     include: {
-      customer: { select: { id: true, business_name: true, preferred_page: true } },
+      customer: {
+        select: { id: true, business_name: true, preferred_page: true, no_auto_place: true },
+      },
+      // What the board's details panel shows and edits (03/11/2026).
+      order: { select: { id: true, number: true } },
       ad_shape: {
         select: {
           id: true,
@@ -260,6 +264,9 @@ export async function publicationsForIssue(
           name: true,
           customer_id: true,
           preview_url: true,
+          // The files themselves, for the designer's package (03/11/2026).
+          file_url: true,
+          file_type: true,
           status: true,
           validation_status: true,
           content_width: true,
@@ -269,7 +276,15 @@ export async function publicationsForIssue(
       // The page type the customer bought — the board warns when an ad goes
       // on a page of another type.
       order_item: {
-        select: { requested_page: true, page_type: { select: { id: true, name: true } } },
+        select: {
+          id: true,
+          requested_page: true,
+          position_kind: true,
+          position_flex: true,
+          position_flex_unit: true,
+          position_note: true,
+          page_type: { select: { id: true, name: true } },
+        },
       },
     },
   });

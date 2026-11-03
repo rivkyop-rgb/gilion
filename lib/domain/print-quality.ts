@@ -29,6 +29,12 @@ export const PRINT_QUALITY_LABELS: Record<PrintQuality, string> = {
   high: "גבוהה — לדפוס",
 };
 
+export const PRINT_QUALITY_HINTS: Record<PrintQuality, string> = {
+  draft: "קובץ קטן ומהיר. טוב לבדיקה ולשליחה במייל, לא לבית הדפוס.",
+  standard: "מתאים לרוב בתי הדפוס של עיתונים. זו ברירת המחדל.",
+  high: "המודעות נשמרות בחדות מרבית. הקובץ כפול בגודלו — כדאי כשבית הדפוס מבקש.",
+};
+
 const SCALE: Record<PrintQuality, number> = {
   draft: 1,
   standard: 2,

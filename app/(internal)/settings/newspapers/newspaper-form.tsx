@@ -10,7 +10,19 @@ import { InlineError } from "@/components/states";
 import { Ltr } from "@/components/ui/ltr";
 import { DEFAULT_MAX_AD_FILE_SIZE_MB } from "@/lib/domain/newspaper";
 import { cmToMm, deriveGrid, formatCm } from "@/lib/domain/grid";
-import { PAGE_SIZE_KEYS, PAGE_SIZE_LABELS, type PageSizeKey } from "@/lib/domain/page-size";
+import {
+  PAGE_SIZE_HINTS,
+  PAGE_SIZE_KEYS,
+  PAGE_SIZE_LABELS,
+  PAGE_SIZES,
+  type PageSizeKey,
+} from "@/lib/domain/page-size";
+import {
+  normalizePrintQuality,
+  PRINT_QUALITIES,
+  PRINT_QUALITY_HINTS,
+  PRINT_QUALITY_LABELS,
+} from "@/lib/domain/print-quality";
 import { formatDays, WEEKDAYS, WEEKDAY_LABELS } from "@/lib/domain/publication-days";
 import { gridChanged, planRescale, type RescaleShape } from "@/lib/domain/shape-rescale";
 import type { FormState } from "../actions";
@@ -37,7 +49,7 @@ const EMPTY: NewspaperFormValues = {
   customWidthCm: "",
   customHeightCm: "",
   marginCm: "0.95",
-  printQuality: "",
+  printQuality: "standard",
   maxAdFileSizeMb: String(DEFAULT_MAX_AD_FILE_SIZE_MB),
   // A 1 cm module in both directions, with no gutter. That combination is what
   // makes every whole-centimetre size actually exist — anything coarser snaps
@@ -79,6 +91,7 @@ export function NewspaperForm({
   const toggleDay = (d: number) =>
     setDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort()));
   const [marginCm, setMarginCm] = useState(initial.marginCm);
+  const [quality, setQuality] = useState(normalizePrintQuality(initial.printQuality));
   const err = (f: string) => state.errors?.[f];
 
   // The grid the user is typing, resolved live. The row count and column width
@@ -164,6 +177,7 @@ export function NewspaperForm({
             </option>
           ))}
         </select>
+        <PageSizeHint size={pageSize} />
         {err("pageSize") ? <InlineError>{err("pageSize")}</InlineError> : null}
       </div>
 
@@ -276,6 +290,7 @@ export function NewspaperForm({
         >
           {gridReadable ? <Ltr>{gridReadable}</Ltr> : "החלוקה הזאת לא מייצרת גריד שאפשר לעבוד איתו"}
         </p>
+        {derived && derived.rows >= 1 ? <RowLeftover grid={derived} /> : null}
 
         {plan && (plan.rescaled.length > 0 || plan.warnings.length > 0) ? (
           <div
@@ -373,16 +388,27 @@ export function NewspaperForm({
       </fieldset>
 
       <div>
-        <Label htmlFor="printQuality">איכות דפוס</Label>
-        {/* Free text, exactly as the ERD defines it — deliberately not a dpi
-            picker: dpi/CMYK/bleed were Stitch inventions (design/gaps.md §א). */}
-        <Input
+        <Label htmlFor="printQuality">איכות הדפסת המודעות ב־PDF</Label>
+        {/* A closed list now: only these three words ever changed anything,
+            and free text let "דפוס אופסט רגיל" look meaningful while doing
+            nothing (the user, 03/11/2026). Older free-text values open as the
+            quality they always produced — "standard". */}
+        <select
           id="printQuality"
           name="printQuality"
-          defaultValue={initial.printQuality}
-          placeholder="לדוגמה: דפוס אופסט רגיל"
-          required
-        />
+          value={quality}
+          onChange={(e) => setQuality(e.target.value as typeof quality)}
+          className="h-10 w-full rounded-lg border border-outline-variant bg-surface-container px-3 text-start text-sm"
+        >
+          {PRINT_QUALITIES.map((q) => (
+            <option key={q} value={q}>
+              {PRINT_QUALITY_LABELS[q]}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-on-surface-variant" data-testid="print-quality-hint">
+          {PRINT_QUALITY_HINTS[quality]}
+        </p>
         {err("printQuality") ? <InlineError>{err("printQuality")}</InlineError> : null}
       </div>
 
@@ -430,3 +456,41 @@ export function NewspaperForm({
 
 /** Custom page dimensions are optional; an empty field is "not set", not zero. */
 const numOrNull = (cm: string) => (cm.trim() === "" ? null : cmToMm(Number(cm)));
+
+/** A small drawing of the chosen size beside what it is, at true proportions. */
+function PageSizeHint({ size }: { size: PageSizeKey }) {
+  const dims = size === "custom" ? null : PAGE_SIZES[size];
+  const scale = dims ? 48 / PAGE_SIZES.Broadsheet.height : 0;
+  return (
+    <div className="mt-2 flex items-center gap-3" data-testid="page-size-hint">
+      {dims ? (
+        <span
+          aria-hidden
+          className="shrink-0 rounded-[2px] border border-outline bg-surface-container-lowest shadow-elevation-1"
+          style={{ width: Math.round(dims.width * scale), height: Math.round(dims.height * scale) }}
+        />
+      ) : null}
+      <p className="text-xs text-on-surface-variant">{PAGE_SIZE_HINTS[size]}</p>
+    </div>
+  );
+}
+
+/**
+ * The page height rarely divides by the shapes a publisher sells, and the rest
+ * shows up as a thin unused strip under two halves (the user, 03/11/2026). Say
+ * so here, where it can be fixed, with the two changes that would close it.
+ */
+function RowLeftover({ grid }: { grid: { rows: number; rowHeightMm: number; pageHeightMm: number; marginMm: number } }) {
+  if (grid.rows % 2 === 0) return null;
+  const halfMm = grid.rowHeightMm / 2;
+  return (
+    <p
+      data-testid="grid-leftover"
+      className="mt-2 rounded-sm bg-status-warning-bg px-3 py-2 text-xs text-status-warning-fg"
+    >
+      מספר השורות (<Ltr>{grid.rows}</Ltr>) אי־זוגי, ולכן מתחת לשני חצאי עמוד תישאר רצועה ריקה של
+      שורה אחת (<Ltr>{formatCm(grid.rowHeightMm)}</Ltr> ס״מ). כדי לסגור אותה: להגדיל את השוליים
+      בכ־<Ltr>{formatCm(halfMm)}</Ltr> ס״מ, או לקבוע גובה שורה של חצי מהגובה הנוכחי.
+    </p>
+  );
+}

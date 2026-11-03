@@ -288,6 +288,8 @@ export type CapacityNote = {
   pending: number;
   mine: number;
   overflow: number;
+  pagesOfType: number;
+  hasIssue: boolean;
 };
 
 /** One warning at a time — see `guarded`. */
@@ -391,6 +393,11 @@ function CapacityBody({ notes }: { notes: CapacityNote[] }) {
 }
 
 function soldSentence(n: CapacityNote): string {
+  if (n.pagesOfType === 0) {
+    // Not "full" — absent. Saying "won't fit" about the only ad on an empty
+    // issue reads as a broken system (the user, 03/11/2026).
+    return `${n.hasIssue ? "בגיליון של התאריך הזה" : "בגיליון הרגיל של העיתון"} אין אף עמוד מסוג "${n.pageTypeName}", ולכן אין איפה לשבץ את ${counted(n.mine, "הפרסום", "הפרסומים")}. אפשר להוסיף עמוד מהסוג הזה בלוח השיבוץ, או לבחור בהזמנה סוג עמוד אחר. אם הכוונה הייתה למקום בגיליון (למשל אמצע) — בוחרים את זה ב"מיקום בגיליון".`;
+  }
   const parts: string[] = [];
   if (n.approved > 0) {
     parts.push(

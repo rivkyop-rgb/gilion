@@ -59,7 +59,7 @@ async function shapes() {
 async function createNewspaper(page: import("@playwright/test").Page) {
   await page.goto("/settings/newspapers/new");
   await page.fill("#name", NAME);
-  await page.fill("#printQuality", "רגילה");
+  await page.selectOption("#printQuality", "standard");
   await page.fill("#columns", "26");
   await page.fill("#rowHeightCm", "1");
   await expect(page.getByTestId("grid-derived")).toContainText("26 עמודות × 41 שורות");

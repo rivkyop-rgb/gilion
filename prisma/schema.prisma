@@ -112,6 +112,8 @@ enum AuditAction {
   reopen_issue
   move_issue_date
   board_sale
+  move_missed_publication
+  credit_missed_publication
 }
 
 /// An independent business in the multi-tenant system (FR-1, FR-2).
@@ -333,6 +335,9 @@ model Customer {
   /// The page number this advertiser normally runs on. A line's own
   /// requested_page wins over it (the user, 31/10/2026).
   preferred_page      Int?
+  /// Kept out of automatic placement: their ads are always placed by hand
+  /// (the user, 03/11/2026).
+  no_auto_place       Boolean  @default(false)
   created_at          DateTime @default(now())
   updated_at          DateTime @updatedAt
 
@@ -349,7 +354,9 @@ model Customer {
   payments       Payment[]
   tear_sheets    TearSheetDelivery[]
 
-  @@unique([business_id, tax_id])
+  /// Not unique: two branches of one company share a tax id, and the user
+  /// confirms that knowingly (03/11/2026). The form warns as it is typed.
+  @@index([business_id, tax_id])
   @@index([business_id, business_name])
   @@map("Customer")
 }
@@ -830,6 +837,15 @@ model AdOrderItem {
   /// A page NUMBER the customer asked for on this line ("always page 5").
   /// Overrides Customer.preferred_page when both are set (the user, 31/10/2026).
   requested_page   Int?
+  /// Where in the issue (the user, 03/11/2026): "page" (requested_page above),
+  /// "middle", "right", "left", "first_half", "second_half" — or null.
+  /// lib/domain/position-request.ts reads these five columns together.
+  position_kind      String?
+  /// How far from the request the ad may move: pages, or percent of the issue.
+  position_flex      Int     @default(0)
+  position_flex_unit String  @default("pages")
+  /// Free text for whoever places it ("ליד מדור הספורט").
+  position_note      String?
   /// The quantity discount this line earned, frozen at approval (backlog
   /// item 12). `price` above stays the LIST price — it is what the seller
   /// typed and what the conversation with the customer was about — and the

@@ -121,7 +121,7 @@ export const DASHBOARD_CARDS: readonly DashboardCard[] = [
   {
     key: "reminders",
     label: "תזכורות נדרשות",
-    hint: "ממתינות לאישור שליחה",
+    hint: "ממתינות לשליחה",
     tone: "warning",
     area: "reminders",
   },

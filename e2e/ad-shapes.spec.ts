@@ -126,13 +126,12 @@ test.describe("the shape catalogue (US-006 AC-4)", () => {
     await page.fill("#shape-height-cm", "3");
     await page.getByTestId("mode-region").check();
 
-    // Positions where the shape would hang off the page are not offered at all
-    // — the old model let you shade an area too small and only failed on save.
+    // A click where the shape would hang off the page is pulled back to where
+    // it fits (03/11/2026), so the whole page is clickable.
     await expect(page.getByTestId(`cell-${GRID.columns - 1}-0`)).toHaveAttribute(
       "data-fits",
-      "false",
+      "true",
     );
-    await expect(page.getByTestId(`cell-${GRID.columns - 1}-0`)).toBeDisabled();
 
     // Saving with nothing placed is still refused by the server.
     await page.getByTestId("save-shape").click();

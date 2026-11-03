@@ -205,6 +205,13 @@ export type CapacityWarning = {
   mine: number;
   /** How many of all of them found no room. */
   overflow: number;
+  /**
+   * How many pages of this type the issue has. ZERO is the case that read as
+   * "the only ad doesn't fit" (the user, 03/11/2026): the issue simply has no
+   * page of the type sold, and the message has to say THAT.
+   */
+  pagesOfType: number;
+  hasIssue: boolean;
 };
 
 /**
@@ -243,6 +250,8 @@ export async function orderCapacityWarnings(
         pending: row.input.items.filter((i) => i.stage === "pending").length,
         mine,
         overflow: load.overflow,
+        pagesOfType: row.input.pages,
+        hasIssue: row.hasIssue,
       });
     }
   }

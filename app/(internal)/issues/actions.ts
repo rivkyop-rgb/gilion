@@ -4,7 +4,7 @@ import { recordAction } from "@/lib/data/audit";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { getTenantContext, requireArea } from "@/lib/auth/tenant";
+import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import {
   agrees,
   counted,
@@ -13,6 +13,7 @@ import {
   publicationsPhrase,
 } from "@/lib/domain/hebrew-count";
 import * as issues from "@/lib/data/issues";
+import { changePublicationShape, PublicationEditError } from "@/lib/data/publication-edit";
 import * as placements from "@/lib/data/placements";
 import * as sales from "@/lib/data/issue-sales";
 import * as pdf from "@/lib/data/issue-pdf";
@@ -573,5 +574,37 @@ export async function reopenIssueAction(issueId: string): Promise<FormState> {
     return { ok: true, message: "הגיליון נפתח מחדש" };
   } catch (error) {
     return asPdfFormState(error);
+  }
+}
+
+/**
+ * A different size for one publication, from the board (03/11/2026) — the
+ * price follows the price list.
+ */
+export async function changePublicationShapeAction(
+  issueId: string,
+  publicationId: string,
+  shapeId: string,
+): Promise<FormState> {
+  await requireIssueWrite();
+  // A size is also a price, so it is the orders permission that decides.
+  const tenant = await getTenantContext();
+  if (!canWriteArea(tenant, "orders")) {
+    return { message: "שינוי גודל משנה את המחיר, ולכן נדרשת הרשאה להזמנות" };
+  }
+  try {
+    const { from, to } = await changePublicationShape(tenant, publicationId, shapeId);
+    revalidatePath(`/issues/${issueId}/board`);
+    revalidatePath("/billing");
+    return {
+      ok: true,
+      message:
+        from === to
+          ? "הגודל עודכן"
+          : `הגודל עודכן, והמחיר השתנה מ־₪${from.toLocaleString("he-IL")} ל־₪${to.toLocaleString("he-IL")}`,
+    };
+  } catch (error) {
+    if (error instanceof PublicationEditError) return { message: error.message };
+    throw error;
   }
 }

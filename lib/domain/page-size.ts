@@ -37,6 +37,19 @@ export const PAGE_SIZE_LABELS: Record<PageSizeKey, string> = {
   custom: "מותאם אישית",
 };
 
+/**
+ * What each size IS, in the words of someone who holds newspapers rather than
+ * paper specs (the user, 03/11/2026: "לא ברור לי מה זה טאבלויד").
+ */
+export const PAGE_SIZE_HINTS: Record<PageSizeKey, string> = {
+  A4: "גודל דף מדפסת רגיל. מתאים לעלון או לחוברת קטנה.",
+  A3: "כפול מ־A4. מתאים לעלון מקופל או למקומון קטן.",
+  Tabloid: "הגודל של רוב המקומונים והשבועונים: 27.9 × 43.2 ס״מ. עיתון שנפתח כמו מגזין גדול.",
+  Berliner: "מעט גדול מטאבלויד: 31.5 × 47 ס״מ. נפוץ בעיתונים יומיים באירופה.",
+  Broadsheet: "העיתון הגדול והרחב (כמו עיתון יומי מסורתי), שמקפלים לשניים כדי לקרוא.",
+  custom: "גודל אחר — מקלידים רוחב וגובה בס״מ.",
+};
+
 export function isPageSizeKey(value: string): value is PageSizeKey {
   return (PAGE_SIZE_KEYS as string[]).includes(value);
 }

@@ -23,6 +23,10 @@ const gate = authEdge((req) => {
   // A tear sheet's signed link (14/10/2026) — opened from a customer's mail,
   // with or without any session. The signature is checked by the route itself.
   if (path.startsWith("/api/tear-sheet/")) return NextResponse.next();
+  // The designer's signed link to an issue's files (03/11/2026) — same rule.
+  if (path.startsWith("/api/layout-package/")) return NextResponse.next();
+  // A customer's signed link to see their own file in the space bought.
+  if (path.startsWith("/api/ad-view/")) return NextResponse.next();
 
   if (!session?.user) {
     if (isAuthRoute || isPortalLogin) return NextResponse.next();

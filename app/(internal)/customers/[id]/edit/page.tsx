@@ -27,6 +27,7 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ i
       <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">עריכת לקוח</h1>
       <div className="mb-6" />
       <CustomerForm
+        customerId={customer.id}
         action={updateCustomerAction.bind(null, id)}
         initial={{
           businessName: customer.business_name,
@@ -35,6 +36,7 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ i
           email: customer.email ?? "",
           notes: customer.notes ?? "",
           preferredPage: customer.preferred_page ? String(customer.preferred_page) : "",
+          noAutoPlace: customer.no_auto_place,
           contacts: customer.contacts.map((c) => ({
             name: c.name,
             role: c.role ?? "",

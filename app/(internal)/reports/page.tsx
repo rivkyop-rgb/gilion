@@ -33,6 +33,12 @@ import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
 import { PAYMENT_TONE, PUBLICATION_TONE } from "@/components/status-tone";
 import { cn } from "@/lib/utils";
+import { winbackReport } from "@/lib/data/winback";
+import { businessName, loadSettings } from "@/lib/data/business-settings";
+import { textFor } from "@/lib/domain/business-settings";
+import { fillTemplate } from "@/lib/domain/customer-messages";
+import { reminderRecipients } from "@/lib/domain/reminders";
+import { EmailLink, PhoneLink } from "@/components/contact-links";
 import { formatDate, formatMoney, orderNumber } from "../orders/format";
 import { StatusChip } from "../orders/order-badges";
 
@@ -52,6 +58,8 @@ type Params = {
   lens?: string;
   page?: string;
   size?: string;
+  /** Winback tab: also list customers who already booked again. */
+  returned?: string;
 };
 
 /**
@@ -71,7 +79,8 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   requireArea(ctx, "reports");
 
   const params = await searchParams;
-  const tab = params.tab === "publications" ? "publications" : "payments";
+  const tab =
+    params.tab === "publications" || params.tab === "winback" ? params.tab : "payments";
   const period: PeriodKind = PERIODS.includes(params.period as PeriodKind)
     ? (params.period as PeriodKind)
     : "month";
@@ -99,6 +108,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       newspaper: newspaperId,
       customer: customerId,
       lens,
+      returned: params.returned ?? "",
       ...next,
     };
     const q = new URLSearchParams();
@@ -154,6 +164,13 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           testId="tab-publications"
         >
           דוח ברמת פרסום
+        </TabLink>
+        <TabLink
+          href={hrefFor({ tab: "winback" })}
+          active={tab === "winback"}
+          testId="tab-winback"
+        >
+          לקוחות לחידוש
         </TabLink>
       </div>
 
@@ -309,6 +326,15 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         <PaymentsTab
           businessId={ctx.businessId}
           filters={filters}
+          list={list}
+          listBase={hrefFor({})}
+        />
+      ) : tab === "winback" ? (
+        <WinbackTab
+          businessId={ctx.businessId}
+          filters={filters}
+          includeReturned={params.returned === "1"}
+          hrefFor={hrefFor}
           list={list}
           listBase={hrefFor({})}
         />
@@ -644,5 +670,154 @@ function Total({
         <Ltr>{formatMoney(value)}</Ltr>
       </p>
     </div>
+  );
+}
+
+/**
+ * Who advertised in the period, one row per customer, with a message ready to
+ * ask them again (03/11/2026). Pick last year's dates and the list is "who to
+ * call this season".
+ */
+async function WinbackTab({
+  businessId,
+  filters,
+  includeReturned,
+  hrefFor,
+  list: requested,
+  listBase,
+}: {
+  businessId: string;
+  filters: Filters;
+  includeReturned: boolean;
+  hrefFor: (next: Partial<Params>) => string;
+  list: ListParams;
+  listBase: string;
+}) {
+  const [all, settings, business] = await Promise.all([
+    winbackReport(businessId, filters),
+    loadSettings(businessId),
+    businessName(businessId),
+  ]);
+  const matching = includeReturned ? all : all.filter((r) => !r.returned);
+  const hidden = all.length - matching.length;
+  const list = clampPage(requested, matching.length);
+  const rows = matching.slice(skipFor(list), skipFor(list) + list.size);
+  const template = textFor("winback_template", settings.texts);
+
+  return (
+    <>
+      <p className="mb-3 text-xs text-on-surface-variant" data-testid="winback-explanation">
+        כל לקוח שפרסם בתקופה שנבחרה — שורה אחת ללקוח, עם הודעה מוכנה בוואטסאפ או במייל לשאול אם
+        ירצה לפרסם שוב. כדי למצוא את מי שפרסם בשנה שעברה: &quot;טווח&quot; ותאריכים של אז.{" "}
+        {hidden > 0 && !includeReturned ? (
+          <>
+            {hidden === 1 ? "לקוח אחד" : `${hidden} לקוחות`} שכבר הזמינו שוב אחרי התקופה לא מוצגים
+            —{" "}
+            <Link href={hrefFor({ returned: "1", page: "" })} className="underline">
+              להציג גם אותם
+            </Link>
+            .
+          </>
+        ) : includeReturned ? (
+          <Link href={hrefFor({ returned: "", page: "" })} className="underline">
+            להסתיר את מי שכבר הזמין שוב
+          </Link>
+        ) : null}
+      </p>
+
+      <ListToolbar
+        prefix=""
+        params={list}
+        total={matching.length}
+        baseHref={listBase}
+        searchable={false}
+      />
+
+      {rows.length === 0 ? (
+        <EmptyState
+          title="אין לקוחות שפרסמו בתקופה הזו"
+          body="אפשר להרחיב את התקופה או לבחור עיתון אחר."
+        />
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
+          <table className="w-full text-sm" data-testid="winback-table">
+            <thead className="bg-surface-container">
+              <tr>
+                <th className="p-3 text-start font-semibold">לקוח</th>
+                <th className="p-3 text-start font-semibold">פרסום אחרון בתקופה</th>
+                <th className="p-3 text-start font-semibold">כמה פרסומים</th>
+                <th className="p-3 text-start font-semibold">עיתון</th>
+                <th className="p-3 text-start font-semibold">הודעה</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr
+                  key={row.customerId}
+                  data-testid={`winback-row-${row.customerId}`}
+                  className="border-t border-outline-variant align-top hover:bg-surface-container-low"
+                >
+                  <td className="p-3">
+                    <Link
+                      href={`/customers/${row.customerId}`}
+                      className="underline-offset-2 hover:underline"
+                    >
+                      {row.customerName}
+                    </Link>
+                    {row.returned ? (
+                      <Badge tone="success" className="ms-2">
+                        כבר הזמין שוב
+                      </Badge>
+                    ) : null}
+                  </td>
+                  <td className="p-3">
+                    <Ltr>{formatDate(row.lastDate)}</Ltr>
+                    <span className="block text-xs text-on-surface-variant">{row.lastShape}</span>
+                  </td>
+                  <td className="p-3">
+                    <Ltr>{row.count}</Ltr>
+                  </td>
+                  <td className="p-3">{row.newspapers.join(", ")}</td>
+                  <td className="p-3">
+                    <ul className="space-y-1 text-xs" data-testid={`winback-send-${row.customerId}`}>
+                      {reminderRecipients(row).map((to) => {
+                        const message = fillTemplate(template, {
+                          לקוח: row.customerName,
+                          עיתון: row.newspapers[0] ?? "",
+                          "תאריך אחרון": formatDate(row.lastDate),
+                          גודל: row.lastShape,
+                          עסק: business,
+                          "טלפון העסק": settings.contactPhone ?? "",
+                        });
+                        return (
+                          <li key={to.label} className="flex flex-wrap items-center gap-2">
+                            {!to.isMain ? <span>{to.label}</span> : null}
+                            {to.phone ? <PhoneLink phone={to.phone} message={message} /> : null}
+                            {to.email ? (
+                              <EmailLink
+                                email={to.email}
+                                subject={`פרסום ב${row.newspapers[0] ?? "עיתון"}`}
+                                body={message}
+                              />
+                            ) : null}
+                            {!to.phone && !to.email ? (
+                              <span className="text-on-surface-variant">אין טלפון או מייל</span>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {matching.length > 0 ? (
+        <ListPager prefix="" params={list} total={matching.length} baseHref={listBase} />
+      ) : null}
+    </>
   );
 }

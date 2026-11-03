@@ -58,30 +58,21 @@ test.describe("RTL: column 0 is the right edge of the page", () => {
   });
 
   /**
-   * PENDING A PRODUCT DECISION — see docs/plan/03-newspaper-config.md §פתוח.
-   *
-   * `shape_strip` is 8 columns wide on a 26-column grid, so the last column
-   * that can host it is 18, not 25. Clicking the far-left pixel targets column
-   * 25, the app correctly refuses ("הצורה לא נכנסת בעמודה 26"), and this
-   * expectation cannot be met as written.
-   *
-   * Either the test is wrong and should expect column 18, or the app should
-   * CLAMP a near-edge click to the last column that fits. The second is a
-   * change in behaviour and is the user's call, so the test is marked rather
-   * than quietly rewritten to match whatever the code happens to do — which
-   * would destroy the only record that the question was ever asked.
+   * DECIDED 03/11/2026 (the user: "למה חלק לוח משובץ וחלק לא"): a click near
+   * the edge is pulled back to the last position where the shape fits.
+   * `shape_strip` is the full width of the page, so the far-left pixel
+   * (column 25) can only mean the one position it has: corner on column 0.
    */
-  test.fixme("reads a click on the left-most pixel as the last column", async ({ page }) => {
+  test("a click on the left-most pixel places the shape at the last column that fits", async ({
+    page,
+  }) => {
     await page.getByTestId("region-clear").click();
 
     const grid = (await page.getByTestId("region-grid").boundingBox())!;
     await page.mouse.click(grid.x + 4, grid.y + 4);
 
-    await expect(page.getByTestId(`cell-${GRID.columns - 1}-0`)).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    await expect(page.getByTestId("cell-0-0")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByTestId("cell-0-0")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("region-positions")).toContainText("מיקום מותר אחד");
   });
 
   test("a saved region comes back as the same cells, not their mirror", async ({ page }) => {

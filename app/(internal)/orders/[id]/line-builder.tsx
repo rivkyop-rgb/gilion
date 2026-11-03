@@ -28,12 +28,20 @@ import { groupOrderLines, timesLabel } from "@/lib/domain/order-grouping";
 import { formatMoney } from "../format";
 import { MultiDatePicker } from "./date-picker";
 import { counted } from "@/lib/domain/hebrew-count";
+import { NO_POSITION, type PositionRequest } from "@/lib/domain/position-request";
+import { ItemPositionEditor, PositionFields } from "./position-fields";
 
 export type PaperOption = {
   id: string;
   name: string;
   publicationDays: number[];
-  pageTypes: Array<{ id: string; name: string; shapes: Array<{ id: string; name: string }> }>;
+  pageTypes: Array<{
+    id: string;
+    name: string;
+    /** The inner pages — the default for a new line (03/11/2026). */
+    inner?: boolean;
+    shapes: Array<{ id: string; name: string }>;
+  }>;
 };
 
 export type ExistingLine = {
@@ -46,7 +54,10 @@ export type ExistingLine = {
   isoDate: string;
   offSchedule: boolean;
   price: number;
-  requestedPage: number | null;
+  position: PositionRequest;
+  positionLabel: string | null;
+  /** False once the date is on a page — then the board moves it. */
+  positionEditable: boolean;
 };
 
 /**
@@ -64,11 +75,14 @@ export function LineBuilder({
   lines,
   editable,
   customerPreferredPage = null,
+  canEditPositions = editable,
 }: {
   orderId: string;
   papers: PaperOption[];
   lines: ExistingLine[];
   editable: boolean;
+  /** Positions stay editable after approval, until the date is placed. */
+  canEditPositions?: boolean;
   /** The customer's fixed page — the default for a new line, which may override it. */
   customerPreferredPage?: number | null;
 }) {
@@ -99,7 +113,10 @@ export function LineBuilder({
   // effect: choosing a newspaper narrows the page types, and a page type
   // narrows the shapes to AllowedAdShape. Writing that back into state from an
   // effect only produced a second render pass saying the same thing.
-  const pageType = paper?.pageTypes.find((pt) => pt.id === pageTypeChoice) ?? paper?.pageTypes[0];
+  const pageType =
+    paper?.pageTypes.find((pt) => pt.id === pageTypeChoice) ??
+    paper?.pageTypes.find((pt) => pt.inner && pt.shapes.length > 0) ??
+    paper?.pageTypes[0];
   const shape = pageType?.shapes.find((sh) => sh.id === shapeChoice) ?? pageType?.shapes[0];
 
   const pageTypeId = pageType?.id ?? "";
@@ -216,9 +233,12 @@ export function LineBuilder({
                     <td className="p-3">{g.newspaperName}</td>
                     <td className="p-3">
                       {g.pageTypeName}
-                      {g.requestedPage ? (
-                        <span className="block text-xs text-on-surface-variant">
-                          עמוד מבוקש <Ltr>{g.requestedPage}</Ltr>
+                      {g.positionLabel ? (
+                        <span
+                          className="block text-xs text-on-surface-variant"
+                          data-testid="line-position-label"
+                        >
+                          {g.positionLabel}
                         </span>
                       ) : null}
                     </td>
@@ -248,6 +268,14 @@ export function LineBuilder({
                               <Ltr>{l.publicationDate}</Ltr>
                               {l.offSchedule ? (
                                 <span className="text-status-warning-fg">מיוחדת</span>
+                              ) : null}
+                              {/* Each date can ask for its own place (03/11/2026). */}
+                              {l.positionEditable && canEditPositions ? (
+                                <ItemPositionEditor
+                                  orderId={orderId}
+                                  itemId={l.id}
+                                  initial={l.position}
+                                />
                               ) : null}
                               {editable ? (
                                 <Button
@@ -424,25 +452,21 @@ export function LineBuilder({
               </p>
             </div>
 
-            <div>
-              <Label htmlFor="requestedPage">עמוד מבוקש</Label>
-              <Input
-                id="requestedPage"
-                name="requestedPage"
-                dir="ltr"
-                inputMode="numeric"
-                placeholder="לא חובה"
-                defaultValue={customerPreferredPage ? String(customerPreferredPage) : ""}
-                aria-invalid={Boolean(state.errors?.requestedPage)}
-                data-testid="line-requested-page"
-              />
-              <p className="mt-1 text-[11px] text-on-surface-variant">
-                {customerPreferredPage
-                  ? `העמוד הקבוע של הלקוח: ${customerPreferredPage}. מה שנכתב כאן גובר.`
-                  : "מספר עמוד, אם הלקוח ביקש עמוד מסוים."}
-              </p>
-            </div>
           </div>
+
+          <PositionFields
+            initial={
+              customerPreferredPage
+                ? { ...NO_POSITION, kind: "page", page: customerPreferredPage }
+                : NO_POSITION
+            }
+            errors={state.errors}
+          />
+          {customerPreferredPage ? (
+            <p className="-mt-2 text-[11px] text-on-surface-variant">
+              העמוד הקבוע של הלקוח הוא {customerPreferredPage}. מה שנבחר כאן גובר.
+            </p>
+          ) : null}
 
           {shapeId ? (
             <div className="grid gap-4 sm:grid-cols-2">

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CloudUpload, ImageOff, X } from "lucide-react";
+import { ChevronDown, CloudUpload, ImageOff, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,8 @@ import type { CanvasPlacement } from "./page-canvas";
 import { uploadAdvertisementAction } from "@/app/(internal)/advertisements/actions";
 import { boardPriceAction, createBoardSaleAction } from "@/app/(internal)/issues/actions";
 import { cn } from "@/lib/utils";
+import { CandidateDetailsPanel } from "./candidate-details";
+import type { PositionRequest } from "@/lib/domain/position-request";
 
 export type BoardCandidate = {
   publicationId: string;
@@ -34,8 +36,25 @@ export type BoardCandidate = {
   needsArtwork: boolean;
   /** The page type it was sold for — said, so the designer knows where it belongs. */
   soldTypeName: string | null;
+  /** Where it asked to be, and the note for whoever places it (03/11/2026). */
+  positionLabel?: string | null;
   /** The artwork's proportions do not match the space (orange, 12/10/2026). */
   fitWarning: string | null;
+  /** The customer is placed by hand only — auto-placement skips them (03/11/2026). */
+  manualOnly?: boolean;
+  /** What the arrow opens, and what can be edited from the board (03/11/2026). */
+  details?: CandidateDetails;
+};
+
+export type CandidateDetails = {
+  orderId: string;
+  orderNumber: number;
+  orderItemId: string | null;
+  price: number;
+  position: PositionRequest;
+  hasAd: boolean;
+  placed: boolean;
+  shapeOptions: Array<{ id: string; name: string; price: number | null }>;
 };
 
 export type CustomerOption = { id: string; label: string; hint?: string };
@@ -100,6 +119,8 @@ export function UnplacedPanel({
 }) {
   const [tab, setTab] = useState<"unplaced" | "placed">("unplaced");
   const [showPlaced, setShowPlaced] = useState(false);
+  // Which ad's details are open (03/11/2026) — one at a time keeps the list short.
+  const [openDetails, setOpenDetails] = useState<string | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadFor, setUploadFor] = useState<BoardCandidate | null>(null);
 
@@ -195,57 +216,101 @@ export function UnplacedPanel({
             <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto" data-testid="unplaced-list">
               {visible.map((item) => {
                 const held = holdingPublicationId === item.publicationId;
+                const open = openDetails === item.publicationId;
                 return (
                   <li key={item.publicationId}>
-                    <button
-                      type="button"
-                      data-testid={`unplaced-item-${item.publicationId}`}
-                      data-blocked={item.blockedReason !== null}
-                      disabled={!editable || item.blockedReason !== null}
-                      aria-pressed={held}
-                      /* Pointer-down is the ONE selector: a click and the start of a
+                    <div className="flex items-stretch gap-1">
+                      <button
+                        type="button"
+                        data-testid={`unplaced-item-${item.publicationId}`}
+                        data-blocked={item.blockedReason !== null}
+                        disabled={!editable || item.blockedReason !== null}
+                        aria-pressed={held}
+                        /* Pointer-down is the ONE selector: a click and the start of a
                      drag are the same gesture until the pointer moves, and
                      handling both would toggle the selection off again the
                      moment a plain click landed. */
-                      onPointerDown={() => {
-                        if (item.blockedReason) return;
-                        onPressStart();
-                        onPick(item);
-                      }}
-                      className={cn(
-                        "flex w-full items-center gap-2 rounded-lg border p-2 text-start text-sm transition-colors",
-                        held
-                          ? "border-primary bg-status-accent-bg shadow-elevation-1"
-                          : "border-outline-variant hover:bg-surface-container",
-                        item.blockedReason ? "cursor-not-allowed opacity-60" : "cursor-grab",
-                      )}
-                    >
-                      <Thumb previewUrl={item.previewUrl} name={item.adName} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium">{item.customerName}</span>
-                        <span className="block truncate text-xs text-on-surface-variant">
-                          {item.shape.name} · {sizeLabel(item.shape, grid)}
-                          {item.soldTypeName ? ` · ${item.soldTypeName}` : ""}
-                        </span>
-                        {item.fitWarning ? (
-                          <span
-                            data-testid="candidate-fit-warning"
-                            className="mt-1 block rounded bg-status-warning-bg px-1.5 py-0.5 text-xs text-status-warning-fg"
-                          >
-                            {item.fitWarning}
+                        onPointerDown={() => {
+                          if (item.blockedReason) return;
+                          onPressStart();
+                          onPick(item);
+                        }}
+                        className={cn(
+                          "flex min-w-0 flex-1 items-center gap-2 rounded-lg border p-2 text-start text-sm transition-colors",
+                          held
+                            ? "border-primary bg-status-accent-bg shadow-elevation-1"
+                            : "border-outline-variant hover:bg-surface-container",
+                          item.blockedReason ? "cursor-not-allowed opacity-60" : "cursor-grab",
+                        )}
+                      >
+                        <Thumb previewUrl={item.previewUrl} name={item.adName} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium">{item.customerName}</span>
+                          <span className="block truncate text-xs text-on-surface-variant">
+                            {item.shape.name} · {sizeLabel(item.shape, grid)}
+                            {item.soldTypeName ? ` · ${item.soldTypeName}` : ""}
                           </span>
-                        ) : null}
-                        {item.blockedReason ? (
-                          <Badge tone="error" className="mt-1">
-                            {item.blockedReason}
-                          </Badge>
-                        ) : item.alreadyPlaced ? (
-                          <Badge tone="accent" className="mt-1">
-                            כבר משובץ
-                          </Badge>
-                        ) : null}
-                      </span>
-                    </button>
+                          {item.positionLabel ? (
+                            <span
+                              data-testid="candidate-position"
+                              className="block truncate text-xs text-primary"
+                              title={item.positionLabel}
+                            >
+                              📍 {item.positionLabel}
+                            </span>
+                          ) : null}
+                          {item.fitWarning ? (
+                            <span
+                              data-testid="candidate-fit-warning"
+                              title={item.fitWarning}
+                              className="mt-1 block truncate rounded bg-status-warning-bg px-1.5 py-0.5 text-xs text-status-warning-fg"
+                            >
+                              ⚠ {item.fitWarning}
+                            </span>
+                          ) : null}
+                          {item.blockedReason ? (
+                            <Badge tone="error" className="mt-1">
+                              {item.blockedReason}
+                            </Badge>
+                          ) : item.alreadyPlaced ? (
+                            <Badge tone="accent" className="mt-1">
+                              כבר משובץ
+                            </Badge>
+                          ) : null}
+                          {item.manualOnly ? (
+                            <span className="mt-1 block text-[11px] text-on-surface-variant">
+                              ✋ לשיבוץ ידני בלבד
+                            </span>
+                          ) : null}
+                        </span>
+                      </button>
+                      {item.details ? (
+                        <button
+                          type="button"
+                          aria-expanded={open}
+                          aria-label={open ? "סגירת הפרטים" : "כל הפרטים ועריכה"}
+                          title={open ? "סגירת הפרטים" : "כל הפרטים ועריכה"}
+                          data-testid={`candidate-expand-${item.publicationId}`}
+                          onClick={() => setOpenDetails(open ? null : item.publicationId)}
+                          className="flex w-7 shrink-0 items-center justify-center rounded-lg border border-outline-variant text-on-surface-variant hover:bg-surface-container"
+                        >
+                          <ChevronDown
+                            className={cn("size-4 transition-transform", open && "rotate-180")}
+                            aria-hidden
+                          />
+                        </button>
+                      ) : null}
+                    </div>
+                    {open && item.details ? (
+                      <CandidateDetailsPanel
+                        issueId={issueId}
+                        publicationId={item.publicationId}
+                        shapeId={item.shape.id}
+                        details={item.details}
+                        editable={editable}
+                        manualOnly={Boolean(item.manualOnly)}
+                      />
+                    ) : null}
 
                     {/* On the publication itself, because that is where the person
                     is looking when they realise the file is missing. */}

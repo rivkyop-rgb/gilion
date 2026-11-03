@@ -24,6 +24,7 @@ import { getTenantContext, canReadArea } from "@/lib/auth/tenant";
 import { getAdvertisement } from "@/lib/data/advertisements";
 import { brandKeysFor, loginBrandKeys } from "@/lib/data/business-settings";
 import { isBrandKey } from "@/lib/domain/business-settings";
+import { reservationKeyOwned } from "@/lib/data/newspapers";
 import { portalBusiness } from "@/lib/data/portal-link";
 import { businessOfKey, contentTypeOfKey, getObjectStream, statObject } from "@/lib/storage/minio";
 
@@ -78,6 +79,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ key:
   if (isBrandKey(key)) {
     if (!(await brandKeysFor(ctx.businessId)).includes(key)) return NOT_FOUND;
     fileName = key.split("/").pop() ?? "brand";
+  } else if (key.split("/")[1] === "reserved") {
+    // A reserved area's image — the masthead or a standing logo. Part of the
+    // page like a brand asset, so the same wider door for staff; it must be
+    // one a reserved area of this business actually points at (03/11/2026).
+    if (ctx.role === "customer") return NOT_FOUND;
+    if (!(await reservationKeyOwned(ctx.businessId, key))) return NOT_FOUND;
+    fileName = key.split("/").pop() ?? "reserved";
   } else {
     // A portal customer reads the matrix as "none" for advertisements, and
     // still has to see their own artwork on their own requests (stage 09).

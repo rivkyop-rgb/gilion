@@ -7,6 +7,7 @@ import { positionsFor, toCanvasPercent, type Cell } from "@/lib/domain/slot-geom
 import { Button } from "@/components/ui/button";
 import { Ltr } from "@/components/ui/ltr";
 import { cn } from "@/lib/utils";
+import { counted } from "@/lib/domain/hebrew-count";
 
 /**
  * Picks the positions on the page where a shape is allowed to sit (US-006 AC-4).
@@ -53,6 +54,19 @@ export function ShapePositionPicker({
   const chosen = new Set(
     value.filter(([c, r]) => availableKeys.has(key(c, r))).map(([c, r]) => key(c, r)),
   );
+
+  /**
+   * Any cell on the page is a valid click: it becomes the ad's corner, and an
+   * ad that would run off the page is pulled back until it fits. The page used
+   * to dim every cell where the corner could not go — half the page looked
+   * hatched and half did not, which read as a broken board (the user,
+   * 03/11/2026: "למה חלק לוח משובץ וחלק לא").
+   */
+  const snap = (col: number, row: number): Cell | null => {
+    const c = Math.max(0, Math.min(col, grid.columns - shape.cols));
+    const r = Math.max(0, Math.min(row, grid.rows - shape.rows));
+    return availableKeys.has(key(c, r)) ? [c, r] : null;
+  };
 
   const set = (next: Set<string>) => onChange(available.filter(([c, r]) => next.has(key(c, r))));
 
@@ -148,10 +162,6 @@ export function ShapePositionPicker({
               />
               אסור
             </span>
-            <span className="flex items-center gap-1.5">
-              <span className="size-3 rounded-[2px] bg-surface-dim opacity-60" aria-hidden />
-              הצורה לא נכנסת כאן
-            </span>
           </div>
         </div>
       ) : null}
@@ -212,30 +222,21 @@ export function ShapePositionPicker({
       >
         {Array.from({ length: grid.rows }).flatMap((_, row) =>
           Array.from({ length: grid.columns }).map((__, col) => {
-            const fits = availableKeys.has(key(col, row));
+            const target = snap(col, row);
+            const fits = target !== null;
             return (
               <button
                 key={key(col, row)}
                 type="button"
                 disabled={readOnly || !fits}
                 aria-pressed={chosen.has(key(col, row))}
-                aria-label={
-                  fits
-                    ? `הנחת הצורה בעמודה ${col + 1} שורה ${row + 1}`
-                    : `הצורה לא נכנסת בעמודה ${col + 1} שורה ${row + 1}`
-                }
+                aria-label={`הנחת הצורה בעמודה ${col + 1} שורה ${row + 1}`}
                 data-testid={`cell-${col}-${row}`}
                 data-fits={fits}
-                onPointerEnter={() => (fits ? setHover([col, row]) : setHover(null))}
-                onFocus={() => (fits ? setHover([col, row]) : undefined)}
-                onClick={() => fits && !readOnly && toggle(col, row)}
-                className={cn(
-                  "min-h-2 rounded-[1px] transition-colors",
-                  fits
-                    ? "bg-surface-container-lowest"
-                    : // Not "empty" — the shape cannot start here at all.
-                      "bg-surface-dim opacity-60",
-                )}
+                onPointerEnter={() => setHover(target)}
+                onFocus={() => (target ? setHover(target) : undefined)}
+                onClick={() => target && !readOnly && toggle(target[0], target[1])}
+                className="min-h-2 rounded-[1px] bg-surface-container-lowest transition-colors"
               />
             );
           }),
@@ -293,7 +294,7 @@ export function ShapePositionPicker({
           </>
         ) : (
           <>
-            <Ltr>{`${chosen.size} מיקומים מותרים`}</Ltr> למודעה של <Ltr>{label}</Ltr>
+            {counted(chosen.size, "מיקום מותר אחד", "מיקומים מותרים")} למודעה של <Ltr>{label}</Ltr>
             {chosen.size < available.length ? (
               <>
                 {" "}

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { FileCheck2, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { FilePick } from "@/components/ui/file-pick";
 import { Ltr } from "@/components/ui/ltr";
 import { InlineError } from "@/components/states";
 import { AD_ACCEPT_ATTRIBUTE, formatBytes } from "@/lib/domain/ad-file";
@@ -50,6 +51,8 @@ export function OrderArtwork({
 }) {
   const router = useRouter();
   const [scope, setScope] = useState<"all" | "some">("all");
+  // A new pick answers the last error; it should not stay red (03/11/2026).
+  const [dismissed, setDismissed] = useState<AdFormState | null>(null);
 
   const [state, formAction, pending, keepTypedOnError] = useFormActionState<AdFormState, FormData>(
     async (prev, formData) => {
@@ -182,15 +185,14 @@ export function OrderArtwork({
           </fieldset>
         ) : null}
 
-        <input
-          type="file"
-          name="file"
-          data-testid="order-artwork-file"
+        <FilePick
+          testId="order-artwork-file"
           accept={AD_ACCEPT_ATTRIBUTE}
-          className="w-full max-w-md text-xs file:me-3 file:rounded-sm file:border-0 file:bg-surface-container file:px-3 file:py-2 file:text-xs"
+          label="בחירת קובץ מודעה מהמחשב"
+          onPicked={() => setDismissed(state)}
         />
 
-        {state.message ? (
+        {state.message && dismissed !== state ? (
           <div className="mt-2 max-w-md">
             <InlineError>{state.message}</InlineError>
           </div>

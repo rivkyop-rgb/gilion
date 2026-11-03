@@ -15,6 +15,7 @@
  * The domain check is not redundant: a constraint violation cannot say WHICH
  * rectangle is in the way, and the board needs to highlight it.
  */
+import { effectivePosition, positionOf } from "@/lib/domain/position-request";
 import { Prisma } from "@prisma/client";
 
 import { basePrisma, tenantDb } from "./db";
@@ -713,8 +714,17 @@ async function planAutoPlacement(ctx: ActorContext, issueId: string, seed: numbe
         },
         advertisement: { select: { customer_id: true, status: true, validation_status: true } },
         // The page type the customer bought — the packer is bound by it.
-        order_item: { select: { page_type_id: true, requested_page: true } },
-        customer: { select: { preferred_page: true } },
+        order_item: {
+          select: {
+            page_type_id: true,
+            requested_page: true,
+            position_kind: true,
+            position_flex: true,
+            position_flex_unit: true,
+            position_note: true,
+          },
+        },
+        customer: { select: { preferred_page: true, no_auto_place: true } },
       },
     })
   ).filter(
@@ -722,7 +732,9 @@ async function planAutoPlacement(ctx: ActorContext, issueId: string, seed: numbe
       p.advertisement !== null &&
       p.advertisement.status !== "archived" &&
       p.advertisement.validation_status === "passed" &&
-      p.advertisement.customer_id === p.customer_id,
+      p.advertisement.customer_id === p.customer_id &&
+      // Placed by hand only (03/11/2026).
+      !p.customer.no_auto_place,
   );
 
   const items: AutoPlaceItem[] = waiting.map((p) => ({
@@ -736,8 +748,11 @@ async function planAutoPlacement(ctx: ActorContext, issueId: string, seed: numbe
         p.ad_shape.position_mode === "region" ? readAllowedCells(p.ad_shape.allowed_cells) : null,
     },
     pageTypeId: p.order_item?.page_type_id ?? null,
-    // The line's own page wins over the customer's fixed one (31/10/2026).
-    requestedPage: p.order_item?.requested_page ?? p.customer.preferred_page ?? null,
+    // The line's own request wins over the customer's fixed page (31/10/2026).
+    position: effectivePosition(
+      p.order_item ? positionOf(p.order_item) : null,
+      p.customer.preferred_page,
+    ),
   }));
 
   // Every page, each with its type: an ad goes on the type it was sold for

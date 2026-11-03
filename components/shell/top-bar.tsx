@@ -9,6 +9,7 @@ import type { Role } from "@/lib/auth/rbac";
 import type { PermissionOverrides } from "@/lib/domain/permissions";
 import { BusinessSwitcher, type SwitcherBusiness } from "./business-switcher";
 import { SidebarContent } from "./sidebar";
+import { HelpButton } from "./guided-tour";
 
 export function TopBar({
   userName,
@@ -34,6 +35,7 @@ export function TopBar({
   return (
     <header className="flex h-16 items-center justify-between gap-4 border-b border-outline-variant bg-surface-container-lowest px-4 lg:px-8">
       <div className="flex items-center gap-3">
+        <HelpButton />
         {/* Below 1024px the sidebar collapses into a drawer. */}
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger className="rounded-sm p-2 text-on-surface-variant hover:bg-surface-container lg:hidden">

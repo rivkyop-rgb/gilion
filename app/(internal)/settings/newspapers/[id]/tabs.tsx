@@ -10,8 +10,10 @@ export function NewspaperTabs({ id }: { id: string }) {
 
   const tabs = [
     { href: base, label: "כללי וסוגי עמודים" },
-    { href: `${base}/pricing`, label: "מחירון" },
+    // Shapes before prices: the order the work is done in — a new shape is
+    // added and then priced (the user, 03/11/2026).
     { href: `${base}/shapes`, label: "צורות פרסום ומיקומים" },
+    { href: `${base}/pricing`, label: "מחירון" },
   ];
 
   return (

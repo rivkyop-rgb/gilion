@@ -1,9 +1,14 @@
 "use server";
 
-import { parsePageNumber } from "@/lib/domain/customer";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import {
+  describePosition,
+  parsePosition,
+  positionColumns,
+  type PositionInput,
+} from "@/lib/domain/position-request";
 
 import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { recordAction, withAudit } from "@/lib/data/audit";
@@ -51,7 +56,7 @@ type LineBatch = {
   base: Omit<OrderLineInput, "publicationDate">;
   dates: string[];
   offSchedule: boolean;
-  requestedPageRaw: string;
+  position: PositionInput;
 };
 
 function readLines(formData: FormData): LineBatch | null {
@@ -79,8 +84,48 @@ function readLines(formData: FormData): LineBatch | null {
     },
     dates: parsed.data.dates,
     offSchedule: parsed.data.offSchedule,
-    requestedPageRaw: String(formData.get("requestedPage") ?? "").trim(),
+    position: readPosition(formData),
   };
+}
+
+function readPosition(formData: FormData): PositionInput {
+  const text = (name: string) => String(formData.get(name) ?? "");
+  return {
+    kind: text("positionKind"),
+    page: text("requestedPage"),
+    flex: text("positionFlex"),
+    flexUnit: text("positionFlexUnit"),
+    note: text("positionNote"),
+  };
+}
+
+/**
+ * Changes where ONE date of an order asks to be (the user, 03/11/2026: the
+ * position "can change from publication to publication, not only per order").
+ * Allowed until that date's issue has it on a page; after that the board is
+ * where it moves.
+ */
+export async function updateItemPositionAction(
+  orderId: string,
+  itemId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const ctx = await requireOrderWrite();
+  const position = parsePosition(readPosition(formData));
+  if (!position.ok) return { errors: { [position.field]: position.message } };
+  const result = await data.updateItemPosition(ctx.businessId, orderId, itemId, position.value);
+  if (result === "not_found") return { message: "השורה לא נמצאה" };
+  if (result === "placed") {
+    return { message: "הפרסום כבר משובץ בגיליון — אפשר להזיז אותו בלוח השיבוץ" };
+  }
+  await recordAction(
+    ctx,
+    { action: "update_order_lines", targetType: "AdOrder", targetId: orderId },
+    { position: describePosition(position.value) ?? "ללא" },
+  );
+  revalidatePath(`/orders/${orderId}`);
+  return { ok: true, message: "המיקום נשמר" };
 }
 
 export async function createOrderDraftAction(
@@ -168,12 +213,9 @@ export async function addOrderItemAction(
     };
   }
 
-  // A page number asked for on these lines (the user, 31/10/2026). Empty is
-  // "no preference"; anything else must be a page number.
-  const requestedPage = parsePageNumber(batch.requestedPageRaw);
-  if (batch.requestedPageRaw && requestedPage === null) {
-    return { errors: { requestedPage: "מספר עמוד צריך להיות מספר שלם, 1 ומעלה" } };
-  }
+  // Where in the issue these lines ask to be (31/10 and 03/11/2026).
+  const position = parsePosition(batch.position);
+  if (!position.ok) return { errors: { [position.field]: position.message } };
 
   const created = await data.addOrderItems(
     ctx.businessId,
@@ -185,7 +227,7 @@ export async function addOrderItemAction(
       publication_date: new Date(publicationDate),
       price: price!,
       off_schedule: !isPublicationDay(schedule, publicationDate),
-      requested_page: requestedPage,
+      ...positionColumns(position.value),
     })),
   );
   if (!created) return { message: "ההזמנה לא נמצאה" };

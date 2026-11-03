@@ -97,17 +97,6 @@ export default async function NewspaperPage({ params }: { params: Promise<{ id: 
         }
       />
 
-      <AutoPlaceSettings
-        newspaperId={paper.id}
-        readOnly={!mayEdit}
-        types={paper.page_types.map((pt) => ({
-          id: pt.id,
-          name: pt.name,
-          autoPlace: pt.auto_place,
-          autoGrow: pt.auto_grow,
-        }))}
-      />
-
       <PageTypes
         newspaperId={paper.id}
         readOnly={!mayEdit}
@@ -128,6 +117,17 @@ export default async function NewspaperPage({ params }: { params: Promise<{ id: 
           })),
         }))}
       />
+      <AutoPlaceSettings
+        newspaperId={paper.id}
+        readOnly={!mayEdit}
+        types={paper.page_types.map((pt) => ({
+          id: pt.id,
+          name: pt.name,
+          autoPlace: pt.auto_place,
+          autoGrow: pt.auto_grow,
+        }))}
+      />
+
     </>
   );
 }

@@ -33,6 +33,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   reopen_issue: "פתיחת גיליון מחדש",
   move_issue_date: "שינוי תאריך גיליון",
   board_sale: "מכירה מלוח השיבוץ",
+  move_missed_publication: "העברת פרסום שלא פורסם לתאריך אחר",
+  credit_missed_publication: "זיכוי על פרסום שלא פורסם",
   portal_sign_in: "כניסה לפורטל",
   portal_submit_request: "בקשת פרסום מהפורטל",
   portal_upload_ad: "העלאת מודעה מהפורטל",

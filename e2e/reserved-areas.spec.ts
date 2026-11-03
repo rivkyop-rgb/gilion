@@ -137,6 +137,15 @@ test.describe("reserved areas", () => {
 
     const list = page.getByTestId(`reserved-list-${PAGE_TYPES.cover}`);
     await expect(list.locator('[data-testid^="reserved-thumb-"]')).toHaveCount(1);
+    // The image actually LOADS — an <img> that 404s is still one element, and
+    // for weeks every reserved logo was exactly that (03/11/2026).
+    await expect
+      .poll(() =>
+        list
+          .locator('[data-testid^="reserved-thumb-"]')
+          .evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0),
+      )
+      .toBe(true);
 
     // "Once" is the requirement: nobody attaches it again per issue.
     await page.goto("/issues/new");

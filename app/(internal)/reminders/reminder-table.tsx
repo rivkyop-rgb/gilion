@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Check, RefreshCw, Send, X } from "lucide-react";
+import { RefreshCw, Send, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,6 @@ import {
 } from "@/lib/domain/reminders";
 import { cn } from "@/lib/utils";
 import {
-  approveRemindersAction,
   dismissRemindersAction,
   markRemindersSentAction,
   refreshRemindersAction,
@@ -62,9 +61,11 @@ const STATUS_TONE: Record<ReminderStatus, "neutral" | "warning" | "success" | "e
  * do I need to call this week" — a per-row button would mean fifteen clicks
  * for one sitting.
  *
- * What this screen deliberately does NOT do is send anything. The banner above
- * it says so in as many words, because a button labelled "אישור שליחה" invites
- * exactly the wrong assumption.
+ * Sending is one act (the user, 03/11/2026 — there used to be "אישור שליחה"
+ * and "סימון כנשלחה", and the difference between them was the question): the
+ * WhatsApp or mail icon opens the message already written, and the same click
+ * records the reminder as sent. A reminder handled by phone is ticked and
+ * marked by hand.
  */
 export function ReminderTable({ rows, mayAct }: { rows: ReminderRow[]; mayAct: boolean }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -95,6 +96,13 @@ export function ReminderTable({ rows, mayAct }: { rows: ReminderRow[]; mayAct: b
       return next;
     });
 
+  // Opening the message IS sending it: record it on the same click. The
+  // reminder leaves the open list, which is what "done" looks like here.
+  const sent = (id: string) =>
+    mayAct && rows.find((r) => r.id === id)?.status !== "sent"
+      ? () => run(() => markRemindersSentAction([id]))
+      : undefined;
+
   const allSelected = rows.length > 0 && selected.size === rows.length;
   const chosen = [...selected];
 
@@ -115,15 +123,6 @@ export function ReminderTable({ rows, mayAct }: { rows: ReminderRow[]; mayAct: b
         {mayAct ? (
           <>
             <Button
-              size="sm"
-              disabled={busy || chosen.length === 0}
-              data-testid="approve-reminders"
-              onClick={() => run(() => approveRemindersAction(chosen))}
-            >
-              <Check className="size-4" />
-              אישור שליחה ({chosen.length})
-            </Button>
-            <Button
               variant="secondary"
               size="sm"
               disabled={busy || chosen.length === 0}
@@ -131,7 +130,7 @@ export function ReminderTable({ rows, mayAct }: { rows: ReminderRow[]; mayAct: b
               onClick={() => run(() => markRemindersSentAction(chosen))}
             >
               <Send className="size-4" />
-              סימון כנשלחה
+              סימון כנשלחה (טופל בטלפון)
             </Button>
             <Button
               variant="ghost"
@@ -180,7 +179,7 @@ export function ReminderTable({ rows, mayAct }: { rows: ReminderRow[]; mayAct: b
               <th className="p-3 text-start font-semibold">עיתון</th>
               <th className="p-3 text-start font-semibold">גודל</th>
               <th className="p-3 text-start font-semibold">כמה נשאר</th>
-              <th className="p-3 text-start font-semibold">איך ליצור קשר</th>
+              <th className="p-3 text-start font-semibold">שליחה</th>
               <th className="p-3 text-start font-semibold">סטטוס</th>
             </tr>
           </thead>
@@ -239,6 +238,7 @@ export function ReminderTable({ rows, mayAct }: { rows: ReminderRow[]; mayAct: b
                                 phone={to.phone}
                                 message={to.message}
                                 className="font-mono"
+                                onSend={sent(r.id)}
                               />
                             ) : null}
                             {to.email ? (
@@ -247,6 +247,7 @@ export function ReminderTable({ rows, mayAct }: { rows: ReminderRow[]; mayAct: b
                                 subject={r.subject}
                                 body={to.message}
                                 className="font-mono"
+                                onSend={sent(r.id)}
                               />
                             ) : null}
                           </span>

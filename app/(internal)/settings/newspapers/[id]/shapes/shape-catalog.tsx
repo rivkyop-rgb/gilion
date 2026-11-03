@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -35,11 +36,18 @@ export function ShapeCatalog({
   grid,
   shapes,
   readOnly,
+  unpricedIds = [],
 }: {
   newspaperId: string;
   grid: DerivedGrid;
   shapes: CatalogShape[];
   readOnly: boolean;
+  /**
+   * Shapes with no price on any page type yet. A shape is added and THEN
+   * priced (the user, 03/11/2026), so the next step is offered right here
+   * instead of a trip back to a tab before this one.
+   */
+  unpricedIds?: string[];
 }) {
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -97,6 +105,15 @@ export function ShapeCatalog({
                     ? "מותרת בכל מקום בעמוד"
                     : `מותרת ב־${validPositionCount(s, s.allowedCells, grid)} מיקומים בעמוד`}
                 </p>
+                {unpricedIds.includes(s.id) ? (
+                  <Link
+                    href={`/settings/newspapers/${newspaperId}/pricing`}
+                    data-testid={`shape-unpriced-${s.id}`}
+                    className="mt-1 inline-block rounded-full bg-status-warning-bg px-2 py-0.5 text-xs text-status-warning-fg underline-offset-2 hover:underline"
+                  >
+                    עדיין בלי מחיר — לקביעת מחיר במחירון
+                  </Link>
+                ) : null}
               </div>
 
               {!readOnly ? (

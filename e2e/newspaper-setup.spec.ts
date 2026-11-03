@@ -17,7 +17,7 @@ test.describe("newspaper configuration (US-006)", () => {
     await page.fill("#name", name);
     await page.selectOption("#pageSize", "A3");
     await page.fill("#marginCm", "1.2");
-    await page.fill("#printQuality", "דפוס דיגיטלי");
+    await page.selectOption("#printQuality", "high");
     await page.fill("#maxAdFileSizeMb", "25");
     await page.fill("#columns", "5");
     await page.fill("#rowHeightCm", "1");
@@ -43,7 +43,7 @@ test.describe("newspaper configuration (US-006)", () => {
 
     const name = `קטלוג ${Date.now()}`;
     await page.fill("#name", name);
-    await page.fill("#printQuality", "בדיקה");
+    await page.selectOption("#printQuality", "standard");
     await page.getByRole("button", { name: "שמירה" }).click();
     await expect(page.getByTestId("newspaper-name")).toHaveText(name);
 
@@ -59,7 +59,7 @@ test.describe("newspaper configuration (US-006)", () => {
     await page.goto("/settings/newspapers/new");
 
     await page.fill("#name", `גריד ${Date.now()}`);
-    await page.fill("#printQuality", "בדיקה");
+    await page.selectOption("#printQuality", "standard");
     await page.fill("#rowHeightCm", "50");
 
     await expect(page.getByTestId("grid-derived")).toContainText("לא מייצרת גריד");
@@ -74,7 +74,7 @@ test.describe("newspaper configuration (US-006)", () => {
     await page.fill("#name", `שוליים ${Date.now()}`);
     await page.selectOption("#pageSize", "A4"); // 210 mm wide
     await page.fill("#marginCm", "15");
-    await page.fill("#printQuality", "בדיקה");
+    await page.selectOption("#printQuality", "standard");
     await page.getByRole("button", { name: "שמירה" }).click();
 
     await expect(page.getByTestId("form-error").first()).toContainText("השוליים גדולים מדי");
@@ -85,7 +85,7 @@ test.describe("newspaper configuration (US-006)", () => {
     await page.goto("/settings/newspapers/new");
 
     await page.fill("#name", "עיתון השבוע"); // already seeded in this tenant
-    await page.fill("#printQuality", "בדיקה");
+    await page.selectOption("#printQuality", "standard");
     await page.getByRole("button", { name: "שמירה" }).click();
 
     await expect(page.getByTestId("form-error").first()).toHaveText("כבר קיים עיתון בשם הזה");

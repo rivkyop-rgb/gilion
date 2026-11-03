@@ -1,5 +1,6 @@
 "use client";
 
+import { DesignerPackage } from "./designer-package";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -104,7 +105,10 @@ export type BoardModel = {
   /** "pageTypeId|shapeId" → list price — what free space on a page is worth. */
   prices: Record<string, number>;
   /** publicationId → the page number its order (or customer) asked for. */
-  requestedPages: Record<string, number>;
+  /** The designer's signed link (03/11/2026). */
+  packagePath: string;
+  /** Where each publication asked to be, resolved to this issue's pages. */
+  positions: Record<string, { pages: number[]; label: string | null; note: string | null }>;
   /** Placements auto-placement made — the only ones "another arrangement" clears. */
   autoPlacedCount: number;
   newspaperId: string;
@@ -339,6 +343,17 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
   const unplacedCount = model.candidates.filter(
     (c) => !c.alreadyPlaced && c.blockedReason === null,
   ).length;
+  // What a click on "שיבוץ אוטומטי" will actually place, and what it will
+  // leave and why — said on the button, not discovered after (03/11/2026).
+  const autoReady = model.candidates.filter(
+    (c) => !c.alreadyPlaced && c.blockedReason === null && !c.manualOnly,
+  ).length;
+  const waitingForFile = model.candidates.filter(
+    (c) => !c.alreadyPlaced && c.needsArtwork,
+  ).length;
+  const manualOnly = model.candidates.filter(
+    (c) => !c.alreadyPlaced && c.blockedReason === null && c.manualOnly,
+  ).length;
   const totalPages = model.pages.length;
 
   // Both halves of a spread, whole, without scrolling — see useFittedSpread.
@@ -426,16 +441,17 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
     if (sold && page.pageTypeId !== sold.id) {
       reasons.push(`הפרסום הוזמן לעמוד ${sold.name}, והעמוד כאן הוא ${page.pageTypeName}.`);
     }
-    const asked = model.requestedPages[held.publicationId];
-    if (asked && asked !== page.number) {
-      reasons.push(`הלקוח ביקש עמוד ${asked}, וזה עמוד ${page.number}.`);
+    const asked = model.positions[held.publicationId];
+    const fixedHere = (id: string) => {
+      const pages = model.positions[id]?.pages ?? [];
+      return pages.length === 1 && pages[0] === page.number;
+    };
+    if (asked && asked.pages.length > 0 && !asked.pages.includes(page.number)) {
+      reasons.push(`הלקוח ביקש ${asked.label ?? "מיקום אחר"}, וזה עמוד ${page.number}.`);
     }
-    if (asked === page.number) {
+    if (fixedHere(held.publicationId)) {
       const rivals = model.placements.filter(
-        (p) =>
-          p.pageId === pageId &&
-          p.publicationId !== held.publicationId &&
-          model.requestedPages[p.publicationId] === page.number,
+        (p) => p.pageId === pageId && p.publicationId !== held.publicationId && fixedHere(p.publicationId),
       );
       for (const r of rivals) {
         reasons.push(`גם ${r.customerName} ביקש את עמוד ${page.number}, והוא כבר משובץ כאן.`);
@@ -563,6 +579,56 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
       if (result.ok && result.message) say(result.message);
     });
 
+  /**
+   * Where this ad would best go (03/11/2026: "המערכת תדע איפה אפשר לשבץ ותנסה
+   * לשייך לשם"): the pages it asked for first, then the rest in order — only
+   * pages of the type it was sold for and that take its shape — and on each
+   * the first place it fits. A suggestion, not a decision: "לשבץ כאן" still
+   * goes through every rule a drop does.
+   */
+  const suggestFor = (publicationId: string, shape: ShapeSpec) => {
+    const asked = model.positions[publicationId]?.pages ?? [];
+    const sold = model.soldPageTypes[publicationId];
+    const rank = (n: number) => {
+      const i = asked.indexOf(n);
+      return i < 0 ? asked.length : i;
+    };
+    const ordered = model.pages
+      .filter(
+        (p) =>
+          p.allowedShapes.some((s) => s.id === shape.id) && (!sold || p.pageTypeId === sold.id),
+      )
+      .sort((a, b) => rank(a.number) - rank(b.number) || a.number - b.number);
+    for (const page of ordered) {
+      const occupied = [
+        ...(placementsByPage.get(page.id) ?? []),
+        ...page.reserved.map((area) => area.rect),
+      ];
+      const rect = firstFit(
+        shape,
+        {
+          pageId: page.id,
+          pageNumber: page.number,
+          allowedShapes: page.allowedShapes,
+          occupied,
+        },
+        model.grid,
+        occupied,
+      );
+      if (rect) {
+        return {
+          pageId: page.id,
+          pageNumber: page.number,
+          rect,
+          asAsked: asked.length === 0 || asked.includes(page.number),
+        };
+      }
+    }
+    return null;
+  };
+  const suggestion =
+    held?.kind === "publication" ? suggestFor(held.publicationId, held.shape) : null;
+
   const jumpToPage = (pageId: string) => {
     const index = viewIndexOfPage(views, pageId);
     if (index >= 0) setViewIndex(index);
@@ -616,9 +682,15 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
           </Ltr>{" "}
           · <Ltr>{totalPages}</Ltr> עמודים
         </span>
-        <Badge tone={ISSUE_TONE[model.status]} data-testid="board-status">
-          {ISSUE_STATUS_LABELS[model.status]}
-        </Badge>
+        {/* "טיוטה" and "בעבודה" are both "open for placing" — the pill beside
+            this says that — and the issue moves from one to the other by itself
+            on its first placement. Only the states that change what can be
+            done are named here (the user, 03/11/2026). */}
+        {model.status === "ready_for_print" || model.status === "closed" ? (
+          <Badge tone={ISSUE_TONE[model.status]} data-testid="board-status">
+            {ISSUE_STATUS_LABELS[model.status]}
+          </Badge>
+        ) : null}
         {model.mayWrite ? (
           <>
             {/* Whether placing is allowed RIGHT NOW, said outright — the status
@@ -646,7 +718,9 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                 seven checks and write the press file, so they live on the check
                 screen behind its findings — never as a one-click status. */}
             {availableTransitions(model.status, model.isAdmin)
-              .filter((to) => to !== "closed" && model.status !== "closed")
+              .filter((to) => to !== "closed" && to !== "draft" && model.status !== "closed")
+              // draft → in_layout happens on the first placement.
+              .filter((to) => !(model.status === "draft" && to === "in_layout"))
               .map((to) => (
                 <Button
                   key={to}
@@ -665,7 +739,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                     })
                   }
                 >
-                  {ISSUE_STATUS_LABELS[to]}
+                  {to === "in_layout" ? "החזרה לשיבוץ" : ISSUE_STATUS_LABELS[to]}
                 </Button>
               ))}
             <Button asChild size="sm" data-testid="go-to-check">
@@ -674,6 +748,30 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                 {model.status === "closed" ? "בדיקה ו־PDF" : "בדיקה וסגירה"}
               </Link>
             </Button>
+            {editable && autoReady > 0 ? (
+              <Button
+                size="sm"
+                variant="gold"
+                disabled={pending}
+                data-testid="auto-place-header"
+                title={[
+                  `ישובצו ${autoReady} מודעות שמוכנות לשיבוץ, במקום הראשון שמתאים לבקשה שלהן.`,
+                  waitingForFile > 0 ? `${waitingForFile} עדיין בלי קובץ — יחכו.` : "",
+                  manualOnly > 0 ? `${manualOnly} של לקוחות שמשובצים ביד — יחכו.` : "",
+                  "אפשר ללחוץ שוב בכל פעם שמגיעים קבצים חדשים.",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                onClick={() => run(() => autoPlaceIssueAction(model.issueId, layoutSeed))}
+              >
+                <Wand2 className="size-4" aria-hidden />
+                שיבוץ אוטומטי
+                <span className="rounded-full bg-surface-container-lowest px-1.5 text-xs text-on-surface">
+                  <Ltr>{autoReady}</Ltr>
+                </span>
+              </Button>
+            ) : null}
+            <DesignerPackage issueId={model.issueId} sharePath={model.packagePath} />
           </>
         ) : null}
 
@@ -776,13 +874,18 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
             onPressStart={() => {
               pressed.current = true;
             }}
-            onPick={(item) =>
-              setHeld((prev) =>
-                prev?.kind === "publication" && prev.publicationId === item.publicationId
+            onPick={(item) => {
+              const dropping =
+                held?.kind === "publication" && held.publicationId === item.publicationId;
+              setHeld(
+                dropping
                   ? null
                   : { kind: "publication", publicationId: item.publicationId, shape: item.shape },
-              )
-            }
+              );
+              // No jump: the board stays on the page being looked at. The
+              // suggestion is marked there when it is there, and the bar
+              // below offers "לשבץ כאן" / "הצגה" for anywhere else.
+            }}
           />
         </div>
 
@@ -1055,6 +1158,9 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                           : null
                       }
                       candidate={candidate?.pageId === page.id ? candidate : null}
+                      suggested={
+                        !candidate && suggestion?.pageId === page.id ? suggestion.rect : null
+                      }
                       verdict={candidate?.pageId === page.id ? verdict : null}
                       selectedPlacementId={selectedPlacement?.id ?? null}
                       onCellEnter={(pageId, cell) => held && setHover({ pageId, cell })}
@@ -1117,9 +1223,55 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
             data-testid="board-bottom-nav"
             className="flex h-11 shrink-0 items-center justify-center gap-2 pt-2"
           >
+            {held?.kind === "publication" && editable ? (
+              <span
+                data-testid="suggestion-bar"
+                className="me-auto flex min-w-0 items-center gap-2 rounded-full bg-status-accent-bg px-3 py-1 text-xs"
+              >
+                {suggestion ? (
+                  <>
+                    <span className="truncate">
+                      מקום מוצע: {pageLabel(suggestion.pageNumber, totalPages)}
+                      {suggestion.asAsked ? "" : " (העמוד שביקשו מלא)"}
+                    </span>
+                    <Button
+                      size="sm"
+                      className="h-7"
+                      disabled={pending}
+                      data-testid="suggest-place"
+                      onClick={() =>
+                        commit(suggestion.pageId, [suggestion.rect.col, suggestion.rect.row])
+                      }
+                    >
+                      לשבץ כאן
+                    </Button>
+                    <button
+                      type="button"
+                      className="shrink-0 underline"
+                      onClick={() => jumpToPage(suggestion.pageId)}
+                    >
+                      הצגה
+                    </button>
+                  </>
+                ) : (
+                  <span className="truncate" data-testid="suggest-none">
+                    {(() => {
+                      const sold = model.soldPageTypes[held.publicationId];
+                      const hasType = !sold || model.pages.some((p) => p.pageTypeId === sold.id);
+                      return hasType
+                        ? "אין מקום פנוי לגודל הזה בעמודים המתאימים — אפשר להוסיף עמוד"
+                        : `בגיליון אין עמוד מסוג "${sold!.name}" שהמודעה נמכרה אליו — אפשר להוסיף עמוד כזה`;
+                    })()}
+                  </span>
+                )}
+              </span>
+            ) : null}
             <span
               data-testid="tone-legend"
-              className="me-auto hidden items-center gap-3 text-[11px] text-on-surface-variant xl:flex"
+              className={cn(
+                "me-auto hidden items-center gap-3 text-[11px] text-on-surface-variant xl:flex",
+                held?.kind === "publication" && "xl:hidden",
+              )}
             >
               {(["ready", "attention", "problem"] as const).map((t) => (
                 <span key={t} className="flex items-center gap-1">
@@ -1244,9 +1396,9 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
             </Button>
           </div>
 
-          {editable && (unplacedCount > 0 || model.placements.length > 0) ? (
+          {editable && (autoReady > 0 || model.placements.length > 0) ? (
             <div className="flex shrink-0 flex-col gap-1.5">
-              {unplacedCount > 0 ? (
+              {autoReady > 0 ? (
                 <>
                   <Button
                     size="sm"
@@ -1261,7 +1413,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                     <Wand2 className="size-4" />
                     <span>שיבוץ אוטומטי</span>
                     <span className="rounded-full bg-surface-container-lowest px-1.5 text-xs">
-                      <Ltr>{unplacedCount}</Ltr>
+                      <Ltr>{autoReady}</Ltr>
                     </span>
                   </Button>
                   <span
@@ -1269,6 +1421,8 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                     data-testid="auto-place-scope"
                   >
                     בעמודי {model.autoPlaceTypeNames.join(", ") || "—"}. עמודים יתווספו לפי הצורך.
+                    {waitingForFile > 0 ? ` ${waitingForFile} עדיין בלי קובץ ויחכו.` : ""}
+                    {manualOnly > 0 ? ` ${manualOnly} לשיבוץ ידני בלבד.` : ""}
                     {model.mayConfigure ? (
                       <>
                         {" "}

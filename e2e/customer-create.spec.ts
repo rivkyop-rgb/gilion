@@ -103,15 +103,39 @@ test.describe("creating a customer (US-002)", () => {
     await page.locator('[name="contact_name"]').first().fill("הנהלת חשבונות משותפת");
     await page.locator('[name="contact_phone"]').first().fill(phone);
     await page.fill("#email", `dup${Date.now()}@example.com`);
-    await page.getByRole("button", { name: "שמירה" }).click();
 
+    // Said while typing, before any save (03/11/2026).
     const box = page.getByTestId("customer-duplicates");
     await expect(box).toContainText("רשום אצל");
+
+    await page.getByRole("button", { name: "שמירה" }).click();
+    const dialog = page.getByTestId("duplicates-dialog");
+    await expect(dialog).toContainText("רשום אצל");
     // Nothing saved yet, and nothing lost.
     await expect(page).toHaveURL(/\/customers\/new$/);
     await expect(page.locator("#businessName")).toHaveValue(second);
 
-    await page.getByTestId("confirm-duplicates").click();
+    await page.getByTestId("duplicates-dialog-confirm").click();
+    await expect(page).toHaveURL(/\/customers\/(?!new)[a-z0-9]+$/);
+  });
+
+  test("a ח.פ another customer has is asked about, and saved in one click", async ({ page }) => {
+    // Two branches of one company share a ח.פ — allowed knowingly (03/11/2026).
+    const taxId = `5${String(Date.now()).slice(-8)}`;
+    await page.fill("#businessName", `סניף א ${Date.now()}`);
+    await page.fill("#phone", `05${String(Date.now()).slice(-8)}`);
+    await page.fill("#taxId", taxId);
+    await saveCustomer(page);
+    await expect(page).toHaveURL(/\/customers\/(?!new)[a-z0-9]+$/);
+
+    await page.goto("/customers/new");
+    await page.fill("#businessName", `סניף ב ${Date.now()}`);
+    await page.fill("#email", `branch${Date.now()}@example.com`);
+    await page.fill("#taxId", taxId);
+    await expect(page.getByTestId("customer-duplicates")).toContainText("ח.פ / ע.מ");
+
+    await page.getByRole("button", { name: "שמירה" }).click();
+    await page.getByTestId("duplicates-dialog-confirm").click();
     await expect(page).toHaveURL(/\/customers\/(?!new)[a-z0-9]+$/);
   });
 });

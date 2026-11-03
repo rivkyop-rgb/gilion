@@ -1,6 +1,10 @@
+import { missedCount } from "@/lib/data/missed-publications";
+import { misfitPublications } from "@/lib/data/misfit-publications";
 import type { Metadata } from "next";
 import { AutoOpenedNotice } from "@/components/issues/auto-opened-notice";
 import Link from "next/link";
+import { AlertTriangle } from "lucide-react";
+import { agrees, counted } from "@/lib/domain/hebrew-count";
 import { Plus } from "lucide-react";
 
 import { canReadArea, canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
@@ -106,6 +110,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   requireArea(ctx, "dashboard");
   // The week's issues open by themselves (12/10/2026) — before they are counted.
   const autoOpened = await ensureUpcomingIssues(ctx.businessId, ctx.userId);
+  // Dates that passed without the ad running (03/11/2026) — a decision is owed.
+  const missed = canReadArea(ctx, "publications") ? await missedCount(ctx.businessId) : 0;
+  // Files that will print shrunk or cropped (03/11/2026).
+  const misfit = canReadArea(ctx, "publications")
+    ? (await misfitPublications(ctx.businessId)).length
+    : 0;
 
   const week = dashboardWeek();
   const weekFrom = isoDay(week.from);
@@ -279,6 +289,28 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         ) : null}
       </div>
       <AutoOpenedNotice opened={autoOpened} />
+      {missed > 0 ? (
+        <Link
+          href="/publications/missed"
+          data-testid="dashboard-missed"
+          className="mb-3 flex items-center gap-2 rounded-lg border border-status-warning-fg/30 bg-status-warning-bg px-4 py-2 text-sm text-status-warning-fg hover:underline"
+        >
+          <AlertTriangle className="size-4 shrink-0" aria-hidden />
+          {counted(missed, "פרסום אחד", "פרסומים")} {agrees(missed, "עבר", "עברו")} את תאריך העיתון
+          ולא {agrees(missed, "פורסם", "פורסמו")} — להעביר לתאריך אחר או לזכות את הלקוח
+        </Link>
+      ) : null}
+      {misfit > 0 ? (
+        <Link
+          href="/publications/misfit"
+          data-testid="dashboard-misfit"
+          className="mb-3 flex items-center gap-2 rounded-lg border border-status-warning-fg/30 bg-status-warning-bg px-4 py-2 text-sm text-status-warning-fg hover:underline"
+        >
+          <AlertTriangle className="size-4 shrink-0" aria-hidden />
+          {counted(misfit, "קובץ אחד לא מתאים", "קבצים לא מתאימים")} לגודל שנמכר — יודפסו מוקטנים
+          או חתוכים. לרשימה
+        </Link>
+      ) : null}
       <p className="mb-3 text-sm text-on-surface-variant" data-testid="dashboard-period-sentence">
         נכנסת כ־{ROLE_LABELS[ctx.role]}. מוצגים נתוני{" "}
         <strong className="text-on-surface">

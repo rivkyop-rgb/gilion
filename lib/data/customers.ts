@@ -106,6 +106,8 @@ export async function createCustomer(
     phone: string | null;
     email: string | null;
     notes: string | null;
+    preferred_page?: number | null;
+    no_auto_place?: boolean;
   },
   contacts: StoredContact[] = [],
 ) {
@@ -136,6 +138,7 @@ export async function updateCustomer(
     email?: string | null;
     notes?: string | null;
     preferred_page?: number | null;
+    no_auto_place?: boolean;
   },
   /** Given → the list is REPLACED by this one; omitted → contacts untouched. */
   contacts?: StoredContact[],
@@ -305,7 +308,7 @@ export type DuplicateHit = {
   customerName: string;
   /** What matched, as stored. */
   value: string;
-  kind: "phone" | "email";
+  kind: "phone" | "email" | "taxId";
   /** Whose detail it is at the other customer: the business, or a contact's name. */
   owner: string | null;
 };
@@ -317,17 +320,19 @@ export type DuplicateHit = {
  */
 export async function findContactDuplicates(
   businessId: string,
-  values: { phones: string[]; emails: string[] },
+  values: { phones: string[]; emails: string[]; taxId?: string | null },
   exceptId?: string,
 ): Promise<DuplicateHit[]> {
   const phones = [...new Set(values.phones.filter(Boolean))];
   const emails = [...new Set(values.emails.filter(Boolean))];
-  if (phones.length === 0 && emails.length === 0) return [];
+  const taxId = values.taxId?.trim() || null;
+  if (phones.length === 0 && emails.length === 0 && !taxId) return [];
 
   const found = await tenantDb(businessId).customer.findMany({
     where: {
       ...(exceptId ? { NOT: { id: exceptId } } : {}),
       OR: [
+        ...(taxId ? [{ tax_id: taxId }] : []),
         ...(phones.length ? [{ phone: { in: phones } }] : []),
         ...(emails.length ? [{ email: { in: emails, mode: "insensitive" as const } }] : []),
         {
@@ -346,6 +351,7 @@ export async function findContactDuplicates(
     select: {
       id: true,
       business_name: true,
+      tax_id: true,
       phone: true,
       email: true,
       contacts: { select: { name: true, phone: true, email: true } },
@@ -355,6 +361,9 @@ export async function findContactDuplicates(
   const lower = new Set(emails.map((e) => e.toLowerCase()));
   const hits: DuplicateHit[] = [];
   for (const c of found) {
+    if (taxId && c.tax_id === taxId) {
+      hits.push({ customerId: c.id, customerName: c.business_name, value: taxId, kind: "taxId", owner: null });
+    }
     const add = (value: string | null, kind: "phone" | "email", owner: string | null) => {
       if (!value) return;
       const match = kind === "phone" ? phones.includes(value) : lower.has(value.toLowerCase());

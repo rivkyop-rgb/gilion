@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { listAdShapes, readAllowedCells } from "@/lib/data/ad-shapes";
-import { newspaperGrid } from "@/lib/data/newspapers";
+import { newspaperGrid, priceMapOf } from "@/lib/data/newspapers";
 import { NewspaperTabs } from "../tabs";
 import { ShapeCatalog } from "./shape-catalog";
 
@@ -20,7 +20,15 @@ export default async function ShapesPage({ params }: { params: Promise<{ id: str
   if (!resolved) notFound();
   const { paper, grid } = resolved;
 
-  const shapes = await listAdShapes(ctx.businessId, paper.id);
+  const [shapes, prices] = await Promise.all([
+    listAdShapes(ctx.businessId, paper.id),
+    priceMapOf(ctx.businessId, paper.id),
+  ]);
+  const priced = new Set(
+    Object.entries(prices)
+      .filter(([, price]) => price > 0)
+      .map(([key]) => key.split("|")[1]),
+  );
 
   return (
     <>
@@ -35,6 +43,7 @@ export default async function ShapesPage({ params }: { params: Promise<{ id: str
       <ShapeCatalog
         newspaperId={paper.id}
         readOnly={!canWriteArea(ctx, "settings")}
+        unpricedIds={shapes.filter((s) => !priced.has(s.id)).map((s) => s.id)}
         grid={{
           columns: grid.columns,
           rows: grid.rows,

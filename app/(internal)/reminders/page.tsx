@@ -104,10 +104,8 @@ export default async function RemindersPage({
       </p>
 
       {/*
-        FR-11 in one sentence, permanently on screen. "אישור שליחה" is a button
-        that sounds like it sends something; saying plainly that it does not is
-        cheaper than the phone call from a customer who was never actually
-        contacted.
+        How sending works, in one sentence, permanently on screen: the message
+        opens ready, and the click records it (03/11/2026).
       */}
       <p
         data-testid="reminders-banner"
@@ -115,9 +113,8 @@ export default async function RemindersPage({
       >
         <Info className="mt-0.5 size-4 shrink-0" />
         <span>
-          המערכת <strong>אינה שולחת תזכורות בעצמה</strong>. הרשימה כאן היא מי צריך שיפנו אליו;
-          &quot;אישור שליחה&quot; מסמן שהתזכורת מוכנה לטיפול, ו&quot;סימון כנשלחה&quot; נרשם אחרי
-          שדיברת עם הלקוח.
+          לחיצה על סמל הוואטסאפ או המייל פותחת את ההודעה <strong>מוכנה לשליחה</strong>, והתזכורת
+          מסומנת כנשלחה. מי שטופל בטלפון — מסמנים ולוחצים &quot;סימון כנשלחה&quot;.
         </span>
       </p>
 

@@ -1,6 +1,14 @@
+import { layoutPackagePath } from "@/lib/layout-package-token";
+import {
+  describePosition,
+  effectivePosition,
+  positionOf,
+  NO_POSITION,
+  rankedPages,
+} from "@/lib/domain/position-request";
 import type { Metadata } from "next";
 import { placementTone } from "@/lib/domain/placement-tone";
-import { priceMapOf } from "@/lib/data/newspapers";
+import { priceMapOf, shapeOptionsByPageType } from "@/lib/data/newspapers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -77,13 +85,14 @@ export default async function BoardPage({
     );
   }
 
-  const [publications, pageTypes, customers, prices] = await Promise.all([
+  const [publications, pageTypes, customers, prices, shapeOptions] = await Promise.all([
     publicationsForIssue(ctx.businessId, issue.newspaper_id, issue.issue_date),
     pageTypesOf(ctx.businessId, issue.newspaper_id),
     // Loaded here rather than fetched when the dialog opens: a person who has
     // just decided to sell a page should not then wait for a list.
     boardCustomerOptions(ctx.businessId),
     priceMapOf(ctx.businessId, issue.newspaper_id),
+    shapeOptionsByPageType(ctx.businessId, issue.newspaper_id),
   ]);
 
   const placedPublicationIds = new Set(issue.placements.map((p) => p.publication_id));
@@ -152,12 +161,27 @@ export default async function BoardPage({
         fileUrl: placement.advertisement.file_url,
       },
     })),
-    // The page NUMBER asked for — the line's own, else the customer's fixed
-    // page (the user, 31/10/2026). Placing elsewhere asks first.
-    requestedPages: Object.fromEntries(
+    // Where each publication asked to be — the line's own request, else the
+    // customer's fixed page (31/10 and 03/11/2026). Placing elsewhere asks
+    // first; the pages are resolved against THIS issue's length.
+    packagePath: layoutPackagePath(issue.id),
+    positions: Object.fromEntries(
       publications.flatMap((pub) => {
-        const page = pub.order_item?.requested_page ?? pub.customer.preferred_page;
-        return page ? [[pub.id, page] as const] : [];
+        const req = effectivePosition(
+          pub.order_item ? positionOf(pub.order_item) : null,
+          pub.customer.preferred_page,
+        );
+        if (!req.kind && !req.note) return [];
+        return [
+          [
+            pub.id,
+            {
+              pages: rankedPages(req, issue.pages.length),
+              label: describePosition(req),
+              note: req.note,
+            },
+          ] as const,
+        ];
       }),
     ),
     soldPageTypes: Object.fromEntries(
@@ -183,7 +207,25 @@ export default async function BoardPage({
       // The one blocked reason with a fix the designer can apply right here.
       needsArtwork: pub.advertisement === null,
       soldTypeName: pub.order_item?.page_type.name ?? null,
+      positionLabel: (() => {
+        const req = effectivePosition(
+          pub.order_item ? positionOf(pub.order_item) : null,
+          pub.customer.preferred_page,
+        );
+        return [describePosition(req), req.note].filter(Boolean).join(" · ") || null;
+      })(),
       fitWarning: fitWarningOf(pub, grid),
+      manualOnly: pub.customer.no_auto_place,
+      details: {
+        orderId: pub.order.id,
+        orderNumber: pub.order.number,
+        orderItemId: pub.order_item?.id ?? null,
+        price: Number(pub.price),
+        position: pub.order_item ? positionOf(pub.order_item) : NO_POSITION,
+        hasAd: pub.advertisement !== null,
+        placed: placedPublicationIds.has(pub.id),
+        shapeOptions: pub.order_item ? (shapeOptions[pub.order_item.page_type.id] ?? []) : [],
+      },
     })),
   };
 

@@ -103,7 +103,7 @@ test.describe("tenant isolation (FR-1)", () => {
 const CROSS_TENANT = [
   { what: "הזמנה", url: `/orders/${ISSUE_FIXTURES.order}`, open: "order-ref" },
   { what: "מודעה", url: `/advertisements/${ISSUE_FIXTURES.adOk}`, open: "ad-publications" },
-  { what: "לוח שיבוץ", url: `/issues/${ISSUE_FIXTURES.issue}/board`, open: "board-status" },
+  { what: "לוח שיבוץ", url: `/issues/${ISSUE_FIXTURES.issue}/board`, open: "board-header" },
   { what: "בדיקת גיליון", url: `/issues/${ISSUE_FIXTURES.issue}/validate`, open: "kpi-planned" },
 ] as const;
 

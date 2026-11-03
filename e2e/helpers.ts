@@ -263,7 +263,11 @@ export async function passOrderWarnings(page: Page) {
  */
 export async function saveCustomer(page: Page) {
   await page.getByRole("button", { name: "שמירה" }).click();
-  const confirm = page.getByTestId("confirm-duplicates");
+  // Known while typing → a popup with one button (03/11/2026); found only by
+  // the server → the box under the form. Either is "yes, save anyway".
+  const confirm = page
+    .getByTestId("duplicates-dialog-confirm")
+    .or(page.getByTestId("confirm-duplicates"));
   const left = page
     .waitForURL((u) => !/\/customers\/(new|[^/]+\/edit)$/.test(u.pathname), { timeout: 20_000 })
     .then(() => "left" as const)

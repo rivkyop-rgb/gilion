@@ -817,3 +817,55 @@ export async function priceMapOf(businessId: string, newspaperId: string) {
     rules.map((r) => [`${r.page_type_id}|${r.ad_shape_id}`, Number(r.price)]),
   );
 }
+
+/**
+ * Whether an object key is the image of a reserved area of this business — a
+ * newspaper's own (PageReservation) or an issue's copy of it. The file route
+ * asks this before serving it: until 03/11/2026 it knew only ads and brand
+ * assets, so every reserved-area logo on screen was a broken image.
+ */
+export async function reservationKeyOwned(businessId: string, key: string): Promise<boolean> {
+  const [template, copy] = await Promise.all([
+    basePrisma.pageReservation.findFirst({
+      where: { asset_key: key, page_type: { newspaper: { business_id: businessId } } },
+      select: { id: true },
+    }),
+    basePrisma.issuePageReservation.findFirst({
+      where: { asset_key: key, issue_page: { issue: { business_id: businessId } } },
+      select: { id: true },
+    }),
+  ]);
+  return Boolean(template || copy);
+}
+
+/**
+ * Every page type's allowed shapes, with the list price of each — what the
+ * board offers when a publication's size is changed (03/11/2026).
+ */
+export async function shapeOptionsByPageType(businessId: string, newspaperId: string) {
+  const db = tenantDb(businessId);
+  const [types, rules] = await Promise.all([
+    db.pageType.findMany({
+      where: { newspaper_id: newspaperId },
+      select: {
+        id: true,
+        allowed_shapes: { select: { ad_shape: { select: { id: true, name: true } } } },
+      },
+    }),
+    db.priceRule.findMany({
+      where: { newspaper_id: newspaperId },
+      select: { page_type_id: true, ad_shape_id: true, price: true },
+    }),
+  ]);
+  const price = new Map(rules.map((r) => [`${r.page_type_id}|${r.ad_shape_id}`, Number(r.price)]));
+  return Object.fromEntries(
+    types.map((t) => [
+      t.id,
+      t.allowed_shapes.map(({ ad_shape }) => ({
+        id: ad_shape.id,
+        name: ad_shape.name,
+        price: price.get(`${t.id}|${ad_shape.id}`) ?? null,
+      })),
+    ]),
+  ) as Record<string, Array<{ id: string; name: string; price: number | null }>>;
+}

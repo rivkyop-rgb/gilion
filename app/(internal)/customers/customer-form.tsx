@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useFormActionState } from "@/components/use-form-action-state";
 import Link from "next/link";
 import { AlertTriangle, Plus, Trash2 } from "lucide-react";
@@ -9,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InlineError } from "@/components/states";
 import { CONTACTS_MAX, NOTES_MAX } from "@/lib/domain/customer";
-import type { FormState } from "./actions";
+import { checkCustomerDuplicatesAction, type FormState } from "./actions";
 
 export type CustomerFormValues = {
   businessName: string;
@@ -18,6 +19,7 @@ export type CustomerFormValues = {
   email: string;
   notes: string;
   preferredPage?: string;
+  noAutoPlace?: boolean;
   contacts: ContactRow[];
 };
 
@@ -55,11 +57,14 @@ export function CustomerForm({
   initial = EMPTY,
   submitLabel = "שמירה",
   cancelHref,
+  customerId,
 }: {
   action: (prev: FormState, formData: FormData) => Promise<FormState>;
   initial?: CustomerFormValues;
   submitLabel?: string;
   cancelHref: string;
+  /** When editing — so the live check does not find the customer itself. */
+  customerId?: string;
 }) {
   const [state, formAction, pending, keepTypedOnError] = useFormActionState<FormState, FormData>(
     action,
@@ -68,8 +73,68 @@ export function CustomerForm({
 
   const err = (field: string) => state.errors?.[field];
 
+  // Duplicates found WHILE TYPING (the user, 03/11/2026: "מייד בהקלדה").
+  // Asked of the server half a second after the last keystroke; a stale
+  // answer is dropped by the sequence number.
+  const formRef = useRef<HTMLFormElement>(null);
+  const [live, setLive] = useState<Array<{ customerId: string; text: string }>>([]);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const confirmedRef = useRef(false);
+  const seq = useRef(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const check = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(async () => {
+      const form = formRef.current;
+      if (!form) return;
+      const fd = new FormData(form);
+      const strings = (name: string) =>
+        fd.getAll(name).map(String).filter((v) => v.trim() !== "");
+      const mine = ++seq.current;
+      const hits = await checkCustomerDuplicatesAction({
+        taxId: String(fd.get("taxId") ?? ""),
+        phones: [...strings("phone"), ...strings("contact_phone")],
+        emails: [...strings("email"), ...strings("contact_email")],
+        exceptId: customerId,
+      }).catch(() => []);
+      if (mine === seq.current) setLive(hits);
+    }, 500);
+  };
+  useEffect(() => () => (timer.current ? clearTimeout(timer.current) : undefined), []);
+  const shown = state.duplicates?.length ? state.duplicates : live;
+
   return (
-    <form action={formAction} onReset={keepTypedOnError} className="space-y-5">
+    <form
+      ref={formRef}
+      action={formAction}
+      onReset={keepTypedOnError}
+      onChange={check}
+      onSubmit={(e) => {
+        // A known duplicate is asked about BEFORE the round trip, in a popup
+        // with one button that saves (the user, 03/11/2026).
+        const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+        if (live.length > 0 && submitter?.name !== "confirmDuplicates" && !confirmedRef.current) {
+          e.preventDefault();
+          setConfirmOpen(true);
+        }
+        confirmedRef.current = false;
+      }}
+      className="space-y-5"
+    >
+      <DuplicateConfirm
+        open={confirmOpen}
+        items={live}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          confirmedRef.current = true;
+          const button = formRef.current?.querySelector<HTMLButtonElement>(
+            '[data-testid="confirm-duplicates"]',
+          );
+          if (button) button.click();
+          else formRef.current?.requestSubmit();
+        }}
+      />
       <div className="grid gap-4 sm:grid-cols-[1fr_12rem]">
         <div>
           <Label htmlFor="businessName">שם העסק</Label>
@@ -136,6 +201,22 @@ export function CustomerForm({
         {err("preferredPage") ? <InlineError>{err("preferredPage")}</InlineError> : null}
       </div>
 
+      <label className="flex items-start gap-2 text-sm" data-testid="customer-no-auto-place">
+        <input
+          type="checkbox"
+          name="noAutoPlace"
+          value="1"
+          defaultChecked={Boolean(initial.noAutoPlace)}
+          className="mt-1"
+        />
+        <span>
+          <span className="font-medium">לא לשיבוץ אוטומטי</span>
+          <span className="block text-xs text-on-surface-variant">
+            המודעות של הלקוח הזה ישובצו רק ביד. השיבוץ האוטומטי ידלג עליהן וישאיר אותן ברשימה.
+          </span>
+        </span>
+      </label>
+
       <div>
         <Label htmlFor="notes">הערות</Label>
         <textarea
@@ -149,7 +230,7 @@ export function CustomerForm({
         />
         {err("notes") ? <InlineError>{err("notes")}</InlineError> : null}
       </div>
-      {state.duplicates?.length ? (
+      {shown.length ? (
         <div
           role="alert"
           data-testid="customer-duplicates"
@@ -160,7 +241,7 @@ export function CustomerForm({
             חלק מהפרטים כבר קיימים אצל לקוח אחר
           </p>
           <ul className="mb-3 list-inside list-disc space-y-1">
-            {state.duplicates.map((d) => (
+            {shown.map((d) => (
               <li key={d.text}>
                 {d.text} ·{" "}
                 <Link href={`/customers/${d.customerId}`} target="_blank" className="underline">
@@ -330,5 +411,50 @@ function ContactsEditor({ initial, error }: { initial: ContactRow[]; error?: str
       ) : null}
       {error ? <InlineError>{error}</InlineError> : null}
     </fieldset>
+  );
+}
+
+/** "Save anyway?" — one click to confirm, listing exactly what repeats. */
+function DuplicateConfirm({
+  open,
+  items,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  items: Array<{ customerId: string; text: string }>;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <DialogPrimitive.Root open={open} onOpenChange={(o) => (o ? null : onCancel())}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-primary/40" />
+        <DialogPrimitive.Content
+          data-testid="duplicates-dialog"
+          className="fixed inset-x-0 top-1/2 z-50 mx-auto w-[min(30rem,calc(100vw-2rem))] -translate-y-1/2 rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-2"
+        >
+          <DialogPrimitive.Title className="mb-2 flex items-center gap-2 font-serif text-lg font-semibold">
+            <AlertTriangle className="size-5 text-status-warning-fg" aria-hidden />
+            הפרטים האלה כבר קיימים אצל לקוח אחר
+          </DialogPrimitive.Title>
+          <DialogPrimitive.Description asChild>
+            <ul className="mb-4 list-inside list-disc space-y-1 text-sm text-on-surface-variant">
+              {items.map((d) => (
+                <li key={d.text}>{d.text}</li>
+              ))}
+            </ul>
+          </DialogPrimitive.Description>
+          <div className="flex gap-3 border-t border-outline-variant pt-4">
+            <Button type="button" onClick={onConfirm} data-testid="duplicates-dialog-confirm">
+              כן, יש יותר מלקוח אחד עם הפרטים האלה — לשמור
+            </Button>
+            <Button type="button" variant="ghost" onClick={onCancel}>
+              חזרה לטופס
+            </Button>
+          </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

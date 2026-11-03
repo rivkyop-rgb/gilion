@@ -19,7 +19,13 @@ import { normalizeEmail, normalizePhone } from "./customer";
 /* --------------------------------------------------------------------- texts */
 
 export type TextKey =
-  "login_title" | "login_subtitle" | "portal_intro" | "pdf_footer" | "reminder_template";
+  | "login_title"
+  | "login_subtitle"
+  | "portal_intro"
+  | "pdf_footer"
+  | "reminder_template"
+  | "misfit_template"
+  | "winback_template";
 
 export type TextField = {
   key: TextKey;
@@ -71,6 +77,29 @@ export const TEXT_FIELDS: readonly TextField[] = [
     default:
       "שלום {לקוח},\nרצינו להזכיר שהמודעה שלך אמורה לצאת בעזרת השם ב{עיתון} ביום {תאריך}.\nנשמח לקבל את קובץ המודעה בהקדם, כדי שנספיק להכין אותה לדפוס.\nאפשר לשלוח את הקובץ כאן: {קישור לפורטל}\nתודה רבה,\n{עסק}",
     where: "מסך התזכורות — נפתח בוואטסאפ ובמייל. נערך בהגדרות ← תזכורות, עם שדות שמתמלאים לבד.",
+    multiline: true,
+    maxLength: 1000,
+  },
+  {
+    key: "misfit_template",
+    label: "הודעה ללקוח שהקובץ שלו לא מתאים לגודל",
+    // 03/11/2026. {המלצה} is worked out per file: a new file at the size
+    // bought, or the size that fits the file sent and its price difference
+    // (lib/domain/customer-messages.ts).
+    default:
+      "שלום {לקוח},\nתודה על קובץ המודעה ל{עיתון} ליום {תאריך}.\nהזמנת {גודל שהוזמן} ({מידות}), אבל הקובץ ששלחת {הקובץ} — ולכן בדפוס הוא ייצא מוקטן עם שוליים ריקים, או חתוך.\nכאן אפשר לראות איך הוא ייראה בשטח שהוזמן: {קישור לקובץ}\n{המלצה}\nתודה רבה,\n{עסק}",
+    where:
+      "מסך \"קבצים שלא מתאימים לגודל\" — נפתח בוואטסאפ ובמייל. שדות: {לקוח} {עיתון} {תאריך} {גודל שהוזמן} {מידות} {הקובץ} {קישור לקובץ} {המלצה} {עסק} {טלפון העסק}",
+    multiline: true,
+    maxLength: 1000,
+  },
+  {
+    key: "winback_template",
+    label: "הודעה ללקוח שפרסם בעבר",
+    default:
+      "שלום {לקוח},\nפרסמת אצלנו ב{עיתון} ({גודל}), לאחרונה ב־{תאריך אחרון}.\nרצינו לשאול אם תרצו לפרסם שוב — נשמח לשמור לכם מקום.\n{עסק} · {טלפון העסק}",
+    where:
+      "דוחות ← לקוחות לחידוש — נפתח בוואטסאפ ובמייל. שדות: {לקוח} {עיתון} {תאריך אחרון} {גודל} {עסק} {טלפון העסק}",
     multiline: true,
     maxLength: 1000,
   },

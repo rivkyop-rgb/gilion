@@ -5,6 +5,7 @@
  * the approval transaction, which needs the transaction client that withAudit
  * hands it so the log and the publications share one commit.
  */
+import { positionColumns, type PositionRequest } from "@/lib/domain/position-request";
 import { Prisma } from "@prisma/client";
 import { basePrisma, tenantDb } from "./db";
 import { roundMoney } from "@/lib/domain/order";
@@ -28,7 +29,16 @@ export type OrderFilters = {
 const ORDER_INCLUDE = {
   customer: { select: { id: true, business_name: true, preferred_page: true } },
   /// Artwork attached to the order as a whole — see AdOrder.advertisement_id.
-  advertisement: { select: { id: true, name: true, content_width: true, content_height: true } },
+  advertisement: {
+    select: {
+      id: true,
+      name: true,
+      file_type: true,
+      preview_url: true,
+      content_width: true,
+      content_height: true,
+    },
+  },
   items: {
     orderBy: { created_at: "asc" as const },
     include: {
@@ -40,6 +50,9 @@ const ORDER_INCLUDE = {
       /// The package this line earned, so the screen can name the discount
       /// rather than merely subtract it (backlog item 12).
       ad_package: { select: { id: true, name: true } },
+      /// Whether the date already sits on a page — then its position is the
+      /// board's to change, not the order's.
+      publication: { select: { id: true, placement_status: true } },
       /// The line's own file, when the customer sent one per line (backlog 26).
       advertisement: {
         select: {
@@ -233,7 +246,33 @@ export type LineWrite = {
   off_schedule?: boolean;
   /** A page number asked for on this line; wins over the customer's own. */
   requested_page?: number | null;
+  /** The rest of the position request — lib/domain/position-request.ts. */
+  position_kind?: string | null;
+  position_flex?: number;
+  position_flex_unit?: string;
+  position_note?: string | null;
 };
+
+/**
+ * One date's position, changed on its own (03/11/2026). Refused once the
+ * publication sits on a page — from then on the board decides.
+ */
+export async function updateItemPosition(
+  businessId: string,
+  orderId: string,
+  itemId: string,
+  position: PositionRequest,
+): Promise<"ok" | "not_found" | "placed"> {
+  const db = tenantDb(businessId);
+  const item = await db.adOrderItem.findFirst({
+    where: { id: itemId, order_id: orderId },
+    select: { id: true, publication: { select: { placement_status: true } } },
+  });
+  if (!item) return "not_found";
+  if (item.publication && item.publication.placement_status !== "not_placed") return "placed";
+  await db.adOrderItem.update({ where: { id: itemId }, data: positionColumns(position) });
+  return "ok";
+}
 
 /**
  * Recomputes the total from the stored lines — never from anything a client sent.
@@ -413,6 +452,9 @@ export async function orderFormOptions(businessId: string) {
     pageTypes: p.page_types.map((pt) => ({
       id: pt.id,
       name: pt.name,
+      // The inner pages — the type the issue grows with. What most ads are
+      // sold on, so it is what a new line starts on (03/11/2026).
+      inner: pt.auto_grow || pt.name === "פנימי",
       shapes: pt.allowed_shapes.map((a) => ({
         id: a.ad_shape.id,
         name: a.ad_shape.name,

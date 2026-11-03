@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useFormActionState } from "@/components/use-form-action-state";
 import { ImageOff, Plus, Trash2 } from "lucide-react";
 
@@ -219,6 +219,12 @@ function ReservedAreaForm({
   const [rect, setRect] = useState<GridRect | null>(
     area ? { col: area.col, row: area.row, cols: area.cols, rows: area.rows } : null,
   );
+  const [name, setName] = useState(area?.name ?? "");
+  // The picked file, shown inside the area before anything is saved — the
+  // user sees the logo where and how big it will print (03/11/2026).
+  const [pickedUrl, setPickedUrl] = useState<string | null>(null);
+  useEffect(() => () => (pickedUrl ? URL.revokeObjectURL(pickedUrl) : undefined), [pickedUrl]);
+  const imageSrc = pickedUrl ?? (area?.assetKey ? fileHref(area.assetKey) : null);
 
   return (
     <form
@@ -237,7 +243,8 @@ function ReservedAreaForm({
           <span className="mb-1 block font-medium">שם האזור</span>
           <Input
             name="name"
-            defaultValue={area?.name ?? ""}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             placeholder="כותרת העיתון"
             data-testid="reserved-name"
             required
@@ -254,6 +261,10 @@ function ReservedAreaForm({
             name="asset"
             accept={RESERVATION_ACCEPT_ATTRIBUTE}
             data-testid="reserved-asset"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              setPickedUrl(file && file.type.startsWith("image/") ? URL.createObjectURL(file) : null);
+            }}
           />
           <span className="mt-1 block text-xs text-on-surface-variant">
             הלוגו נבחר פעם אחת ומופיע באזור הזה בכל גיליון.
@@ -262,7 +273,14 @@ function ReservedAreaForm({
         </label>
       </div>
 
-      <AreaPicker grid={grid} value={rect} others={others} onChange={setRect} />
+      <AreaPicker
+        grid={grid}
+        value={rect}
+        others={others}
+        onChange={setRect}
+        imageSrc={imageSrc}
+        label={name}
+      />
       {state.errors?.area ? <InlineError>{state.errors.area}</InlineError> : null}
 
       <div className="mt-3 flex gap-2">
@@ -278,7 +296,8 @@ function ReservedAreaForm({
 }
 
 /**
- * Two clicks on a picture of the page: one corner, then the other.
+ * Drag across a picture of the page — or two clicks, one corner then the
+ * other — or one of the ready-made placements above it.
  *
  * No left/right arithmetic here either — cells are emitted in reading order
  * inside a `dir="rtl"` grid, so `col = 0` lands on the RIGHT, which is what
@@ -289,22 +308,76 @@ function AreaPicker({
   value,
   others,
   onChange,
+  imageSrc,
+  label,
 }: {
   grid: DerivedGrid;
   value: GridRect | null;
   others: ReservedAreaRow[];
   onChange: (rect: GridRect) => void;
+  /** The logo, drawn inside the area at its real place and size. */
+  imageSrc: string | null;
+  label: string;
 }) {
   const [anchor, setAnchor] = useState<Cell | null>(null);
   const [hover, setHover] = useState<Cell | null>(null);
+  const [dragging, setDragging] = useState(false);
 
   const spanning = anchor && hover ? rectBetween(anchor, hover) : null;
   const shown = spanning ?? value;
 
+  const finish = (cell: Cell) => {
+    if (!anchor) return;
+    onChange(rectBetween(anchor, cell));
+    setAnchor(null);
+    setDragging(false);
+  };
+
+  // A band of about a tenth of the page — the usual height of a masthead.
+  const band = Math.max(1, Math.round(grid.rows * 0.1));
+  const quarter = Math.max(1, Math.round(grid.columns / 4));
+  const presets: Array<{ id: string; label: string; rect: GridRect }> = [
+    { id: "top", label: "רצועה עליונה", rect: { col: 0, row: 0, cols: grid.columns, rows: band } },
+    {
+      id: "bottom",
+      label: "רצועה תחתונה",
+      rect: { col: 0, row: grid.rows - band, cols: grid.columns, rows: band },
+    },
+    {
+      id: "top-right",
+      label: "פינה עליונה ימנית",
+      rect: { col: 0, row: 0, cols: quarter, rows: band },
+    },
+    {
+      id: "top-left",
+      label: "פינה עליונה שמאלית",
+      rect: { col: grid.columns - quarter, row: 0, cols: quarter, rows: band },
+    },
+  ];
+
   return (
     <div>
+      <div className="mb-2 flex flex-wrap gap-1.5" data-testid="reserved-presets">
+        {presets.map((p) => (
+          <Button
+            key={p.id}
+            type="button"
+            size="sm"
+            variant="secondary"
+            data-testid={`reserved-preset-${p.id}`}
+            onClick={() => {
+              setAnchor(null);
+              onChange(p.rect);
+            }}
+          >
+            {p.label}
+          </Button>
+        ))}
+      </div>
       <p className="mb-1 text-xs text-on-surface-variant">
-        {anchor ? "לחיצה שנייה על הפינה הנגדית" : "לחצי על פינה אחת של האזור, ואז על הנגדית"}
+        {anchor
+          ? "עכשיו לחצי על הפינה הנגדית (או שחררי את הגרירה)"
+          : "גררי על העמוד כדי לסמן את האזור — או לחצי על פינה אחת ואז על הנגדית"}
         {shown ? (
           <>
             {" · "}
@@ -321,8 +394,8 @@ function AreaPicker({
           gridTemplateColumns: `repeat(${grid.columns}, 1fr)`,
           gridTemplateRows: `repeat(${grid.rows}, 1fr)`,
         }}
-        className="relative grid w-full max-w-56 gap-px rounded-sm border border-outline bg-outline-variant p-px"
-        onPointerLeave={() => setHover(null)}
+        className="relative grid w-full max-w-72 touch-none select-none gap-px rounded-sm border border-outline bg-outline-variant/40 p-px shadow-elevation-1"
+        onPointerLeave={() => (dragging ? undefined : setHover(null))}
       >
         {Array.from({ length: grid.rows }).flatMap((_, row) =>
           Array.from({ length: grid.columns }).map((__, col) => (
@@ -331,17 +404,34 @@ function AreaPicker({
               type="button"
               aria-label={`עמודה ${col + 1} שורה ${row + 1}`}
               data-testid={`reserved-cell-${col}-${row}`}
-              onPointerEnter={() => setHover([col, row])}
-              onFocus={() => setHover([col, row])}
-              onClick={() => {
-                if (!anchor) {
-                  setAnchor([col, row]);
+              onPointerDown={(e) => {
+                // Pointer capture would pin every move to this cell; the drag
+                // reads the cell under the pointer instead.
+                (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+                if (anchor) {
+                  finish([col, row]);
                   return;
                 }
-                onChange(rectBetween(anchor, [col, row]));
-                setAnchor(null);
+                setAnchor([col, row]);
+                setHover([col, row]);
+                setDragging(true);
               }}
-              className="bg-surface-dim"
+              onPointerEnter={() => setHover([col, row])}
+              onPointerUp={() => {
+                // Released on the same cell: that was a click, wait for the
+                // second corner. Released elsewhere: the drag drew the area.
+                if (dragging && anchor && (anchor[0] !== col || anchor[1] !== row)) {
+                  finish([col, row]);
+                } else setDragging(false);
+              }}
+              onFocus={() => setHover([col, row])}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" && e.key !== " ") return;
+                e.preventDefault();
+                if (anchor) finish([col, row]);
+                else setAnchor([col, row]);
+              }}
+              className="bg-surface-container-lowest"
             />
           )),
         )}
@@ -361,10 +451,17 @@ function AreaPicker({
             data-testid="reserved-preview"
             style={styleOf(shown, grid)}
             className={cn(
-              "pointer-events-none absolute rounded-[2px] border-2",
+              "pointer-events-none absolute flex items-center justify-center overflow-hidden rounded-[2px] border-2",
               "border-primary bg-status-accent-bg/70",
             )}
-          />
+          >
+            {imageSrc ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={imageSrc} alt="" className="size-full object-contain" />
+            ) : label ? (
+              <span className="truncate px-1 text-[10px] font-medium text-on-surface">{label}</span>
+            ) : null}
+          </span>
         ) : null}
       </div>
     </div>

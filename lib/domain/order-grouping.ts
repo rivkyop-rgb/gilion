@@ -21,20 +21,20 @@ export type GroupableLine = {
   publicationDate: string;
   price: number;
   offSchedule: boolean;
-  /** A page number asked for on the line — part of WHAT was ordered. */
-  requestedPage?: number | null;
+  /** Where in the issue the line asks to be, in words — part of WHAT was ordered. */
+  positionLabel?: string | null;
 };
 
-export type LineGroup = {
+export type LineGroup<L extends GroupableLine = GroupableLine> = {
   /** Stable across renders: the same combination always yields the same key. */
   key: string;
   newspaperName: string;
   pageTypeName: string;
   shapeName: string;
-  requestedPage: number | null;
+  positionLabel: string | null;
   unitPrice: number;
   /** The individual dates behind the group, in order. */
-  lines: GroupableLine[];
+  lines: L[];
   times: number;
   subtotal: number;
   /** True when at least one date is not a print day for that newspaper. */
@@ -48,8 +48,8 @@ export type LineGroup = {
  * two different things that were agreed, and collapsing them would hide a
  * discount inside an average nobody asked for.
  */
-export function groupOrderLines(lines: GroupableLine[]): LineGroup[] {
-  const groups = new Map<string, LineGroup>();
+export function groupOrderLines<L extends GroupableLine>(lines: L[]): LineGroup<L>[] {
+  const groups = new Map<string, LineGroup<L>>();
 
   for (const line of lines) {
     const key = [
@@ -57,7 +57,7 @@ export function groupOrderLines(lines: GroupableLine[]): LineGroup[] {
       line.pageTypeName,
       line.shapeName,
       line.price,
-      line.requestedPage ?? "",
+      line.positionLabel ?? "",
     ].join("|");
     const existing = groups.get(key);
     if (existing) {
@@ -72,7 +72,7 @@ export function groupOrderLines(lines: GroupableLine[]): LineGroup[] {
       newspaperName: line.newspaperName,
       pageTypeName: line.pageTypeName,
       shapeName: line.shapeName,
-      requestedPage: line.requestedPage ?? null,
+      positionLabel: line.positionLabel ?? null,
       unitPrice: line.price,
       lines: [line],
       times: 1,

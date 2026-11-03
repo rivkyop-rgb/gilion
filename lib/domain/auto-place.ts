@@ -26,6 +26,7 @@
 import type { DerivedGrid } from "./grid";
 import { deadSpaceCreatedBy, occupancyOf, type ShapeSpec } from "./placement";
 import { positionAllowed, type GridRect } from "./slot-geometry";
+import { rankedPages, type PositionRequest } from "./position-request";
 
 /** One publication waiting for a home. */
 export type AutoPlaceItem = {
@@ -44,6 +45,11 @@ export type AutoPlaceItem = {
    * the next page that can rather than staying out of the issue.
    */
   requestedPage?: number | null;
+  /**
+   * The full request — a place or a page with its flexibility (03/11/2026).
+   * When present it replaces `requestedPage`.
+   */
+  position?: PositionRequest | null;
 };
 
 /** A page the packer may use, in the order it appears in the issue. */
@@ -165,6 +171,20 @@ export function autoPlace(
   seed = 1,
 ): AutoPlaceResult {
   const next = rng(seed);
+  const totalPages = Math.max(0, ...pages.map((p) => p.pageNumber));
+  const wanted = new Map<AutoPlaceItem, number[]>(
+    items.map((item) => [
+      item,
+      item.position?.kind
+        ? rankedPages(item.position, totalPages)
+        : item.requestedPage
+          ? [item.requestedPage]
+          : [],
+    ]),
+  );
+  // Fewer acceptable pages = asks first: "דווקא עמוד 2" claims page 2 before
+  // "2 או 3" gets there, and the flexible one moves (the user, 03/11/2026).
+  const strictness = (item: AutoPlaceItem) => wanted.get(item)!.length || Infinity;
 
   // Group by footprint, shuffle within each group, then walk the groups from
   // largest area to smallest.
@@ -180,10 +200,10 @@ export function autoPlace(
       return bc! * br! - ac! * ar!;
     })
     .flatMap(([, group]) => shuffled(group, next))
-    // Ads that asked for a page go first, so a page is not filled by somebody
-    // who did not ask for it before the one who did gets there. Stable, so the
-    // footprint order above still holds within each half.
-    .sort((a, b) => Number(Boolean(b.requestedPage)) - Number(Boolean(a.requestedPage)));
+    // Ads that asked for a place go first — the strictest first — so a page
+    // is not filled by somebody who did not ask for it before the one who did
+    // gets there. Stable, so the footprint order holds within each tier.
+    .sort((a, b) => strictness(a) - strictness(b));
 
   const taken = new Map<string, GridRect[]>(pages.map((p) => [p.pageId, [...p.occupied]]));
   const placements: AutoPlacement[] = [];
@@ -192,12 +212,14 @@ export function autoPlace(
   for (const item of ordered) {
     let landed = false;
 
-    const order = item.requestedPage
-      ? [
-          ...pages.filter((p) => p.pageNumber === item.requestedPage),
-          ...pages.filter((p) => p.pageNumber !== item.requestedPage),
-        ]
-      : pages;
+    const asked = wanted.get(item)!;
+    const order =
+      asked.length > 0
+        ? [
+            ...asked.flatMap((n) => pages.filter((p) => p.pageNumber === n)),
+            ...pages.filter((p) => !asked.includes(p.pageNumber)),
+          ]
+        : pages;
     for (const page of order) {
       if (!pageAccepts(page, item)) continue;
       // FR-14: the page type has to accept the shape at all.

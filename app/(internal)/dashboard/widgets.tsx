@@ -214,7 +214,7 @@ export function RemindersWidget({
         </>
       )}
       <p className="mt-3 text-xs text-on-surface-variant" data-testid="reminders-widget-banner">
-        תזכורות אינן נשלחות אוטומטית. אישור שליחה מסמן את התזכורת כמוכנה לטיפול.
+        בלחיצה על וואטסאפ או מייל ההודעה נפתחת מוכנה, והתזכורת מסומנת כנשלחה.
       </p>
       <Button asChild variant="ghost" size="sm" className="mt-2">
         <Link href="/reminders" data-testid="reminders-widget-link">

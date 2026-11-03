@@ -53,6 +53,9 @@ export default async function AdvertisementPage({ params }: { params: Promise<{ 
     ad.customer_id ? linkablePublications(ctx.businessId, ad.customer_id) : Promise.resolve([]),
   ]);
 
+  // Replaced at least once: only then do "printed" and "first upload" differ.
+  const replaced = ad.file_url !== ad.original_file_url;
+
   const note = placeabilityNote({
     id: ad.id,
     customerId: ad.customer_id,
@@ -90,20 +93,32 @@ export default async function AdvertisementPage({ params }: { params: Promise<{ 
                 data-testid="download-current"
               >
                 <Download className="size-4" />
-                הקובץ הפעיל
+                {replaced ? "הורדת הקובץ שיודפס" : "פתיחת הקובץ"}
               </a>
             </Button>
-            <Button variant="ghost" size="sm" asChild>
-              <a
-                href={fileHref(ad.original_file_url)}
-                target="_blank"
-                rel="noreferrer"
-                data-testid="download-original"
-              >
-                הקובץ המקורי
-              </a>
-            </Button>
+            {/* The first upload is kept untouched forever; it is only a
+                different file once the ad has been replaced. Two buttons to
+                the same bytes read as a riddle (the user, 03/11/2026). */}
+            {replaced ? (
+              <Button variant="ghost" size="sm" asChild>
+                <a
+                  href={fileHref(ad.original_file_url)}
+                  target="_blank"
+                  rel="noreferrer"
+                  data-testid="download-original"
+                  title="הקובץ כפי שהועלה בפעם הראשונה, לפני ההחלפות"
+                >
+                  הקובץ שהועלה בהתחלה
+                </a>
+              </Button>
+            ) : null}
           </div>
+          {replaced ? (
+            <p className="mt-2 text-xs text-on-surface-variant">
+              המודעה הוחלפה. &quot;הקובץ שיודפס&quot; הוא הגרסה האחרונה; &quot;הקובץ שהועלה
+              בהתחלה&quot; נשמר ליתר ביטחון.
+            </p>
+          ) : null}
         </section>
 
         <aside className="space-y-4">
@@ -130,7 +145,9 @@ export default async function AdvertisementPage({ params }: { params: Promise<{ 
               ) : ad.validation_status === "pending" ? (
                 <Badge tone="warning">בבדיקה…</Badge>
               ) : (
-                <Badge tone="success">עבר בדיקה</Badge>
+                <span title="המערכת בדקה אוטומטית שהקובץ נפתח, שהוא PDF / JPG / PNG ושגודלו בתוך המגבלה של העיתון. זו לא בדיקה של אדם.">
+                  <Badge tone="success">נבדק אוטומטית: תקין</Badge>
+                </span>
               )}
               {ad.status === "archived" ? <Badge tone="muted">בארכיון</Badge> : null}
             </div>

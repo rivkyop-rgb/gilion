@@ -1,7 +1,7 @@
 import { ResetFilters } from "@/components/ui/reset-filters";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { FileSpreadsheet, Plus, Search } from "lucide-react";
 
 import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { listCustomers } from "@/lib/data/customers";
@@ -90,6 +90,14 @@ export default async function CustomersPage({
               ) : null}
             </Link>
           </Button>
+          {mayEdit ? (
+            <Button asChild variant="secondary">
+              <Link href="/customers/import" data-testid="import-customers">
+                <FileSpreadsheet className="size-4" />
+                ייבוא מאקסל
+              </Link>
+            </Button>
+          ) : null}
           {mayEdit ? (
             <Button asChild>
               <Link href="/customers/new" data-testid="new-customer">

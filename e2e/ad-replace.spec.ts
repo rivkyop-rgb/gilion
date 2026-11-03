@@ -22,7 +22,10 @@ test("החלפה שומרת גרסה קודמת אחת ומאפשרת שחזור
 
   // Before any replacement there is nothing to go back to.
   await expect(page.getByTestId("previous-version")).toHaveCount(0);
-  const originalHref = await page.getByTestId("download-original").getAttribute("href");
+  // Before a replacement the printed file IS the first upload, so there is one
+  // button, not two (03/11/2026).
+  await expect(page.getByTestId("download-original")).toHaveCount(0);
+  const originalHref = await page.getByTestId("download-current").getAttribute("href");
 
   // --- first replacement -----------------------------------------------
   await page.getByTestId("open-replace").click();

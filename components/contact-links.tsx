@@ -29,11 +29,14 @@ export function PhoneLink({
   phone,
   className,
   message,
+  onSend,
 }: {
   phone: string;
   className?: string;
   /** Opens WhatsApp with this already typed. */
   message?: string;
+  /** Called as the WhatsApp chat opens — e.g. to record it as sent. */
+  onSend?: () => void;
 }) {
   return (
     <span className={cn("inline-flex items-center gap-2", className)}>
@@ -51,6 +54,7 @@ export function PhoneLink({
         rel="noopener noreferrer"
         aria-label="שליחת הודעה בוואטסאפ"
         title="וואטסאפ"
+        onClick={onSend}
         className="rounded-full p-0.5 text-status-success-fg hover:bg-surface-container"
       >
         <MessageCircle className="size-4" aria-hidden />
@@ -69,12 +73,15 @@ export function EmailLink({
   className,
   subject,
   body,
+  onSend,
 }: {
   email: string;
   className?: string;
   /** Opens a new message with these already written. */
   subject?: string;
   body?: string;
+  /** Called as the message opens — e.g. to record it as sent. */
+  onSend?: () => void;
 }) {
   const client = useMailClient();
   return (
@@ -83,6 +90,7 @@ export function EmailLink({
       {...(client === "gmail" ? { target: "_blank", rel: "noopener noreferrer" } : {})}
       className={cn("inline-flex items-center gap-1 underline-offset-2 hover:underline", className)}
       title="שליחת מייל"
+      onClick={onSend}
     >
       <Mail className="size-3.5 shrink-0 text-on-surface-variant" aria-hidden />
       <Ltr>{email}</Ltr>

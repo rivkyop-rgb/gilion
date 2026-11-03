@@ -7,6 +7,9 @@ import { z } from "zod";
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import {
   contactsToStorage,
+  normalizeEmail,
+  normalizePhone,
+  normalizeTaxId,
   deletionBlockedMessage,
   toStorage,
   validateCustomer,
@@ -30,6 +33,7 @@ const schema = z.object({
   email: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   preferredPage: z.string().optional().nullable(),
+  noAutoPlace: z.boolean().optional(),
   contacts: z
     .array(
       z.object({
@@ -78,23 +82,10 @@ function readForm(formData: FormData): CustomerInput | null {
     email: formData.get("email"),
     notes: formData.get("notes"),
     preferredPage: formData.get("preferredPage"),
+    noAutoPlace: formData.get("noAutoPlace") === "1",
     contacts: readContacts(formData),
   });
   return parsed.success ? parsed.data : null;
-}
-
-/**
- * ח.פ is unique within a business (a database index), so it is refused — and
- * the refusal names the customer who has it, so the next step is obvious.
- */
-async function uniquenessErrors(
-  businessId: string,
-  stored: { tax_id: string | null },
-  exceptId?: string,
-): Promise<Record<string, string> | null> {
-  if (!stored.tax_id) return null;
-  const owner = await data.taxIdOwner(businessId, stored.tax_id, exceptId);
-  return owner ? { taxId: `ח.פ / ע.מ הזה כבר רשום אצל "${owner.business_name}"` } : null;
 }
 
 /**
@@ -104,13 +95,14 @@ async function uniquenessErrors(
  */
 async function duplicateWarning(
   businessId: string,
-  stored: { phone: string | null; email: string | null },
+  stored: { phone: string | null; email: string | null; tax_id: string | null },
   contacts: Array<{ phone: string | null; email: string | null }>,
   exceptId?: string,
 ): Promise<FormState | null> {
   const hits = await data.findContactDuplicates(
     businessId,
     {
+      taxId: stored.tax_id,
       phones: [stored.phone, ...contacts.map((c) => c.phone)].filter((v): v is string => !!v),
       emails: [stored.email, ...contacts.map((c) => c.email)].filter((v): v is string => !!v),
     },
@@ -121,11 +113,46 @@ async function duplicateWarning(
     message: "חלק מהפרטים כבר קיימים אצל לקוח אחר",
     duplicates: hits.map((h) => ({
       customerId: h.customerId,
-      text: `${h.kind === "phone" ? "הטלפון" : "המייל"} ${h.value} רשום אצל "${h.customerName}"${
+      text: `${DUPLICATE_KIND[h.kind]} ${h.value} רשום אצל "${h.customerName}"${
         h.owner ? ` (איש קשר: ${h.owner})` : ""
       }`,
     })),
   };
+}
+
+const DUPLICATE_KIND = { phone: "הטלפון", email: "המייל", taxId: "ח.פ / ע.מ" } as const;
+
+/**
+ * The same question as saving asks, asked while the form is being typed (the
+ * user, 03/11/2026: "מייד בהקלדה"). Read-only; never refuses anything.
+ */
+export async function checkCustomerDuplicatesAction(input: {
+  taxId: string;
+  phones: string[];
+  emails: string[];
+  exceptId?: string;
+}): Promise<Array<{ customerId: string; text: string }>> {
+  const ctx = await getTenantContext();
+  requireArea(ctx, "customers", "write");
+  const parsed = z
+    .object({
+      taxId: z.string().max(40),
+      phones: z.array(z.string().max(40)).max(40),
+      emails: z.array(z.string().max(200)).max(40),
+      exceptId: z.string().max(60).optional(),
+    })
+    .safeParse(input);
+  if (!parsed.success) return [];
+  const warning = await duplicateWarning(
+    ctx.businessId,
+    { tax_id: normalizeTaxId(parsed.data.taxId), phone: null, email: null },
+    [
+      ...parsed.data.phones.map((phone) => ({ phone: normalizePhone(phone), email: null })),
+      ...parsed.data.emails.map((email) => ({ phone: null, email: normalizeEmail(email) })),
+    ],
+    parsed.data.exceptId,
+  );
+  return warning?.duplicates ?? [];
 }
 
 function toErrorMap(errors: { field: string; message: string }[]) {
@@ -146,9 +173,6 @@ export async function createCustomerAction(
   if (errors.length > 0) return { errors: toErrorMap(errors) };
 
   const stored = toStorage(input);
-  const taken = await uniquenessErrors(ctx.businessId, stored);
-  if (taken) return { errors: taken };
-
   const contacts = contactsToStorage(input.contacts);
   if (formData.get("confirmDuplicates") !== "1") {
     const warning = await duplicateWarning(ctx.businessId, stored, contacts);
@@ -183,9 +207,6 @@ export async function updateCustomerAction(
   if (errors.length > 0) return { errors: toErrorMap(errors) };
 
   const stored = toStorage(input);
-  const taken = await uniquenessErrors(ctx.businessId, stored, id);
-  if (taken) return { errors: taken };
-
   const contacts = contactsToStorage(input.contacts);
   if (formData.get("confirmDuplicates") !== "1") {
     const warning = await duplicateWarning(ctx.businessId, stored, contacts, id);

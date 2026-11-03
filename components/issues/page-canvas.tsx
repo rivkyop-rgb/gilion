@@ -96,6 +96,7 @@ export function PageCanvas({
   holding,
   refusesHeld,
   candidate,
+  suggested = null,
   verdict,
   selectedPlacementId,
   onCellEnter,
@@ -129,6 +130,8 @@ export function PageCanvas({
   refusesHeld: string | null;
   /** The rectangle being aimed at, when it is aimed at THIS page. */
   candidate: GridRect | null;
+  /** Where the board suggests the held ad go (03/11/2026) — shown until aimed elsewhere. */
+  suggested?: GridRect | null;
   verdict: PlacementRejection | null;
   selectedPlacementId: string | null;
   onCellEnter: (pageId: string, cell: Cell) => void;
@@ -307,6 +310,17 @@ export function PageCanvas({
             </button>
           );
         })}
+
+        {suggested ? (
+          <span
+            aria-hidden
+            data-testid={`suggested-spot-${page.number}`}
+            style={rectStyle(suggested, grid)}
+            className="pointer-events-none absolute flex items-center justify-center rounded-[2px] border-2 border-dashed border-primary bg-primary/10 text-xs font-medium text-primary"
+          >
+            מקום מוצע
+          </span>
+        ) : null}
 
         {/* The ghost: where the held ad would land, in the colour of the answer. */}
         {candidate ? (

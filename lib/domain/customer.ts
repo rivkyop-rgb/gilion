@@ -23,6 +23,8 @@ export type CustomerInput = {
   notes?: string | null;
   /** The page number this advertiser normally runs on — empty for none. */
   preferredPage?: string | null;
+  /** Their ads are never placed automatically (03/11/2026). */
+  noAutoPlace?: boolean;
   /** The people at the business, in the order entered; the first is the main one. */
   contacts?: ContactInput[];
 };
@@ -170,6 +172,7 @@ export function toStorage(input: CustomerInput) {
     email: normalizeEmail(input.email),
     notes: input.notes?.trim() || null,
     preferred_page: parsePageNumber(input.preferredPage),
+    no_auto_place: Boolean(input.noAutoPlace),
   };
 }
 

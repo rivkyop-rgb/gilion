@@ -443,6 +443,12 @@ async function deleteTestCustomers(prisma: PrismaClient) {
     where: { id: { not: { startsWith: "cust_" } } },
     select: { id: true },
   });
+  // A spec that ticks "לא לשיבוץ אוטומטי" on a seeded customer and dies before
+  // unticking it would leave every auto-place spec skipping that customer.
+  await prisma.customer.updateMany({
+    where: { id: { startsWith: "cust_" } },
+    data: { no_auto_place: false },
+  });
   if (strays.length === 0) return;
 
   // Orders and publications are already gone — deleteTestOrders clears every

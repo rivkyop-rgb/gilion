@@ -1,3 +1,4 @@
+import { describePosition, effectivePosition, positionOf } from "@/lib/domain/position-request";
 import type { Metadata } from "next";
 import { RecordHistory } from "@/components/record-history";
 import { counted } from "@/lib/domain/hebrew-count";
@@ -33,6 +34,8 @@ import { AdThumb } from "@/components/ads/ad-preview";
 import { portalSubmission } from "@/lib/data/portal-accounts";
 import { OrderActions } from "./order-actions";
 import { PreviewLineActions } from "./preview-line-actions";
+import { ItemFileCell } from "./item-file-cell";
+import { ItemPositionEditor } from "./position-fields";
 import { CreditPrompt } from "./credit-prompt";
 
 export const metadata: Metadata = { title: "הזמנה · Gilion" };
@@ -258,8 +261,13 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               isoDate: i.publication_date.toISOString().slice(0, 10),
               offSchedule: i.off_schedule,
               price: Number(i.price),
-              requestedPage: i.requested_page,
+              position: effectivePosition(positionOf(i), null),
+              positionLabel: describePosition(positionOf(i)),
+              positionEditable:
+                !["canceled", "rejected", "completed"].includes(order.status) &&
+                (!i.publication || i.publication.placement_status === "not_placed"),
             }))}
+            canEditPositions={canWriteArea(ctx, "orders")}
             customerPreferredPage={order.customer.preferred_page}
           />
 
@@ -329,9 +337,9 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                       <th className="p-3 text-start font-semibold">סוג עמוד</th>
                       <th className="p-3 text-start font-semibold">צורה</th>
                       <th className="p-3 text-start font-semibold">מחיר</th>
+                      <th className="p-3 text-start font-semibold">מיקום</th>
                       {approved ? <th className="p-3 text-start font-semibold">סטטוס</th> : null}
-                      {(approved && mayAttachAds) ||
-                      (!approved && order.items.some((i) => i.advertisement)) ? (
+                      {mayAttachAds || order.items.some((i) => i.advertisement) ? (
                         <th className="p-3 text-start font-semibold" data-testid="col-order-ad">
                           מודעה
                         </th>
@@ -368,6 +376,18 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                             </td>
                             <td className="p-3">
                               <Ltr>{formatMoney(Number(p.price))}</Ltr>
+                            </td>
+                            <td className="p-3">
+                              <PositionCell
+                                orderId={order.id}
+                                item={order.items.find((i) => i.id === p.order_item_id) ?? null}
+                                editable={
+                                  canWriteArea(ctx, "orders") &&
+                                  p.placement_status === "not_placed" &&
+                                  p.status !== "canceled" &&
+                                  p.status !== "published"
+                                }
+                              />
                             </td>
                             <td className="p-3">
                               <PublicationStatusBadge status={p.status as PublicationStatus} />
@@ -431,25 +451,36 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                             <td className="p-3">
                               <Ltr>{formatMoney(Number(i.price))}</Ltr>
                             </td>
-                            {order.items.some((x) => x.advertisement) ? (
+                            <td className="p-3">
+                              <PositionCell orderId={order.id} item={i} editable={mayEdit} />
+                            </td>
+                            {mayAttachAds || order.items.some((x) => x.advertisement) ? (
                               <td className="p-3" data-testid="item-ad">
-                                {i.advertisement ? (
-                                  <span className="inline-flex items-center gap-2">
-                                    <AdThumb
-                                      ad={{
-                                        name: i.advertisement.name,
-                                        fileType: i.advertisement.file_type as AdFileType,
-                                        previewUrl: i.advertisement.preview_url,
-                                      }}
-                                      className="size-10"
-                                    />
-                                    <span className="max-w-40 truncate text-xs">
-                                      {i.advertisement.name}
-                                    </span>
-                                  </span>
-                                ) : (
-                                  "—"
-                                )}
+                                <ItemFileCell
+                                  orderId={order.id}
+                                  itemId={i.id}
+                                  editable={mayAttachAds && mayEdit}
+                                  own={
+                                    i.advertisement
+                                      ? {
+                                          id: i.advertisement.id,
+                                          name: i.advertisement.name,
+                                          fileType: i.advertisement.file_type as AdFileType,
+                                          previewUrl: i.advertisement.preview_url,
+                                        }
+                                      : null
+                                  }
+                                  fromOrder={
+                                    order.advertisement
+                                      ? {
+                                          id: order.advertisement.id,
+                                          name: order.advertisement.name,
+                                          fileType: order.advertisement.file_type as AdFileType,
+                                          previewUrl: order.advertisement.preview_url,
+                                        }
+                                      : null
+                                  }
+                                />
                               </td>
                             ) : null}
                             {mayEdit ? (
@@ -565,14 +596,37 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
 }
 
 /** Orange: the file may print badly, and nothing is blocked (12/10/2026). */
+/**
+ * A short chip that opens to the full sentence — the long warning used to
+ * wrap a narrow column into a tower of words (the user, 03/11/2026: "שהתצוגה
+ * תהיה יפה וידידותית יותר").
+ */
 function FitNote({ text }: { text: string | null }) {
   if (!text) return null;
   return (
-    <p
-      data-testid="ad-fit-warning"
-      className="mt-1 max-w-56 rounded bg-status-warning-bg px-2 py-1 text-xs text-status-warning-fg"
-    >
-      {text}
-    </p>
+    <details data-testid="ad-fit-warning" className="mt-1 max-w-60 text-xs">
+      <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-full bg-status-warning-bg px-2 py-0.5 text-status-warning-fg">
+        ⚠ הקובץ לא תואם לצורה
+      </summary>
+      <p className="mt-1 rounded bg-status-warning-bg px-2 py-1 text-status-warning-fg">{text}</p>
+    </details>
   );
+}
+
+/** One date's place in the issue — said, and changeable until it is placed. */
+function PositionCell({
+  orderId,
+  item,
+  editable,
+}: {
+  orderId: string;
+  item: Parameters<typeof positionOf>[0] & { id: string } | null;
+  editable: boolean;
+}) {
+  if (!item) return <span className="text-on-surface-variant">—</span>;
+  const position = positionOf(item);
+  if (!editable) {
+    return <span className="text-xs">{describePosition(position) ?? "—"}</span>;
+  }
+  return <ItemPositionEditor orderId={orderId} itemId={item.id} initial={position} />;
 }

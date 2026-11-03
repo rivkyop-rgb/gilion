@@ -134,7 +134,7 @@ test("פרסום קרוב בלי מודעה נכנס לרשימה, ושום דב
   await page.goto("/reminders");
 
   // The promise the screen makes, permanently on display (FR-11).
-  await expect(page.getByTestId("reminders-banner")).toContainText("אינה שולחת תזכורות בעצמה");
+  await expect(page.getByTestId("reminders-banner")).toContainText("מוכנה לשליחה");
 
   // The wording itself is not on this screen: it is edited, and read, in
   // settings · reminders (the user, 31/10/2026). It still fills the message
@@ -162,13 +162,13 @@ test("פרסום קרוב בלי מודעה נכנס לרשימה, ושום דב
   expect(text).toContain(customer);
   expect(text).not.toContain("{לקוח}");
 
-  // Approving marks; it does not send.
-  await page.getByTestId(`select-reminder-${id}`).check();
-  await page.getByTestId("approve-reminders").click();
-  await expect(page.locator(`[data-testid="reminder-row-${id}"]`)).toContainText("אושרה לשליחה");
-
-  await page.getByTestId(`select-reminder-${id}`).check();
-  await page.getByTestId("mark-sent").click();
+  // One act (03/11/2026): opening the WhatsApp message records the reminder
+  // as sent. wa.me itself is not visited — the new tab is cut off.
+  await expect(page.getByTestId("approve-reminders")).toHaveCount(0);
+  await page.context().route("https://wa.me/**", (route) => route.abort());
+  const popup = page.waitForEvent("popup");
+  await recipients.locator('a[href^="https://wa.me/"]').first().click();
+  await (await popup).close();
 
   // A sent reminder leaves the working list — that is the point of the list —
   // and is still reachable under its own filter.
@@ -255,6 +255,5 @@ test("גרפיקאית רואה את הרשימה אך אינה מאשרת של�
   await login(page, USERS.designer);
   await page.goto("/reminders");
   await expect(page.getByTestId("reminders-banner")).toBeVisible();
-  await expect(page.getByTestId("approve-reminders")).toHaveCount(0);
   await expect(page.getByTestId("mark-sent")).toHaveCount(0);
 });

@@ -46,7 +46,9 @@ export type AuditAction =
   | "open_issue"
   | "reopen_issue"
   | "move_issue_date"
-  | "board_sale";
+  | "board_sale"
+  | "move_missed_publication"
+  | "credit_missed_publication";
 
 export type AuditTarget = {
   action: AuditAction;

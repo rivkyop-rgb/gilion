@@ -1,5 +1,6 @@
 "use client";
 
+import { FilePick } from "@/components/ui/file-pick";
 import { useState, useTransition } from "react";
 import { useFormActionState } from "@/components/use-form-action-state";
 import { useRouter } from "next/navigation";
@@ -76,6 +77,10 @@ export function LinkAdCell({
     return next;
   }, {});
 
+  // Picking a file answers "no file chosen" — the red line goes at once
+  // rather than staying until the next submit (the user, 03/11/2026).
+  const [dismissed, setDismissed] = useState<AdFormState | null>(null);
+
   const uploadForm = (
     <form
       action={uploadAction}
@@ -92,18 +97,16 @@ export function LinkAdCell({
           ? "הקובץ החדש יחליף את המודעה המשויכת. הקובץ הקודם נשאר בספרייה."
           : "הקובץ ישויך ללקוח של הפרסום ויחובר אליו מיד."}
       </p>
-      <input
-        type="file"
-        name="file"
-        data-testid={`row-upload-file-${publicationId}`}
+      <FilePick
+        testId={`row-upload-file-${publicationId}`}
         accept={AD_ACCEPT_ATTRIBUTE}
-        className="w-full text-xs file:me-3 file:rounded-sm file:border-0 file:bg-surface-container file:px-2 file:py-1.5 file:text-xs"
+        onPicked={() => setDismissed(uploadState)}
       />
       <p className="mt-2 text-xs text-on-surface-variant">
         PDF, JPG, PNG · עד <Ltr className="font-mono">{formatBytes(limit.maxBytes)}</Ltr> (
         {limit.newspaperName})
       </p>
-      {uploadState.message ? (
+      {uploadState.message && dismissed !== uploadState ? (
         <div className="mt-2">
           <InlineError>{uploadState.message}</InlineError>
         </div>
