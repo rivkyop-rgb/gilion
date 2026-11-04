@@ -18,6 +18,14 @@ const eslintConfig = defineConfig([
 
   {
     rules: {
+      // A leading underscore is the TypeScript convention for "this parameter
+      // is part of the signature and deliberately unused" — the data functions
+      // that take a businessId for symmetry with their siblings.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+
       // 1. RTL: physical direction utilities break in Hebrew. Use ms-/me-/ps-/pe-/start-/end-.
       "no-restricted-syntax": [
         "error",

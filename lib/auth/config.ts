@@ -12,6 +12,7 @@ import bcrypt from "bcryptjs";
 
 import { basePrisma } from "@/lib/data/db";
 import { activeMembership, activeMembershipsFor } from "./memberships";
+import { loginThrottle, originOf } from "./login-throttle";
 import { sessionCallbacks } from "./session-shape";
 import type { Role } from "./rbac";
 
@@ -27,12 +28,14 @@ export const {
   providers: [
     Credentials({
       credentials: { email: {}, password: {}, portal: {} },
-      async authorize(raw) {
+      async authorize(raw, request) {
         const email = typeof raw?.email === "string" ? raw.email.trim().toLowerCase() : "";
         const password = typeof raw?.password === "string" ? raw.password : "";
         // The business's portal slug, when signing in through /p/<slug>.
         const portal = typeof raw?.portal === "string" ? raw.portal.trim() : "";
         if (!email || !password) return null;
+        const origin = originOf(request);
+        if (!loginThrottle.allowed(email, origin)) return null;
 
         const user = await basePrisma.user.findUnique({ where: { email } });
         // Compare against a dummy hash when the user is missing, so a wrong
@@ -40,7 +43,11 @@ export const {
         const hash =
           user?.password_hash ?? "$2b$10$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalidi";
         const ok = await bcrypt.compare(password, hash);
-        if (!user || !ok) return null;
+        if (!user || !ok) {
+          loginThrottle.failed(email, origin);
+          return null;
+        }
+        loginThrottle.succeeded(email);
 
         // Through a business's portal door, a customer enters THAT business or
         // nothing (backlog 21). Refused with the same silence as a wrong
@@ -102,13 +109,26 @@ export const {
       }
 
       // setActiveBusinessAction pushes the chosen tenant in via unstable_update.
-      if (trigger === "update" && session && typeof session === "object") {
-        const u = (session as { user?: { businessId?: string; role?: Role; customerId?: string } })
-          .user;
-        if (u?.businessId) {
-          token.businessId = u.businessId;
-          token.role = u.role;
-          token.customerId = u.customerId;
+      //
+      // Nothing in the payload is trusted: the same "update" trigger is
+      // reachable from the BROWSER (a POST to /api/auth/session with a CSRF
+      // token any signed-in user can fetch), so a designer could send
+      // { businessId: <anyone's>, role: "admin" } and become exactly that —
+      // verified on a copy of the demo, 04/11/2026. Only the business id is
+      // read from it; the membership is re-checked here and the role and
+      // customer come from the database. A payload that does not match a
+      // membership changes nothing.
+      if (trigger === "update" && session && typeof session === "object" && token.sub) {
+        const u = (session as { user?: { businessId?: unknown } }).user;
+        if (typeof u?.businessId === "string" && u.businessId) {
+          try {
+            const m = await assertMembership(token.sub, u.businessId);
+            token.businessId = m.businessId;
+            token.role = m.role;
+            token.customerId = m.customerId;
+          } catch {
+            // Not theirs to enter: the session stays as it was.
+          }
         }
       }
 

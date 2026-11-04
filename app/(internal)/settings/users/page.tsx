@@ -3,7 +3,6 @@ import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { listMembers } from "@/lib/data/team";
 import { Badge } from "@/components/ui/badge";
 import { Ltr } from "@/components/ui/ltr";
-import { ROLE_LABELS } from "@/lib/auth/labels";
 import type { AssignableRole } from "@/lib/domain/team";
 import { formatDate } from "../../orders/format";
 import { AddMemberForm } from "./add-member-form";

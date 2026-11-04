@@ -2,7 +2,6 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { USERS, login, loginAsAdmin, orderRef, passOrderWarnings, saveCustomer } from "./helpers";
 import { validPdf } from "./ad-fixtures";
-import { uploadFile } from "./ad-helpers";
 
 /**
  * FR-11 — the reminder list, brought forward from stage 10.

@@ -131,3 +131,22 @@ test.describe("every entity with an id in its URL is scoped (FR-1)", () => {
     await expect(page.locator("body")).not.toContainText("מרכז הרפואה");
   });
 });
+
+/**
+ * The session's own "update" door (04/11/2026). Auth.js answers a POST to
+ * /api/auth/session from the browser by running the jwt callback with whatever
+ * the body says — and the callback used to copy businessId and role from it
+ * as given. A designer became an admin of another business with one request.
+ */
+test("a forged session update cannot move a user into another business or role", async ({
+  page,
+}) => {
+  await login(page, USERS.designer);
+  const csrf = (await (await page.request.get("/api/auth/csrf")).json()).csrfToken;
+  await page.request.post("/api/auth/session", {
+    data: { csrfToken: csrf, data: { user: { businessId: BUSINESS.beta, role: "admin" } } },
+  });
+  const after = await (await page.request.get("/api/auth/session")).json();
+  expect(after.user.businessId).toBe(BUSINESS.alpha);
+  expect(after.user.role).toBe("designer");
+});

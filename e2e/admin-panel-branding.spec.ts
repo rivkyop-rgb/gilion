@@ -61,7 +61,9 @@ test.describe("the logo an admin owns", () => {
     // is exactly how every preview in the product was blank for a fortnight.
     const response = await page.request.get(`/api/files/${BUSINESS.alpha}/brand/mark.png`);
     expect(response.status()).toBe(200);
-    expect(Number(response.headers()["content-length"])).toBeGreaterThan(0);
+    // The bytes themselves, not the header: since Next 16.4 a streamed
+    // file goes out chunked, with no Content-Length to read.
+    expect((await response.body()).length).toBeGreaterThan(0);
   });
 
   test("the display name replaces the product name beside it", async ({ page }) => {

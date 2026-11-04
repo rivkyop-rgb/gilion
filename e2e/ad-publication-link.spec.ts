@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { loginAsAdmin, orderRef, passOrderWarnings } from "./helpers";
 import { validPdf } from "./ad-fixtures";
-import { adCard, uploadFile } from "./ad-helpers";
+import { adCard } from "./ad-helpers";
 
 /**
  * FR-5 and stage 05 rules 5, 6 and 10, end to end.

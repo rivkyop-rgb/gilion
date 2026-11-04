@@ -276,5 +276,17 @@ export async function saveCustomer(page: Page) {
     .waitFor({ timeout: 20_000 })
     .then(() => "asked" as const)
     .catch(() => "none" as const);
-  if ((await Promise.race([left, asked])) === "asked") await confirm.click();
+  if ((await Promise.race([left, asked])) !== "asked") return;
+  // The question can go away by itself: the save it held up may still finish
+  // and leave the page, taking the button with it. Click while it is there;
+  // a page that has already left is the answer either way.
+  await Promise.race([
+    confirm.click({ timeout: 20_000 }).catch(() => undefined),
+    left,
+  ]);
+  if ((await left) === "stayed") {
+    await page.waitForURL((u) => !/\/customers\/(new|[^/]+\/edit)$/.test(u.pathname), {
+      timeout: 20_000,
+    });
+  }
 }

@@ -20,6 +20,7 @@
  * debt — stayed open and the customer stayed on "who owes money" (UX review,
  * 29/10/2026). What a customer owes first is what ran first.
  */
+import { formatMoney } from "./format";
 
 export type OpenOrder = {
   orderId: string;
@@ -114,10 +115,7 @@ export function describeAllocation(
   return leftover > 0 ? `${head}. נותרו ${money(leftover)} ליתרת הלקוח` : head;
 }
 
-const MONEY = new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS" });
-function money(n: number): string {
-  return MONEY.format(n);
-}
+const money = formatMoney;
 
 /**
  * What a customer's position actually is, once a credit is in the picture.

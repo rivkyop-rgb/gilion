@@ -10,12 +10,11 @@ import { counted } from "@/lib/domain/hebrew-count";
 import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
 import { MissedRowActions } from "./missed-row-actions";
+import { orderNumber, formatMoney } from "@/lib/domain/format";
 
 export const metadata: Metadata = { title: "פרסומים שלא פורסמו · Gilion" };
 
 const DAY = new Intl.DateTimeFormat("he-IL", { dateStyle: "short", timeZone: "Asia/Jerusalem" });
-const MONEY = new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS" });
-const orderRef = (n: number) => `ORD-${String(n).padStart(4, "0")}`;
 
 /**
  * Publications whose date passed and that never ran (03/11/2026) — each with
@@ -39,8 +38,8 @@ export default async function MissedPublicationsPage({
         פרסומים שעבר תאריכם ולא פורסמו
       </h1>
       <p className="mb-6 text-sm text-on-surface-variant">
-        הזמנות מאושרות שתאריך העיתון שלהן עבר, והמודעה לא נכנסה לגיליון. לכל אחד מהם: להעביר
-        לתאריך אחר, או לבטל ולזכות את הלקוח במה ששילם.
+        הזמנות מאושרות שתאריך העיתון שלהן עבר, והמודעה לא נכנסה לגיליון. לכל אחד מהם: להעביר לתאריך
+        אחר, או לבטל ולזכות את הלקוח במה ששילם.
       </p>
 
       {note ? (
@@ -78,9 +77,9 @@ export default async function MissedPublicationsPage({
                     </p>
                     <p className="text-xs text-on-surface-variant">
                       {p.newspaper.name} · <Ltr>{DAY.format(p.publication_date)}</Ltr> ·{" "}
-                      {p.ad_shape.name} · <Ltr>{MONEY.format(Number(p.price))}</Ltr> ·{" "}
+                      {p.ad_shape.name} · <Ltr>{formatMoney(Number(p.price))}</Ltr> ·{" "}
                       <Link href={`/orders/${p.order.id}`} className="underline">
-                        <Ltr>{orderRef(p.order.number)}</Ltr>
+                        <Ltr>{orderNumber(p.order.number)}</Ltr>
                       </Link>
                     </p>
                     <p className="mt-1 text-xs text-status-warning-fg">

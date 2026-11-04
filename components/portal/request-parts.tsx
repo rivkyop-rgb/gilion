@@ -33,7 +33,8 @@ const SHORT_DAY = new Intl.DateTimeFormat("he-IL", {
 export const formatPortalDay = (d: Date) => SHORT_DAY.format(d);
 
 /** The request's reference, the same ORD-0042 staff will quote on the phone. */
-export const requestNumber = (n: number) => `ORD-${String(n).padStart(4, "0")}`;
+/** A portal request is an order, and is called by the same number. */
+export { orderNumber as requestNumber } from "@/lib/domain/format";
 
 export function PortalStatusBadge({ status }: { status: OrderStatus }) {
   const s = PORTAL_STATUS[status];

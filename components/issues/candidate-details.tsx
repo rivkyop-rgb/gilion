@@ -19,9 +19,7 @@ import {
 } from "@/app/(internal)/advertisements/actions";
 import { changePublicationShapeAction } from "@/app/(internal)/issues/actions";
 import type { CandidateDetails } from "./unplaced-panel";
-
-const MONEY = new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS" });
-const orderRef = (n: number) => `ORD-${String(n).padStart(4, "0")}`;
+import { orderNumber, formatMoney } from "@/lib/domain/format";
 
 /**
  * Everything about one ad waiting on the board, opened by its arrow — and the
@@ -64,13 +62,13 @@ export function CandidateDetailsPanel({
             target="_blank"
             className="inline-flex items-center gap-1 underline"
           >
-            <Ltr>{orderRef(details.orderNumber)}</Ltr>
+            <Ltr>{orderNumber(details.orderNumber)}</Ltr>
             <ExternalLink className="size-3" aria-hidden />
           </Link>
         </dd>
         <dt className="text-on-surface-variant">מחיר</dt>
         <dd>
-          <Ltr>{MONEY.format(details.price)}</Ltr>
+          <Ltr>{formatMoney(details.price)}</Ltr>
         </dd>
         <dt className="text-on-surface-variant">מיקום</dt>
         <dd>{describePosition(details.position) ?? "בלי בקשה"}</dd>
@@ -116,7 +114,7 @@ export function CandidateDetailsPanel({
                 {details.shapeOptions.map((s) => (
                   <option key={s.id} value={s.id} disabled={s.price === null}>
                     {s.name}
-                    {s.price === null ? " (אין מחיר)" : ` · ${MONEY.format(s.price)}`}
+                    {s.price === null ? " (אין מחיר)" : ` · ${formatMoney(s.price)}`}
                   </option>
                 ))}
               </select>

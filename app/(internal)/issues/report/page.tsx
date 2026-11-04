@@ -4,7 +4,7 @@ import { ClipboardList } from "lucide-react";
 
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { issueReport } from "@/lib/data/issues";
-import { ISSUE_STATUS_LABELS, type IssueStatus } from "@/lib/domain/issue-status";
+import { ISSUE_STATUS_LABELS } from "@/lib/domain/issue-status";
 import { pageLabel } from "@/lib/domain/issue-layout";
 import { sizeLabel } from "@/lib/domain/placement";
 import { Badge } from "@/components/ui/badge";

@@ -14,6 +14,7 @@ import { ORDER_STATUS_LABELS, type OrderStatus } from "@/lib/domain/order-status
 import { PAYMENT_STATUS_LABELS, type PaymentStatus } from "@/lib/domain/payment-status";
 import { PAYMENT_RECORD_LABELS } from "@/lib/domain/payment";
 import { PUBLICATION_STATUS_LABELS, type PublicationStatus } from "@/lib/domain/publication-status";
+import { orderNumber } from "@/lib/domain/format";
 
 /**
  * One list off a customer card, as a spreadsheet (user, 16/09/2026).
@@ -54,7 +55,6 @@ function csv(headers: string[], rows: (string | number | null)[][]): string {
 }
 
 /** The same label the screens print (orders/format.ts). */
-const orderNumber = (n: number) => `ORD-${String(n).padStart(4, "0")}`;
 const money = (v: unknown) => Number(v).toFixed(2);
 const day = (d: Date | null) => (d ? DATE.format(d) : "");
 

@@ -32,22 +32,6 @@ export async function refreshRemindersAction(): Promise<ReminderState> {
   };
 }
 
-/**
- * Marks reminders as ready to go out. It SENDS NOTHING — FR-11 is explicit
- * that the MVP shows a list and a person acts on it.
- */
-export async function approveRemindersAction(reminderIds: string[]): Promise<ReminderState> {
-  const ctx = await getTenantContext();
-  requireArea(ctx, "reminders", "write");
-
-  const parsed = ids.safeParse(reminderIds);
-  if (!parsed.success) return { message: "לא נבחרו תזכורות" };
-
-  await data.setReminderStatus(ctx.businessId, parsed.data, "approved_to_send");
-  revalidatePath("/reminders");
-  return { ok: true };
-}
-
 export async function markRemindersSentAction(reminderIds: string[]): Promise<ReminderState> {
   const ctx = await getTenantContext();
   requireArea(ctx, "reminders", "write");

@@ -142,6 +142,7 @@ describe("toStorage", () => {
       email: "noa@example.com",
       notes: null,
       preferred_page: null,
+      no_auto_place: false,
     });
   });
 });

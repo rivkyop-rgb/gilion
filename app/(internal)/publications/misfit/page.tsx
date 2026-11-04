@@ -20,11 +20,11 @@ import { EmailLink, PhoneLink } from "@/components/contact-links";
 import { counted } from "@/lib/domain/hebrew-count";
 import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
+import { orderNumber } from "@/lib/domain/format";
 
 export const metadata: Metadata = { title: "קבצים שלא מתאימים לגודל · Gilion" };
 
 const DAY = new Intl.DateTimeFormat("he-IL", { dateStyle: "short", timeZone: "Asia/Jerusalem" });
-const orderRef = (n: number) => `ORD-${String(n).padStart(4, "0")}`;
 
 /** Upcoming files that do not match the space sold (03/11/2026). */
 export default async function MisfitPage() {
@@ -78,7 +78,10 @@ export default async function MisfitPage() {
                 data-testid={`misfit-row-${r.id}`}
                 className="flex flex-wrap items-start gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevation-1"
               >
-                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-status-warning-fg" aria-hidden />
+                <AlertTriangle
+                  className="mt-0.5 size-4 shrink-0 text-status-warning-fg"
+                  aria-hidden
+                />
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">
                     <Link href={`/customers/${r.customer.id}`} className="hover:underline">
@@ -113,9 +116,7 @@ export default async function MisfitPage() {
                       to.phone || to.email ? (
                         <span key={to.label} className="flex flex-wrap items-center gap-2">
                           {!to.isMain ? <span>{to.label}</span> : null}
-                          {to.phone ? (
-                            <PhoneLink phone={to.phone} message={messageFor(r)} />
-                          ) : null}
+                          {to.phone ? <PhoneLink phone={to.phone} message={messageFor(r)} /> : null}
                           {to.email ? (
                             <EmailLink
                               email={to.email}
@@ -145,7 +146,7 @@ export default async function MisfitPage() {
                   href={`/orders/${r.order.id}`}
                   className="shrink-0 rounded-lg border border-outline-variant px-3 py-1.5 text-xs hover:bg-surface-container"
                 >
-                  להזמנה <Ltr>{orderRef(r.order.number)}</Ltr> — החלפת קובץ
+                  להזמנה <Ltr>{orderNumber(r.order.number)}</Ltr> — החלפת קובץ
                 </Link>
               </li>
             ))}

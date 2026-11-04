@@ -9,6 +9,7 @@ import { validatePayment } from "@/lib/domain/payment";
 import { allocatePayment, describeAllocation } from "@/lib/domain/payment-allocation";
 import { PAYMENT_STATUS_LABELS, type PaymentStatus } from "@/lib/domain/payment-status";
 import { orderNumber } from "../orders/format";
+import { formatMoney } from "@/lib/domain/format";
 
 export type PaymentActionState = {
   message?: string;
@@ -50,8 +51,6 @@ function refreshed() {
 function statusNote(status: PaymentStatus | null | undefined): string | undefined {
   return status ? `סטטוס ההזמנה: ${PAYMENT_STATUS_LABELS[status]}` : undefined;
 }
-
-const MONEY = new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS" });
 
 export async function recordPaymentAction(form: {
   customerId: string;
@@ -105,14 +104,14 @@ export async function recordPaymentAction(form: {
       };
     }
     if (result && result.allocations.length === 0) {
-      return { ok: true, note: `אין חוב פתוח — ${MONEY.format(result.credit)} נזקפו ליתרת הלקוח` };
+      return { ok: true, note: `אין חוב פתוח — ${formatMoney(result.credit)} נזקפו ליתרת הלקוח` };
     }
     // One order settled, with change left over: say where the change went, or
     // the money looks like it vanished between the amount typed and the status.
     if (result && result.credit > 0) {
       return {
         ok: true,
-        note: `${statusNote(result.status) ?? "נשמר"} · ${MONEY.format(result.credit)} נזקפו ליתרת הלקוח`,
+        note: `${statusNote(result.status) ?? "נשמר"} · ${formatMoney(result.credit)} נזקפו ליתרת הלקוח`,
       };
     }
     return { ok: true, note: statusNote(result?.status) };
@@ -250,7 +249,7 @@ export async function applyCreditAction(orderId: string): Promise<PaymentActionS
     if (!result || result.applied <= 0) return { ok: true, note: "אין יתרה לשייך" };
     return {
       ok: true,
-      note: `${MONEY.format(result.applied)} מהיתרה שויכו להזמנה. ${statusNote(result.status) ?? ""}`.trim(),
+      note: `${formatMoney(result.applied)} מהיתרה שויכו להזמנה. ${statusNote(result.status) ?? ""}`.trim(),
     };
   } catch (e) {
     if (e instanceof data.PaymentNotFoundError) return { message: e.message };

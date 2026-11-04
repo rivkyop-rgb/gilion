@@ -13,8 +13,7 @@ import {
   type PaymentRow,
 } from "./payment-editor";
 import type { MonthRow } from "@/lib/domain/payment-months";
-
-const MONEY = new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS" });
+import { formatMoney } from "@/lib/domain/format";
 
 /**
  * Recording a payment, in a window of its own.
@@ -81,11 +80,11 @@ export function PaymentDialog({
               <DialogPrimitive.Description className="mt-1 text-sm text-on-surface-variant">
                 {outstanding > 0 ? (
                   <>
-                    נותר לתשלום <Ltr className="font-semibold">{MONEY.format(outstanding)}</Ltr>
+                    נותר לתשלום <Ltr className="font-semibold">{formatMoney(outstanding)}</Ltr>
                   </>
                 ) : credit > 0 ? (
                   <>
-                    אין חוב פתוח · <Ltr>{MONEY.format(credit)}</Ltr> לזכות הלקוח
+                    אין חוב פתוח · <Ltr>{formatMoney(credit)}</Ltr> לזכות הלקוח
                   </>
                 ) : (
                   "אין חוב פתוח"

@@ -40,7 +40,7 @@ test("מודעה שצורפה להזמנה משויכת אוטומטית לכל 
   test.slow();
   await loginAsAdmin(page);
 
-  const id = await draftWithLines(page, ["2026-12-01", "2026-12-08", "2026-12-15"]);
+  await draftWithLines(page, ["2026-12-01", "2026-12-08", "2026-12-15"]);
 
   // The upload area names the strictest ceiling among the order's own lines.
   const form = page.getByTestId("order-artwork-form");

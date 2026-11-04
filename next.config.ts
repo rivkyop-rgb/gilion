@@ -37,6 +37,30 @@ const nextConfig: NextConfig = {
     "playwright-core",
   ],
 
+  // Which framework built the page is nobody's business (security review,
+  // 04/11/2026).
+  poweredByHeader: false,
+
+  // Baseline headers on every response (security review, 04/11/2026):
+  // - no framing, so the app cannot be shown inside another site that makes a
+  //   signed-in user click something they cannot see (clickjacking);
+  // - no MIME sniffing, so an uploaded file is never run as something else;
+  // - the full address only to our own pages: a signed link (designer,
+  //   customer file view) must not travel to WhatsApp or Gmail in Referer.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "same-origin" },
+        ],
+      },
+    ];
+  },
+
   experimental: {
     // Server Actions cap request bodies at 1 MB by default, and an ad file is
     // routinely larger than that. Without this the upload fails in the

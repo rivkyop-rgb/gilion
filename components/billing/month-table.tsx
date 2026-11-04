@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Ltr } from "@/components/ui/ltr";
 import type { MonthRow } from "@/lib/domain/payment-months";
 import { cn } from "@/lib/utils";
-
-const MONEY = new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS" });
+import { formatMoney } from "@/lib/domain/format";
 
 /**
  * The months, and what is still open on each.
@@ -66,15 +65,15 @@ export function MonthTable({
             >
               <td className="p-2 font-medium">{m.label}</td>
               <td className="p-2">
-                <Ltr>{MONEY.format(m.billed)}</Ltr>
+                <Ltr>{formatMoney(m.billed)}</Ltr>
               </td>
               {/* The number the status alone could never give: partly paid HOW
                   MUCH, on which month. */}
               <td className="p-2 text-status-success-fg">
-                <Ltr data-testid={`month-paid-${m.key}`}>{MONEY.format(m.paid)}</Ltr>
+                <Ltr data-testid={`month-paid-${m.key}`}>{formatMoney(m.paid)}</Ltr>
               </td>
               <td className="p-2 font-semibold">
-                <Ltr data-testid={`month-open-${m.key}`}>{MONEY.format(m.open)}</Ltr>
+                <Ltr data-testid={`month-open-${m.key}`}>{formatMoney(m.open)}</Ltr>
               </td>
               <td className="p-2 text-xs text-on-surface-variant">
                 <Ltr>{m.publicationCount}</Ltr>

@@ -14,6 +14,7 @@ import { ResetPasswordDialog } from "@/components/account/reset-password-dialog"
 import { resetPortalPasswordAction } from "./actions";
 import { AccountStatusToggle } from "./account-status";
 import { PortalAccountForm } from "./portal-account-form";
+import { orderNumber } from "@/lib/domain/format";
 
 export const metadata: Metadata = { title: "גישה לפורטל · Gilion" };
 
@@ -28,7 +29,7 @@ function activityDetail(value: unknown): string {
   if (!value || typeof value !== "object") return "";
   const v = value as Record<string, unknown>;
   if (typeof v["number"] === "number") {
-    return `בקשה ORD-${String(v["number"]).padStart(4, "0")}${v["publicationDate"] ? ` לתאריך ${v["publicationDate"]}` : ""}`;
+    return `בקשה ${orderNumber(Number(v["number"]))}${v["publicationDate"] ? ` לתאריך ${v["publicationDate"]}` : ""}`;
   }
   if (typeof v["name"] === "string")
     return `קובץ ${v["name"]}${v["publicationId"] ? " לפרסום קיים" : ""}`;

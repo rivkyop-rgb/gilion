@@ -130,7 +130,7 @@ const TOURS: Tour[] = [
       {
         selector: '[data-testid="suggestion-bar"], [data-testid="board-bottom-nav"]',
         title: "לשבץ כאן",
-        body: "כשמודעה מורמת, כאן מופיע המקום המוצע וכפתור \"לשבץ כאן\". אפשר גם ללחוץ על כל מקום אחר בעמוד.",
+        body: 'כשמודעה מורמת, כאן מופיע המקום המוצע וכפתור "לשבץ כאן". אפשר גם ללחוץ על כל מקום אחר בעמוד.',
       },
       {
         selector: '[data-testid="auto-place-header"], [data-testid="auto-place"]',
@@ -343,7 +343,7 @@ const TOURS: Tour[] = [
       {
         selector: '[data-testid="close-issue"]',
         title: "סגירה",
-        body: "מפיקה את הקובץ לדפוס ומסמנת את הפרסומים כ\"פורסמו\". אחרי סגירה אי אפשר לשנות.",
+        body: 'מפיקה את הקובץ לדפוס ומסמנת את הפרסומים כ"פורסמו". אחרי סגירה אי אפשר לשנות.',
       },
     ],
   },
@@ -467,7 +467,7 @@ const TOURS: Tour[] = [
       {
         selector: '[data-testid="billing-table"]',
         title: "רישום תשלום",
-        body: "\"רישום תשלום\" בשורה של לקוח. אפשר לסמן כמה חשבונות — הסכום מתחלק מהישן לחדש.",
+        body: '"רישום תשלום" בשורה של לקוח. אפשר לסמן כמה חשבונות — הסכום מתחלק מהישן לחדש.',
       },
     ],
   },
@@ -509,7 +509,7 @@ const TOURS: Tour[] = [
       {
         selector: '[data-testid="report-newspaper"]',
         title: "עיתון ולקוח",
-        body: "מצמצמים לעיתון אחד או ללקוח אחד, ולוחצים \"הצגה\".",
+        body: 'מצמצמים לעיתון אחד או ללקוח אחד, ולוחצים "הצגה".',
       },
     ],
   },
@@ -570,7 +570,7 @@ const FALLBACK: Tour = {
     {
       selector: "h1",
       title: "המסך הזה",
-      body: "כל פקד כאן מסביר את עצמו בריחוף. למדריך המלא — \"עזרה\" למעלה.",
+      body: 'כל פקד כאן מסביר את עצמו בריחוף. למדריך המלא — "עזרה" למעלה.',
     },
     {
       selector: '[data-testid="help-button"]',
@@ -602,11 +602,13 @@ const subscribe = (l: () => void) => {
 export function GuidedTour() {
   const pathname = usePathname();
   const tour = tourFor(pathname);
-  const request = useSyncExternalStore(subscribe, () => requested, () => 0);
-
-  const [state, setState] = useState<{ key: string; index: number; request: number } | null>(
-    null,
+  const request = useSyncExternalStore(
+    subscribe,
+    () => requested,
+    () => 0,
   );
+
+  const [state, setState] = useState<{ key: string; index: number; request: number } | null>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
 
   // Opened by the help button: adjusted during render, not in an effect.

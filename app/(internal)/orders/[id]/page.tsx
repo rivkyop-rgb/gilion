@@ -30,7 +30,6 @@ import { formatDate, formatDateTime, formatMoney, orderNumber } from "../format"
 import { LinkAdCell } from "../../publications/link-ad";
 import { LineBuilder } from "./line-builder";
 import { OrderArtwork } from "./order-artwork";
-import { AdThumb } from "@/components/ads/ad-preview";
 import { portalSubmission } from "@/lib/data/portal-accounts";
 import { OrderActions } from "./order-actions";
 import { PreviewLineActions } from "./preview-line-actions";

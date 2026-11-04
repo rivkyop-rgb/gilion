@@ -37,7 +37,9 @@ test("a file that does not fit: the advice, the message and the customer's page"
 
     // WhatsApp or mail, whichever the fixture customer has — both carry the
     // message with the link in it and no field left unfilled.
-    const link = send.locator('a[href^="https://wa.me/"], a[href^="mailto:"], a[href*="mail.google.com"]').first();
+    const link = send
+      .locator('a[href^="https://wa.me/"], a[href^="mailto:"], a[href*="mail.google.com"]')
+      .first();
     const href0 = (await link.getAttribute("href"))!;
     const text = decodeURIComponent(href0);
     expect(text).toContain("/api/ad-view/");

@@ -67,8 +67,7 @@ export function recommendShape(
   // closest to it in area — then the closest in proportion.
   const current = options.find((o) => o.id === currentId);
   const area = (o: ShapeOption) => o.widthMm * o.heightMm;
-  const areaGap = (o: ShapeOption) =>
-    current ? Math.abs(Math.log(area(o) / area(current))) : 0;
+  const areaGap = (o: ShapeOption) => (current ? Math.abs(Math.log(area(o) / area(current))) : 0);
   const ratioGap = (o: ShapeOption) => Math.abs(Math.log(ratio / (o.widthMm / o.heightMm)));
   return fitting.sort((a, b) => areaGap(a) - areaGap(b) || ratioGap(a) - ratioGap(b))[0] ?? null;
 }
@@ -83,9 +82,7 @@ const MONEY = new Intl.NumberFormat("he-IL", {
 export function priceDeltaPhrase(from: number, to: number): string {
   const delta = Math.round((to - from) * 100) / 100;
   if (delta === 0) return "באותו מחיר";
-  return delta > 0
-    ? `תוספת של ${MONEY.format(delta)}`
-    : `זול ב־${MONEY.format(-delta)}`;
+  return delta > 0 ? `תוספת של ${MONEY.format(delta)}` : `זול ב־${MONEY.format(-delta)}`;
 }
 
 /**

@@ -23,6 +23,7 @@ import {
   updatePaymentAction,
   type PaymentActionState,
 } from "./actions";
+import { formatMoney } from "@/lib/domain/format";
 
 export type BillableOrder = {
   id: string;
@@ -54,8 +55,6 @@ export type HistoryEntry = {
   text: string;
   withinWindow: boolean;
 };
-
-const MONEY = new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS" });
 
 /**
  * Recording and correcting payments for one customer (US-010 AC-4).
@@ -146,7 +145,7 @@ export function PaymentEditor({
             className="mt-2 rounded-sm bg-status-info-bg px-3 py-2 text-sm text-status-info-fg"
             data-testid="customer-credit"
           >
-            יתרה לזכות הלקוח: <Ltr className="font-semibold">{MONEY.format(credit)}</Ltr> — כסף
+            יתרה לזכות הלקוח: <Ltr className="font-semibold">{formatMoney(credit)}</Ltr> — כסף
             שהתקבל ואינו משויך להזמנה.
             {/* The net only earns its place when it says something the two
                 numbers above do not. With nothing owed it IS the credit, and
@@ -155,7 +154,7 @@ export function PaymentEditor({
             {outstanding > 0 ? (
               <span data-testid="customer-net">
                 {" "}
-                {positionLabel(net)}: <Ltr>{MONEY.format(Math.abs(net))}</Ltr>
+                {positionLabel(net)}: <Ltr>{formatMoney(Math.abs(net))}</Ltr>
               </span>
             ) : null}
           </p>
@@ -236,7 +235,7 @@ export function PaymentEditor({
                     )}
                   >
                     <td className="p-2 font-medium">
-                      <Ltr data-testid={`payment-amount-${p.id}`}>{MONEY.format(p.amount)}</Ltr>
+                      <Ltr data-testid={`payment-amount-${p.id}`}>{formatMoney(p.amount)}</Ltr>
                     </td>
                     <td className="p-2">
                       {p.paymentDate ? <Ltr>{p.paymentDate}</Ltr> : <span>—</span>}
@@ -370,13 +369,13 @@ function OrderBalances({ customerId, orders }: { customerId: string; orders: Bil
                   <Ltr>{o.label}</Ltr>
                 </td>
                 <td className="p-2">
-                  <Ltr>{MONEY.format(o.totalPrice)}</Ltr>
+                  <Ltr>{formatMoney(o.totalPrice)}</Ltr>
                 </td>
                 <td className="p-2 text-status-success-fg">
-                  <Ltr data-testid={`order-paid-${o.id}`}>{MONEY.format(o.paid)}</Ltr>
+                  <Ltr data-testid={`order-paid-${o.id}`}>{formatMoney(o.paid)}</Ltr>
                 </td>
                 <td className="p-2 font-semibold">
-                  <Ltr data-testid={`order-open-${o.id}`}>{MONEY.format(o.open)}</Ltr>
+                  <Ltr data-testid={`order-open-${o.id}`}>{formatMoney(o.open)}</Ltr>
                 </td>
                 <td className="p-2">
                   <Badge tone={PAYMENT_TONE[o.paymentStatus]}>
@@ -527,7 +526,7 @@ function OrderPicker({
       <option value={SPLIT}>תשלום כללי — יתחלק בין ההזמנות הפתוחות</option>
       {orders.map((o) => (
         <option key={o.id} value={o.id}>
-          {o.label} · נותר {MONEY.format(o.open)} · {PAYMENT_STATUS_LABELS[o.paymentStatus]}
+          {o.label} · נותר {formatMoney(o.open)} · {PAYMENT_STATUS_LABELS[o.paymentStatus]}
         </option>
       ))}
     </select>
@@ -667,7 +666,7 @@ function NewPaymentForm({
                     />
                     <Ltr>{o.label}</Ltr>
                     <span className="text-on-surface-variant">
-                      נותר <Ltr>{MONEY.format(o.open)}</Ltr> ·{" "}
+                      נותר <Ltr>{formatMoney(o.open)}</Ltr> ·{" "}
                       {PAYMENT_STATUS_LABELS[o.paymentStatus]}
                     </span>
                   </label>
@@ -681,7 +680,7 @@ function NewPaymentForm({
             ) : (
               <>
                 {ticked.length === 1 ? "חשבון אחד סומן" : `${ticked.length} חשבונות סומנו`} · נותר
-                בהם <Ltr>{MONEY.format(tickedSum)}</Ltr>. סכום גבוה יותר נכנס ליתרת הלקוח (זיכוי).
+                בהם <Ltr>{formatMoney(tickedSum)}</Ltr>. סכום גבוה יותר נכנס ליתרת הלקוח (זיכוי).
               </>
             )}
           </p>
@@ -707,7 +706,7 @@ function NewPaymentForm({
                 onClick={() => setAmount(String(totalOpen))}
                 className="rounded-full border border-outline-variant bg-surface-container-lowest px-2.5 py-0.5 text-xs text-primary hover:bg-surface-container"
               >
-                כל היתרה <Ltr>{MONEY.format(totalOpen)}</Ltr>
+                כל היתרה <Ltr>{formatMoney(totalOpen)}</Ltr>
               </button>
             ) : null}
           </div>
@@ -769,7 +768,7 @@ function NewPaymentForm({
             "שומר…"
           ) : Number.isFinite(typed) && typed > 0 ? (
             <>
-              רישום <Ltr>{MONEY.format(typed)}</Ltr>
+              רישום <Ltr>{formatMoney(typed)}</Ltr>
             </>
           ) : (
             "שמירת תשלום"

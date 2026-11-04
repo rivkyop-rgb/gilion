@@ -8,8 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Ltr } from "@/components/ui/ltr";
 import { InlineError } from "@/components/states";
 import { applyCreditAction } from "../../billing/actions";
-
-const MONEY = new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS" });
+import { formatMoney } from "@/lib/domain/format";
 
 /**
  * "This customer has ₪300 left over — put it on this order, or leave it?"
@@ -57,7 +56,7 @@ export function CreditPrompt({
     >
       <p className="flex flex-wrap items-center gap-2 font-medium">
         <Wallet className="size-4 shrink-0" />
-        ללקוח <Ltr className="font-semibold">{MONEY.format(credit)}</Ltr> לזכותו
+        ללקוח <Ltr className="font-semibold">{formatMoney(credit)}</Ltr> לזכותו
         {binding && usable > 0 ? <span>— לשייך להזמנה הזאת?</span> : null}
       </p>
 
@@ -68,13 +67,13 @@ export function CreditPrompt({
           <p className="mt-1 text-xs opacity-90" data-testid="credit-prompt-detail">
             {credit > usable ? (
               <>
-                ישויכו <Ltr>{MONEY.format(usable)}</Ltr> מתוך היתרה, ועוד{" "}
-                <Ltr>{MONEY.format(credit - usable)}</Ltr> יישארו ביתרה הכללית.
+                ישויכו <Ltr>{formatMoney(usable)}</Ltr> מתוך היתרה, ועוד{" "}
+                <Ltr>{formatMoney(credit - usable)}</Ltr> יישארו ביתרה הכללית.
               </>
             ) : (
               <>
-                כל היתרה — <Ltr>{MONEY.format(usable)}</Ltr> — תשויך להזמנה הזאת, ויישארו{" "}
-                <Ltr>{MONEY.format(open - usable)}</Ltr> לתשלום.
+                כל היתרה — <Ltr>{formatMoney(usable)}</Ltr> — תשויך להזמנה הזאת, ויישארו{" "}
+                <Ltr>{formatMoney(open - usable)}</Ltr> לתשלום.
               </>
             )}
           </p>

@@ -79,8 +79,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   requireArea(ctx, "reports");
 
   const params = await searchParams;
-  const tab =
-    params.tab === "publications" || params.tab === "winback" ? params.tab : "payments";
+  const tab = params.tab === "publications" || params.tab === "winback" ? params.tab : "payments";
   const period: PeriodKind = PERIODS.includes(params.period as PeriodKind)
     ? (params.period as PeriodKind)
     : "month";
@@ -165,11 +164,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         >
           דוח ברמת פרסום
         </TabLink>
-        <TabLink
-          href={hrefFor({ tab: "winback" })}
-          active={tab === "winback"}
-          testId="tab-winback"
-        >
+        <TabLink href={hrefFor({ tab: "winback" })} active={tab === "winback"} testId="tab-winback">
           לקוחות לחידוש
         </TabLink>
       </div>
@@ -707,12 +702,11 @@ async function WinbackTab({
   return (
     <>
       <p className="mb-3 text-xs text-on-surface-variant" data-testid="winback-explanation">
-        כל לקוח שפרסם בתקופה שנבחרה — שורה אחת ללקוח, עם הודעה מוכנה בוואטסאפ או במייל לשאול אם
-        ירצה לפרסם שוב. כדי למצוא את מי שפרסם בשנה שעברה: &quot;טווח&quot; ותאריכים של אז.{" "}
+        כל לקוח שפרסם בתקופה שנבחרה — שורה אחת ללקוח, עם הודעה מוכנה בוואטסאפ או במייל לשאול אם ירצה
+        לפרסם שוב. כדי למצוא את מי שפרסם בשנה שעברה: &quot;טווח&quot; ותאריכים של אז.{" "}
         {hidden > 0 && !includeReturned ? (
           <>
-            {hidden === 1 ? "לקוח אחד" : `${hidden} לקוחות`} שכבר הזמינו שוב אחרי התקופה לא מוצגים
-            —{" "}
+            {hidden === 1 ? "לקוח אחד" : `${hidden} לקוחות`} שכבר הזמינו שוב אחרי התקופה לא מוצגים —{" "}
             <Link href={hrefFor({ returned: "1", page: "" })} className="underline">
               להציג גם אותם
             </Link>
@@ -779,7 +773,10 @@ async function WinbackTab({
                   </td>
                   <td className="p-3">{row.newspapers.join(", ")}</td>
                   <td className="p-3">
-                    <ul className="space-y-1 text-xs" data-testid={`winback-send-${row.customerId}`}>
+                    <ul
+                      className="space-y-1 text-xs"
+                      data-testid={`winback-send-${row.customerId}`}
+                    >
                       {reminderRecipients(row).map((to) => {
                         const message = fillTemplate(template, {
                           לקוח: row.customerName,

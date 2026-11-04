@@ -162,8 +162,8 @@ function Preview({
   // BrandMark, which is the only thing in the product that knows where a stored
   // logo lives.
   if (src) {
-    // eslint-disable-next-line @next/next/no-img-element
     return (
+      // eslint-disable-next-line @next/next/no-img-element
       <img src={src} alt="" style={{ width: size, height: size }} className="object-contain" />
     );
   }
