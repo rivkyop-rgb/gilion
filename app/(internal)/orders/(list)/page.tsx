@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { DetailGrid, ExpandableRow } from "@/components/ui/expandable-row";
 import { FilterBuilder } from "@/components/ui/filter-builder";
 import { SavedFilters } from "@/components/ui/saved-filters";
+import { walkInName } from "@/lib/domain/walk-in";
 import { listSavedFilters } from "@/lib/data/saved-filters";
 import { normaliseFilterQuery } from "@/lib/domain/saved-filter";
 import { ResetFilters } from "@/components/ui/reset-filters";
@@ -362,6 +363,11 @@ export default async function OrdersPage({
                     <Link href={`/customers/${o.customer.id}`} className="hover:underline">
                       {o.customer.business_name}
                     </Link>
+                    {/* The walk-in's own name, from the notes (08/11/2026) —
+                        a column of "לקוח כללי" tells nobody anything. */}
+                    {o.customer.is_walk_in && walkInName(o.notes) ? (
+                      <span className="block text-xs font-semibold">{walkInName(o.notes)}</span>
+                    ) : null}
                   </td>
                   <td className="p-3">
                     <SourceBadge source={o.source} />

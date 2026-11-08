@@ -33,6 +33,8 @@ import { LineBuilder } from "./line-builder";
 import { OrderArtwork } from "./order-artwork";
 import { portalSubmission } from "@/lib/data/portal-accounts";
 import { OrderActions } from "./order-actions";
+import { OrderNotes } from "./order-notes";
+import { walkInName } from "@/lib/domain/walk-in";
 import { PreviewLineActions } from "./preview-line-actions";
 import { ItemFileCell } from "./item-file-cell";
 import { ItemPositionEditor } from "./position-fields";
@@ -213,6 +215,11 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             >
               {order.customer.business_name}
             </Link>
+            {order.customer.is_walk_in && walkInName(order.notes) ? (
+              <span className="text-sm font-semibold" data-testid="walk-in-name">
+                {walkInName(order.notes)}
+              </span>
+            ) : null}
           </div>
           <div className="mt-2">
             <RecordHistory
@@ -237,6 +244,21 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           the lines are being built. RTL: the first column is the right one. */}
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0">
+          <OrderNotes
+            orderId={order.id}
+            customerId={order.customer_id}
+            notes={order.notes ?? ""}
+            mayEdit={canWriteArea(ctx, "orders") && status !== "canceled"}
+            walkIn={
+              order.customer.is_walk_in && (status === "draft" || status === "pending_approval")
+                ? {
+                    total: money.total,
+                    paid: (await paidByOrder(ctx.businessId, [order.id])).get(order.id) ?? 0,
+                    mayPay: canWriteArea(ctx, "billing"),
+                  }
+                : null
+            }
+          />
           {pageConflicts.length > 0 || capacity.length > 0 ? (
             <div
               role="alert"

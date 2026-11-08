@@ -460,7 +460,7 @@ export default async function PublicationsPage({
         />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
-          <table className="w-full text-sm" data-testid="publications-table">
+          <table className="w-full text-sm [&_td]:px-2 [&_th]:px-2" data-testid="publications-table">
             <thead className="bg-surface-container">
               <tr>
                 <th className="w-8 p-1" aria-label="פרטים" />
@@ -573,16 +573,16 @@ export default async function PublicationsPage({
                             "hover:bg-surface-container-low",
                     )}
                   >
-                    <td className="p-3">
+                    <td className="min-w-24 p-3">
                       <Link href={`/customers/${p.customer_id}`} className="hover:underline">
                         {p.customer.business_name}
                       </Link>
                     </td>
-                    <td className="p-3">{p.newspaper.name}</td>
+                    <td className="min-w-20 p-3">{p.newspaper.name}</td>
                     <td className="p-3">
                       <Ltr>{formatDate(p.publication_date)}</Ltr>
                     </td>
-                    <td className="p-3">{p.ad_shape.name}</td>
+                    <td className="min-w-20 p-3">{p.ad_shape.name}</td>
                     <td className="p-3">
                       <SourceBadge source={p.source} />
                     </td>

@@ -80,6 +80,7 @@ export function PaymentEditor({
   history,
   historyMonths,
   mayWrite,
+  mayAmend = false,
   layout = "stack",
 }: {
   customerId: string;
@@ -91,6 +92,8 @@ export function PaymentEditor({
   history: HistoryEntry[];
   historyMonths: number;
   mayWrite: boolean;
+  /** Edit and cancel an existing record — a manager only (08/11/2026). */
+  mayAmend?: boolean;
   /**
    * "page" (08/11/2026): the customer's own billing page. The form sits in a
    * column of its own beside what is open, so recording a payment never means
@@ -206,6 +209,11 @@ export function PaymentEditor({
   const listSection = (
     <div>
       <h4 className="mb-2 text-sm font-semibold">רישומי תשלום</h4>
+      {mayWrite && !mayAmend && payments.length > 0 ? (
+        <p className="mb-2 text-xs text-on-surface-variant" data-testid="amend-admin-only">
+          תיקון או ביטול של רישום שכבר נשמר — רק מנהל.
+        </p>
+      ) : null}
       {payments.length === 0 ? (
         <p className="text-sm text-on-surface-variant" data-testid="no-payments">
           עוד לא נרשם תשלום ללקוח הזה.
@@ -220,14 +228,14 @@ export function PaymentEditor({
                 <th className="p-2 text-start font-medium">חשבונית</th>
                 <th className="p-2 text-start font-medium">שיוך</th>
                 <th className="p-2 text-start font-medium">עודכן</th>
-                {mayWrite ? <th className="p-2 text-start font-medium" /> : null}
+                {mayAmend ? <th className="p-2 text-start font-medium" /> : null}
               </tr>
             </thead>
             <tbody>
               {payments.map((p) =>
                 editing === p.id ? (
                   <tr key={p.id} data-testid={`payment-edit-${p.id}`}>
-                    <td colSpan={mayWrite ? 6 : 5} className="p-2">
+                    <td colSpan={mayAmend ? 6 : 5} className="p-2">
                       <EditPaymentForm
                         payment={p}
                         orders={orders}
@@ -297,7 +305,7 @@ export function PaymentEditor({
                     <td className="p-2 text-xs text-on-surface-variant">
                       {p.updatedBy} · <Ltr>{p.updatedAt}</Ltr>
                     </td>
-                    {mayWrite ? (
+                    {mayAmend ? (
                       <td className="p-2">
                         <span className="flex gap-1">
                           {p.canceled ? null : (

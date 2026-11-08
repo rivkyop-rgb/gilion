@@ -14,6 +14,9 @@ import {
 
 import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { recordAction, withAudit } from "@/lib/data/audit";
+import { ensureWalkInCustomer, isWalkIn } from "@/lib/data/customers";
+import { paidByOrder } from "@/lib/data/payments";
+import { WALK_IN_NOTES_MAX, walkInApprovalProblem } from "@/lib/domain/walk-in";
 import * as data from "@/lib/data/orders";
 import * as pubs from "@/lib/data/publications";
 import {
@@ -135,6 +138,26 @@ export async function createOrderDraftAction(
   formData: FormData,
 ): Promise<FormState> {
   const ctx = await requireOrderWrite();
+
+  // The walk-in customer (08/11/2026): no card of their own — the name goes
+  // into the order's notes, and the order is paid before it is approved.
+  if (formData.get("walkIn") === "1") {
+    const name = String(formData.get("walkInName") ?? "").trim();
+    const details = String(formData.get("walkInDetails") ?? "").trim();
+    if (!name) return { errors: { walkInName: "כתבי את שם הלקוח" } };
+    if (name.length + details.length > WALK_IN_NOTES_MAX) {
+      return { errors: { walkInName: `עד ${WALK_IN_NOTES_MAX} תווים` } };
+    }
+    const walkIn = await ensureWalkInCustomer(ctx.businessId);
+    const order = await data.createOrderDraft(
+      ctx.businessId,
+      walkIn.id,
+      details ? `${name}\n${details}` : name,
+    );
+    await recordAction(ctx, { action: "create_order", targetType: "AdOrder", targetId: order.id });
+    revalidatePath("/orders");
+    redirect(`/orders/${order.id}`);
+  }
 
   const customerId = String(formData.get("customerId") ?? "");
   if (!customerId) return { errors: { customerId: "יש לבחור לקוח" } };
@@ -432,6 +455,20 @@ export async function approveOrderAction(orderId: string): Promise<FormState> {
   if (!order) return { message: "ההזמנה לא נמצאה" };
   if (order.items.length === 0) return { message: "לא ניתן לאשר הזמנה בלי שורות" };
 
+  // The walk-in customer pays before the order goes in (08/11/2026).
+  if (await isWalkIn(ctx.businessId, order.customer_id)) {
+    const [money, paid] = await Promise.all([
+      data.orderMoney(ctx.businessId, order),
+      paidByOrder(ctx.businessId, [orderId]),
+    ]);
+    const problem = walkInApprovalProblem({
+      notes: order.notes ?? null,
+      paid: paid.get(orderId) ?? 0,
+      total: money.total,
+    });
+    if (problem) return { message: problem };
+  }
+
   let next: OrderStatus;
   try {
     const current = order.status as OrderStatus;
@@ -609,4 +646,37 @@ export async function priceSuggestionAction(
   const ctx = await getTenantContext();
   requireArea(ctx, "orders");
   return data.priceSuggestion(ctx.businessId, newspaperId, pageTypeId, adShapeId);
+}
+
+/**
+ * The order's notes (08/11/2026). Free text on any order; on a walk-in order
+ * it is where the person's name lives, so it may not be emptied there.
+ */
+export async function updateOrderNotesAction(
+  orderId: string,
+  raw: unknown,
+): Promise<FormState> {
+  const ctx = await requireOrderWrite();
+  const notes = String(raw ?? "")
+    .replace(/\r\n/g, "\n")
+    .trim();
+  if (notes.length > WALK_IN_NOTES_MAX) return { message: `עד ${WALK_IN_NOTES_MAX} תווים` };
+
+  const order = await data.getOrder(ctx.businessId, orderId);
+  if (!order) return { message: "ההזמנה לא נמצאה" };
+  if (!notes && (await isWalkIn(ctx.businessId, order.customer_id))) {
+    return { message: "בהזמנה של לקוח כללי ההערות הן שם הלקוח — אי אפשר להשאיר אותן ריקות." };
+  }
+
+  await withAudit(
+    { businessId: ctx.businessId, userId: ctx.userId },
+    { action: "update_order_lines", targetType: "AdOrder", targetId: orderId },
+    async (tx) => {
+      await tx.adOrder.update({ where: { id: orderId }, data: { notes: notes || null } });
+      return { old: { notes: order.notes ?? null }, new: { notes: notes || null } };
+    },
+  );
+  revalidatePath(`/orders/${orderId}`);
+  revalidatePath("/orders");
+  return { ok: true, message: "ההערות נשמרו" };
 }

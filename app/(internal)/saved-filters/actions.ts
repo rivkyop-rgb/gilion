@@ -58,6 +58,44 @@ export async function saveFilterAction(raw: unknown): Promise<{ message?: string
   return { ok: true };
 }
 
+const updateSchema = schema.omit({ list: true, query: true }).extend({
+  id: z.string().min(1),
+  /** Set to also replace what the button filters by with what is on screen. */
+  query: z.string().max(2000).optional(),
+});
+
+/**
+ * Renames, recolours or re-scopes a button — and, when asked, points it at
+ * the filter on screen now (08/11/2026: "בחירה ועריכה"). The same people who
+ * may delete it may change it.
+ */
+export async function updateSavedFilterAction(
+  raw: unknown,
+): Promise<{ message?: string; ok?: boolean }> {
+  const ctx = await getTenantContext();
+  const parsed = updateSchema.safeParse(raw);
+  if (!parsed.success) return { message: parsed.error.issues[0]?.message ?? "הפרטים לא תקינים" };
+  const input = parsed.data;
+  const row = await data.getSavedFilter(ctx.businessId, input.id);
+  if (!row || (row.owner_id && row.owner_id !== ctx.userId)) return { message: "לא נמצא" };
+  const mine = row.owner_id === ctx.userId || row.created_by === ctx.userId;
+  const admin = ctx.role === "admin" || ctx.isSuperAdmin;
+  if (!mine && !admin) return { message: "רק מי שיצר את הכפתור או מנהל יכולים לשנות אותו" };
+
+  const query = input.query ? normaliseFilterQuery(input.query) : undefined;
+  if (input.query !== undefined && !query) return { message: "אין כרגע סינון על המסך." };
+
+  await data.updateSavedFilter(ctx.businessId, row.id, {
+    name: input.name,
+    color: input.color,
+    ownerId: input.scope === "me" ? ctx.userId : null,
+    query,
+  });
+  const list = row.list as SavedFilterList;
+  if (PATH[list]) revalidatePath(PATH[list]);
+  return { ok: true };
+}
+
 /**
  * A personal button is its owner's to delete. A shared one, its creator's or
  * an admin's — somebody else's colleague cannot make it vanish from the whole

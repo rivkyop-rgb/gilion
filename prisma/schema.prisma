@@ -352,6 +352,12 @@ model Customer {
   /// Kept out of automatic placement: their ads are always placed by hand
   /// (the user, 03/11/2026).
   no_auto_place       Boolean  @default(false)
+  /// The business's one "לקוח כללי" (08/11/2026): somebody who walks in once,
+  /// pays at the counter and is not worth a card of their own. Needs no phone
+  /// or email — the CHECK allows it — and every order on it carries the
+  /// person's name in `AdOrder.notes` and is paid before it is approved.
+  /// At most one per business (partial unique index, by hand in the migration).
+  is_walk_in          Boolean  @default(false)
   created_at          DateTime @default(now())
   updated_at          DateTime @updatedAt
 
@@ -810,6 +816,9 @@ model AdOrder {
   /// after approval. On approval each publication created is linked to it, and
   /// each one can still be changed individually afterwards.
   advertisement_id        String?
+  /// Free text for whoever handles the order next (08/11/2026). On an order
+  /// for the walk-in customer it is required: it is where their name lives.
+  notes                   String?
   approved_at             DateTime?
   completed_at            DateTime?
 

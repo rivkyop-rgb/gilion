@@ -245,6 +245,7 @@ export default async function CustomerBillingPage({ params }: { params: Promise<
         outstanding={outstanding}
         credit={credit}
         mayWrite={mayWrite}
+        mayAmend={mayWrite && (ctx.role === "admin" || ctx.isSuperAdmin)}
         orders={orders.map((o) => ({
           id: o.id,
           label: orderNumber(o.number),

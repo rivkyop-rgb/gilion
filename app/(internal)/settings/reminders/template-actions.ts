@@ -44,17 +44,27 @@ export async function saveReminderTemplateAction(raw: unknown): Promise<{ messag
   return {};
 }
 
+/** The customer messages an admin edits beside their fields (08/11/2026). */
+const MESSAGE_KEYS = ["winback_template", "misfit_template"] as const;
+type MessageKey = (typeof MESSAGE_KEYS)[number];
+
 /**
- * The winback wording, saved from the reports tab itself (08/11/2026: "לאפשר
- * לי לערוך פעם אחת את ההודעה … וזה ישמש לי לתבנית להבא"). Same override, same
- * rules, as the reminder wording above.
+ * A customer message wording — the win-back and the misfit messages — saved
+ * from Settings ← הודעות ללקוחות, or from the screen the message is sent from
+ * (08/11/2026: "לאפשר לי לערוך פעם אחת את ההודעה … וזה ישמש לי לתבנית להבא").
+ * Same override, same rules, as the reminder wording above.
  */
-export async function saveWinbackTemplateAction(raw: unknown): Promise<{ message?: string }> {
+export async function saveMessageTemplateAction(
+  key: unknown,
+  raw: unknown,
+): Promise<{ message?: string }> {
   const ctx = await getTenantContext();
   requireArea(ctx, "settings", "write");
   if (ctx.role !== "admin" && !ctx.isSuperAdmin) return { message: "רק מנהל יכול לשנות את הנוסח" };
+  if (!MESSAGE_KEYS.includes(key as MessageKey)) return { message: "נוסח לא מוכר" };
+  const name = key as MessageKey;
 
-  const field = textFieldByKey("winback_template")!;
+  const field = textFieldByKey(name)!;
   const value = String(raw ?? "")
     .replace(/\r\n/g, "\n")
     .trim();
@@ -64,8 +74,8 @@ export async function saveWinbackTemplateAction(raw: unknown): Promise<{ message
 
   const before = await data.loadSettings(ctx.businessId);
   const next: Record<string, string> = { ...before.texts };
-  if (value === "" || value === field.default) delete next.winback_template;
-  else next.winback_template = value;
+  if (value === "" || value === field.default) delete next[name];
+  else next[name] = value;
 
   await withAudit(
     { businessId: ctx.businessId, userId: ctx.userId },
@@ -77,6 +87,7 @@ export async function saveWinbackTemplateAction(raw: unknown): Promise<{ message
   );
 
   revalidatePath("/reports");
-  revalidatePath("/settings/texts");
+  revalidatePath("/publications/misfit");
+  revalidatePath("/settings/messages");
   return {};
 }

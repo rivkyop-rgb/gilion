@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 /** Gap between the two halves of a spread, in pixels. Matches `gap-2`. */
 const SPREAD_GAP = 8;
@@ -39,11 +39,15 @@ export function useFittedSpread(
    */
   fitWidth = false,
 ) {
-  const ref = useRef<HTMLDivElement>(null);
+  // A callback ref, not useRef (08/11/2026): the view is unmounted while "כל
+  // הגיליון" is open, and coming back mounts a NEW element. An effect keyed on
+  // nothing kept watching the one that was gone, the box stayed 0×0, and the
+  // page came back as a dot with its captions printed over each other.
+  const [element, setElement] = useState<HTMLDivElement | null>(null);
+  const ref = useCallback((node: HTMLDivElement | null) => setElement(node), []);
   const [box, setBox] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
-    const element = ref.current;
     if (!element) return;
 
     const measure = () => {
@@ -51,7 +55,6 @@ export function useFittedSpread(
       setBox({ width: rect.width, height: rect.height });
     };
 
-    measure();
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     // The container's own height comes from the viewport, and a ResizeObserver
@@ -62,7 +65,7 @@ export function useFittedSpread(
       observer.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, []);
+  }, [element]);
 
   const pages = Math.max(1, pageCount);
   const ratio = aspectRatio > 0 ? aspectRatio : 1;

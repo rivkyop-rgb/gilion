@@ -45,3 +45,19 @@ export async function getSavedFilter(businessId: string, id: string) {
 export async function deleteSavedFilter(businessId: string, id: string) {
   await tenantDb(businessId).savedFilter.deleteMany({ where: { id } });
 }
+
+export async function updateSavedFilter(
+  businessId: string,
+  id: string,
+  input: { name: string; color: string; ownerId: string | null; query?: string },
+) {
+  await tenantDb(businessId).savedFilter.updateMany({
+    where: { id },
+    data: {
+      name: input.name,
+      color: input.color,
+      owner_id: input.ownerId,
+      ...(input.query ? { query: input.query } : {}),
+    },
+  });
+}

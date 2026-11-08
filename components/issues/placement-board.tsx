@@ -73,6 +73,7 @@ import { ISSUE_TONE } from "@/components/status-tone";
 import { ChangeIssueDate } from "./issue-calendar";
 import { PageStrip } from "./page-strip";
 import { PageOrderDialog } from "./page-order-dialog";
+import { UnfinishedDialog, type UnfinishedRow } from "./unfinished-dialog";
 import { counted } from "@/lib/domain/hebrew-count";
 import { UnplacedPanel, type BoardCandidate } from "./unplaced-panel";
 import { useFittedSpread } from "./use-fitted-spread";
@@ -395,6 +396,19 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
     }
     return map;
   }, [model.pages, placementsByPage, model.grid, model.prices]);
+
+  const unfinishedRows: UnfinishedRow[] = useMemo(
+    () =>
+      unfinished.map((f) => ({
+        pageId: f.pageId,
+        pageNumber: f.pageNumber,
+        label: pageLabel(f.pageNumber, model.pages.length),
+        pageType: model.pages.find((p) => p.id === f.pageId)?.pageTypeName ?? "",
+        freePercent: 100 - f.percent,
+        biggest: freeSpace.get(f.pageId) ?? null,
+      })),
+    [unfinished, model.pages, freeSpace],
+  );
 
   // "כל הגיליון": every page small, side by side (01/11/2026).
   const [overview, setOverview] = useState(false);
@@ -1433,19 +1447,8 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                     className="flex min-w-0 items-center gap-1.5 overflow-hidden text-on-surface-variant"
                   >
                     · עדיין יש מקום למכור ב־<Ltr>{unfinished.length}</Ltr>{" "}
-                    {unfinished.length === 1 ? "עמוד" : "עמודים"}:
-                    {unfinished.slice(0, UNFINISHED_SHOWN).map((f) => (
-                      <button
-                        key={f.pageId}
-                        type="button"
-                        data-testid={`jump-to-page-${f.pageNumber}`}
-                        onClick={() => jumpToPage(f.pageId)}
-                        className="rounded-full bg-surface-container-lowest px-2 py-0.5 text-xs font-medium underline-offset-2 hover:underline"
-                      >
-                        {pageLabel(f.pageNumber, totalPages)} · {100 - f.percent}% פנוי
-                      </button>
-                    ))}
-                    <MoreUnfinished count={unfinished.length} onOpen={() => setOverview(true)} />
+                    {unfinished.length === 1 ? "עמוד" : "עמודים"}
+                    <UnfinishedDialog rows={unfinishedRows} onJump={jumpToPage} />
                   </span>
                 ) : null}
               </p>
@@ -1457,23 +1460,9 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                 <AlertTriangle className="size-4 shrink-0" />
                 <span>
                   עדיין יש מקום למכור ב־<Ltr>{unfinished.length}</Ltr>{" "}
-                  {unfinished.length === 1 ? "עמוד" : "עמודים"}:
+                  {unfinished.length === 1 ? "עמוד" : "עמודים"}
                 </span>
-                {unfinished.slice(0, UNFINISHED_SHOWN).map((f) => (
-                  <button
-                    key={f.pageId}
-                    type="button"
-                    data-testid={`jump-to-page-${f.pageNumber}`}
-                    onClick={() => jumpToPage(f.pageId)}
-                    className="rounded-full bg-surface-container-lowest px-2 py-0.5 text-xs font-medium underline-offset-2 hover:underline"
-                  >
-                    {/* The number a seller acts on is what is LEFT, not what is
-                      gone. The page caption shows how full it is; this shows
-                      what there is to offer somebody on the phone. */}
-                    {pageLabel(f.pageNumber, totalPages)} · {100 - f.percent}% פנוי
-                  </button>
-                ))}
-                <MoreUnfinished count={unfinished.length} onOpen={() => setOverview(true)} />
+                <UnfinishedDialog rows={unfinishedRows} onJump={jumpToPage} />
               </p>
             ) : (
               <p
@@ -2313,21 +2302,4 @@ function DuplicateDialog({
 }
 
 /** How many "room to sell" pages the one-line strip names before "+N" (08/11/2026). */
-const UNFINISHED_SHOWN = 4;
-
-/** "+3" — the rest of the pages with room, one click from the whole issue. */
-function MoreUnfinished({ count, onOpen }: { count: number; onOpen: () => void }) {
-  if (count <= UNFINISHED_SHOWN) return null;
-  return (
-    <button
-      type="button"
-      data-testid="unfinished-more"
-      onClick={onOpen}
-      title="הצגת כל הגיליון"
-      className="shrink-0 rounded-full bg-surface-container-lowest px-2 py-0.5 text-xs font-medium hover:underline"
-    >
-      <Ltr>+{count - UNFINISHED_SHOWN}</Ltr>
-    </button>
-  );
-}
 

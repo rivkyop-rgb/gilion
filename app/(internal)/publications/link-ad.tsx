@@ -172,7 +172,7 @@ export function LinkAdCell({
               className="flex items-center gap-2 rounded-sm hover:bg-surface-container-low"
             >
               <AdThumb ad={linked} className="size-8 shrink-0" />
-              <span className="max-w-32 truncate text-xs underline" title={linked.name}>
+              <span className="max-w-20 truncate text-xs underline" title={linked.name}>
                 {linked.name}
               </span>
             </button>

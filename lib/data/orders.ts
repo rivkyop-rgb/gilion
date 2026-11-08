@@ -28,7 +28,7 @@ export type OrderFilters = {
 };
 
 const ORDER_INCLUDE = {
-  customer: { select: { id: true, business_name: true, preferred_page: true } },
+  customer: { select: { id: true, business_name: true, preferred_page: true, is_walk_in: true } },
   /// Artwork attached to the order as a whole — see AdOrder.advertisement_id.
   advertisement: {
     select: {
@@ -123,6 +123,9 @@ function orderWhere(filters: OrderFilters, search = ""): Prisma.AdOrderWhereInpu
           OR: [
             ...(number !== null ? [{ number }] : []),
             { customer: { business_name: { contains: q, mode: "insensitive" as const } } },
+            // A walk-in's name is in the notes (08/11/2026) — searching for
+            // the person must find their order, not only "לקוח כללי".
+            { notes: { contains: q, mode: "insensitive" as const } },
           ],
         }
       : {}),
@@ -235,12 +238,17 @@ export async function nextOrderNumber(
   return business.last_order_number;
 }
 
-export async function createOrderDraft(businessId: string, customerId: string) {
+export async function createOrderDraft(
+  businessId: string,
+  customerId: string,
+  notes: string | null = null,
+) {
   return tenantDb(businessId).adOrder.create({
     data: {
       customer_id: customerId,
       source: "internal",
       status: "draft",
+      notes,
       number: await nextOrderNumber(businessId),
     } as never,
   });

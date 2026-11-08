@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bookmark, Check, Lock, Users, X } from "lucide-react";
+import { Bookmark, Check, Lock, MoreVertical, Pencil, Trash2, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,11 @@ import {
   type SavedFilterList,
 } from "@/lib/domain/saved-filter";
 import { cn } from "@/lib/utils";
-import { deleteSavedFilterAction, saveFilterAction } from "@/app/(internal)/saved-filters/actions";
+import {
+  deleteSavedFilterAction,
+  saveFilterAction,
+  updateSavedFilterAction,
+} from "@/app/(internal)/saved-filters/actions";
 
 export type SavedFilterButton = {
   id: string;
@@ -23,7 +27,7 @@ export type SavedFilterButton = {
   query: string;
   /** Only this user sees it. */
   personal: boolean;
-  /** This user may remove it. */
+  /** This user may change or remove it. */
   removable: boolean;
 };
 
@@ -72,6 +76,11 @@ const TONE: Record<string, { idle: string; active: string; swatch: string }> = {
  *
  * The save form is an overlay, not a row that opens in the flow: it must not
  * push the table down under the pointer (CLAUDE.md).
+ *
+ * Changing or removing a button goes through its ⋮ menu (08/11/2026: "שלא
+ * ימחק כל כך מהר על ידי לחיצה על איקס"). An X beside the name was one stray
+ * click from making a colleague's shared button vanish; now removal is two
+ * deliberate clicks, and the second one names what is going.
  */
 export function SavedFilters({
   list,
@@ -87,6 +96,11 @@ export function SavedFilters({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  /** The button being edited in the panel; null = saving a new one. */
+  const [editing, setEditing] = useState<SavedFilterButton | null>(null);
+  const [retarget, setRetarget] = useState(false);
+  const [menu, setMenu] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [color, setColor] = useState<string>(SAVED_FILTER_COLORS[0].key);
   const [scope, setScope] = useState<"me" | "everyone">("me");
@@ -95,22 +109,55 @@ export function SavedFilters({
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open && !menu) return;
     const onDown = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      if (!rootRef.current?.contains(e.target as Node)) {
+        setOpen(false);
+        setMenu(null);
+        setConfirming(null);
+      }
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
+  }, [open, menu]);
 
   const alreadySaved = filters.some((f) => f.query === currentQuery);
+
+  const openNew = () => {
+    setEditing(null);
+    setName("");
+    setColor(SAVED_FILTER_COLORS[0].key);
+    setScope("me");
+    setError(null);
+    setOpen((v) => !v);
+  };
+
+  const openEdit = (f: SavedFilterButton) => {
+    setEditing(f);
+    setName(f.name);
+    setColor(f.color);
+    setScope(f.personal ? "me" : "everyone");
+    setRetarget(false);
+    setError(null);
+    setMenu(null);
+    setOpen(true);
+  };
 
   const save = () =>
     start(async () => {
       setError(null);
-      const result = await saveFilterAction({ list, name, color, query: currentQuery, scope });
+      const result = editing
+        ? await updateSavedFilterAction({
+            id: editing.id,
+            name,
+            color,
+            scope,
+            query: retarget ? currentQuery : undefined,
+          })
+        : await saveFilterAction({ list, name, color, query: currentQuery, scope });
       if (result.message) return setError(result.message);
       setOpen(false);
+      setEditing(null);
       setName("");
       router.refresh();
     });
@@ -119,6 +166,8 @@ export function SavedFilters({
     start(async () => {
       const result = await deleteSavedFilterAction(id);
       if (result.message) setError(result.message);
+      setMenu(null);
+      setConfirming(null);
       router.refresh();
     });
 
@@ -163,16 +212,81 @@ export function SavedFilters({
               {f.name}
             </Link>
             {f.removable ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => remove(f.id)}
-                aria-label={`הסרת הכפתור ${f.name}`}
-                data-testid={`saved-filter-remove-${f.id}`}
-                className="me-1 rounded-full p-1 opacity-70 hover:opacity-100"
-              >
-                <X className="size-3" />
-              </button>
+              <span className="relative">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setConfirming(null);
+                    setMenu((m) => (m === f.id ? null : f.id));
+                  }}
+                  aria-label={`אפשרויות לכפתור ${f.name}`}
+                  aria-expanded={menu === f.id}
+                  data-testid={`saved-filter-menu-${f.id}`}
+                  className="me-1 rounded-full p-1 opacity-70 hover:opacity-100"
+                >
+                  <MoreVertical className="size-3.5" />
+                </button>
+                {menu === f.id ? (
+                  <span
+                    role="menu"
+                    className="absolute top-full z-30 mt-1 flex w-56 flex-col rounded-lg border border-outline-variant bg-surface-container-lowest p-1 text-sm text-on-surface shadow-elevation-2"
+                    data-testid={`saved-filter-menu-panel-${f.id}`}
+                  >
+                    {confirming === f.id ? (
+                      <span className="flex flex-col gap-2 p-2">
+                        <span>
+                          למחוק את הכפתור <strong>{f.name}</strong>
+                          {f.personal ? "?" : "? הוא יימחק לכל המשתמשים בעסק."}
+                        </span>
+                        <span className="flex gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="destructive"
+                            disabled={busy}
+                            onClick={() => remove(f.id)}
+                            data-testid={`saved-filter-remove-${f.id}`}
+                          >
+                            מחיקה
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setConfirming(null)}
+                          >
+                            ביטול
+                          </Button>
+                        </span>
+                      </span>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => openEdit(f)}
+                          data-testid={`saved-filter-edit-${f.id}`}
+                          className="flex items-center gap-2 rounded-md px-3 py-2 text-start hover:bg-surface-container"
+                        >
+                          <Pencil className="size-4" aria-hidden />
+                          עריכה
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => setConfirming(f.id)}
+                          data-testid={`saved-filter-delete-${f.id}`}
+                          className="flex items-center gap-2 rounded-md px-3 py-2 text-start text-status-error-fg hover:bg-status-error-bg"
+                        >
+                          <Trash2 className="size-4" aria-hidden />
+                          מחיקה…
+                        </button>
+                      </>
+                    )}
+                  </span>
+                ) : null}
+              </span>
             ) : null}
           </span>
         );
@@ -183,8 +297,8 @@ export function SavedFilters({
           type="button"
           size="sm"
           variant="ghost"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
+          onClick={openNew}
+          aria-expanded={open && !editing}
           data-testid="save-filter"
         >
           <Bookmark className="size-4" />
@@ -197,6 +311,11 @@ export function SavedFilters({
           className="absolute top-full z-30 mt-1 flex w-[min(22rem,calc(100vw-2rem))] flex-col gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevation-2"
           data-testid="save-filter-panel"
         >
+          {editing ? (
+            <p className="text-sm font-semibold" data-testid="edit-filter-title">
+              עריכת הכפתור {editing.name}
+            </p>
+          ) : null}
           <label className="text-xs text-on-surface-variant">
             שם הכפתור
             <Input
@@ -254,6 +373,18 @@ export function SavedFilters({
               כל המשתמשים בעסק
             </label>
           </fieldset>
+          {editing && currentQuery && currentQuery !== editing.query ? (
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={retarget}
+                onChange={(e) => setRetarget(e.target.checked)}
+                data-testid="save-filter-retarget"
+              />
+              לעדכן את הכפתור לסינון שעל המסך עכשיו
+            </label>
+          ) : null}
           {error ? <InlineError>{error}</InlineError> : null}
           <div className="flex gap-2">
             <Button
@@ -263,9 +394,17 @@ export function SavedFilters({
               onClick={save}
               data-testid="save-filter-submit"
             >
-              {busy ? "שומר…" : "שמירה"}
+              {busy ? "שומר…" : editing ? "עדכון" : "שמירה"}
             </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setOpen(false);
+                setEditing(null);
+              }}
+            >
               ביטול
             </Button>
           </div>

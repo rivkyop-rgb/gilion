@@ -7,34 +7,44 @@ import { AlertTriangle, MessageSquareText, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InlineError } from "@/components/states";
 import { fillTemplate } from "@/lib/domain/customer-messages";
-import { saveWinbackTemplateAction } from "../settings/reminders/template-actions";
-
-const FIELDS = ["לקוח", "עיתון", "תאריך אחרון", "גודל", "עסק", "טלפון העסק"] as const;
+import { cn } from "@/lib/utils";
+import { saveMessageTemplateAction } from "@/app/(internal)/settings/reminders/template-actions";
 
 /**
- * The winback message, edited where it is sent from (08/11/2026: "לאפשר לי
- * לערוך פעם אחת את ההודעה שנשלחת לנבחרים … וזה ישמש לי לתבנית להבא").
+ * A customer message wording with its fields and a preview (08/11/2026).
  *
- * Folded by default — the table is what the tab is for. Saving writes the same
- * override the admin panel's texts screen edits, so there is one wording, and
- * every WhatsApp and mail link on the tab opens with it from then on. The
- * preview is filled from the first customer on screen, not from sample data:
- * it is the message that customer would get.
+ * Used in two places that write the same override: Settings ← הודעות ללקוחות,
+ * where every wording sits together, and folded above the screen the message
+ * is sent from ("לאפשר לי לערוך פעם אחת את ההודעה שנשלחת לנבחרים … וזה ישמש
+ * לי לתבנית להבא"). The preview is filled from `sample` — on the sending
+ * screen, the first customer on it: the message that customer would get.
  *
  * Read-only until hydrated, for the reason written on the reminder editor.
  */
-export function WinbackTemplateEditor({
+export function MessageTemplateEditor({
+  templateKey,
+  title,
+  hint,
+  fields,
   current,
   fallback,
   maxLength,
   sample,
   mayEdit,
+  folded = false,
 }: {
+  templateKey: "winback_template" | "misfit_template";
+  title: string;
+  /** Where the message is sent from, said under the title. */
+  hint: string;
+  fields: readonly string[];
   current: string;
   fallback: string;
   maxLength: number;
   sample: Record<string, string> | null;
   mayEdit: boolean;
+  /** Closed until clicked — on a screen whose table is the point. */
+  folded?: boolean;
 }) {
   const [text, setText] = useState(current);
   const [error, setError] = useState<string | null>(null);
@@ -49,9 +59,11 @@ export function WinbackTemplateEditor({
   );
 
   const unknown = [...new Set([...text.matchAll(/\{([^{}]+)\}/g)].map((m) => m[1]!.trim()))].filter(
-    (k) => !(FIELDS as readonly string[]).includes(k),
+    (k) => !fields.includes(k),
   );
   const dirty = text !== current;
+  // winback-template / misfit-template — the testids the specs already use.
+  const prefix = templateKey.replace("_", "-");
 
   const insert = (key: string) => {
     const area = areaRef.current;
@@ -70,7 +82,7 @@ export function WinbackTemplateEditor({
     start(async () => {
       setError(null);
       setSaved(false);
-      const result = await saveWinbackTemplateAction(value);
+      const result = await saveMessageTemplateAction(templateKey, value);
       if (result.message) setError(result.message);
       else {
         setSaved(true);
@@ -80,25 +92,34 @@ export function WinbackTemplateEditor({
 
   return (
     <details
+      open={folded ? undefined : true}
       className="mb-4 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1"
-      data-testid="winback-template-editor"
+      data-testid={`${prefix}-editor`}
     >
-      <summary className="flex cursor-pointer items-center gap-2 p-4 text-sm font-semibold">
+      <summary
+        className={cn(
+          "flex items-center gap-2 p-4 text-sm font-semibold",
+          folded ? "cursor-pointer" : "pointer-events-none list-none",
+        )}
+        // Open for good on the settings screen: a summary there would only
+        // let somebody fold away the thing they came to edit.
+        tabIndex={folded ? undefined : -1}
+      >
         <MessageSquareText className="size-4" aria-hidden />
-        נוסח ההודעה ללקוחות
+        {title}
         <span className="font-normal text-on-surface-variant">
-          — {mayEdit ? "לחיצה לעריכה. הנוסח שנשמר ישמש מעכשיו לכל ההודעות" : "רק מנהל יכול לשנות"}
+          — {mayEdit ? hint : "רק מנהל יכול לשנות"}
         </span>
       </summary>
       <div className="border-t border-outline-variant p-4">
         {mayEdit ? (
           <div className="mb-2 flex flex-wrap gap-1.5">
-            {FIELDS.map((f) => (
+            {fields.map((f) => (
               <button
                 key={f}
                 type="button"
                 onClick={() => insert(f)}
-                data-testid={`winback-insert-${f}`}
+                data-testid={`${prefix}-insert-${f}`}
                 className="rounded-full border border-outline-variant bg-surface-container px-2.5 py-1 text-xs hover:border-primary hover:bg-status-info-bg"
               >
                 {`{${f}}`}
@@ -115,7 +136,7 @@ export function WinbackTemplateEditor({
               rows={7}
               maxLength={maxLength}
               value={text}
-              data-testid="winback-template"
+              data-testid={prefix}
               onChange={(e) => {
                 setText(e.target.value);
                 setSaved(false);
@@ -131,7 +152,7 @@ export function WinbackTemplateEditor({
               {sample ? `כך זה יגיע ל${sample["לקוח"]}:` : "כך זה ייראה:"}
             </p>
             <p
-              data-testid="winback-template-preview"
+              data-testid={`${prefix}-preview`}
               className="whitespace-pre-wrap rounded-lg border border-dashed border-outline-variant bg-surface-container-low p-3 text-sm"
             >
               {(sample ? fillTemplate(text, sample) : text) || "—"}
@@ -155,7 +176,7 @@ export function WinbackTemplateEditor({
               size="sm"
               disabled={busy || !dirty}
               onClick={() => save(text)}
-              data-testid="save-winback-template"
+              data-testid={`save-${prefix}`}
             >
               {busy ? "שומר…" : "שמירה כתבנית"}
             </Button>
@@ -177,9 +198,9 @@ export function WinbackTemplateEditor({
               <span
                 role="status"
                 className="text-sm text-status-success-fg"
-                data-testid="winback-template-saved"
+                data-testid={`${prefix}-saved`}
               >
-                נשמר. כל ההודעות בטבלה נפתחות עכשיו בנוסח הזה.
+                נשמר. מעכשיו ההודעה נפתחת בנוסח הזה.
               </span>
             ) : null}
           </div>

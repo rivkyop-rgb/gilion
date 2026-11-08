@@ -11,6 +11,7 @@ import {
   Type,
   Users,
   ClipboardCheck,
+  MessageSquareText,
 } from "lucide-react";
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 
@@ -45,7 +46,13 @@ const SECTIONS = [
     href: "/settings/reminders",
     icon: BellRing,
     title: "תזכורות",
-    body: "כמה ימים לפני הפרסום להתחיל להזכיר, ונוסח התזכורת שנפתח בוואטסאפ ובמייל.",
+    body: "כמה ימים לפני הפרסום להתחיל להזכיר.",
+  },
+  {
+    href: "/settings/messages",
+    icon: MessageSquareText,
+    title: "הודעות ללקוחות",
+    body: "הנוסחים שנפתחים בוואטסאפ ובמייל: תזכורת לשלוח מודעה, קובץ שלא מתאים לגודל, והזמנה לחזור לפרסם.",
   },
   {
     href: "/settings/ad-shapes",
@@ -71,7 +78,7 @@ const SECTIONS = [
     href: "/settings/texts",
     icon: Type,
     title: "טקסטים",
-    body: "המשפטים שהמשתמשים והלקוחות קוראים — מסך ההתחברות, הפורטל, תחתית ה־PDF ונוסח התזכורת.",
+    body: "המשפטים שהמשתמשים והלקוחות קוראים — מסך ההתחברות, הפורטל ותחתית ה־PDF.",
   },
   {
     href: "/settings/general",

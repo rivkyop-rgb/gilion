@@ -144,8 +144,10 @@ test("still says where there is room, right after placing", async ({ page }) => 
   const room = page.getByTestId("unfinished-after-notice");
   await expect(room).toBeVisible();
   await expect(room).toContainText("עדיין יש מקום למכור");
-  // Free, not full — the number a seller quotes down the phone.
-  await expect(room).toContainText("% פנוי");
+  // The pages themselves are one click away, in a window that does not move
+  // the board (08/11/2026).
+  await room.getByTestId("unfinished-open").click();
+  await expect(page.getByTestId("unfinished-dialog")).toBeVisible();
 });
 
 test.describe("where it may place — the newspaper's setting (27/09/2026)", () => {

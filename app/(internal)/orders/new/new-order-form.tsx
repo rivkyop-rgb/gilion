@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useFormActionState } from "@/components/use-form-action-state";
 import Link from "next/link";
-import { Info, UserPlus, UserSearch } from "lucide-react";
+import { Info, UserPlus, UserSearch, UserRound, Users } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { InlineError, EmptyState } from "@/components/states";
@@ -22,8 +24,12 @@ export function NewOrderForm({
     {},
   );
   const [customerId, setCustomerId] = useState(defaultCustomerId);
+  // "לקוח כללי" (08/11/2026): somebody buying once at the counter — no card,
+  // the name goes into the order's notes.
+  const [walkIn, setWalkIn] = useState(false);
+  const [walkInName, setWalkInName] = useState("");
 
-  if (customers.length === 0) {
+  if (customers.length === 0 && !walkIn) {
     return (
       <EmptyState
         title="אין עדיין לקוחות"
@@ -61,22 +67,78 @@ export function NewOrderForm({
           </Link>
         </div>
 
-        <Label htmlFor="customerId">בחירת לקוח מהרשימה</Label>
-        {/* Type to filter: the list is every customer in the business, which
+        <div className="mb-4 grid grid-cols-2 gap-2" role="radiogroup" aria-label="סוג לקוח">
+          {[
+            { key: false, icon: Users, label: "לקוח רשום", hint: "מהרשימה" },
+            { key: true, icon: UserRound, label: "לקוח כללי", hint: "חד־פעמי, משלם מראש" },
+          ].map((o) => (
+            <button
+              key={o.label}
+              type="button"
+              role="radio"
+              aria-checked={walkIn === o.key}
+              onClick={() => setWalkIn(o.key)}
+              data-testid={o.key ? "order-walk-in" : "order-registered"}
+              className={cn(
+                "flex items-center gap-2 rounded-lg border p-3 text-start",
+                walkIn === o.key
+                  ? "border-primary bg-primary/5 ring-1 ring-primary"
+                  : "border-outline-variant hover:bg-surface-container-low",
+              )}
+            >
+              <o.icon className="size-5 shrink-0" aria-hidden />
+              <span>
+                <span className="block font-semibold">{o.label}</span>
+                <span className="block text-xs text-on-surface-variant">{o.hint}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {walkIn ? (
+          <div data-testid="walk-in-fields">
+            <input type="hidden" name="walkIn" value="1" />
+            <Label htmlFor="walkInName">שם הלקוח</Label>
+            <Input
+              id="walkInName"
+              name="walkInName"
+              value={walkInName}
+              onChange={(e) => setWalkInName(e.target.value)}
+              placeholder="למשל: משה כהן"
+              data-testid="walk-in-name-input"
+              autoFocus
+            />
+            {state.errors?.walkInName ? <InlineError>{state.errors.walkInName}</InlineError> : null}
+            <Label htmlFor="walkInDetails" className="mt-3 block">
+              טלפון או פרטים נוספים (לא חובה)
+            </Label>
+            <Input id="walkInDetails" name="walkInDetails" data-testid="walk-in-details" />
+            <p className="mt-2 text-xs text-on-surface-variant">
+              הפרטים נשמרים בהערות ההזמנה. ההזמנה תאושר רק אחרי שהתשלום נרשם.
+            </p>
+          </div>
+        ) : (
+          <>
+            <Label htmlFor="customerId">בחירת לקוח מהרשימה</Label>
+            {/* Type to filter: the list is every customer in the business, which
             scrolls badly long before it loads slowly. */}
-        <Combobox
-          id="customerId"
-          name="customerId"
-          testId="order-customer"
-          options={customers}
-          defaultValue={defaultCustomerId}
-          required
-          placeholder="הקלידי שם עסק או טלפון…"
-          emptyText="אין לקוח שמתאים לחיפוש"
-          onChange={setCustomerId}
-        />
-        <p className="mt-1 text-xs text-on-surface-variant">{customers.length} לקוחות ברשימה.</p>
-        {state.errors?.customerId ? <InlineError>{state.errors.customerId}</InlineError> : null}
+            <Combobox
+              id="customerId"
+              name="customerId"
+              testId="order-customer"
+              options={customers}
+              defaultValue={defaultCustomerId}
+              required
+              placeholder="הקלידי שם עסק או טלפון…"
+              emptyText="אין לקוח שמתאים לחיפוש"
+              onChange={setCustomerId}
+            />
+            <p className="mt-1 text-xs text-on-surface-variant">
+              {customers.length} לקוחות ברשימה.
+            </p>
+            {state.errors?.customerId ? <InlineError>{state.errors.customerId}</InlineError> : null}
+          </>
+        )}
       </section>
 
       <aside className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
@@ -92,7 +154,11 @@ export function NewOrderForm({
           {state.message ? <InlineError>{state.message}</InlineError> : null}
 
           <div className="flex flex-col gap-2">
-            <Button type="submit" disabled={pending || !customerId} data-testid="create-order">
+            <Button
+              type="submit"
+              disabled={pending || (walkIn ? !walkInName.trim() : !customerId)}
+              data-testid="create-order"
+            >
               {pending ? "פותחת…" : "פתיחת טיוטה"}
             </Button>
             <Button type="button" variant="ghost" asChild>

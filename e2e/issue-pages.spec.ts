@@ -100,24 +100,27 @@ test.describe("the pages of an issue", () => {
   test("names the outside pages instead of numbering them", async ({ page }) => {
     // A seller asked which pages still have room wants to hear "the cover".
     //
-    // Asserted as "contains the name, and is NOT numbered" rather than as exact
-    // text: each chip also carries how much of that page is still free, which
-    // is the other half of what the same seller is asking. Pinning the whole
-    // string made the test about the chip's layout instead of about its claim.
-    const alert = page.getByTestId("unfinished-alert");
+    // The strip only counts them; the list opens in a window (08/11/2026),
+    // so it stays one tidy table however many pages the issue has.
+    await page.getByTestId("unfinished-alert").getByTestId("unfinished-open").click();
+    const list = page.getByTestId("unfinished-dialog");
 
-    await expect(alert.getByTestId("jump-to-page-1")).toContainText("שער");
-    await expect(alert.getByTestId("jump-to-page-1")).not.toContainText("עמוד 1");
+    await expect(list.getByTestId("unfinished-row-1")).toContainText("שער");
+    await expect(list.getByTestId("unfinished-row-1")).not.toContainText("עמוד 1");
 
-    await expect(alert.getByTestId("jump-to-page-4")).toContainText("גב");
-    await expect(alert.getByTestId("jump-to-page-4")).not.toContainText("עמוד 4");
+    await expect(list.getByTestId("unfinished-row-4")).toContainText("גב");
+    await expect(list.getByTestId("unfinished-row-4")).not.toContainText("עמוד 4");
 
     // An inner page has no name to be called by, so it keeps its number.
-    await expect(alert.getByTestId("jump-to-page-2")).toContainText("עמוד 2");
+    await expect(list.getByTestId("unfinished-row-2")).toContainText("עמוד 2");
 
-    // And every chip says what is left to sell there — the number a seller
+    // And every row says what is left to sell there — the number a seller
     // quotes down the phone (asked for 06/09/2026).
-    await expect(alert.getByTestId("jump-to-page-1")).toContainText("% פנוי");
+    await expect(list.getByTestId("unfinished-row-1")).toContainText("%");
+
+    // A row opens its page and closes the window.
+    await list.getByTestId("jump-to-page-2").click();
+    await expect(list).toBeHidden();
   });
 
   test("lists the shapes the open page allows, and strikes out what no longer fits", async ({

@@ -166,6 +166,38 @@ h3 {
   font-weight: 700;
 }
 
+/* Every table a size up, and its headings in ink rather than grey (08/11/2026:
+   "להגדיל את הטקסט בכל הטבלאות — שיהיה יותר ברור ומאיר עיניים").
+
+   Outside every layer on purpose: Tailwind v4 puts its utilities in a cascade
+   layer, and unlayered CSS outranks any layer — so this beats the `text-sm`
+   and `text-xs` that 38 tables carry, in one place, and a table written
+   tomorrow gets it without anyone remembering. The small print inside a cell
+   (badges, hints) grows with it, so the step between them stays. */
+table {
+  font-size: 15px;
+  line-height: 22px;
+  /* The containing block for anything absolute inside a cell. Without it the
+     `sr-only` labels in a wide table took their place from an ancestor outside
+     the table's own scroll box, were not clipped by it, and pushed the whole
+     page 60px sideways — the sidebar half off screen (08/11/2026). */
+  position: relative;
+}
+table th {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+table td .text-xs,
+table td.text-xs {
+  font-size: 13px;
+  line-height: 18px;
+}
+/* A status badge broken over two lines ("לא / שובץ") reads as two badges. */
+table td .rounded-full {
+  white-space: nowrap;
+}
+
 /* Latin metadata (invoice ids, dimensions) inside RTL flow — conventions.md §1 */
 .ltr-isolate {
   direction: ltr;

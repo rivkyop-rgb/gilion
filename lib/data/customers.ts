@@ -91,6 +91,38 @@ export async function customerOptions(businessId: string) {
   });
 }
 
+/** What the walk-in customer is called on every screen. */
+export const WALK_IN_NAME = "לקוח כללי";
+
+/**
+ * The business's walk-in customer, created the first time anybody needs it
+ * (08/11/2026: "צריך שיהיה אפשרות ללקוח כללי"). Created lazily rather than
+ * seeded so a business that never sells at the counter never sees it; the
+ * partial unique index makes a race between two first orders harmless.
+ */
+export async function ensureWalkInCustomer(businessId: string): Promise<{ id: string }> {
+  const db = tenantDb(businessId);
+  const found = await db.customer.findFirst({ where: { is_walk_in: true }, select: { id: true } });
+  if (found) return found;
+  try {
+    return await db.customer.create({
+      data: { business_id: businessId, business_name: WALK_IN_NAME, is_walk_in: true },
+      select: { id: true },
+    });
+  } catch {
+    // Somebody else created it a moment ago.
+    return db.customer.findFirstOrThrow({ where: { is_walk_in: true }, select: { id: true } });
+  }
+}
+
+export async function isWalkIn(businessId: string, customerId: string): Promise<boolean> {
+  const row = await tenantDb(businessId).customer.findUnique({
+    where: { id: customerId },
+    select: { is_walk_in: true },
+  });
+  return Boolean(row?.is_walk_in);
+}
+
 export async function getCustomer(businessId: string, id: string) {
   return tenantDb(businessId).customer.findUnique({
     where: { id },

@@ -23,7 +23,7 @@ test.afterAll(async () => {
 
 test("inserting a field, previewing it filled, and saving it", async ({ page }) => {
   await login(page, USERS.admin);
-  await page.goto("/settings/reminders");
+  await page.goto("/settings/messages");
 
   const area = page.getByTestId("reminder-template");
   await area.fill("שלום ");
@@ -53,7 +53,7 @@ test("inserting a field, previewing it filled, and saving it", async ({ page }) 
 
 test("a field that does not exist is named before it reaches a customer", async ({ page }) => {
   await login(page, USERS.admin);
-  await page.goto("/settings/reminders");
+  await page.goto("/settings/messages");
   await page.getByTestId("reminder-template").fill("שלום {לקחו}");
   await expect(page.getByTestId("reminder-unknown-fields")).toContainText("{לקחו}");
 });
@@ -62,7 +62,7 @@ test("saving the texts page does not erase the reminder wording", async ({ page 
   // The texts form no longer carries the reminder wording; its save used to
   // rewrite ALL texts from what the form sent.
   await login(page, USERS.admin);
-  await page.goto("/settings/reminders");
+  await page.goto("/settings/messages");
   await page.getByTestId("reminder-template").fill("נוסח שלי");
   await page.getByTestId("save-reminder-template").click();
   await expect(page.getByTestId("reminder-template-saved")).toBeVisible();
@@ -71,6 +71,6 @@ test("saving the texts page does not erase the reminder wording", async ({ page 
   await page.getByRole("button", { name: "שמירה" }).first().click();
   await page.waitForTimeout(1500);
 
-  await page.goto("/settings/reminders");
+  await page.goto("/settings/messages");
   await expect(page.getByTestId("reminder-template")).toHaveValue("נוסח שלי");
 });

@@ -36,8 +36,8 @@ import { cn } from "@/lib/utils";
 import { winbackReport, type WinbackOptions } from "@/lib/data/winback";
 import { businessName, loadSettings } from "@/lib/data/business-settings";
 import { textFieldByKey, textFor } from "@/lib/domain/business-settings";
-import { WinbackTemplateEditor } from "./winback-template-editor";
-import { fillTemplate } from "@/lib/domain/customer-messages";
+import { MessageTemplateEditor } from "@/components/settings/message-template-editor";
+import { fillTemplate, WINBACK_FIELDS } from "@/lib/domain/customer-messages";
 import { reminderRecipients } from "@/lib/domain/reminders";
 import { EmailLink, PhoneLink } from "@/components/contact-links";
 import { formatDate, formatMoney, orderNumber } from "../orders/format";
@@ -785,7 +785,12 @@ async function WinbackTab({
         ) : null}
       </p>
 
-      <WinbackTemplateEditor
+      <MessageTemplateEditor
+        templateKey="winback_template"
+        title="נוסח ההודעה ללקוחות"
+        hint="לחיצה לעריכה. הנוסח שנשמר ישמש מעכשיו לכל ההודעות"
+        fields={WINBACK_FIELDS}
+        folded
         current={template}
         fallback={textFieldByKey("winback_template")?.default ?? ""}
         maxLength={textFieldByKey("winback_template")?.maxLength ?? 1000}

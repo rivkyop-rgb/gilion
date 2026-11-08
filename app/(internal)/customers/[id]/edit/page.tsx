@@ -20,7 +20,7 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ i
 
   const { id } = await params;
   const customer = await getCustomer(ctx.businessId, id);
-  if (!customer) notFound();
+  if (!customer || customer.is_walk_in) notFound();
 
   return (
     <div className="max-w-[500px]">

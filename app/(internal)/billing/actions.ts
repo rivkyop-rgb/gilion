@@ -175,12 +175,23 @@ export async function previewAllocationAction(
   return { text: tail ? `${head}. ${tail}` : head };
 }
 
+/**
+ * Changing or cancelling a payment that is already on the books is a
+ * manager's call (08/11/2026: "עריכה או ביטול רישומי תשלום — רק מנהל").
+ * Recording a new one stays with whoever may write to billing.
+ */
+const AMEND_REFUSED = "רק מנהל יכול לערוך או לבטל רישום תשלום";
+function mayAmend(ctx: { role: string; isSuperAdmin: boolean }) {
+  return ctx.role === "admin" || ctx.isSuperAdmin;
+}
+
 export async function updatePaymentAction(
   paymentId: string,
   form: { orderId: string; amount: string; paymentDate: string; externalInvoiceNumber: string },
 ): Promise<PaymentActionState> {
   const ctx = await getTenantContext();
   requireArea(ctx, "billing", "write");
+  if (!mayAmend(ctx)) return { message: AMEND_REFUSED };
 
   const parsed = paymentSchema.omit({ customerId: true }).safeParse(form);
   if (!parsed.success) return { message: "הטופס חסר פרטים" };
@@ -222,6 +233,7 @@ export async function updatePaymentAction(
 export async function cancelPaymentAction(paymentId: string): Promise<PaymentActionState> {
   const ctx = await getTenantContext();
   requireArea(ctx, "billing", "write");
+  if (!mayAmend(ctx)) return { message: AMEND_REFUSED };
 
   if (!paymentId) return { message: "לא נבחר רישום" };
 

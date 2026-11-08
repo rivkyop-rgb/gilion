@@ -331,7 +331,9 @@ export default async function CustomerPage({
                 </Link>
               </Button>
             ) : null}
-            {mayEdit ? (
+            {/* The walk-in customer has no details of its own to edit — the
+                person's are on each order (08/11/2026). */}
+            {mayEdit && !customer.is_walk_in ? (
               <Button variant="secondary" asChild>
                 <Link href={`/customers/${customer.id}/edit`}>
                   <Pencil className="size-4" />
@@ -343,7 +345,17 @@ export default async function CustomerPage({
         ) : null}
       </div>
 
-      {mayDelete ? (
+      {customer.is_walk_in ? (
+        <p
+          className="mb-6 rounded-lg bg-status-info-bg px-4 py-3 text-sm text-status-info-fg"
+          data-testid="walk-in-explained"
+        >
+          זה הלקוח הכללי של העסק — לכל מי שקונה פעם אחת. שם האדם ופרטיו כתובים בהערות של כל הזמנה,
+          וכל הזמנה משולמת לפני שהיא מאושרת.
+        </p>
+      ) : null}
+
+      {mayDelete && !customer.is_walk_in ? (
         <div className="mb-6 flex flex-wrap items-center gap-3">
           <DeleteCustomer
             id={customer.id}

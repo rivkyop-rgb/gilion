@@ -46,6 +46,13 @@ export type CreditState = CreditVerdict & {
 export async function creditState(businessId: string, customerId: string): Promise<CreditState> {
   const policy = await creditPolicy(businessId);
   if (!hasCreditPolicy(policy)) return { blocked: false, releaseWaiting: false };
+  // The walk-in customer pays before anything is approved, and its "debt" is
+  // many strangers' — blocking it would block the counter (08/11/2026).
+  const who = await tenantDb(businessId).customer.findUnique({
+    where: { id: customerId },
+    select: { is_walk_in: true },
+  });
+  if (who?.is_walk_in) return { blocked: false, releaseWaiting: false };
 
   const accounts = await accountsByCustomer(businessId, [customerId]);
   const a = accounts.get(customerId);

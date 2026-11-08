@@ -3,9 +3,7 @@ import type { Metadata } from "next";
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { countOpenReminders, refreshReminders, reminderWindow } from "@/lib/data/reminders";
 import { ReminderWindowForm } from "./window-form";
-import { ReminderTemplateEditor } from "./template-editor";
-import { loadSettings } from "@/lib/data/business-settings";
-import { textFieldByKey, textFor } from "@/lib/domain/business-settings";
+import Link from "next/link";
 
 export const metadata: Metadata = { title: "תזכורות · הגדרות · Gilion" };
 
@@ -14,12 +12,10 @@ export default async function ReminderSettingsPage() {
   requireArea(ctx, "settings", "write");
 
   await refreshReminders(ctx.businessId);
-  const [window, affected, settings] = await Promise.all([
+  const [window, affected] = await Promise.all([
     reminderWindow(ctx.businessId),
     countOpenReminders(ctx.businessId),
-    loadSettings(ctx.businessId),
   ]);
-  const wording = textFieldByKey("reminder_template")!;
 
   return (
     <>
@@ -32,11 +28,19 @@ export default async function ReminderSettingsPage() {
 
       <ReminderWindowForm current={window} affected={affected} />
 
-      <ReminderTemplateEditor
-        current={textFor("reminder_template", settings.texts)}
-        fallback={wording.default}
-        maxLength={wording.maxLength}
-      />
+      {/* The wording moved to one screen with every customer message
+          (08/11/2026) — one place to edit each text. */}
+      <p className="mt-6 text-sm text-on-surface-variant">
+        נוסח התזכורת נערך ב
+        <Link
+          href="/settings/messages"
+          className="text-primary underline"
+          data-testid="reminder-wording-link"
+        >
+          הגדרות ← הודעות ללקוחות
+        </Link>
+        , יחד עם שאר ההודעות.
+      </p>
     </>
   );
 }
