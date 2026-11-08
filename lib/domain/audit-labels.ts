@@ -35,6 +35,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   board_sale: "מכירה מלוח השיבוץ",
   move_missed_publication: "העברת פרסום שלא פורסם לתאריך אחר",
   credit_missed_publication: "זיכוי על פרסום שלא פורסם",
+  release_credit_block: "שחרור חד־פעמי מחסימת חוב",
   portal_sign_in: "כניסה לפורטל",
   portal_submit_request: "בקשת פרסום מהפורטל",
   portal_upload_ad: "העלאת מודעה מהפורטל",

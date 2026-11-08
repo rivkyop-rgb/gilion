@@ -41,7 +41,7 @@ export function SalesCard({
           <Ltr>{formatMoney(total)}</Ltr>
         </span>
         <span className="text-sm text-state-active">
-          <Ltr>{count}</Ltr> פרסומים
+          {count === 1 ? "פרסום אחד" : <><Ltr>{count}</Ltr> פרסומים</>}
         </span>
       </div>
       {/* Eight weeks, so this week is read against the ones before it. The
@@ -144,10 +144,9 @@ export function NextIssueCard({
       <span className="text-sm text-on-surface-variant">הגיליון הבא · {issue.newspaperName}</span>
       <span className="text-xl font-bold text-primary-container">
         <Ltr>{issue.date}</Ltr> ·{" "}
-        <Ltr>
-          {issue.placedCount} מתוך {issue.plannedCount}
-        </Ltr>{" "}
-        שובצו
+        {/* Only the digits are isolated: "מתוך" inside an LTR run put the
+            numbers in the wrong order ("0 מתוך 1" read as one of zero). */}
+        <Ltr>{issue.placedCount}</Ltr> מתוך <Ltr>{issue.plannedCount}</Ltr> שובצו
       </span>
       {pages && pages.length > 0 ? (
         <div

@@ -1,5 +1,6 @@
 "use client";
 
+import { displayPhone } from "@/lib/domain/phone-display";
 import { Mail, MessageCircle, Phone } from "lucide-react";
 import { Ltr } from "@/components/ui/ltr";
 import { cn } from "@/lib/utils";
@@ -46,7 +47,7 @@ export function PhoneLink({
         title="חיוג"
       >
         <Phone className="size-3.5 shrink-0 text-on-surface-variant" aria-hidden />
-        <Ltr>{phone}</Ltr>
+        <Ltr>{displayPhone(phone)}</Ltr>
       </a>
       <a
         href={whatsappHref(phone, message)}

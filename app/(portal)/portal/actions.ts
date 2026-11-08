@@ -1,5 +1,7 @@
 "use server";
 
+import { CreditBlocked, attachReleaseToOrder, passCreditCheck } from "@/lib/data/credit-block";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -116,7 +118,7 @@ async function intake(
   const inspected = await inspectAdFile(bytes, file.size, {
     maxBytes: paper.max_ad_file_size,
     newspaperName: paper.name,
-  });
+  }, file.name);
   if (!inspected.ok) return { message: inspected.message };
 
   const ad = await data.createPortalAdvertisement(scope, {
@@ -166,6 +168,7 @@ const linesSchema = z
     z.object({
       newspaperId: z.string(),
       adShapeId: z.string(),
+      pageTypeId: z.string().optional(),
       dates: z.array(z.string()),
       advertisementId: z.string(),
     }),
@@ -228,10 +231,13 @@ export async function submitAdRequestAction(
   for (const [i, line] of lines.entries()) {
     const paper = newspapers.find((n) => n.id === line.newspaperId)!;
     const shape = paper.shapes.find((s) => s.id === line.adShapeId)!;
-    const pageTypeId = pickPageType(shape);
+    // The customer's choice is checked against the types THIS shape is sold on
+    // (pickPageType), so an id from elsewhere falls back to the default.
+    const pageTypeId = pickPageType(shape, line.pageTypeId);
     if (!pageTypeId)
       return { errors: { [`lines.${i}.adShapeId`]: "הגודל הזה אינו זמין כרגע בעיתון" } };
-    resolved.push({ ...line, pageTypeId, listPrice: shape.listPrice });
+    const listPrice = shape.prices[pageTypeId]?.listPrice ?? null;
+    resolved.push({ ...line, pageTypeId, listPrice });
   }
 
   // The same arithmetic approval will do, over the whole request at once — so
@@ -245,11 +251,22 @@ export async function submitAdRequestAction(
     packages,
   ).total;
 
+  // The credit block applies to the portal too (08/11/2026) — said to the
+  // customer without the office's numbers.
+  let releaseId: string | null = null;
+  try {
+    ({ releaseId } = await passCreditCheck(scope.businessId, scope.customerId, { forPortal: true }));
+  } catch (error) {
+    if (error instanceof CreditBlocked) return { message: error.message };
+    throw error;
+  }
+
   const order = await data.createPortalRequest(
     scope,
     portalOrderRecord({ customerId: scope.customerId, lines: resolved, estimate }),
   );
 
+  await attachReleaseToOrder(scope.businessId, releaseId, order.id);
   revalidatePath("/portal");
   revalidatePath("/orders");
   redirect(`/portal/requests/${order.id}?sent=1`);

@@ -22,6 +22,8 @@ export type MonthlyPublication = {
   price: number;
   orderId: string;
   status: string;
+  /** With `shares` (allocateOrderPayments), which slice of the payment is this one's. */
+  id?: string;
 };
 
 export type MonthRow = {
@@ -34,7 +36,27 @@ export type MonthRow = {
   /** billed − paid, never below zero. */
   open: number;
   publicationCount: number;
+  /**
+   * The publications the month is made of, oldest first (08/11/2026: a month
+   * of ₪640 with ₪240 paid could not be read without them). Present when the
+   * caller passed ids — every screen does.
+   */
+  publications?: MonthPublicationRow[];
 };
+
+export type MonthPublicationRow = {
+  id: string;
+  /** `yyyy-mm-dd` — plain, so it crosses to a client component as is. */
+  date: string;
+  price: number;
+  paid: number;
+  open: number;
+  /** Already printed. */
+  ran: boolean;
+};
+
+/** Printed — the one status that makes an unpaid publication a debt. */
+const RAN = ["published"];
 
 /** A cancelled publication is not a charge, so it is not part of any month. */
 const NOT_BILLABLE = ["canceled"];
@@ -80,6 +102,8 @@ export function monthlyBreakdown(
   orderTotals: Map<string, number>,
   /** Live (non-cancelled) payments per order. */
   orderPaid: Map<string, number>,
+  /** Per publication id, from allocateOrderPayments. Wins over the proportion. */
+  shares?: ReadonlyMap<string, number>,
 ): { months: MonthRow[]; totals: { billed: number; paid: number; open: number } } {
   const byMonth = new Map<string, MonthRow>();
 
@@ -96,13 +120,28 @@ export function monthlyBreakdown(
       publicationCount: 0,
     };
 
+    const paidHere =
+      shares && publication.id !== undefined
+        ? (shares.get(publication.id) ?? 0)
+        : apportionedPaid(
+            publication.price,
+            orderTotals.get(publication.orderId) ?? 0,
+            orderPaid.get(publication.orderId) ?? 0,
+          );
     row.billed += publication.price;
-    row.paid += apportionedPaid(
-      publication.price,
-      orderTotals.get(publication.orderId) ?? 0,
-      orderPaid.get(publication.orderId) ?? 0,
-    );
+    row.paid += paidHere;
     row.publicationCount += 1;
+    if (publication.id !== undefined) {
+      const paid = round2(Math.min(paidHere, publication.price));
+      (row.publications ??= []).push({
+        id: publication.id,
+        date: publication.date.toISOString().slice(0, 10),
+        price: round2(publication.price),
+        paid,
+        open: round2(Math.max(0, publication.price - paid)),
+        ran: RAN.includes(publication.status),
+      });
+    }
     byMonth.set(key, row);
   }
 
@@ -112,7 +151,15 @@ export function monthlyBreakdown(
       // column stop summing to the total printed under it.
       const billed = round2(row.billed);
       const paid = round2(Math.min(row.paid, row.billed));
-      return { ...row, billed, paid, open: round2(Math.max(0, billed - paid)) };
+      return {
+        ...row,
+        billed,
+        paid,
+        open: round2(Math.max(0, billed - paid)),
+        ...(row.publications
+          ? { publications: [...row.publications].sort((a, b) => a.date.localeCompare(b.date)) }
+          : {}),
+      };
     })
     .sort((a, b) => a.key.localeCompare(b.key));
 

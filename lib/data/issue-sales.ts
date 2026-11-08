@@ -28,6 +28,7 @@ import { Prisma } from "@prisma/client";
 
 import { basePrisma, tenantDb } from "./db";
 import { nextOrderNumber } from "./orders";
+import { attachReleaseToOrder, passCreditCheck } from "./credit-block";
 import { createPublicationsForOrder } from "./orders";
 
 import {
@@ -126,6 +127,8 @@ export async function createBoardSale(
   }
 
   const customerId = await resolveCustomer(ctx.businessId, input.customer);
+  // A sale from the board is an order like any other (credit block, 08/11/2026).
+  const { releaseId } = await passCreditCheck(ctx.businessId, customerId);
 
   /**
    * The audit row is written here rather than through `withAudit`, and this is
@@ -137,7 +140,7 @@ export async function createBoardSale(
    * conventions.md §6 actually asks for is that the log and the action share a
    * transaction — which they do, below.
    */
-  return basePrisma.$transaction(async (tx) => {
+  const sold = await basePrisma.$transaction(async (tx) => {
     {
       const order = await tx.adOrder.create({
         data: {
@@ -210,6 +213,8 @@ export async function createBoardSale(
       return { publicationId: publication.id, customerId, orderId: order.id };
     }
   });
+  await attachReleaseToOrder(ctx.businessId, releaseId, sold.orderId);
+  return sold;
 }
 
 /** An existing customer is used as-is; a walk-in is created on the spot. */

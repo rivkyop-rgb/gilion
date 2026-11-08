@@ -3,6 +3,7 @@ import {
   orderTotal,
   pastDateWarnings,
   previewPublications,
+  priceDeviation,
   priceOrigin,
   roundMoney,
   validateForSubmission,
@@ -151,5 +152,14 @@ describe("price origin labelling (US-003)", () => {
 
   it("marks a price with no suggestion behind it as manual", () => {
     expect(priceOrigin(1500, null)).toBe("manual");
+  });
+});
+
+describe("priceDeviation", () => {
+  it("says how much below the list a typed price is", () => {
+    expect(priceDeviation(7500, 9000)).toEqual({ amount: 1500, percent: 17, below: true });
+    expect(priceDeviation(9500, 9000)).toEqual({ amount: 500, percent: 6, below: false });
+    expect(priceDeviation(9000, 9000)).toBeNull();
+    expect(priceDeviation(100, null)).toBeNull();
   });
 });

@@ -10,6 +10,8 @@
  * the scope's customer's, and portal-charges.spec.ts checks the wire for
  * another customer's amounts.
  */
+import { normalizePositions, type Cell } from "@/lib/domain/slot-geometry";
+import { withPageTypesInOrder } from "@/lib/domain/page-type-order";
 import { withAudit } from "./audit";
 import { basePrisma } from "./db";
 import { customerDb } from "./portal-db";
@@ -36,7 +38,18 @@ export async function portalFormOptions(scope: CustomerScope) {
         orderBy: { name: "asc" },
         include: {
           allowed_shapes: {
-            include: { ad_shape: { select: { id: true, name: true, cols: true, rows: true } } },
+            include: {
+              ad_shape: {
+                select: {
+                  id: true,
+                  name: true,
+                  cols: true,
+                  rows: true,
+                  position_mode: true,
+                  allowed_cells: true,
+                },
+              },
+            },
           },
           price_rules: { select: { ad_shape_id: true, price: true } },
         },
@@ -44,7 +57,24 @@ export async function portalFormOptions(scope: CustomerScope) {
     },
   });
 
-  return papers.map((p) => {
+  // Upcoming issue dates per newspaper — dates and statuses only, nothing a
+  // customer should not see. Read directly: issues are not part of the
+  // portal's catalogue scope, and these two lists are all it needs of them.
+  const today = new Date(new Date().toISOString().slice(0, 10) + "T00:00:00Z");
+  const upcoming = await basePrisma.issue.findMany({
+    where: { business_id: scope.businessId, issue_date: { gte: today } },
+    select: { newspaper_id: true, issue_date: true, status: true },
+  });
+  const datesOf = (newspaperId: string, closed: boolean) =>
+    upcoming
+      .filter(
+        (i) =>
+          i.newspaper_id === newspaperId &&
+          (i.status === "closed") === closed,
+      )
+      .map((i) => i.issue_date.toISOString().slice(0, 10));
+
+  return papers.map(withPageTypesInOrder).map((p) => {
     const grid = gridOf(p as unknown as NewspaperRow);
     const shapes = new Map<string, PortalNewspaper["shapes"][number]>();
     for (const pt of p.page_types) {
@@ -56,9 +86,18 @@ export async function portalFormOptions(scope: CustomerScope) {
           name: s.name,
           cols: s.cols,
           rows: s.rows,
+          anchor:
+            grid && s.position_mode === "region" && Array.isArray(s.allowed_cells)
+              ? (normalizePositions(s.allowed_cells as unknown as Cell[], s, grid)[0] ?? null)
+              : null,
           pageTypes: [],
         };
-        entry.pageTypes.push({ id: pt.id, name: pt.name, priced: priced.has(s.id) });
+        entry.pageTypes.push({
+          id: pt.id,
+          name: pt.name,
+          priced: priced.has(s.id),
+          portalDefault: pt.portal_default,
+        });
         shapes.set(s.id, entry);
       }
     }
@@ -72,11 +111,22 @@ export async function portalFormOptions(scope: CustomerScope) {
       for (const rule of pt.price_rules)
         priceOf.set(`${pt.id}:${rule.ad_shape_id}`, Number(rule.price));
     }
+    const one = (list: number | undefined) =>
+      list === undefined ? null : orderPricing([{ newspaperId: p.id, price: list }], packages).total;
     const estimated = [...shapes.values()].map((shape) => {
       const pageTypeId = pickPageType(shape);
       const list = pageTypeId ? priceOf.get(`${pageTypeId}:${shape.id}`) : undefined;
       return {
         ...shape,
+        /** Where the request goes when the customer leaves the page type alone. */
+        defaultPageTypeId: pageTypeId,
+        /** Per page type, so a customer who picks another type sees its price. */
+        prices: Object.fromEntries(
+          shape.pageTypes.map((pt) => {
+            const l = priceOf.get(`${pt.id}:${shape.id}`);
+            return [pt.id, { listPrice: l ?? null, estimate: one(l) }];
+          }),
+        ) as Record<string, { listPrice: number | null; estimate: number | null }>,
         /** The list price of one insertion, before any package. */
         listPrice: list ?? null,
         /** One insertion on its own, packages applied. */
@@ -91,6 +141,8 @@ export async function portalFormOptions(scope: CustomerScope) {
       id: p.id,
       name: p.name,
       publicationDays: p.publication_days,
+      closedDates: datesOf(p.id, true),
+      issueDates: datesOf(p.id, false),
       maxAdFileSize: p.max_ad_file_size,
       grid: grid ? { columns: grid.columns, rows: grid.rows } : null,
       /** Quantity packages, so the form can price a whole request as approval would. */

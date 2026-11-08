@@ -1,5 +1,6 @@
 "use client";
 
+import { inexactShapesNote } from "@/lib/domain/base-shapes";
 import { useMemo, useState } from "react";
 import { useFormActionState } from "@/components/use-form-action-state";
 import Link from "next/link";
@@ -290,7 +291,12 @@ export function NewspaperForm({
         >
           {gridReadable ? <Ltr>{gridReadable}</Ltr> : "החלוקה הזאת לא מייצרת גריד שאפשר לעבוד איתו"}
         </p>
-        {derived && derived.rows >= 1 ? <RowLeftover grid={derived} /> : null}
+        {derived && derived.rows >= 1 ? (
+          <>
+            <InexactColumns grid={derived} />
+            <RowLeftover grid={derived} />
+          </>
+        ) : null}
 
         {plan && (plan.rescaled.length > 0 || plan.warnings.length > 0) ? (
           <div
@@ -472,6 +478,24 @@ function PageSizeHint({ size }: { size: PageSizeKey }) {
       ) : null}
       <p className="text-xs text-on-surface-variant">{PAGE_SIZE_HINTS[size]}</p>
     </div>
+  );
+}
+
+/**
+ * A column count that does not halve (08/11/2026): the halves and quarters are
+ * not created at all rather than sold at 40% of a page — said here, before
+ * saving, with the two counts that would make them.
+ */
+function InexactColumns({ grid }: { grid: { columns: number; rows: number } }) {
+  const note = inexactShapesNote(grid);
+  if (!note) return null;
+  return (
+    <p
+      data-testid="grid-inexact"
+      className="mt-2 rounded-sm bg-status-warning-bg px-3 py-2 text-xs text-status-warning-fg"
+    >
+      {note}
+    </p>
   );
 }
 

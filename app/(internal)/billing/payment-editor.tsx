@@ -3,7 +3,8 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { Check, ChevronDown, ChevronLeft, History, RotateCcw, X } from "lucide-react";
+import Link from "next/link";
+import { Check, ChevronDown, ChevronLeft, Eye, History, RotateCcw, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,8 @@ import { PAYMENT_TONE } from "@/components/status-tone";
 import { cn } from "@/lib/utils";
 import {
   cancelPaymentAction,
+  orderPeekAction,
+  type OrderPeek,
   previewAllocationAction,
   recordPaymentAction,
   updatePaymentAction,
@@ -44,6 +47,8 @@ export type PaymentRow = {
   orderLabel: string | null;
   /** Set when this row was one slice of a payment split across orders. */
   groupId: string | null;
+  /** "כיסה את 29.10 ו־5.11 במלואם, ו־₪80 מתוך 12.11" — what it paid for. */
+  covers?: string | null;
   updatedBy: string;
   updatedAt: string;
 };
@@ -75,6 +80,7 @@ export function PaymentEditor({
   history,
   historyMonths,
   mayWrite,
+  layout = "stack",
 }: {
   customerId: string;
   orders: BillableOrder[];
@@ -85,6 +91,12 @@ export function PaymentEditor({
   history: HistoryEntry[];
   historyMonths: number;
   mayWrite: boolean;
+  /**
+   * "page" (08/11/2026): the customer's own billing page. The form sits in a
+   * column of its own beside what is open, so recording a payment never means
+   * scrolling away from the months it is being recorded against.
+   */
+  layout?: "stack" | "page";
 }) {
   const router = useRouter();
   const [busy, start] = useTransition();
@@ -110,59 +122,62 @@ export function PaymentEditor({
 
   const net = outstanding - credit;
 
-  return (
-    <div className="space-y-6" data-testid={`payment-editor-${customerId}`}>
-      {/* --- what is open, month by month ---------------------------------- */}
-      <div>
-        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <div>
-            {/* The BALANCE is not repeated here — the window's header carries
+  const openSection = (
+    <div>
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          {/* The BALANCE is not repeated here — the window's header carries
                 it, and a number printed twice on one screen is a number the
                 reader stops to compare. */}
-            <h4 className="text-sm font-semibold">מה פתוח, לפי חודש</h4>
-            {/* The sentence somebody reads out on the phone. The table under it
+          <h4 className="text-sm font-semibold">מה פתוח, לפי חודש</h4>
+          {/* The sentence somebody reads out on the phone. The table under it
                 is the detail; this is the answer. */}
-            <p className="text-xs text-on-surface-variant" data-testid="open-months-phrase">
-              {openMonthsPhrase(months)}
-            </p>
-          </div>
-          <HistoryDialog entries={history} months={historyMonths} />
-        </div>
-
-        {months.length === 0 ? (
-          <p className="text-sm text-on-surface-variant" data-testid="no-billable-orders">
-            אין ללקוח הזה הזמנה מאושרת.
+          <p className="text-xs text-on-surface-variant" data-testid="open-months-phrase">
+            {openMonthsPhrase(months)}
           </p>
-        ) : (
-          <MonthTable customerId={customerId} months={months} />
-        )}
+        </div>
+        <HistoryDialog entries={history} months={historyMonths} />
+      </div>
 
-        {/* The credit, never folded into "שולם" above — it is money against
+      {months.length === 0 ? (
+        <p className="text-sm text-on-surface-variant" data-testid="no-billable-orders">
+          אין ללקוח הזה הזמנה מאושרת.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <MonthTable customerId={customerId} months={months} collapseSettled={false} />
+        </div>
+      )}
+
+      {/* The credit, never folded into "שולם" above — it is money against
             nothing, and netting it into that column would push it past "לחיוב"
             and make the row unreadable. */}
-        {credit > 0 ? (
-          <p
-            className="mt-2 rounded-sm bg-status-info-bg px-3 py-2 text-sm text-status-info-fg"
-            data-testid="customer-credit"
-          >
-            יתרה לזכות הלקוח: <Ltr className="font-semibold">{formatMoney(credit)}</Ltr> — כסף
-            שהתקבל ואינו משויך להזמנה.
-            {/* The net only earns its place when it says something the two
+      {credit > 0 ? (
+        <p
+          className="mt-2 rounded-sm bg-status-info-bg px-3 py-2 text-sm text-status-info-fg"
+          data-testid="customer-credit"
+        >
+          יתרה לזכות הלקוח: <Ltr className="font-semibold">{formatMoney(credit)}</Ltr> — כסף שהתקבל
+          ואינו משויך להזמנה.
+          {/* The net only earns its place when it says something the two
                 numbers above do not. With nothing owed it IS the credit, and
                 printing it again reads as two different facts that happen to
                 match. */}
-            {outstanding > 0 ? (
-              <span data-testid="customer-net">
-                {" "}
-                {positionLabel(net)}: <Ltr>{formatMoney(Math.abs(net))}</Ltr>
-              </span>
-            ) : null}
-          </p>
-        ) : null}
+          {outstanding > 0 ? (
+            <span data-testid="customer-net">
+              {" "}
+              {positionLabel(net)}: <Ltr>{formatMoney(Math.abs(net))}</Ltr>
+            </span>
+          ) : null}
+        </p>
+      ) : null}
 
-        {orders.length > 0 ? <OrderBalances customerId={customerId} orders={orders} /> : null}
-      </div>
+      {orders.length > 0 ? <OrderBalances customerId={customerId} orders={orders} /> : null}
+    </div>
+  );
 
+  const formSection = (
+    <>
       {mayWrite ? (
         <NewPaymentForm
           customerId={customerId}
@@ -185,14 +200,18 @@ export function PaymentEditor({
           {note}
         </p>
       ) : null}
+    </>
+  );
 
-      <div>
-        <h4 className="mb-2 text-sm font-semibold">רישומי תשלום</h4>
-        {payments.length === 0 ? (
-          <p className="text-sm text-on-surface-variant" data-testid="no-payments">
-            עוד לא נרשם תשלום ללקוח הזה.
-          </p>
-        ) : (
+  const listSection = (
+    <div>
+      <h4 className="mb-2 text-sm font-semibold">רישומי תשלום</h4>
+      {payments.length === 0 ? (
+        <p className="text-sm text-on-surface-variant" data-testid="no-payments">
+          עוד לא נרשם תשלום ללקוח הזה.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
           <table className="w-full text-sm" data-testid={`payment-list-${customerId}`}>
             <thead>
               <tr className="text-xs text-on-surface-variant">
@@ -237,7 +256,7 @@ export function PaymentEditor({
                     <td className="p-2 font-medium">
                       <Ltr data-testid={`payment-amount-${p.id}`}>{formatMoney(p.amount)}</Ltr>
                     </td>
-                    <td className="p-2">
+                    <td className="whitespace-nowrap p-2">
                       {p.paymentDate ? <Ltr>{p.paymentDate}</Ltr> : <span>—</span>}
                     </td>
                     <td className="p-2">
@@ -248,7 +267,9 @@ export function PaymentEditor({
                       )}
                     </td>
                     <td className="p-2 text-xs">
-                      {p.orderLabel ? (
+                      {p.orderLabel && p.orderId ? (
+                        <OrderPeekButton orderId={p.orderId} label={p.orderLabel} />
+                      ) : p.orderLabel ? (
                         <Ltr className="font-mono">{p.orderLabel}</Ltr>
                       ) : (
                         "יתרת הלקוח"
@@ -262,6 +283,14 @@ export function PaymentEditor({
                           data-testid={`payment-part-of-${p.id}`}
                         >
                           · חלק מתשלום מפוצל
+                        </span>
+                      ) : null}
+                      {p.covers && !p.canceled ? (
+                        <span
+                          className="mt-1 block min-w-48 text-on-surface-variant"
+                          data-testid={`payment-covers-${p.id}`}
+                        >
+                          {p.covers}
                         </span>
                       ) : null}
                     </td>
@@ -313,8 +342,40 @@ export function PaymentEditor({
               )}
             </tbody>
           </table>
-        )}
+        </div>
+      )}
+    </div>
+  );
+
+  if (layout === "page") {
+    return (
+      <div
+        className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]"
+        data-testid={`payment-editor-${customerId}`}
+      >
+        {/* The start column — the right, in Hebrew — is where the eye lands
+            first, and recording is what the page is for. Sticky, so it stays
+            beside the months while they scroll. */}
+        <aside className="space-y-3 lg:sticky lg:top-4" data-testid="billing-page-form">
+          {formSection}
+        </aside>
+        <div className="space-y-6">
+          <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevation-1">
+            {openSection}
+          </section>
+          <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevation-1">
+            {listSection}
+          </section>
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6" data-testid={`payment-editor-${customerId}`}>
+      {openSection}
+      {formSection}
+      {listSection}
     </div>
   );
 }
@@ -366,7 +427,7 @@ function OrderBalances({ customerId, orders }: { customerId: string; orders: Bil
                 )}
               >
                 <td className="p-2 font-mono text-xs">
-                  <Ltr>{o.label}</Ltr>
+                  <OrderPeekButton orderId={o.id} label={o.label} />
                 </td>
                 <td className="p-2">
                   <Ltr>{formatMoney(o.totalPrice)}</Ltr>
@@ -801,12 +862,17 @@ function EditPaymentForm({
     <div className="grid gap-3 rounded-sm border border-primary/40 bg-surface-container-low p-3 sm:grid-cols-2 lg:grid-cols-5">
       <div className="lg:col-span-2">
         <label className="mb-1 block text-xs text-on-surface-variant">שיוך</label>
-        <OrderPicker
-          orders={orders}
-          value={orderId}
-          onChange={setOrderId}
-          testId={`edit-order-${payment.id}`}
-        />
+        <div className="flex items-center gap-1">
+          <div className="min-w-0 flex-1">
+            <OrderPicker
+              orders={orders}
+              value={orderId}
+              onChange={setOrderId}
+              testId={`edit-order-${payment.id}`}
+            />
+          </div>
+          {orderId !== SPLIT ? <OrderPeekButton orderId={orderId} iconOnly /> : null}
+        </div>
       </div>
       <div>
         <label className="mb-1 block text-xs text-on-surface-variant">סכום</label>
@@ -857,5 +923,155 @@ function EditPaymentForm({
         </span>
       </div>
     </div>
+  );
+}
+
+/**
+ * The "eye" on an order number (08/11/2026): opens the order read-only, over
+ * the dialog the person is typing in, and closes back to exactly where they
+ * were — the half-typed amount is still there, because nothing navigated.
+ * "פתיחת ההזמנה במסך מלא" is there for when a look is not enough.
+ */
+function OrderPeekButton({
+  orderId,
+  label,
+  iconOnly = false,
+}: {
+  orderId: string;
+  label?: string;
+  iconOnly?: boolean;
+}) {
+  const [peek, setPeek] = useState<OrderPeek | null | "missing">(null);
+  const [loading, startLoading] = useTransition();
+  const [open, setOpen] = useState(false);
+
+  const load = (next: boolean) => {
+    setOpen(next);
+    if (!next) return;
+    startLoading(async () => {
+      const result = await orderPeekAction(orderId);
+      setPeek(result ?? "missing");
+    });
+  };
+  const shown = peek && peek !== "missing" && peek.id === orderId ? peek : null;
+
+  return (
+    <DialogPrimitive.Root open={open} onOpenChange={load}>
+      <DialogPrimitive.Trigger asChild>
+        <button
+          type="button"
+          data-testid={`peek-order-${orderId}`}
+          aria-label={label ? `הצצה בהזמנה ${label}` : "הצצה בהזמנה"}
+          title="הצצה בהזמנה"
+          className="inline-flex items-center gap-1 whitespace-nowrap rounded-sm px-1 text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+        >
+          {label ? <Ltr className="font-mono">{label}</Ltr> : null}
+          <Eye className={iconOnly ? "size-4" : "size-3.5"} aria-hidden />
+        </button>
+      </DialogPrimitive.Trigger>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[70] bg-primary/40" />
+        <DialogPrimitive.Content
+          data-testid="order-peek"
+          className="fixed inset-x-0 top-1/2 z-[71] mx-auto max-h-[85dvh] w-[min(52rem,calc(100vw-2rem))] -translate-y-1/2 overflow-y-auto rounded-xl border border-outline-variant bg-surface-container-lowest p-6 shadow-elevation-2"
+        >
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <DialogPrimitive.Title className="font-serif text-xl font-semibold">
+                הזמנה <Ltr className="font-mono">{shown?.label ?? label ?? ""}</Ltr>
+              </DialogPrimitive.Title>
+              <DialogPrimitive.Description className="text-sm text-on-surface-variant">
+                {shown
+                  ? `${shown.customer} · ${shown.status} · נוצרה ב־${shown.createdAt}`
+                  : "תצוגה בלבד. הסגירה מחזירה לאותו מקום."}
+              </DialogPrimitive.Description>
+            </div>
+            <DialogPrimitive.Close asChild>
+              <button type="button" aria-label="סגירה" className="rounded-sm p-1">
+                <X className="size-5 text-on-surface-variant" />
+              </button>
+            </DialogPrimitive.Close>
+          </div>
+
+          {loading && !shown ? (
+            <p className="text-sm text-on-surface-variant">טוען…</p>
+          ) : peek === "missing" ? (
+            <InlineError>ההזמנה לא נמצאה.</InlineError>
+          ) : shown ? (
+            <>
+              <dl className="mb-4 grid grid-cols-3 gap-3 text-sm">
+                <div className="rounded-lg bg-surface-container-low p-3">
+                  <dt className="text-xs text-on-surface-variant">סך ההזמנה</dt>
+                  <dd className="font-semibold">
+                    <Ltr>{formatMoney(shown.total)}</Ltr>
+                  </dd>
+                </div>
+                <div className="rounded-lg bg-surface-container-low p-3">
+                  <dt className="text-xs text-on-surface-variant">שולם</dt>
+                  <dd className="font-semibold">
+                    <Ltr>{formatMoney(shown.paid)}</Ltr>
+                  </dd>
+                </div>
+                <div className="rounded-lg bg-surface-container-low p-3">
+                  <dt className="text-xs text-on-surface-variant">פתוח</dt>
+                  <dd className="font-semibold">
+                    <Ltr>{formatMoney(Math.max(0, shown.total - shown.paid))}</Ltr>
+                  </dd>
+                </div>
+              </dl>
+              <table className="w-full text-sm" data-testid="order-peek-publications">
+                <thead className="text-xs text-on-surface-variant">
+                  <tr>
+                    <th className="p-2 text-start font-medium">תאריך</th>
+                    <th className="p-2 text-start font-medium">עיתון</th>
+                    <th className="p-2 text-start font-medium">גודל</th>
+                    <th className="p-2 text-start font-medium">מחיר</th>
+                    <th className="p-2 text-start font-medium">מצב</th>
+                    <th className="p-2 text-start font-medium">מודעה</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.publications.map((p) => (
+                    <tr key={p.id} className="border-t border-outline-variant">
+                      <td className="p-2 whitespace-nowrap">
+                        <Ltr>{p.date}</Ltr>
+                      </td>
+                      <td className="p-2">{p.newspaper}</td>
+                      <td className="p-2">
+                        {p.shape}
+                        {p.pageType ? (
+                          <span className="text-on-surface-variant"> · {p.pageType}</span>
+                        ) : null}
+                      </td>
+                      <td className="p-2 whitespace-nowrap">
+                        {p.price == null ? "—" : <Ltr>{formatMoney(p.price)}</Ltr>}
+                      </td>
+                      <td className="p-2">{p.status}</td>
+                      <td className="p-2">{p.hasAd ? "יש" : "חסרה"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          ) : null}
+
+          <div className="mt-5 flex items-center justify-between gap-3">
+            <Link
+              href={`/orders/${orderId}`}
+              target="_blank"
+              className="text-sm text-primary underline underline-offset-2"
+              data-testid="order-peek-full"
+            >
+              פתיחת ההזמנה במסך מלא (בלשונית חדשה)
+            </Link>
+            <DialogPrimitive.Close asChild>
+              <Button variant="secondary" size="sm">
+                חזרה לתשלום
+              </Button>
+            </DialogPrimitive.Close>
+          </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

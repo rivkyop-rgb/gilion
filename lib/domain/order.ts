@@ -137,6 +137,25 @@ export function priceOrigin(
   return "custom";
 }
 
+/**
+ * How far a typed price is from the price list, in shekels and percent
+ * (08/11/2026). "מחיר מותאם" alone did not say whether ₪7,500 was a small
+ * courtesy or a fifth off — and that is the one thing a manager checks.
+ */
+export function priceDeviation(
+  entered: number | null,
+  suggested: number | null,
+): { amount: number; percent: number; below: boolean } | null {
+  if (entered === null || suggested === null || !Number.isFinite(entered)) return null;
+  if (suggested <= 0 || entered === suggested) return null;
+  const amount = Math.round(Math.abs(suggested - entered) * 100) / 100;
+  return {
+    amount,
+    percent: Math.round((amount / suggested) * 100),
+    below: entered < suggested,
+  };
+}
+
 export const PRICE_ORIGIN_LABELS: Record<"base" | "custom" | "manual", string> = {
   base: "מחיר בסיסי",
   custom: "מחיר מותאם",

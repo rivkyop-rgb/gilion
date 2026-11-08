@@ -55,6 +55,8 @@ export function FilterBuilder({
 }) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
+  /** The chip being changed, when the panel was opened from one (08/11/2026). */
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [fieldKey, setFieldKey] = useState("");
   const [value, setValue] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
@@ -70,6 +72,11 @@ export function FilterBuilder({
 
   const active = fields.filter((f) => values[f.key]);
   const available = fields.filter((f) => !values[f.key]);
+  // The field list while editing a chip: that field, plus anything unused —
+  // changing "עיתון: א" to "לקוח: ב" is also a change.
+  const choosable = editingKey
+    ? fields.filter((f) => f.key === editingKey || !values[f.key])
+    : available;
   const field = fields.find((f) => f.key === fieldKey);
 
   const labelOf = (f: FilterField, v: string) =>
@@ -79,7 +86,10 @@ export function FilterBuilder({
   useEffect(() => {
     if (!adding) return;
     const onDown = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setAdding(false);
+      if (!rootRef.current?.contains(e.target as Node)) {
+        setAdding(false);
+        setEditingKey(null);
+      }
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
@@ -87,10 +97,25 @@ export function FilterBuilder({
 
   const add = () => {
     if (!field || !value) return;
-    go({ ...values, [field.key]: value });
+    const next: Record<string, string | undefined> = { ...values, [field.key]: value };
+    if (editingKey && editingKey !== field.key) next[editingKey] = undefined;
+    go(next);
+    close();
+  };
+
+  const close = () => {
     setAdding(false);
+    setEditingKey(null);
     setFieldKey("");
     setValue("");
+  };
+
+  /** "עיתון: X" is clicked to become "עיתון: Y" (user, 08/11/2026). */
+  const edit = (f: FilterField) => {
+    setEditingKey(f.key);
+    setFieldKey(f.key);
+    setValue(values[f.key] ?? "");
+    setAdding(true);
   };
 
   return (
@@ -110,10 +135,19 @@ export function FilterBuilder({
           data-testid={`filter-chip-${f.key}`}
           className="inline-flex h-8 items-center gap-1.5 rounded-full border border-primary/30 bg-status-info-bg ps-3 pe-1 text-sm text-status-info-fg"
         >
-          <span className="text-xs opacity-80">{f.label}:</span>
-          <span className="font-medium">
-            {f.kind === "date" ? <Ltr>{values[f.key]}</Ltr> : labelOf(f, values[f.key]!)}
-          </span>
+          <button
+            type="button"
+            onClick={() => edit(f)}
+            data-testid={`filter-edit-${f.key}`}
+            title="לחיצה לשינוי"
+            aria-label={`שינוי הסינון ${f.label}`}
+            className="inline-flex items-center gap-1.5 rounded-full underline-offset-2 hover:underline"
+          >
+            <span className="text-xs opacity-80">{f.label}:</span>
+            <span className="font-medium">
+              {f.kind === "date" ? <Ltr>{values[f.key]}</Ltr> : labelOf(f, values[f.key]!)}
+            </span>
+          </button>
           <button
             type="button"
             aria-label={`הסרת הסינון ${f.label}`}
@@ -132,8 +166,14 @@ export function FilterBuilder({
           variant="secondary"
           size="sm"
           data-testid={`${testId}-add`}
-          onClick={() => setAdding((a) => !a)}
-          aria-expanded={adding}
+          onClick={() => {
+            if (adding) return close();
+            setEditingKey(null);
+            setFieldKey("");
+            setValue("");
+            setAdding(true);
+          }}
+          aria-expanded={adding && !editingKey}
         >
           <Plus className="size-4" />
           {active.length === 0 ? "הוספת סינון" : "סינון נוסף"}
@@ -169,7 +209,7 @@ export function FilterBuilder({
               className="mt-1 h-10 w-full rounded-lg border border-outline-variant bg-surface-container px-3 text-sm text-on-surface"
             >
               <option value="">בחרי…</option>
-              {available.map((f) => (
+              {choosable.map((f) => (
                 <option key={f.key} value={f.key}>
                   {f.label}
                 </option>
@@ -191,10 +231,11 @@ export function FilterBuilder({
                   />
                 ) : field.search || field.options.length > SEARCH_ABOVE ? (
                   <Combobox
-                    key={field.key}
+                    key={`${field.key}-${editingKey ?? ""}`}
                     name={`fb-${field.key}`}
                     testId={`${testId}-value`}
                     options={field.options}
+                    defaultValue={editingKey === field.key ? value : ""}
                     onChange={setValue}
                     placeholder="הקלידי כדי לחפש…"
                   />
@@ -225,9 +266,9 @@ export function FilterBuilder({
               onClick={add}
               data-testid={`${testId}-apply`}
             >
-              הוספה
+              {editingKey ? "עדכון" : "הוספה"}
             </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => setAdding(false)}>
+            <Button type="button" size="sm" variant="ghost" onClick={close}>
               ביטול
             </Button>
           </div>

@@ -17,6 +17,8 @@ import {
 } from "@/lib/domain/team";
 
 export type FormState = {
+  /** The name of the person just added — the form says so (08/11/2026). */
+  added?: string;
   errors?: Record<string, string>;
   message?: string;
   values?: Record<string, string>;
@@ -68,7 +70,7 @@ export async function addMemberAction(_prev: FormState, formData: FormData): Pro
   );
 
   revalidatePath("/settings/users");
-  return {};
+  return { added: input.name };
 }
 
 export async function setMemberRoleAction(userId: string, role: string): Promise<FormState> {

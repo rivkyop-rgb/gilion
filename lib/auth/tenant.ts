@@ -59,6 +59,27 @@ export async function getTenantContext(): Promise<TenantContext> {
 }
 
 /**
+ * Who is asking, for the PLATFORM area only — which does not need an active
+ * business (08/11/2026). A super admin may create the very first business, or a
+ * new one, without entering a customer's business first: entering one runs
+ * `ensureUpcomingIssues`, which writes to it. The caller still has to call
+ * `requireSuperAdmin`; this only stops a missing business from being an error.
+ */
+export async function getPlatformContext(): Promise<{
+  userId: string;
+  isSuperAdmin: boolean;
+  businessId: string | null;
+}> {
+  const session = await auth();
+  if (!session?.user?.id) throw new NotAuthenticatedError();
+  return {
+    userId: session.user.id,
+    isSuperAdmin: session.user.isSuperAdmin === true,
+    businessId: session.user.businessId ?? null,
+  };
+}
+
+/**
  * The access check every screen and action goes through.
  *
  * Takes the whole context rather than a bare role, and that is the point: the

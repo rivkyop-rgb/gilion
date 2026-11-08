@@ -12,6 +12,7 @@ import { updateNewspaperAction } from "../../actions";
 import { NewspaperTabs } from "./tabs";
 import { PageTypes } from "./page-types";
 import { AutoPlaceSettings } from "./auto-place-settings";
+import { PortalDefaultSettings } from "./portal-default-settings";
 import { PageMarksSettings } from "./page-marks-settings";
 import { HEADER_DATE_MODES, headerDate, type HeaderDateMode } from "@/lib/domain/page-marks";
 import { isoDay, jerusalemDay } from "@/lib/domain/calendar";
@@ -125,6 +126,15 @@ export default async function NewspaperPage({ params }: { params: Promise<{ id: 
           name: pt.name,
           autoPlace: pt.auto_place,
           autoGrow: pt.auto_grow,
+        }))}
+      />
+      <PortalDefaultSettings
+        newspaperId={paper.id}
+        readOnly={!mayEdit}
+        types={paper.page_types.map((pt) => ({
+          id: pt.id,
+          name: pt.name,
+          portalDefault: pt.portal_default,
         }))}
       />
 

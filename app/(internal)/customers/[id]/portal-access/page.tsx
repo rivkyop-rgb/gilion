@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { portalUrl } from "@/lib/portal-origin";
+import { businessSlug } from "@/lib/data/portal-link";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight } from "lucide-react";
@@ -72,8 +74,8 @@ export default async function PortalAccessPage({ params }: { params: Promise<{ i
           גישה לפורטל — {label}
         </h1>
         <p className="mt-1 text-sm text-on-surface-variant">
-          מי שיש לו חשבון כאן נכנס לפורטל הלקוחות, שולח בקשות פרסום ורואה רק את הבקשות של {label}.
-          בלי מחירים ובלי מידע תשלום.
+          מי שיש לו חשבון כאן נכנס לפורטל הלקוחות, שולח בקשות פרסום ורואה רק את הבקשות של {label}:
+          מחיר משוער לכל בקשה, ואת מצב החשבון שלו.
         </p>
       </div>
 
@@ -175,6 +177,7 @@ export default async function PortalAccessPage({ params }: { params: Promise<{ i
       <PortalAccountForm
         customerId={customer.id}
         defaults={{ name: customer.contacts[0]?.name ?? "", email: customer.email ?? "" }}
+        loginUrl={await portalUrl(await businessSlug(ctx.businessId))}
       />
     </div>
   );

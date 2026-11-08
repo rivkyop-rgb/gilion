@@ -29,6 +29,7 @@ export function Combobox({
   required,
   testId,
   onChange,
+  autoSubmit,
 }: {
   name: string;
   options: ComboboxOption[];
@@ -39,6 +40,9 @@ export function Combobox({
   required?: boolean;
   testId?: string;
   onChange?: (value: string) => void;
+  /** Submit the surrounding form as soon as a value is chosen — a filter
+      that applies itself, with no "סינון" button to find (08/11/2026). */
+  autoSubmit?: boolean;
 }) {
   const generatedId = useId();
   const inputId = id ?? generatedId;
@@ -67,6 +71,10 @@ export function Combobox({
     setActive(0);
     setOpen(false);
     onChange?.(next);
+    // After React has written the new value into the hidden input.
+    if (autoSubmit && next !== value) {
+      setTimeout(() => inputRef.current?.form?.requestSubmit(), 0);
+    }
   };
 
   /** Typing is the only thing that narrows the list, so it also resets the

@@ -65,8 +65,9 @@ export async function inspectAdFile(
   bytes: Buffer,
   declaredSize: number,
   limit: SizeLimit,
+  name?: string,
 ): Promise<PipelineFailure | PipelineSuccess> {
-  const checked = checkAdFile({ size: declaredSize, head: bytes.subarray(0, 4096), limit });
+  const checked = checkAdFile({ size: declaredSize, head: bytes.subarray(0, 4096), limit, name });
   if (!checked.ok) {
     return { ok: false, code: checked.rejection.code, message: checked.rejection.message };
   }

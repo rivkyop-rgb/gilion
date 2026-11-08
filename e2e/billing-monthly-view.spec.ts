@@ -78,7 +78,7 @@ test("תשלום על הזמנה שחוצה חודשים מתחלק בין הח�
   await expect(page.getByTestId("month-open-2028-04")).toContainText("500");
 });
 
-test("חודשים ששולמו במלואם מקופלים, וניתן לפתוח אותם", async ({ page }) => {
+test("כל החודשים מוצגים, עם שורת סה״כ ופירוט פרסומים", async ({ page }) => {
   test.slow();
   await loginAsAdmin(page);
 
@@ -91,17 +91,17 @@ test("חודשים ששולמו במלואם מקופלים, וניתן לפתו
   await recordPayment(page, { amount: "800", orderId: marchOrder });
   await page.reload();
 
-  // March is settled, so it is out of the way — a panel that opens onto rows
-  // of "0.00" buries the one row that matters.
+  // 08/11/2026: a settled month stays on the page — hiding it made the months
+  // that were left stop adding up to the total at the head of the page.
+  await expect(page.getByTestId("month-row-2028-03")).toContainText("שולם");
   await expect(page.getByTestId("month-row-2028-04")).toBeVisible();
-  await expect(page.getByTestId("month-row-2028-03")).toHaveCount(0);
+  await expect(page.getByTestId(`month-total-${customer.id}`)).toContainText("1,300");
   await expect(page.getByTestId("open-months-phrase")).toContainText("אפריל");
   await expect(page.getByTestId("open-months-phrase")).not.toContainText("מרץ");
 
-  // Not deleted — asked for.
-  await page.getByTestId("toggle-settled-months").click();
-  await expect(page.getByTestId("month-row-2028-03")).toBeVisible();
-  await expect(page.getByTestId("month-open-2028-03")).toContainText("0");
+  // A month opens into the publications it is made of.
+  await page.getByTestId("month-expand-2028-04").click();
+  await expect(page.locator('[data-testid^="month-publication-"]')).toHaveCount(1);
 });
 
 test("הפירוט לפי הזמנה קיים, מקופל, ומסכים עם החודשי", async ({ page }) => {

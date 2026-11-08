@@ -5,11 +5,16 @@ import { z } from "zod";
 
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import * as data from "@/lib/data/payments";
+import { creditState } from "@/lib/data/credit-block";
+import { withAudit } from "@/lib/data/audit";
 import { validatePayment } from "@/lib/domain/payment";
 import { allocatePayment, describeAllocation } from "@/lib/domain/payment-allocation";
 import { PAYMENT_STATUS_LABELS, type PaymentStatus } from "@/lib/domain/payment-status";
 import { orderNumber } from "../orders/format";
-import { formatMoney } from "@/lib/domain/format";
+import { getOrder } from "@/lib/data/orders";
+import { ORDER_STATUS_LABELS, type OrderStatus } from "@/lib/domain/order-status";
+import { PUBLICATION_STATUS_LABELS, type PublicationStatus } from "@/lib/domain/publication-status";
+import { formatDate, formatMoney } from "@/lib/domain/format";
 
 export type PaymentActionState = {
   message?: string;
@@ -147,7 +152,27 @@ export async function previewAllocationAction(
   const open = (await data.openOrdersOf(ctx.businessId, customerId)).filter(
     (o) => ticked.size === 0 || ticked.has(o.orderId),
   );
-  return { text: describeAllocation(allocatePayment(amount, open), orderNumber) };
+  const result = allocatePayment(amount, open);
+  const head = describeAllocation(result, orderNumber);
+  // 08/11/2026: and which weeks it closes — printed first — so the person
+  // typing sees that the week that already ran is the one being paid.
+  const covered = await Promise.all(
+    result.allocations.map(async (a) => {
+      const weeks = await data.coverageOf(ctx.businessId, a.orderId, a.amount);
+      if (weeks.length === 0) return "";
+      const shown = weeks
+        .slice(0, 3)
+        .map((w) =>
+          w.openAfter > 0
+            ? `${formatDate(w.date)} (${formatMoney(w.added)} מתוך ${formatMoney(w.price)})`
+            : formatDate(w.date),
+        );
+      const more = weeks.length > 3 ? ` ועוד ${weeks.length - 3}` : "";
+      return `${result.allocations.length > 1 ? `${orderNumber(a.number)}: ` : ""}יכסה את ${shown.join(", ")}${more}`;
+    }),
+  );
+  const tail = covered.filter(Boolean).join(" · ");
+  return { text: tail ? `${head}. ${tail}` : head };
 }
 
 export async function updatePaymentAction(
@@ -255,4 +280,93 @@ export async function applyCreditAction(orderId: string): Promise<PaymentActionS
     if (e instanceof data.PaymentNotFoundError) return { message: e.message };
     throw e;
   }
+}
+
+export type OrderPeek = {
+  id: string;
+  label: string;
+  customer: string;
+  status: string;
+  createdAt: string;
+  total: number;
+  paid: number;
+  publications: Array<{
+    id: string;
+    date: string;
+    newspaper: string;
+    shape: string;
+    pageType: string | null;
+    status: string;
+    hasAd: boolean;
+    price: number | null;
+  }>;
+};
+
+/**
+ * The order a payment is attached to, read-only, for the "eye" in the payment
+ * dialog (08/11/2026). The habodek run wanted to check WHICH order a payment
+ * went to without leaving the dialog it was typing in — opening the order
+ * screen lost the half-filled form.
+ */
+export async function orderPeekAction(orderId: string): Promise<OrderPeek | null> {
+  const ctx = await getTenantContext();
+  requireArea(ctx, "billing");
+  const id = z.string().min(1).max(64).safeParse(orderId);
+  if (!id.success) return null;
+
+  const order = await getOrder(ctx.businessId, id.data);
+  if (!order) return null;
+  const paid = (await data.paidByOrder(ctx.businessId, [order.id])).get(order.id) ?? 0;
+
+  return {
+    id: order.id,
+    label: orderNumber(order.number),
+    customer: order.customer.business_name,
+    status: ORDER_STATUS_LABELS[order.status as OrderStatus] ?? order.status,
+    createdAt: formatDate(order.created_at),
+    total: Number(order.total_price),
+    paid,
+    publications: order.publications.map((p) => ({
+      id: p.id,
+      date: formatDate(p.publication_date),
+      newspaper: p.newspaper.name,
+      shape: p.ad_shape?.name ?? "",
+      pageType: p.order_item?.page_type?.name ?? null,
+      status: PUBLICATION_STATUS_LABELS[p.status as PublicationStatus] ?? p.status,
+      hasAd: Boolean(p.advertisement),
+      price: p.price == null ? null : Number(p.price),
+    })),
+  };
+}
+
+/**
+ * A manager lets a blocked customer place ONE more order (08/11/2026: "עד
+ * שמנהל מאשר ומוריד את החסימה — כל הורדת חסימה היא חד פעמית"). The release
+ * waits until the next order spends it; a second order needs a second one.
+ */
+export async function releaseCreditBlockAction(customerId: string): Promise<{ message?: string }> {
+  const ctx = await getTenantContext();
+  requireArea(ctx, "billing");
+  if (ctx.role !== "admin" && !ctx.isSuperAdmin) return { message: "רק מנהל יכול לשחרר חסימה" };
+  const parsed = z.string().min(1).safeParse(customerId);
+  if (!parsed.success) return { message: "הלקוח לא נמצא" };
+
+  const state = await creditState(ctx.businessId, parsed.data);
+  if (!state.blocked) return { message: "הלקוח לא חסום כרגע" };
+  if (state.releaseWaiting) return { message: "כבר יש שחרור שמחכה להזמנה הבאה" };
+
+  await withAudit(
+    { businessId: ctx.businessId, userId: ctx.userId },
+    { action: "release_credit_block", targetType: "Customer", targetId: parsed.data },
+    async (tx) => {
+      const release = await tx.creditRelease.create({
+        data: { business_id: ctx.businessId, customer_id: parsed.data, granted_by: ctx.userId },
+        select: { id: true },
+      });
+      return { old: null, new: { release_id: release.id, reason: state.reason } };
+    },
+  );
+  revalidatePath(`/customers/${parsed.data}`);
+  revalidatePath(`/billing/customers/${parsed.data}`);
+  return {};
 }

@@ -5,6 +5,7 @@
  * the approval transaction, which needs the transaction client that withAudit
  * hands it so the log and the publications share one commit.
  */
+import { withPageTypesInOrder } from "@/lib/domain/page-type-order";
 import { positionColumns, type PositionRequest } from "@/lib/domain/position-request";
 import { Prisma } from "@prisma/client";
 import { basePrisma, tenantDb } from "./db";
@@ -44,7 +45,16 @@ const ORDER_INCLUDE = {
     include: {
       // max_ad_file_size rides along so the order screen can state the
       // strictest ceiling among its own lines before a file is chosen (FR-21).
-      newspaper: { select: { id: true, name: true, max_ad_file_size: true } },
+      newspaper: {
+        select: {
+          id: true,
+          name: true,
+          max_ad_file_size: true,
+          // So a portal line on a page type other than the default can be
+          // flagged for a phone call (08/11/2026).
+          page_types: { select: { id: true, name: true, portal_default: true } },
+        },
+      },
       page_type: { select: { id: true, name: true } },
       ad_shape: { select: { id: true, name: true, cols: true, rows: true } },
       /// The package this line earned, so the screen can name the discount
@@ -445,7 +455,7 @@ export async function orderFormOptions(businessId: string) {
     },
   });
 
-  return papers.map((p) => ({
+  return papers.map(withPageTypesInOrder).map((p) => ({
     id: p.id,
     name: p.name,
     publicationDays: p.publication_days,

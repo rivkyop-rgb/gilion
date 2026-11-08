@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AutoSubmitForm } from "@/components/ui/auto-submit-form";
 import { Archive, FileDown } from "lucide-react";
 
 import { canReadArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
@@ -94,10 +95,10 @@ export default async function PublishedIssuesPage({
         כל גיליון שנסגר וירד לדפוס. אפשר לחפש לפי תאריך, עיתון או מפרסם שהופיע בגיליון.
       </p>
 
-      <form
-        method="get"
+      <AutoSubmitForm
+        liveText
+        testId="published-filters"
         className="mb-4 grid gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevation-1 sm:grid-cols-[repeat(4,minmax(0,1fr))_auto]"
-        data-testid="published-filters"
       >
         <div>
           <Label htmlFor="from">מתאריך</Label>
@@ -134,14 +135,16 @@ export default async function PublishedIssuesPage({
           />
         </div>
         <div className="flex items-end gap-2">
-          <Button type="submit">סינון</Button>
+          <Button type="submit" className="sr-only">
+            סינון
+          </Button>
           {filtered ? (
             <Button asChild variant="ghost">
               <Link href="/issues/published">איפוס</Link>
             </Button>
           ) : null}
         </div>
-      </form>
+      </AutoSubmitForm>
 
       {rows.length === 0 ? (
         <EmptyState

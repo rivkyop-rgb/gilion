@@ -105,6 +105,44 @@ function labelFor(kind: ViewKind, pages: PageRef[]): string {
  */
 export const PAGES_PER_SHEET = 4;
 
+/** The smallest issue there is: one folded sheet (user, 08/11/2026). */
+export const MIN_ISSUE_PAGES = PAGES_PER_SHEET;
+
+/** Whether a page count can be folded and stapled: at least one sheet, whole sheets only. */
+export function isStitchableCount(n: number): boolean {
+  return n >= MIN_ISSUE_PAGES && n % PAGES_PER_SHEET === 0;
+}
+
+export type SheetRemoval =
+  | { ok: true; pageNumbers: number[] }
+  | { ok: false; message: string };
+
+/**
+ * Which pages go when someone removes "this page" (08/11/2026: "בעיתון לא
+ * יכול להיות 3 עמודים — מינימום 4, וכל הוספה מוסיפה 4").
+ *
+ * A single page cannot go: the issue would stop folding. So the removal takes
+ * a whole sheet's worth of INNER pages starting at the chosen one — four
+ * consecutive pages, never the cover or the back, which are the outside of the
+ * fold. An issue that is already off the multiple (made before the rule) loses
+ * only its remainder, which brings it back onto it. Never below four.
+ */
+export function sheetToRemove(total: number, selected: number): SheetRemoval {
+  if (selected === 1 || selected === total) {
+    return { ok: false, message: "השער והגב נשארים תמיד. אפשר להסיר עמודים פנימיים." };
+  }
+  const count = total % PAGES_PER_SHEET || PAGES_PER_SHEET;
+  if (total - count < MIN_ISSUE_PAGES) {
+    return {
+      ok: false,
+      message: `גיליון הוא לפחות ${MIN_ISSUE_PAGES} עמודים, ולכן אי אפשר להסיר עוד.`,
+    };
+  }
+  // Starting at the chosen page, pulled back if the run would reach the back.
+  const start = Math.max(2, Math.min(selected, total - count));
+  return { ok: true, pageNumbers: Array.from({ length: count }, (_, i) => start + i) };
+}
+
 /**
  * What to call a page when speaking to a person.
  *

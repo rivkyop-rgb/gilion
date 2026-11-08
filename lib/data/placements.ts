@@ -517,6 +517,8 @@ export type AutoPlaceOutcome = {
   cleared: number;
   /** Waiting publications that did not fit — only possible on chosen pages. */
   left: number;
+  /** The placements this run made, so the board can undo exactly it. */
+  placementIds: string[];
 };
 
 /**
@@ -558,6 +560,7 @@ export async function autoPlaceIssue(
   if (!issue) throw new Error("הגיליון לא נמצא");
   requireEditable(issue.status as IssueStatus, ctx.isAdmin);
 
+  const placementIds: string[] = [];
   let placed = 0;
   let sheetsAdded = 0;
   let cleared = 0;
@@ -593,7 +596,7 @@ export async function autoPlaceIssue(
 
     for (const placement of plan.placements) {
       try {
-        await placeAd(ctx, {
+        const made = await placeAd(ctx, {
           issueId,
           pageId: placement.pageId,
           publicationId: placement.publicationId,
@@ -602,6 +605,8 @@ export async function autoPlaceIssue(
           auto: true,
         });
         placed++;
+        // So the board can undo exactly this run (08/11/2026).
+        placementIds.push(made.id);
       } catch (error) {
         // A rule refused it after all — another tab, or a shape the plan and
         // the server disagree about. Skipping is right: the next round replans
@@ -624,7 +629,7 @@ export async function autoPlaceIssue(
     }
   }
 
-  return { placed, sheetsAdded, cleared, left };
+  return { placed, sheetsAdded, cleared, left, placementIds };
 }
 
 /** Above this the issue is growing for a reason no extra page will fix. */

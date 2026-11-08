@@ -23,15 +23,49 @@ export type BaseShape = {
   colsRatio: number;
   rowsRatio: number;
   region: BaseRegion;
+  /**
+   * The name promises a fraction of the page — "חצי", "רבע", "שמינית" — so it
+   * is created only on a grid where that fraction is exact (08/11/2026). A
+   * customer who pays for half a page gets half a page, never 40% of it.
+   */
+  exact?: boolean;
 };
 
 /** Ordered largest first — the order the catalogue screen lists them in. */
 export const BASE_SHAPES: readonly BaseShape[] = [
   { key: "full", name: "עמוד מלא", colsRatio: 1, rowsRatio: 1, region: "anywhere" },
-  { key: "half_h", name: "חצי עמוד אופקי", colsRatio: 1, rowsRatio: 1 / 2, region: "anywhere" },
-  { key: "half_v", name: "חצי עמוד אנכי", colsRatio: 1 / 2, rowsRatio: 1, region: "anywhere" },
-  { key: "quarter", name: "רבע עמוד", colsRatio: 1 / 2, rowsRatio: 1 / 2, region: "anywhere" },
-  { key: "eighth", name: "שמינית עמוד", colsRatio: 1 / 2, rowsRatio: 1 / 4, region: "anywhere" },
+  {
+    key: "half_h",
+    name: "חצי עמוד אופקי",
+    colsRatio: 1,
+    rowsRatio: 1 / 2,
+    region: "anywhere",
+    exact: true,
+  },
+  {
+    key: "half_v",
+    name: "חצי עמוד אנכי",
+    colsRatio: 1 / 2,
+    rowsRatio: 1,
+    region: "anywhere",
+    exact: true,
+  },
+  {
+    key: "quarter",
+    name: "רבע עמוד",
+    colsRatio: 1 / 2,
+    rowsRatio: 1 / 2,
+    region: "anywhere",
+    exact: true,
+  },
+  {
+    key: "eighth",
+    name: "שמינית עמוד",
+    colsRatio: 1 / 2,
+    rowsRatio: 1 / 4,
+    region: "anywhere",
+    exact: true,
+  },
   // The strip is deliberately position-constrained: it gives every new
   // newspaper a worked example of an allowed region to copy from.
   { key: "strip", name: "רצועה תחתונה", colsRatio: 1, rowsRatio: 1 / 6, region: "bottom" },
@@ -90,9 +124,44 @@ function bottomPositions(shape: { cols: number; rows: number }, grid: DerivedGri
   return normalizePositions(positions, shape, grid);
 }
 
+/** Is `t × ratio` a whole number of cells? */
+function divides(t: number, ratio: number): boolean {
+  const n = t * ratio;
+  return Math.abs(n - Math.round(n)) < 1e-9 && Math.round(n) >= 1;
+}
+
+/**
+ * Can this base shape be made exactly on this grid? Shapes that are not
+ * `exact` (the strip) always can. A half on 5 columns cannot: a column is the
+ * smallest unit an ad can occupy, so the choice is 2 (40%) or 3 (60%), and
+ * neither is half.
+ */
+export function fitsExactly(base: BaseShape, grid: { columns: number; rows: number }): boolean {
+  if (!base.exact) return true;
+  // Columns only. A column is several centimetres, so rounding it is 40% vs
+  // 50%. A row is about one centimetre and is chosen freely in the form, so
+  // rows keep FLOOR (below) — at most one row under, and n copies still fit.
+  return divides(grid.columns, base.colsRatio);
+}
+
+/**
+ * The base shapes a grid cannot make exactly, in Hebrew, for the newspaper
+ * form to say BEFORE saving — with the column counts that would make them.
+ */
+export function inexactShapesNote(grid: { columns: number; rows: number }): string | null {
+  const missing = BASE_SHAPES.filter((b) => !fitsExactly(b, grid));
+  if (missing.length === 0) return null;
+  const names = missing.map((b) => b.name).join(", ");
+  return (
+    `${grid.columns} עמודות לא מתחלקות לשניים, ולכן לא ייווצרו: ${names}. ` +
+    "מודעה תופסת עמודות שלמות, וחצי עמוד צריך להיות בדיוק חצי. " +
+    `כדי שייווצרו — ${grid.columns - 1} או ${grid.columns + 1} עמודות.`
+  );
+}
+
 /** Resolves the base catalogue against one newspaper's grid. */
 export function materializeBaseShapes(grid: DerivedGrid): MaterializedShape[] {
-  return BASE_SHAPES.map((base) => {
+  return BASE_SHAPES.filter((base) => fitsExactly(base, grid)).map((base) => {
     // FLOOR, not round — and this is the whole correctness of the catalogue.
     //
     // A shape called "half a page" has to have the property that TWO OF THEM

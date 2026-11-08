@@ -1,5 +1,7 @@
 "use server";
 
+import { CreditBlocked, attachReleaseToOrder, passCreditCheck } from "@/lib/data/credit-block";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -137,7 +139,18 @@ export async function createOrderDraftAction(
   const customerId = String(formData.get("customerId") ?? "");
   if (!customerId) return { errors: { customerId: "יש לבחור לקוח" } };
 
+  // The credit block (08/11/2026): refused here, before an order number is
+  // spent — or let through once on a manager's release, which this spends.
+  let releaseId: string | null = null;
+  try {
+    ({ releaseId } = await passCreditCheck(ctx.businessId, customerId));
+  } catch (error) {
+    if (error instanceof CreditBlocked) return { message: error.message };
+    throw error;
+  }
+
   const order = await data.createOrderDraft(ctx.businessId, customerId);
+  await attachReleaseToOrder(ctx.businessId, releaseId, order.id);
   await recordAction(ctx, { action: "create_order", targetType: "AdOrder", targetId: order.id });
   revalidatePath("/orders");
   redirect(`/orders/${order.id}`);

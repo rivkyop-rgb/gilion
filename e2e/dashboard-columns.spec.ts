@@ -58,7 +58,7 @@ test.describe("תשע העמודות של US-001", () => {
 
   test("מקור הפרסום מוצג כ'פנימי' או כ'פורטל לקוח'", async ({ page }) => {
     const row = page.locator('[data-testid^="week-row-"]').first();
-    await expect(row.locator("td").nth(4)).toHaveText(/פנימי|פורטל לקוח/);
+    await expect(row.locator("td").nth(4)).toHaveText(/הוזן במשרד|פורטל לקוח/);
   });
 
   test("סטטוס שיבוץ הוא קישור ללוח כשקיים גיליון לתאריך", async ({ page }) => {

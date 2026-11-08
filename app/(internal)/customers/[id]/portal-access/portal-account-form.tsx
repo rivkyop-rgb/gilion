@@ -11,9 +11,13 @@ import { createPortalAccountAction, type PortalAccountState } from "./actions";
 export function PortalAccountForm({
   customerId,
   defaults,
+  loginUrl,
 }: {
   customerId: string;
   defaults: { name: string; email: string };
+  /** The business's own branded portal address (/p/<slug>), not the bare
+      /portal/login — that one cannot tell which business it belongs to. */
+  loginUrl: string;
 }) {
   const [state, action, pending, keepTypedOnError] = useFormActionState<
     PortalAccountState,
@@ -72,7 +76,7 @@ export function PortalAccountForm({
       <p className="mt-2 text-xs text-on-surface-variant">
         הסיסמה מוצגת גלויה כדי שתוכלי למסור אותה ללקוח יחד עם הכתובת{" "}
         <span dir="ltr" className="ltr-isolate">
-          /portal/login
+          {loginUrl}
         </span>
         .
       </p>

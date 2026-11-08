@@ -5,9 +5,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-import { getTenantContext, requireArea } from "@/lib/auth/tenant";
+import { canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { billingReport, publicationReport } from "@/lib/data/payments";
-import { listNewspapers } from "@/lib/data/newspapers";
+import { listNewspapers, shapeOptions } from "@/lib/data/newspapers";
 import { customerOptions } from "@/lib/data/customers";
 import {
   PERIOD_LABELS,
@@ -33,9 +33,10 @@ import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
 import { PAYMENT_TONE, PUBLICATION_TONE } from "@/components/status-tone";
 import { cn } from "@/lib/utils";
-import { winbackReport } from "@/lib/data/winback";
+import { winbackReport, type WinbackOptions } from "@/lib/data/winback";
 import { businessName, loadSettings } from "@/lib/data/business-settings";
-import { textFor } from "@/lib/domain/business-settings";
+import { textFieldByKey, textFor } from "@/lib/domain/business-settings";
+import { WinbackTemplateEditor } from "./winback-template-editor";
 import { fillTemplate } from "@/lib/domain/customer-messages";
 import { reminderRecipients } from "@/lib/domain/reminders";
 import { EmailLink, PhoneLink } from "@/components/contact-links";
@@ -60,6 +61,10 @@ type Params = {
   size?: string;
   /** Winback tab: also list customers who already booked again. */
   returned?: string;
+  /** Winback tab: only this ad shape. */
+  shape?: string;
+  /** Winback tab: at least this many publications in the period. */
+  min?: string;
 };
 
 /**
@@ -108,6 +113,8 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       customer: customerId,
       lens,
       returned: params.returned ?? "",
+      shape: params.shape ?? "",
+      min: params.min ?? "",
       ...next,
     };
     const q = new URLSearchParams();
@@ -122,10 +129,13 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     return query ? `/reports?${query}` : "/reports";
   };
 
-  const [newspapers, customers] = await Promise.all([
+  const [newspapers, customers, shapes] = await Promise.all([
     listNewspapers(ctx.businessId),
     customerOptions(ctx.businessId),
+    tab === "winback" ? shapeOptions(ctx.businessId) : Promise.resolve([]),
   ]);
+  const shapeId = shapes.some((s) => s.value === params.shape) ? params.shape! : "";
+  const minCount = Math.max(0, Math.min(99, Math.trunc(Number(params.min) || 0)));
   const scoped = customers.find((c) => c.id === customerId) ?? null;
 
   const filters = { from: range.from, to: range.to, newspaperId, customerId };
@@ -306,13 +316,59 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           />
         </div>
 
+        {tab === "winback" ? (
+          <>
+            <div>
+              <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="shape">
+                גודל
+              </label>
+              <select
+                id="shape"
+                name="shape"
+                defaultValue={shapeId}
+                data-testid="winback-shape"
+                className="h-10 rounded-lg border border-outline-variant bg-surface-container px-3 text-start text-sm"
+              >
+                <option value="">כל הגדלים</option>
+                {shapes.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-on-surface-variant" htmlFor="min">
+                פרסמו לפחות
+              </label>
+              <select
+                id="min"
+                name="min"
+                defaultValue={minCount > 1 ? String(minCount) : ""}
+                data-testid="winback-min"
+                className="h-10 rounded-lg border border-outline-variant bg-surface-container px-3 text-start text-sm"
+              >
+                <option value="">פעם אחת</option>
+                {[2, 3, 4, 6, 8, 12].map((n) => (
+                  <option key={n} value={n}>
+                    {n} פעמים
+                  </option>
+                ))}
+              </select>
+            </div>
+            {includeReturnedHidden(params.returned)}
+          </>
+        ) : null}
+
         <Button type="submit" variant="secondary" data-testid="report-apply">
           הצגה
         </Button>
         <ResetFilters
           href={`/reports?tab=${tab}`}
           active={
-            newspaperId !== "all" || customerId !== "all" || Boolean(params.from || params.to)
+            newspaperId !== "all" ||
+            customerId !== "all" ||
+            Boolean(params.from || params.to || params.shape || params.min)
           }
         />
       </form>
@@ -329,6 +385,10 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           businessId={ctx.businessId}
           filters={filters}
           includeReturned={params.returned === "1"}
+          mayEditTemplate={
+            (ctx.role === "admin" || ctx.isSuperAdmin) && canWriteArea(ctx, "settings")
+          }
+          options={{ shapeId: shapeId || undefined, minCount: minCount || undefined }}
           hrefFor={hrefFor}
           list={list}
           listBase={hrefFor({})}
@@ -436,6 +496,7 @@ async function PaymentsTab({
         total={all.length}
         baseHref={listBase}
         searchable={false}
+        exportHref={listBase.replace(/^\/reports/, "/api/export/report")}
       />
       <div className="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1">
         <table className="w-full text-sm" data-testid="payments-report-table">
@@ -568,6 +629,7 @@ async function PublicationsTab({
         total={matching.length}
         baseHref={listBase}
         searchable={false}
+        exportHref={listBase.replace(/^\/reports/, "/api/export/report")}
       />
 
       {rows.length === 0 ? (
@@ -677,6 +739,8 @@ async function WinbackTab({
   businessId,
   filters,
   includeReturned,
+  options,
+  mayEditTemplate,
   hrefFor,
   list: requested,
   listBase,
@@ -684,12 +748,14 @@ async function WinbackTab({
   businessId: string;
   filters: Filters;
   includeReturned: boolean;
+  options: WinbackOptions;
+  mayEditTemplate: boolean;
   hrefFor: (next: Partial<Params>) => string;
   list: ListParams;
   listBase: string;
 }) {
   const [all, settings, business] = await Promise.all([
-    winbackReport(businessId, filters),
+    winbackReport(businessId, filters, options),
     loadSettings(businessId),
     businessName(businessId),
   ]);
@@ -719,12 +785,32 @@ async function WinbackTab({
         ) : null}
       </p>
 
+      <WinbackTemplateEditor
+        current={template}
+        fallback={textFieldByKey("winback_template")?.default ?? ""}
+        maxLength={textFieldByKey("winback_template")?.maxLength ?? 1000}
+        mayEdit={mayEditTemplate}
+        sample={
+          rows[0]
+            ? {
+                לקוח: rows[0].customerName,
+                עיתון: rows[0].newspapers[0] ?? "",
+                "תאריך אחרון": formatDate(rows[0].lastDate),
+                גודל: rows[0].lastShape,
+                עסק: business,
+                "טלפון העסק": settings.contactPhone ?? "",
+              }
+            : null
+        }
+      />
+
       <ListToolbar
         prefix=""
         params={list}
         total={matching.length}
         baseHref={listBase}
         searchable={false}
+        exportHref={listBase.replace(/^\/reports/, "/api/export/report")}
       />
 
       {rows.length === 0 ? (
@@ -817,4 +903,9 @@ async function WinbackTab({
       ) : null}
     </>
   );
+}
+
+/** The "show who already came back" choice survives applying the other filters. */
+function includeReturnedHidden(returned: string | undefined) {
+  return returned === "1" ? <input type="hidden" name="returned" value="1" /> : null;
 }

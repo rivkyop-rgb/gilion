@@ -13,8 +13,8 @@ import { Button } from "@/components/ui/button";
  * A tour is a few bubbles, each pointing at a real control on THIS screen.
  * Targets are found by selector when the step opens; a step whose control is
  * not on the page (no permission, nothing to show yet) is skipped rather than
- * pointing at nothing. Every screen's tour opens by itself the first time that
- * screen is seen in this browser, and again from the "?" button.
+ * pointing at nothing. The first tour opens by itself, once, the first time the
+ * product is opened in this browser; every tour is always one click away on "?".
  */
 
 type Step = { selector: string; title: string; body: string };
@@ -381,6 +381,11 @@ const TOURS: Tour[] = [
     match: (p) => p === "/advertisements",
     steps: [
       {
+        selector: '[data-testid="open-upload"]',
+        title: "העלאת קובץ",
+        body: "מעלים מודעה ובוחרים לקוח ועיתון. הקובץ נבדק מיד מול דרישות הדפוס.",
+      },
+      {
         selector: '[data-testid="section-attention"]',
         title: "דורש טיפול",
         body: "קבצים שנכשלו בבדיקה או שעוד לא שויכו לפרסום.",
@@ -388,7 +393,12 @@ const TOURS: Tour[] = [
       {
         selector: '[data-testid="filter-status"]',
         title: "סינון",
-        body: "לפי מצב, סוג קובץ, עיתון או לקוח.",
+        body: "לפי מצב, סוג קובץ, עיתון או לקוח. כל בחירה מסננת מיד.",
+      },
+      {
+        selector: '[data-testid="section-recent"]',
+        title: "קבצים אחרונים",
+        body: "לחיצה על קובץ פותחת אותו: תצוגה, החלפה, ולאיזה פרסום הוא שייך. \"רשימה\" למעלה מציגה את כולם בטבלה.",
       },
       {
         selector: '[data-testid="ads-table"]',
@@ -586,6 +596,17 @@ function tourFor(path: string): Tour | null {
 }
 
 const DONE_KEY = (key: string) => `gilion-tour-done-${key}`;
+/** Set the first time a tour opened by itself — the only time one does. */
+const AUTO_SHOWN_KEY = "gilion-tour-auto-shown";
+
+/** Somebody who finished any tour before the once-only rule has had theirs. */
+function autoTourAlreadyShown(): boolean {
+  if (window.localStorage.getItem(AUTO_SHOWN_KEY)) return true;
+  for (let i = 0; i < window.localStorage.length; i++) {
+    if (window.localStorage.key(i)?.startsWith("gilion-tour-done-")) return true;
+  }
+  return false;
+}
 
 // "Start the tour" from the help menu, wherever the tour component is mounted.
 const listeners = new Set<() => void>();
@@ -608,14 +629,24 @@ export function GuidedTour() {
     () => 0,
   );
 
-  const [state, setState] = useState<{ key: string; index: number; request: number } | null>(null);
+  // `present` is the steps whose control is on THIS screen, found once when
+  // the tour opens; `pos` walks that list. Counting and stepping through the
+  // full list is what made the habodek run see "3 מתוך 4" on the first card,
+  // a tour that ended after two, and "הקודם" that bounced forward again
+  // (08/11/2026).
+  const [state, setState] = useState<{
+    key: string;
+    pos: number;
+    present: number[] | null;
+    request: number;
+  } | null>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
 
   // Opened by the help button: adjusted during render, not in an effect.
   const [seenRequest, setSeenRequest] = useState(request);
   if (request !== seenRequest) {
     setSeenRequest(request);
-    if (tour) setState({ key: tour.key, index: 0, request });
+    if (tour) setState({ key: tour.key, pos: 0, present: null, request });
   }
 
   // Each screen's tour, once, the first time it is seen in this browser.
@@ -624,16 +655,26 @@ export function GuidedTour() {
   useEffect(() => {
     if (!tour || tour === FALLBACK) return;
     if (window.localStorage.getItem(DONE_KEY(tour.key))) return;
+    // Once in all, not once per screen (user, 08/11/2026: "שיקפוץ אוטומטי רק
+    // בפעם הראשונה, אחר כך בלחיצה על הסימן שאלה"). A tour on every new
+    // screen read as the product interrupting; after the first one, the "?"
+    // is where the others are.
+    if (autoTourAlreadyShown()) return;
     // Never over an automated browser: an overlay that opens by itself would
     // sit on top of every test's first click.
     if (navigator.webdriver) return;
-    const t = window.setTimeout(() => startTour(), 600);
+    const t = window.setTimeout(() => {
+      window.localStorage.setItem(AUTO_SHOWN_KEY, "1");
+      startTour();
+    }, 600);
     return () => window.clearTimeout(t);
   }, [tour]);
 
   const active = state && tour && state.key === tour.key ? tour : null;
   const steps = active ? active.steps : [];
-  const index = state?.index ?? 0;
+  const present = active ? state?.present ?? null : null;
+  const pos = state?.pos ?? 0;
+  const index = present ? (present[pos] ?? -1) : -1;
 
   const targetOf = useCallback(
     (i: number) => {
@@ -653,11 +694,17 @@ export function GuidedTour() {
       if (target) setRect(target.getBoundingClientRect());
     };
     const frame = window.requestAnimationFrame(() => {
-      let i = index;
-      while (i < steps.length && !targetOf(i)) i++;
-      if (i >= steps.length) return finish();
-      if (i !== index) return setState((s) => (s ? { ...s, index: i } : s));
-      target = targetOf(i);
+      if (!present) {
+        const found = steps.map((_, i) => i).filter((i) => targetOf(i));
+        if (found.length === 0) return finish();
+        return setState((s) => (s ? { ...s, present: found, pos: 0 } : s));
+      }
+      target = targetOf(index);
+      // A control that went away mid-tour: carry on with the next one.
+      if (!target) {
+        if (pos + 1 >= present.length) return finish();
+        return setState((s) => (s ? { ...s, pos: s.pos + 1 } : s));
+      }
       target?.scrollIntoView({ block: "center", behavior: "smooth" });
       measure();
       measureTimer = window.setTimeout(measure, 350);
@@ -671,7 +718,7 @@ export function GuidedTour() {
       window.removeEventListener("scroll", measure, true);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, index]);
+  }, [active, present, pos]);
 
   function finish() {
     if (tour) window.localStorage.setItem(DONE_KEY(tour.key), "1");
@@ -679,7 +726,7 @@ export function GuidedTour() {
     setRect(null);
   }
 
-  if (!active || !rect) return null;
+  if (!active || !rect || !present || index < 0) return null;
   const step = steps[index]!;
   const below = rect.bottom + 180 < window.innerHeight;
   const width = 300;
@@ -720,14 +767,14 @@ export function GuidedTour() {
         <p className="mb-3 text-on-surface-variant">{step.body}</p>
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs text-on-surface-variant">
-            {index + 1} מתוך {steps.length}
+            {pos + 1} מתוך {present.length}
           </span>
           <span className="flex gap-2">
-            {index > 0 ? (
+            {pos > 0 ? (
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => setState((s) => (s ? { ...s, index: s.index - 1 } : s))}
+                onClick={() => setState((s) => (s ? { ...s, pos: s.pos - 1 } : s))}
               >
                 הקודם
               </Button>
@@ -736,12 +783,12 @@ export function GuidedTour() {
               size="sm"
               data-testid="tour-next"
               onClick={() =>
-                index + 1 >= steps.length
+                pos + 1 >= present.length
                   ? finish()
-                  : setState((s) => (s ? { ...s, index: s.index + 1 } : s))
+                  : setState((s) => (s ? { ...s, pos: s.pos + 1 } : s))
               }
             >
-              {index + 1 >= steps.length ? "סיום" : "הבא"}
+              {pos + 1 >= present.length ? "סיום" : "הבא"}
             </Button>
           </span>
         </div>
@@ -770,7 +817,7 @@ export function HelpButton() {
       </button>
       {open ? (
         <div
-          className="absolute end-0 top-full z-50 mt-1 w-56 rounded-lg border border-outline-variant bg-surface-container-lowest p-1 shadow-elevation-2"
+          className="absolute start-0 top-full z-50 mt-1 w-56 rounded-lg border border-outline-variant bg-surface-container-lowest p-1 shadow-elevation-2"
           data-testid="help-menu"
         >
           {tour ? (

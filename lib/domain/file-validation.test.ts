@@ -6,6 +6,7 @@ import {
   sniffFileType,
   smallestLimit,
   tooLargeMessage,
+  UNREADABLE_MESSAGE,
   UNSUPPORTED_TYPE_MESSAGE,
 } from "./ad-file";
 
@@ -118,5 +119,23 @@ describe("formatBytes", () => {
 describe("tooLargeMessage", () => {
   it("is in Hebrew and names the newspaper that refused", () => {
     expect(tooLargeMessage(8 * MB, catalogue)).toContain("קטלוג המרכז");
+  });
+});
+
+describe("a broken file that says what it is", () => {
+  it("is called broken, not unsupported, when its name says PDF", () => {
+    const head = Buffer.from("this is definitely not a pdf, promise");
+    const broken = checkAdFile({ size: 1024, head, limit: alpha, name: "מודעה.PDF" });
+    // Still "type": with no recognisable format there is nothing to keep a row of.
+    expect(broken).toMatchObject({ ok: false, rejection: { code: "type", message: UNREADABLE_MESSAGE } });
+    const word = checkAdFile({ size: 1024, head, limit: alpha, name: "מודעה.docx" });
+    expect(word).toMatchObject({ ok: false, rejection: { code: "type" } });
+  });
+});
+
+describe("a renamed file of another kind", () => {
+  it("stays unsupported — a GIF called .pdf is not a broken PDF", () => {
+    const gif = checkAdFile({ size: 1024, head: Buffer.from("GIF89a"), limit: alpha, name: "x.pdf" });
+    expect(gif).toMatchObject({ ok: false, rejection: { message: UNSUPPORTED_TYPE_MESSAGE } });
   });
 });

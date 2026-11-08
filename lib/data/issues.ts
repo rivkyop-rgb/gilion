@@ -18,7 +18,12 @@ import { readAllowedCells } from "./ad-shapes";
 import type { DerivedGrid } from "@/lib/domain/grid";
 import { ON_PAGE_STATES, type ReservedArea, type ShapeSpec } from "@/lib/domain/placement";
 import { isBackward, transition, type IssueStatus } from "@/lib/domain/issue-status";
-import { PAGES_PER_SHEET, defaultPageTypeIds, pageFill } from "@/lib/domain/issue-layout";
+import {
+  PAGES_PER_SHEET,
+  defaultPageTypeIds,
+  pageFill,
+  sheetToRemove,
+} from "@/lib/domain/issue-layout";
 import { AUTO_OPEN_DAYS, autoOpenDates } from "@/lib/domain/issue-schedule";
 import { addDays, isoDay, jerusalemDay } from "@/lib/domain/calendar";
 import { OPEN_ISSUE_STATES } from "@/lib/domain/dashboard";
@@ -756,40 +761,68 @@ export async function reorderIssuePages(
 }
 
 export class PageNotEmptyError extends Error {
-  constructor() {
-    super("אי אפשר להסיר עמוד שיש עליו שיבוצים — הסירי אותם קודם");
+  constructor(pageNumbers: number[] = []) {
+    super(
+      pageNumbers.length > 1
+        ? `יש שיבוצים בעמודים ${pageNumbers[0]}–${pageNumbers[pageNumbers.length - 1]}. צריך להוריד אותם לפני שמסירים את הדף.`
+        : "יש שיבוצים בעמוד הזה. צריך להוריד אותם לפני שמסירים אותו.",
+    );
     this.name = "PageNotEmptyError";
   }
 }
 
 /**
- * Removes a page and closes the numbering behind it.
+ * Removes a sheet's worth of pages, starting at the one named, and closes the
+ * numbering behind them (08/11/2026 — it removed ONE page, and an 8-page issue
+ * became 7, which cannot be folded). Which pages go is `sheetToRemove`.
  *
- * Refuses while anything is placed on it: cascading the delete would silently
- * take live placements — and the publications they belong to — with it, which
- * is a data loss disguised as a layout tweak.
+ * Refuses while anything is placed on any of them: cascading the delete would
+ * silently take live placements — and the publications they belong to — with
+ * it, which is a data loss disguised as a layout tweak.
  */
 export async function removeIssuePage(businessId: string, issueId: string, pageId: string) {
-  const placed = await tenantDb(businessId).placement.count({
-    where: { issue_page_id: pageId, status: { in: ON_PAGE_STATES } },
+  const pages = await tenantDb(businessId).issuePage.findMany({
+    where: { issue_id: issueId },
+    orderBy: { page_number: "asc" },
+    select: { id: true, page_number: true },
   });
-  if (placed > 0) throw new PageNotEmptyError();
+  const chosen = pages.find((p) => p.id === pageId);
+  if (!chosen) return 0;
+  const plan = sheetToRemove(pages.length, chosen.page_number);
+  if (!plan.ok) throw new PageRemovalRefused(plan.message);
+  const going = pages.filter((p) => plan.pageNumbers.includes(p.page_number));
+  const ids = going.map((p) => p.id);
 
+  const placed = await tenantDb(businessId).placement.count({
+    where: { issue_page_id: { in: ids }, status: { in: ON_PAGE_STATES } },
+  });
+  if (placed > 0) throw new PageNotEmptyError(plan.pageNumbers);
+
+  const last = plan.pageNumbers[plan.pageNumbers.length - 1]!;
   await basePrisma.$transaction(async (tx) => {
-    const page = await tx.issuePage.findFirst({
-      where: { id: pageId, issue: { id: issueId, business_id: businessId } },
-    });
-    if (!page) return;
-
-    await tx.issuePage.delete({ where: { id: page.id } });
-    // Renumber what follows, one statement, in ascending order so the unique
-    // index on (issue_id, page_number) is never transiently violated.
+    await tx.issuePage.deleteMany({ where: { id: { in: ids }, issue_id: issueId } });
+    // Park, then bring down: the unique index on (issue_id, page_number) is
+    // checked per row, and one UPDATE has no order (RENUMBER_OFFSET).
     await tx.$executeRaw`
       UPDATE "IssuePage"
-         SET "page_number" = "page_number" - 1
+         SET "page_number" = "page_number" + ${RENUMBER_OFFSET}
        WHERE "issue_id" = ${issueId}
-         AND "page_number" > ${page.page_number}`;
+         AND "page_number" > ${last}`;
+    await tx.$executeRaw`
+      UPDATE "IssuePage"
+         SET "page_number" = "page_number" - ${RENUMBER_OFFSET + ids.length}
+       WHERE "issue_id" = ${issueId}
+         AND "page_number" > ${RENUMBER_OFFSET}`;
   });
+  return ids.length;
+}
+
+/** The removal would break the fold or take the cover — said in words. */
+export class PageRemovalRefused extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PageRemovalRefused";
+  }
 }
 
 export class IssueDateTakenError extends Error {

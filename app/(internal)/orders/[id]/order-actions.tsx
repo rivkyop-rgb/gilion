@@ -155,7 +155,7 @@ export function OrderActions({
               </Link>
             </Button>
             <Button asChild size="sm" variant="secondary">
-              <Link href={`/billing?customer=${customerId}`}>
+              <Link href={`/billing/customers/${customerId}`}>
                 <Wallet className="size-4" />
                 רישום תשלום
               </Link>

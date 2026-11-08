@@ -3,7 +3,7 @@ import { RecordHistory } from "@/components/record-history";
 import { publicationsPhrase } from "@/lib/domain/hebrew-count";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { KeyRound, Pencil, Plus } from "lucide-react";
+import { FileText, KeyRound, Pencil, Plus, Wallet } from "lucide-react";
 
 import { canReadArea, canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { customerHistoryCounts } from "@/lib/data/customers";
@@ -36,6 +36,8 @@ import { tearSheetPath } from "@/lib/tear-sheet-token";
 import { AdQuickLook, AdThumb } from "@/components/ads/ad-preview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CreditBlockBanner } from "@/components/billing/credit-block-banner";
+import { creditState } from "@/lib/data/credit-block";
 import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
 import { ORDER_TONE, PAYMENT_TONE, PUBLICATION_TONE } from "@/components/status-tone";
@@ -127,6 +129,8 @@ export default async function CustomerPage({
   const maySeeMoney = ctx.role !== "designer"; // FR-8
   const maySeeOrders = canReadArea(ctx, "orders");
   const maySeeAds = canReadArea(ctx, "advertisements");
+  // The credit block, said on the card before anybody tries to order (08/11/2026).
+  const block = maySeeMoney ? await creditState(ctx.businessId, customer.id) : null;
 
   const empty = { rows: [], total: 0 };
   const [orders, publications, ads] = await Promise.all([
@@ -248,6 +252,14 @@ export default async function CustomerPage({
 
   return (
     <>
+      {block?.blocked ? (
+        <CreditBlockBanner
+          customerId={customer.id}
+          reason={block.reason}
+          releaseWaiting={block.releaseWaiting}
+          mayRelease={(ctx.role === "admin" || ctx.isSuperAdmin) && canReadArea(ctx, "billing")}
+        />
+      ) : null}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-5">
         <div className="flex min-w-0 items-center gap-4">
           <span
@@ -285,8 +297,18 @@ export default async function CustomerPage({
           </div>
         </div>
 
-        {mayEdit || canWriteArea(ctx, "orders") ? (
+        {mayEdit || canWriteArea(ctx, "orders") || canReadArea(ctx, "billing") ? (
           <div className="flex flex-wrap gap-2">
+            {/* The statement the customer's accountant asks for (08/11/2026).
+                A plain link: the route answers with a PDF download. */}
+            {canReadArea(ctx, "billing") ? (
+              <Button variant="secondary" asChild>
+                <a href={`/api/export/statement/${customer.id}`} data-testid="customer-statement">
+                  <FileText className="size-4" />
+                  דף חשבון (PDF)
+                </a>
+              </Button>
+            ) : null}
             {canWriteArea(ctx, "orders") ? (
               <Button asChild variant="gold">
                 <Link href={`/orders/new?customer=${customer.id}`} data-testid="customer-new-order">
@@ -534,13 +556,15 @@ export default async function CustomerPage({
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="font-serif text-xl font-semibold">תשלומים</h2>
             {canReadArea(ctx, "billing") ? (
-              <Link
-                href={`/billing?customer=${customer.id}`}
-                data-testid="go-to-billing"
-                className="text-sm underline underline-offset-2"
-              >
-                רישום ועריכה במסך הגבייה
-              </Link>
+              // A real button (08/11/2026: "להפוך אותו ליותר לחיץ ואינטואיטיבי").
+              // It was a small underlined sentence at the end of the heading —
+              // the least visible thing on the tab, for the one act it exists for.
+              <Button size="sm" asChild>
+                <Link href={`/billing/customers/${customer.id}`} data-testid="go-to-billing">
+                  <Wallet className="size-4" aria-hidden />
+                  רישום תשלום ועריכה
+                </Link>
+              </Button>
             ) : null}
           </div>
           <ListToolbar

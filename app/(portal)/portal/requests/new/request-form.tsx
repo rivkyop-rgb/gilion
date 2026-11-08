@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useFormActionState } from "@/components/use-form-action-state";
 import {
   ChevronLeft,
@@ -25,7 +25,7 @@ import {
   WEEKDAYS,
   WEEKDAY_SHORT,
 } from "@/lib/domain/publication-days";
-import { MAX_LINES } from "@/lib/domain/portal-request";
+import { MAX_LINES, portalDateOpen } from "@/lib/domain/portal-request";
 import type { PortalFormNewspaper } from "@/lib/data/portal";
 import { AdThumb } from "@/components/ads/ad-preview";
 import { ShapePreview } from "@/app/(internal)/settings/shape-preview";
@@ -46,9 +46,20 @@ type Line = {
   key: number;
   newspaperId: string;
   shapeId: string;
+  /** "" = the newspaper's default page type (08/11/2026). */
+  pageTypeId: string;
   dates: string[];
   adId: string;
 };
+
+type FormShape = PortalFormNewspaper["shapes"][number];
+
+/** What one insertion costs on the page type this line is filed under. */
+function priceFor(shape: FormShape, pageTypeId: string) {
+  const id = pageTypeId || shape.defaultPageTypeId;
+  const own = id ? shape.prices[id] : undefined;
+  return own ?? { listPrice: shape.listPrice, estimate: shape.estimate };
+}
 
 const MONEY = new Intl.NumberFormat("he-IL", {
   style: "currency",
@@ -82,7 +93,7 @@ export function RequestForm({
   const counter = useRef(1);
   const single = newspapers.length === 1 ? newspapers[0]!.id : "";
   const [lines, setLines] = useState<Line[]>([
-    { key: 0, newspaperId: single, shapeId: "", dates: [], adId: "" },
+    { key: 0, newspaperId: single, shapeId: "", pageTypeId: "", dates: [], adId: "" },
   ]);
   // Everything pickable on a line: what they uploaded before, and what they
   // upload while filling this form.
@@ -93,6 +104,19 @@ export function RequestForm({
     FormData
   >(submitAdRequestAction, {});
   const errors = state.errors ?? {};
+
+  // After a refused submit the focus used to stay on <body>, and on a phone
+  // the first error was a screen away (habodek 375, 08/11/2026). It moves to
+  // the first message instead, which also scrolls it into view.
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (!state.errors && !state.message) return;
+    const first = formRef.current?.querySelector<HTMLElement>('[role="alert"]');
+    if (!first) return;
+    first.tabIndex = -1;
+    first.focus();
+    first.scrollIntoView({ block: "center" });
+  }, [state]);
 
   const update = (key: number, patch: Partial<Line>) =>
     setLines((all) => all.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -108,6 +132,7 @@ export function RequestForm({
           // page the week after" — so it starts there.
           newspaperId: last?.newspaperId ?? single,
           shapeId: "",
+          pageTypeId: "",
           dates: [],
           adId: "",
         },
@@ -126,9 +151,10 @@ export function RequestForm({
         .find((n) => n.id === line.newspaperId)
         ?.shapes.find((s) => s.id === line.shapeId);
       if (!shape) continue;
+      const { listPrice } = priceFor(shape, line.pageTypeId);
       for (let i = 0; i < line.dates.length; i++) {
-        if (shape.listPrice === null) unpriced++;
-        else priced.push({ newspaperId: line.newspaperId, price: shape.listPrice });
+        if (listPrice === null) unpriced++;
+        else priced.push({ newspaperId: line.newspaperId, price: listPrice });
       }
     }
     const packages = Object.fromEntries(newspapers.map((n) => [n.id, n.packages]));
@@ -139,6 +165,7 @@ export function RequestForm({
     lines.map((l) => ({
       newspaperId: l.newspaperId,
       adShapeId: l.shapeId,
+      ...(l.pageTypeId ? { pageTypeId: l.pageTypeId } : {}),
       dates: l.dates,
       advertisementId: l.adId,
     })),
@@ -146,6 +173,7 @@ export function RequestForm({
 
   return (
     <form
+      ref={formRef}
       action={submit}
       onReset={keepTypedOnError}
       className="space-y-6"
@@ -262,6 +290,7 @@ function LineEditor({
   const fileInput = useRef<HTMLInputElement>(null);
   const error = (field: string) => errors[`lines.${index}.${field}`];
   const ad = files.find((f) => f.id === line.adId) ?? null;
+  const shape = paper?.shapes.find((s) => s.id === line.shapeId) ?? null;
   const tooLarge = Boolean(paper && ad && ad.fileSize > paper.maxAdFileSize);
   const id = `line-${line.key}`;
 
@@ -314,11 +343,13 @@ function LineEditor({
           id={`${id}-newspaper`}
           ref={adoptNewspaper}
           value={line.newspaperId}
-          onChange={(e) => onChange({ newspaperId: e.target.value, shapeId: "", dates: [] })}
+          onChange={(e) =>
+            onChange({ newspaperId: e.target.value, shapeId: "", pageTypeId: "", dates: [] })
+          }
           className="h-11 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3"
           data-testid="line-newspaper"
         >
-          <option value="">בחרי מהרשימה…</option>
+          <option value="">בחירה מהרשימה…</option>
           {newspapers.map((n) => (
             <option key={n.id} value={n.id}>
               {n.name}
@@ -343,7 +374,15 @@ function LineEditor({
                 <button
                   key={s.id}
                   type="button"
-                  onClick={() => onChange({ shapeId: s.id })}
+                  onClick={() =>
+                    onChange({
+                      shapeId: s.id,
+                      // A type this size is not sold on falls back to the default.
+                      pageTypeId: s.pageTypes.some((p) => p.id === line.pageTypeId)
+                        ? line.pageTypeId
+                        : "",
+                    })
+                  }
                   aria-pressed={chosen}
                   data-testid="shape-option"
                   data-shape-name={s.name}
@@ -358,18 +397,21 @@ function LineEditor({
                     <ShapePreview
                       cols={s.cols}
                       rows={s.rows}
+                      at={s.anchor ?? null}
                       grid={paper.grid}
                       selected={chosen}
                       className="h-20 w-14"
                     />
                   ) : null}
                   <span className="text-center">{s.name}</span>
-                  {s.estimate !== null ? (
+                  {priceFor(s, chosen ? line.pageTypeId : "").estimate !== null ? (
                     <span
                       className="text-xs font-normal text-on-surface-variant"
                       data-testid="shape-estimate"
                     >
-                      <Ltr>{MONEY.format(s.estimate)}</Ltr>
+                      <Ltr>
+                        {MONEY.format(priceFor(s, chosen ? line.pageTypeId : "").estimate!)}
+                      </Ltr>
                     </span>
                   ) : null}
                 </button>
@@ -379,6 +421,16 @@ function LineEditor({
         )}
         <FieldError message={error("adShapeId")} />
       </div>
+
+      {/* Page type (08/11/2026) — optional; the default is an ordinary page. */}
+      {shape && shape.pageTypes.length > 1 ? (
+        <PageTypeChoice
+          id={id}
+          shape={shape}
+          value={line.pageTypeId}
+          onChange={(pageTypeId) => onChange({ pageTypeId })}
+        />
+      ) : null}
 
       {/* Dates — as many as wanted (backlog 26) */}
       <div>
@@ -399,10 +451,12 @@ function LineEditor({
             value={line.dates}
             onChange={(dates) => onChange({ dates })}
             publicationDays={paper.publicationDays}
+            closedDates={paper.closedDates}
+            issueDates={paper.issueDates}
             newspaperName={paper.name}
           />
         ) : (
-          <p className="text-sm text-on-surface-variant">בחרי קודם עיתון, ויוצגו ימי ההדפסה שלו.</p>
+          <p className="text-sm text-on-surface-variant">אחרי בחירת עיתון יוצגו כאן ימי ההדפסה שלו.</p>
         )}
         <FieldError message={error("dates")} />
       </div>
@@ -543,6 +597,65 @@ function LineEditor({
   );
 }
 
+/**
+ * Where in the paper (08/11/2026). Left alone, the request goes to the
+ * newspaper's default — an ordinary inner page — at the price the customer sees.
+ * Anything else is a special placement the office confirms by phone, and the
+ * line says so before the customer sends it, not after.
+ */
+function PageTypeChoice({
+  id,
+  shape,
+  value,
+  onChange,
+}: {
+  id: string;
+  shape: FormShape;
+  value: string;
+  onChange: (pageTypeId: string) => void;
+}) {
+  const defaultId = shape.defaultPageTypeId;
+  const effective = value || defaultId || "";
+  const special = Boolean(effective && effective !== defaultId);
+  const chosenName = shape.pageTypes.find((p) => p.id === effective)?.name;
+  return (
+    <div>
+      <Label htmlFor={`${id}-page-type`} className="mb-2 block font-semibold">
+        מיקום בעיתון
+      </Label>
+      <select
+        id={`${id}-page-type`}
+        value={effective}
+        onChange={(e) => onChange(e.target.value === defaultId ? "" : e.target.value)}
+        className="h-11 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3"
+        data-testid="line-page-type"
+      >
+        {shape.pageTypes.map((p) => {
+          const est = shape.prices[p.id]?.estimate ?? null;
+          return (
+            <option key={p.id} value={p.id}>
+              {p.name}
+              {p.id === defaultId ? " (רגיל)" : ""}
+              {est !== null ? ` · ${MONEY.format(est)}` : ""}
+            </option>
+          );
+        })}
+      </select>
+      {special ? (
+        <p
+          className="mt-2 flex items-start gap-2 rounded-lg bg-status-info-bg px-3 py-2 text-sm text-status-info-fg"
+          data-testid="special-page-note"
+        >
+          <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <span>
+            המקום ב{chosenName} מוגבל. נציג מהמשרד ייצור קשר לתיאום לפני אישור הבקשה.
+          </span>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function FieldError({ message }: { message?: string | null }) {
   if (!message) return null;
   return (
@@ -563,11 +676,15 @@ function DatesPicker({
   value,
   onChange,
   publicationDays,
+  closedDates,
+  issueDates,
   newspaperName,
 }: {
   value: string[];
   onChange: (dates: string[]) => void;
   publicationDays: number[];
+  closedDates?: string[];
+  issueDates?: string[];
   newspaperName: string;
 }) {
   const today = todayIso();
@@ -592,8 +709,12 @@ function DatesPicker({
   const toggle = (iso: string) =>
     onChange(chosen.has(iso) ? value.filter((d) => d !== iso) : [...value, iso].sort());
 
+  // The server's own rule (portalDateOpen): a print day, not an issue already
+  // closed for print, and — with no weekly schedule — a day an issue exists.
   const isOpen = (d: (typeof days)[number]) =>
-    !d.isPast && jewish.get(d.iso)?.kind !== "chag" && d.isPublicationDay;
+    !d.isPast &&
+    jewish.get(d.iso)?.kind !== "chag" &&
+    portalDateOpen({ publicationDays, closedDates, issueDates }, d.iso);
 
   /** Every remaining print day in the month — "every week this month". */
   const selectMonth = () =>
@@ -607,7 +728,9 @@ function DatesPicker({
   const atCurrentMonth = cursor.year === now.getFullYear() && cursor.month === now.getMonth();
 
   return (
-    <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4">
+    // On a phone the calendar borrows the card's side padding back, so seven
+    // days fit at a 44px touch target each (habodek at 375: 25px, 08/11/2026).
+    <div className="-mx-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-2 shadow-elevation-1 sm:mx-0 sm:p-4">
       <div className="mb-3 flex items-center justify-between">
         <button
           type="button"
@@ -615,7 +738,7 @@ function DatesPicker({
           disabled={atCurrentMonth}
           aria-label="חודש קודם"
           data-testid="prev-month"
-          className="rounded-sm p-1 hover:bg-surface-container disabled:opacity-30"
+          className="flex size-11 items-center justify-center rounded-sm hover:bg-surface-container disabled:opacity-30"
         >
           <ChevronRight className="size-4" />
         </button>
@@ -627,18 +750,18 @@ function DatesPicker({
           onClick={() => shift(1)}
           aria-label="חודש הבא"
           data-testid="next-month"
-          className="rounded-sm p-1 hover:bg-surface-container"
+          className="flex size-11 items-center justify-center rounded-sm hover:bg-surface-container"
         >
           <ChevronLeft className="size-4" />
         </button>
       </div>
 
-      <div className="mb-1 grid grid-cols-7 gap-1 text-center text-xs text-on-surface-variant">
+      <div className="mb-1 grid grid-cols-7 gap-0.5 text-center sm:gap-1 text-xs text-on-surface-variant">
         {WEEKDAYS.map((d) => (
           <span key={d}>{WEEKDAY_SHORT[d]}</span>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
         {Array.from({ length: lead }, (_, i) => (
           <span key={`lead-${i}`} />
         ))}
@@ -654,9 +777,15 @@ function DatesPicker({
               onClick={() => toggle(d.iso)}
               aria-pressed={picked}
               data-testid={`day-${d.iso}`}
-              title={heb?.kind === "chag" ? `${heb.holiday} — לא יוצא עיתון בחג` : undefined}
+              title={
+                heb?.kind === "chag"
+                  ? `${heb.holiday} — לא יוצא עיתון בחג`
+                  : closedDates?.includes(d.iso)
+                    ? "הגיליון לתאריך הזה כבר נסגר לדפוס"
+                    : undefined
+              }
               className={cn(
-                "flex h-12 flex-col items-center justify-center rounded-sm text-sm leading-tight",
+                "flex h-12 min-w-11 flex-col items-center justify-center rounded-sm text-sm leading-tight",
                 !open && "cursor-not-allowed opacity-35",
                 picked
                   ? "bg-primary font-semibold text-on-primary"

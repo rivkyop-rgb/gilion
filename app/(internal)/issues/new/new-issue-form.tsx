@@ -8,7 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Ltr } from "@/components/ui/ltr";
-import { defaultPageTypeIds } from "@/lib/domain/issue-layout";
+import {
+  MIN_ISSUE_PAGES,
+  PAGES_PER_SHEET,
+  defaultPageTypeIds,
+  innerPageTypeId,
+} from "@/lib/domain/issue-layout";
 import { createIssueAction } from "../actions";
 
 export type NewspaperOption = {
@@ -176,33 +181,45 @@ export function NewIssueForm({
                     </option>
                   ))}
                 </select>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  aria-label={`הסרת עמוד ${index + 1}`}
-                  data-testid={`remove-page-${index}`}
-                  onClick={() => setPages(pages.filter((_, i) => i !== index))}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
+
               </li>
             ))}
           </ul>
         )}
 
         {paper && paper.pageTypes.length > 0 ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="mt-2"
-            data-testid="add-page"
-            onClick={() => setPages([...pages, paper.pageTypes[0]!.id])}
-          >
-            <Plus className="size-4" />
-            הוספת עמוד
-          </Button>
+          // Whole sheets only (user, 08/11/2026): one folded sheet is four
+          // pages, so adding or removing anything else makes an issue that
+          // cannot be stapled. Added and removed BEFORE the back cover — the
+          // back is the last page by position, and appending would make the
+          // new page the back.
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              data-testid="add-page"
+              onClick={() => setPages(addSheet(pages, paper.pageTypes))}
+            >
+              <Plus className="size-4" />
+              הוספת {PAGES_PER_SHEET} עמודים
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              data-testid="remove-sheet"
+              disabled={pages.length - PAGES_PER_SHEET < MIN_ISSUE_PAGES}
+              onClick={() => setPages(removeSheet(pages))}
+            >
+              <Trash2 className="size-4" />
+              הסרת {PAGES_PER_SHEET} עמודים
+            </Button>
+            <span className="text-xs text-on-surface-variant">
+              גיליון הוא לפחות <Ltr>{MIN_ISSUE_PAGES}</Ltr> עמודים, ומוסיפים ומסירים{" "}
+              <Ltr>{PAGES_PER_SHEET}</Ltr> בכל פעם — דף מקופל אחד.
+            </span>
+          </div>
         ) : null}
       </fieldset>
 
@@ -271,4 +288,18 @@ export function NewIssueForm({
 function viewCount(pageCount: number): number {
   if (pageCount <= 2) return pageCount;
   return 2 + Math.ceil((pageCount - 2) / 2);
+}
+
+/** Four inner pages, inserted before the back cover. */
+function addSheet(pages: string[], types: Array<{ id: string; name: string }>): string[] {
+  const inner = innerPageTypeId(types) ?? types[0]!.id;
+  const sheet = Array.from({ length: PAGES_PER_SHEET }, () => inner);
+  if (pages.length < 2) return [...pages, ...sheet];
+  return [...pages.slice(0, -1), ...sheet, pages[pages.length - 1]!];
+}
+
+/** The last four inner pages — the cover and the back stay. */
+function removeSheet(pages: string[]): string[] {
+  if (pages.length - PAGES_PER_SHEET < MIN_ISSUE_PAGES) return pages;
+  return [...pages.slice(0, -1 - PAGES_PER_SHEET), pages[pages.length - 1]!];
 }

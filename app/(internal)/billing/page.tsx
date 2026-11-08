@@ -1,18 +1,11 @@
 import { ResetFilters } from "@/components/ui/reset-filters";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AutoSubmitForm } from "@/components/ui/auto-submit-form";
 import { Wallet } from "lucide-react";
 
-import { getTenantContext, canWriteArea, requireArea } from "@/lib/auth/tenant";
-import {
-  billableOrders,
-  billingCustomers,
-  billingRowFacts,
-  billingTotals,
-  customerMonths,
-  paymentHistory,
-  paymentsForCustomer,
-} from "@/lib/data/payments";
+import { getTenantContext, requireArea } from "@/lib/auth/tenant";
+import { billingCustomers, billingRowFacts, billingTotals, debtAging } from "@/lib/data/payments";
 import { PAYMENT_STATUSES, PAYMENT_STATUS_LABELS } from "@/lib/domain/payment-status";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -20,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
 import { PAYMENT_TONE, TONE_ROW } from "@/components/status-tone";
+import { AgingBoxes } from "./aging-boxes";
 import { cn } from "@/lib/utils";
 import { ListPager, ListToolbar } from "@/components/ui/list-toolbar";
 import {
@@ -29,29 +23,13 @@ import {
   parseListParams,
   skipFor,
 } from "@/lib/domain/list-view";
-import { formatMoney, orderNumber } from "../orders/format";
+import { formatDate, formatMoney, orderNumber } from "../orders/format";
 import { StatusChip } from "../orders/order-badges";
-import type { HistoryEntry, PaymentRow } from "./payment-editor";
-import { PaymentDialog } from "./payment-dialog";
-import { billingContactsOf } from "@/lib/data/customers";
+import { CustomerJump } from "./customer-jump";
+import { redirect } from "next/navigation";
+import { listCustomerOptions } from "@/lib/data/customers";
 
 export const metadata: Metadata = { title: "גבייה · Gilion" };
-
-/**
- * How far back the history dialog shows before asking.
- *
- * A display window, NOT a retention policy: `AuditLog` has no delete path by
- * design (conventions.md §6), and nothing here removes a row. Six months is
- * simply what somebody is looking for when they open the dialog; older entries
- * are one click away.
- */
-const HISTORY_MONTHS = 6;
-
-const DATE_TIME = new Intl.DateTimeFormat("he-IL", {
-  dateStyle: "short",
-  timeStyle: "short",
-  timeZone: "Asia/Jerusalem",
-});
 
 /**
  * Billing (US-010, FR-7).
@@ -79,14 +57,14 @@ export default async function BillingPage({
   requireArea(ctx, "billing");
 
   const raw = await searchParams;
-  const { status = "all", q = "", customer = "" } = raw;
+  // The drawer became a page (08/11/2026). Every link that still names a
+  // customer — a reminder, a bookmark, an old card — lands on that page.
+  if (raw.customer) redirect(`/billing/customers/${encodeURIComponent(raw.customer)}`);
+  const { status = "all", q = "" } = raw;
+  const customer = "";
   const requested = parseListParams(raw);
-  const mayWrite = canWriteArea(ctx, "billing");
 
-  const historyCutoff = new Date();
-  historyCutoff.setMonth(historyCutoff.getMonth() - HISTORY_MONTHS);
-
-  const [totals, rows, everyStatus] = await Promise.all([
+  const [totals, rows, everyStatus, aging, customerOptions] = await Promise.all([
     billingTotals(ctx.businessId),
     billingCustomers(ctx.businessId, { status, q }),
     // The chips count what each of them would show — under the same search,
@@ -94,24 +72,15 @@ export default async function BillingPage({
     status === "all"
       ? Promise.resolve(null)
       : billingCustomers(ctx.businessId, { status: "all", q }),
+    debtAging(ctx.businessId),
+    listCustomerOptions(ctx.businessId),
   ]);
   const counted = everyStatus ?? rows;
   const statusCount = (s: string) => counted.filter((r) => r.status === s).length;
 
-  // The dialog looks its customer up in the WHOLE list: the row may sit on
-  // another page, and a link from the customer card does not know the page.
-  const open = rows.find((r) => r.customerId === customer) ?? null;
   // The list is computed per customer in code (billingCustomers), so it is
   // paged here, after it is whole — the totals above are of everyone.
-  // A link that names a customer (the card's "רישום תשלום", a reminder) does
-  // not know which page that customer's row is on — so the list opens on it.
-  // Otherwise the dialog opens over a table that does not show the row it is
-  // about, and the balance it just changed is nowhere to be seen.
-  const openIndex = open && !raw.page ? rows.indexOf(open) : -1;
-  const list = clampPage(
-    openIndex >= 0 ? { ...requested, page: Math.floor(openIndex / requested.size) + 1 } : requested,
-    rows.length,
-  );
+  const list = clampPage(requested, rows.length);
   const shown = rows.slice(skipFor(list), skipFor(list) + list.size);
   const sizeKeep = list.size !== DEFAULT_PAGE_SIZE ? String(list.size) : "";
   // Who to call first: since when each row has owed printed money, and when
@@ -138,59 +107,6 @@ export default async function BillingPage({
     return query ? `/billing?${query}` : "/billing";
   };
 
-  const [orders, payments, monthly, billingContacts] = open
-    ? await Promise.all([
-        billableOrders(ctx.businessId, open.customerId),
-        paymentsForCustomer(ctx.businessId, open.customerId),
-        customerMonths(ctx.businessId, open.customerId),
-        billingContactsOf(ctx.businessId, open.customerId),
-      ])
-    : [[], [], { months: [], totals: { billed: 0, paid: 0, open: 0 } }, []];
-
-  // The trail is keyed by the payment ids that exist now plus the customer
-  // itself — a record CREATED is logged against the customer, because at the
-  // moment the audit row is written the payment has no id yet to be logged
-  // against.
-  const history = open
-    ? await paymentHistory(
-        ctx.businessId,
-        payments.map((p) => p.id),
-        open.customerId,
-      )
-    : [];
-
-  const orderLabels = new Map(orders.map((o) => [o.id, orderNumber(o.number)]));
-
-  const credit = open?.credit ?? 0;
-
-  const paymentRows: PaymentRow[] = payments.map((p) => ({
-    id: p.id,
-    amount: Number(p.amount),
-    paymentDate: p.payment_date ? p.payment_date.toISOString().slice(0, 10) : "",
-    invoiceNumber: p.external_invoice_number ?? "",
-    canceled: p.status === "canceled",
-    orderId: p.order_id,
-    // The payment carries its order's number; the map is only a shortcut for
-    // the orders already on screen.
-    orderLabel: p.order_id
-      ? (orderLabels.get(p.order_id) ?? orderNumber(p.order?.number ?? 0))
-      : null,
-    groupId: p.group_id,
-    updatedBy: p.updated_by.name,
-    updatedAt: DATE_TIME.format(p.updated_at),
-  }));
-
-  // The audit rows, shaped for the dialog. The delta is turned into a sentence
-  // HERE and not in the client component: it reads two JSON blobs and formats
-  // money, and neither belongs in a bundle the browser has to download.
-  const historyEntries: HistoryEntry[] = history.map((entry) => ({
-    id: entry.id,
-    at: DATE_TIME.format(entry.created_at),
-    by: entry.user.name,
-    text: describeDelta(entry.old_value, entry.new_value),
-    withinWindow: entry.created_at >= historyCutoff,
-  }));
-
   return (
     <>
       <h1 className="mb-1 page-title font-serif text-headline-lg font-semibold">גבייה ותשלומים</h1>
@@ -202,12 +118,19 @@ export default async function BillingPage({
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="billing-kpis">
         <Kpi label="סה״כ לחיוב" value={totals.billed} testId="kpi-billed" />
         <Kpi label="שולם" value={totals.paid} testId="kpi-paid" tone="text-status-success-fg" />
+        {/* 08/11/2026: "open" and "debt" are two numbers. Open is everything
+            not yet paid, including weeks that have not printed; debt is the
+            printed part of it, and only that one is painted as debt. */}
         <Kpi
-          label="יתרת חוב"
+          label="יתרה פתוחה"
           value={totals.outstanding}
           testId="kpi-outstanding"
-          tone="text-status-debt-fg"
           progress={totals.billed > 0 ? totals.paid / totals.billed : 1}
+          note={
+            <span className={totals.debt > 0 ? "text-status-debt-fg" : undefined}>
+              מתוכה חוב (כבר פורסם): <Ltr data-testid="kpi-debt">{formatMoney(totals.debt)}</Ltr>
+            </span>
+          }
         />
         <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4">
           <p className="text-xs text-on-surface-variant">לקוחות עם יתרה</p>
@@ -225,18 +148,37 @@ export default async function BillingPage({
         </div>
       </div>
 
-      {/* A customer can be named in the URL and have no row here — the card
-          links straight to this screen, and somebody with no approved order and
-          no credit is not on it. Without this the link simply does nothing,
-          which reads as a broken link rather than as an empty account. */}
-      {customer && !open ? (
-        <p
-          role="status"
-          data-testid="billing-customer-missing"
-          className="mb-4 rounded-sm bg-status-warning-bg px-4 py-3 text-sm text-status-warning-fg"
-        >
-          ללקוח הזה אין עדיין הזמנה מאושרת ולא התקבל ממנו תשלום, ולכן אין לו שורה כאן.
-        </p>
+      {/* Debt by age (08/11/2026). Only what already printed and is unpaid,
+          filed by its own print date — the four add up to "מתוכה חוב". */}
+      {totals.debt > 0 ? (
+        <section className="mb-6" data-testid="debt-aging" aria-label="ותק חובות">
+          <h2 className="mb-2 text-sm font-semibold">
+            ותק חובות — כמה זמן עבר מאז שהמודעה פורסמה
+          </h2>
+          <AgingBoxes
+            customerHref="/billing/customers"
+            buckets={aging.map((bucket) => ({
+              key: bucket.key,
+              label: bucket.label,
+              amount: bucket.amount,
+              customers: bucket.customers,
+              breakdown: bucket.breakdown.map((c) => ({
+                customerId: c.customerId,
+                name: c.name,
+                amount: c.amount,
+                items: c.items.map((line) => ({
+                  publicationId: line.publicationId,
+                  orderId: line.orderId,
+                  orderLabel: orderNumber(line.orderNumber),
+                  newspaper: line.newspaper,
+                  shape: line.shape,
+                  date: formatDate(line.date),
+                  open: Math.round(line.open * 100) / 100,
+                })),
+              })),
+            }))}
+          />
+        </section>
       ) : null}
 
       <div className="mb-4 flex flex-wrap gap-2" data-testid="billing-status-filters">
@@ -272,7 +214,7 @@ export default async function BillingPage({
         ))}
       </div>
 
-      <form className="mb-4 flex flex-wrap items-end gap-3">
+      <AutoSubmitForm className="mb-4 flex flex-wrap items-end gap-3" liveText>
         <input type="hidden" name="status" value={status} />
         {sizeKeep ? <input type="hidden" name="size" value={sizeKeep} /> : null}
         <div>
@@ -281,9 +223,20 @@ export default async function BillingPage({
           </label>
           <Input id="q" name="q" defaultValue={q} className="w-64" data-testid="billing-search" />
         </div>
-        <Button type="submit" variant="secondary" data-testid="billing-apply">
+        {/* The search applies as one types; Enter still works. */}
+        <Button type="submit" variant="secondary" data-testid="billing-apply" className="sr-only">
           סינון
         </Button>
+        <div>
+          <span className="mb-1 block text-xs text-on-surface-variant">כל לקוח, גם בלי חוב</span>
+          <CustomerJump
+            customers={customerOptions.map((c) => ({
+              id: c.id,
+              label: c.business_name,
+              owes: counted.find((r) => r.customerId === c.id)?.outstanding ?? 0,
+            }))}
+          />
+        </div>
         <ResetFilters
           href="/billing"
           active={status !== "all" || Boolean(q) || Boolean(customer)}
@@ -291,7 +244,7 @@ export default async function BillingPage({
         <Button variant="ghost" asChild>
           <Link href="/reports">לדוחות</Link>
         </Button>
-      </form>
+      </AutoSubmitForm>
 
       <ListToolbar
         prefix=""
@@ -299,6 +252,7 @@ export default async function BillingPage({
         total={rows.length}
         baseHref={baseHrefFor("/billing", { status: raw.status })}
         searchable={false}
+        exportHref={`/api/export/billing?${new URLSearchParams({ status, q })}`}
       />
 
       {rows.length === 0 ? (
@@ -374,6 +328,14 @@ export default async function BillingPage({
                     <Ltr data-testid={`billing-outstanding-${row.customerId}`}>
                       {formatMoney(row.outstanding)}
                     </Ltr>
+                    {row.debt > 0 ? (
+                      <span
+                        className="block text-xs font-normal text-status-debt-fg"
+                        data-testid={`billing-debt-${row.customerId}`}
+                      >
+                        חוב <Ltr>{formatMoney(row.debt)}</Ltr>
+                      </span>
+                    ) : null}
                   </td>
                   <td className="p-3">
                     <DebtAge
@@ -427,7 +389,7 @@ export default async function BillingPage({
                       asChild
                     >
                       <Link
-                        href={hrefFor({ customer: row.customerId })}
+                        href={`/billing/customers/${row.customerId}`}
                         data-testid={`billing-expand-${row.customerId}`}
                       >
                         <Wallet className="size-4" />
@@ -451,32 +413,6 @@ export default async function BillingPage({
           baseHref={baseHrefFor("/billing", { status: raw.status })}
         />
       ) : null}
-
-      {/* Rendered only when the URL names a customer, which is also what opens
-          it. The data it needs was fetched above for exactly that reason. */}
-      {open ? (
-        <PaymentDialog
-          customerId={open.customerId}
-          customerLabel={open.label}
-          billingContacts={billingContacts}
-          outstanding={open.outstanding}
-          credit={credit}
-          closeHref={hrefFor({ customer: "" })}
-          mayWrite={mayWrite}
-          orders={orders.map((o) => ({
-            id: o.id,
-            label: orderNumber(o.number),
-            totalPrice: o.totalPrice,
-            paid: o.paid,
-            open: o.open,
-            paymentStatus: o.paymentStatus,
-          }))}
-          months={monthly.months}
-          payments={paymentRows}
-          history={historyEntries}
-          historyMonths={HISTORY_MONTHS}
-        />
-      ) : null}
     </>
   );
 }
@@ -487,12 +423,14 @@ function Kpi({
   testId,
   tone,
   progress,
+  note,
 }: {
   label: string;
   value: number;
   testId: string;
   tone?: string;
   progress?: number;
+  note?: React.ReactNode;
 }) {
   return (
     <div className="rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4">
@@ -508,66 +446,9 @@ function Kpi({
           />
         </div>
       ) : null}
+      {note ? <p className="mt-2 text-xs">{note}</p> : null}
     </div>
   );
-}
-
-/**
- * The audit delta, as a sentence (US-010 AC-5).
- *
- * Reads the two JSON blobs the log already holds rather than storing a second,
- * human-readable copy — one of them would eventually be the one that is wrong.
- */
-function describeDelta(oldValue: unknown, newValue: unknown): string {
-  const before = (oldValue ?? {}) as Record<string, unknown>;
-  const after = (newValue ?? {}) as Record<string, unknown>;
-
-  // Phrased as nouns rather than verbs on purpose: Hebrew verbs carry gender,
-  // the line already names the person, and "רשם" under a woman's name is the
-  // product telling her she is somebody else.
-  // A CREATION is `old: null` — both shapes of it. Keyed on that rather than on
-  // a field only one shape carries: the split path writes no `payment_id` (it
-  // creates several rows, not one), and sniffing for that field sent every
-  // split down the "update" branch, which then compared its amount against a
-  // missing old value and printed "עדכון סכום ₪0.00 ← ₪300.00".
-  if (oldValue === null) {
-    const amount = formatMoney(Number(after["amount"] ?? 0));
-    const across = Number(after["split_across"] ?? 0);
-    const credit = Number(after["credit"] ?? 0);
-    if (across > 1) {
-      return credit > 0
-        ? `רישום תשלום של ${amount}, מפוצל בין ${across} הזמנות ועוד ${formatMoney(credit)} ליתרה`
-        : `רישום תשלום של ${amount}, מפוצל בין ${across} הזמנות`;
-    }
-    return credit > 0 && across === 0
-      ? `רישום תשלום של ${amount} ליתרת הלקוח`
-      : `רישום תשלום של ${amount}`;
-  }
-  if (after["credit_applied"] !== undefined) {
-    return `שיוך ${formatMoney(Number(after["credit_applied"] ?? 0))} מיתרת הלקוח להזמנה`;
-  }
-  if (typeof after["status"] === "string") {
-    return after["status"] === "canceled" ? "ביטול רישום תשלום" : "החזרת רישום שבוטל";
-  }
-
-  const parts: string[] = [];
-  if (before["amount"] !== after["amount"]) {
-    parts.push(
-      `סכום ${formatMoney(Number(before["amount"] ?? 0))} ← ${formatMoney(Number(after["amount"] ?? 0))}`,
-    );
-  }
-  if (before["payment_date"] !== after["payment_date"]) {
-    parts.push(
-      `תאריך ${String(before["payment_date"] ?? "—")} ← ${String(after["payment_date"] ?? "—")}`,
-    );
-  }
-  if (before["external_invoice_number"] !== after["external_invoice_number"]) {
-    parts.push(
-      `חשבונית ${String(before["external_invoice_number"] ?? "—")} ← ${String(after["external_invoice_number"] ?? "—")}`,
-    );
-  }
-  if (before["order_id"] !== after["order_id"]) parts.push("שיוך מחדש להזמנה אחרת");
-  return parts.length > 0 ? `עדכון ${parts.join(" · ")}` : "עדכון רישום תשלום";
 }
 
 /**

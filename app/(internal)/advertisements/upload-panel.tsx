@@ -9,7 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { Ltr } from "@/components/ui/ltr";
 import { InlineError } from "@/components/states";
-import { AD_ACCEPT_ATTRIBUTE, formatBytes } from "@/lib/domain/ad-file";
+import {
+  AD_ACCEPT_ATTRIBUTE,
+  UPLOAD_TRANSPORT_LIMIT_BYTES,
+  formatBytes,
+  tooLargeMessage,
+} from "@/lib/domain/ad-file";
 import { cn } from "@/lib/utils";
 import { uploadAdvertisementAction, type AdFormState } from "./actions";
 
@@ -35,6 +40,7 @@ export function UploadPanel({
   const [open, setOpen] = useState(false);
   const [newspaperId, setNewspaperId] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
+  const [fileSize, setFileSize] = useState(0);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -44,6 +50,7 @@ export function UploadPanel({
       const next = await uploadAdvertisementAction(prev, formData);
       if (next.ok) {
         setFileName(null);
+        setFileSize(0);
         router.refresh();
         // A stored-but-INVALID file also comes back ok — the row exists, it is
         // simply marked. Keeping the panel open in that case is what puts the
@@ -62,6 +69,19 @@ export function UploadPanel({
       ? newspapers.reduce((a, b) => (b.maxAdFileSize < a.maxAdFileSize ? b : a))
       : null;
   const shown = chosen ?? smallest;
+  // Refused here, before a single byte travels (08/11/2026): the habodek run
+  // waited out a whole upload of a file the newspaper was always going to
+  // refuse. The server still checks — this only saves the wait. The transport
+  // ceiling is checked too: above it the request is cut and the server answers
+  // "Unexpected end of form" instead of a sentence (CLAUDE.md).
+  const ceiling = Math.min(shown?.maxAdFileSize ?? Infinity, UPLOAD_TRANSPORT_LIMIT_BYTES);
+  const tooBig =
+    fileSize > ceiling
+      ? tooLargeMessage(fileSize, {
+          maxBytes: ceiling,
+          newspaperName: shown?.name ?? "",
+        })
+      : null;
 
   const takeFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -69,6 +89,7 @@ export function UploadPanel({
     dt.items.add(files[0]!);
     if (inputRef.current) inputRef.current.files = dt.files;
     setFileName(files[0]!.name);
+    setFileSize(files[0]!.size);
   };
 
   if (!open) {
@@ -125,7 +146,10 @@ export function UploadPanel({
             type="file"
             data-testid="upload-file"
             accept={AD_ACCEPT_ATTRIBUTE}
-            onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+            onChange={(e) => {
+              setFileName(e.target.files?.[0]?.name ?? null);
+              setFileSize(e.target.files?.[0]?.size ?? 0);
+            }}
             className="mt-2 w-full text-xs file:me-3 file:rounded-sm file:border-0 file:bg-surface-container file:px-3 file:py-2 file:text-xs"
           />
           {fileName ? (
@@ -194,14 +218,18 @@ export function UploadPanel({
           </div>
         </div>
 
-        {state.message ? (
+        {tooBig ? (
+          <div className="mt-3" data-testid="upload-too-big">
+            <InlineError>{tooBig}</InlineError>
+          </div>
+        ) : state.message ? (
           <div className="mt-3">
             <InlineError>{state.message}</InlineError>
           </div>
         ) : null}
 
         <div className="mt-4 flex gap-2">
-          <Button type="submit" disabled={pending} data-testid="submit-upload">
+          <Button type="submit" disabled={pending || Boolean(tooBig)} data-testid="submit-upload">
             {pending ? "מעלה ובודק…" : "העלאה ובדיקה"}
           </Button>
           <Button type="button" variant="secondary" onClick={() => setOpen(false)}>

@@ -727,6 +727,27 @@ export async function setAutoPlaceSettingsAction(
   return {};
 }
 
+/** Where portal requests are filed when the customer does not choose (08/11/2026). */
+export async function setPortalDefaultPageTypeAction(
+  newspaperId: string,
+  input: unknown,
+): Promise<FormState> {
+  const ctx = await requireAdmin();
+  const parsed = z.object({ pageTypeId: z.string().nullable() }).safeParse(input);
+  if (!parsed.success) return { message: "ההגדרה לא תקינה" };
+  const { pageTypeId } = parsed.data;
+
+  const paper = await papers.getNewspaper(ctx.businessId, newspaperId);
+  if (!paper) return { message: "העיתון לא נמצא" };
+  if (pageTypeId && !paper.page_types.some((t) => t.id === pageTypeId)) {
+    return { message: "סוג עמוד לא שייך לעיתון הזה" };
+  }
+  await papers.setPortalDefaultPageType(ctx.businessId, newspaperId, pageTypeId);
+  revalidatePath(`/settings/newspapers/${newspaperId}`);
+  revalidatePath("/portal/requests/new");
+  return {};
+}
+
 const pageMarksSchema = z.object({
   folioEnabled: z.boolean(),
   folioSizeMm: z.number().min(MARK_SIZE_MIN_MM).max(MARK_SIZE_MAX_MM),

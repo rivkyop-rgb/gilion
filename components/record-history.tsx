@@ -1,4 +1,5 @@
 import { History } from "lucide-react";
+import { actionsPhrase } from "@/lib/domain/hebrew-count";
 import { recordHistory } from "@/lib/data/audit";
 import { auditActionLabel } from "@/lib/domain/audit-labels";
 import { Ltr } from "@/components/ui/ltr";
@@ -46,7 +47,7 @@ export async function RecordHistory({
         <History className="me-1 inline size-3.5" aria-hidden />
         {auditActionLabel(latest!.action)} · {latest!.user.name} ·{" "}
         <Ltr>{STAMP.format(latest!.created_at)}</Ltr>
-        {rest.length > 0 ? ` · עוד ${rest.length} פעולות` : null}
+        {rest.length > 0 ? ` · עוד ${actionsPhrase(rest.length)}` : null}
       </summary>
       {rest.length > 0 ? (
         <ul className="mt-2 space-y-1 border-s-2 border-outline-variant ps-3">

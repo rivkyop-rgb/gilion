@@ -10,6 +10,9 @@ import { ORDER_STATUS_LABELS, ORDER_STATUSES, type OrderStatus } from "@/lib/dom
 import { Button } from "@/components/ui/button";
 import { DetailGrid, ExpandableRow } from "@/components/ui/expandable-row";
 import { FilterBuilder } from "@/components/ui/filter-builder";
+import { SavedFilters } from "@/components/ui/saved-filters";
+import { listSavedFilters } from "@/lib/data/saved-filters";
+import { normaliseFilterQuery } from "@/lib/domain/saved-filter";
 import { ResetFilters } from "@/components/ui/reset-filters";
 import { CustomerScopeBanner } from "@/components/customer-scope";
 import { customerOptions } from "@/lib/data/customers";
@@ -60,6 +63,13 @@ export default async function OrdersPage({
   const maySeeMoney = ctx.role !== "designer";
 
   const requested = parseListParams(params);
+  // What "save as a button" would keep — the filters on screen, no paging.
+  const currentQuery = normaliseFilterQuery(
+    new URLSearchParams(
+      Object.entries(params).filter((e): e is [string, string] => typeof e[1] === "string"),
+    ).toString(),
+  );
+  const saved = await listSavedFilters(ctx.businessId, ctx.userId, "orders");
   const [
     { rows: orders, total, list },
     counts,
@@ -198,6 +208,24 @@ export default async function OrdersPage({
         ))}
       </div>
 
+      <SavedFilters
+        list="orders"
+        basePath="/orders"
+        currentQuery={currentQuery}
+        filters={saved.map((f) => ({
+          id: f.id,
+          name: f.name,
+          color: f.color,
+          query: f.query,
+          personal: f.owner_id !== null,
+          removable:
+            f.owner_id === ctx.userId ||
+            f.created_by === ctx.userId ||
+            ctx.role === "admin" ||
+            ctx.isSuperAdmin,
+        }))}
+      />
+
       <div className="flex flex-wrap items-start gap-2">
         <div className="min-w-0 flex-1">
           <FilterBuilder
@@ -243,7 +271,7 @@ export default async function OrdersPage({
                 label: "מקור",
                 kind: "select",
                 options: [
-                  { value: "internal", label: "פנימי" },
+                  { value: "internal", label: "הוזן במשרד" },
                   { value: "customer_portal", label: "פורטל לקוח" },
                 ],
               },
@@ -264,6 +292,11 @@ export default async function OrdersPage({
         total={total}
         baseHref={baseHrefFor("/orders", params)}
         searchLabel="מספר הזמנה או לקוח"
+        exportHref={`/api/export/list/orders?${new URLSearchParams(
+          Object.entries(params).filter(
+            (e): e is [string, string] => typeof e[1] === "string" && e[1] !== "" && e[0] !== "page" && e[0] !== "size",
+          ),
+        )}`}
       />
 
       {orders.length === 0 ? (

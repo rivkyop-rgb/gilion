@@ -32,6 +32,8 @@ export type CanvasPlacement = {
   cols: number;
   rows: number;
   customerName: string;
+  /** Two ads of one customer are not rivals for a page (08/11/2026). */
+  customerId?: string;
   /**
    * The AD SHAPE this was placed as — not the placement's own id.
    *
@@ -104,6 +106,7 @@ export function PageCanvas({
   onPointerCell,
   onDrop,
   onPlacementPick,
+  alsoSelectedIds,
   onLeave,
   freeSpace = null,
 }: {
@@ -138,7 +141,10 @@ export function PageCanvas({
   onCellClick: (pageId: string, cell: Cell) => void;
   onPointerCell: (pageId: string, cell: Cell) => void;
   onDrop: (pageId: string, cell: Cell) => void;
-  onPlacementPick: (placement: CanvasPlacement) => void;
+  /** `additive`: Shift was held — add it to the selection (08/11/2026). */
+  onPlacementPick: (placement: CanvasPlacement, additive: boolean) => void;
+  /** Placed ads selected together with the one in hand. */
+  alsoSelectedIds?: ReadonlySet<string>;
   onLeave: () => void;
   /** The biggest shape that still fits, and its list price — said under the page. */
   freeSpace?: { shapeName: string; price: number | null } | null;
@@ -241,7 +247,8 @@ export function PageCanvas({
 
         {placements.map((placement) => {
           const pct = toCanvasPercent(placement, grid);
-          const selected = placement.id === selectedPlacementId;
+          const selected =
+            placement.id === selectedPlacementId || Boolean(alsoSelectedIds?.has(placement.id));
           return (
             <button
               key={placement.id}
@@ -256,7 +263,15 @@ export function PageCanvas({
                 // Stops the page underneath reading this as a drop on the cell
                 // the ad happens to be covering.
                 event.stopPropagation();
-                onPlacementPick(placement);
+                onPlacementPick(placement, event.shiftKey);
+              }}
+              // Enter / Space pick it up from the keyboard too (08/11/2026) —
+              // the pointer-down above is not a click, so a key would do nothing.
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                event.stopPropagation();
+                onPlacementPick(placement, event.shiftKey);
               }}
               style={{
                 insetInlineStart: `${pct.startPct}%`,

@@ -14,12 +14,15 @@ import {
   Minimize2,
   PanelLeftClose,
   PanelLeftOpen,
-  PanelRightClose,
   PanelRightOpen,
   LayoutGrid,
   Trash2,
   Wand2,
   Undo2,
+  Redo2,
+  ZoomIn,
+  ZoomOut,
+  MoveHorizontal,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +41,7 @@ import {
   innerPageTypeId,
   pageFill,
   pageLabel,
+  sheetToRemove,
   unfinishedPages,
   viewIndexOfPage,
   viewsOf,
@@ -75,6 +79,19 @@ import { useFittedSpread } from "./use-fitted-spread";
 import { largestThatFits, firstFit } from "@/lib/domain/auto-place";
 import { TONE_LABELS } from "@/lib/domain/placement-tone";
 import { IssueOverview } from "./issue-overview";
+import {
+  pushBounded,
+  redoOp,
+  undoOp,
+  describeOp,
+  type BoardOp,
+  type HistoryActions,
+  type Remap,
+  type Spot,
+} from "./board-history";
+
+/** The zoom steps (08/11/2026). 1 = the whole spread fits the screen. */
+const ZOOM_STEPS = [1, 1.25, 1.5, 2, 2.5, 3];
 
 export type { BoardCandidate };
 
@@ -187,8 +204,24 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
     const index = page ? viewIndexOfPage(views, page.id) : -1;
     return index >= 0 ? index : 0;
   });
-  const [held, setHeld] = useState<Held>(null);
+  const [held, setHeldState] = useState<Held>(null);
+  const heldRef = useRef<Held>(null);
+  const setHeld = (next: Held | ((prev: Held) => Held)) => {
+    const prev = heldRef.current;
+    const value = typeof next === "function" ? next(prev) : next;
+    heldRef.current = value;
+    setHeldState(value);
+    // A new thing in hand starts from no cell: the hover of the last one is
+    // not where this one is — that is how a refusal stayed on screen over a
+    // cell where the next ad fitted (habodek, 08/11/2026).
+    if (value !== prev) setHover(null);
+    if (!value || value.kind !== "placement") setAlsoSelected(new Set());
+  };
   const [hover, setHover] = useState<{ pageId: string; cell: Cell } | null>(null);
+  const hoverRef = useRef(hover);
+  useEffect(() => {
+    hoverRef.current = hover;
+  }, [hover]);
   /**
    * What the board last said, and whether it was bad news.
    *
@@ -207,7 +240,6 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
    * empty on purpose (the board is clean after a good drop), and an undo is not
    * news about the drop — it is a way back from it. Cleared by the next act.
    */
-  const [lastPlaced, setLastPlaced] = useState<{ placementId: string; label: string } | null>(null);
   // A page added mid-issue is an inner page; the select still offers the rest.
   const [newPageType, setNewPageType] = useState(innerPageTypeId(model.pageTypes) ?? "");
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
@@ -238,8 +270,12 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
-      if (e.key === "Escape") setFocus(false);
-      else if (
+      // Esc releases what is in hand first; only with nothing held does it
+      // leave full screen (08/11/2026).
+      if (e.key === "Escape") {
+        if (heldRef.current) return;
+        setFocus(false);
+      } else if (
         (e.code === "KeyF" || e.key === "f" || e.key === "כ") &&
         !e.ctrlKey &&
         !e.metaKey &&
@@ -260,6 +296,31 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
    * the same number always gives the same layout, so there is a way back.
    */
   const [layoutSeed, setLayoutSeed] = useState(1);
+
+  /**
+   * Undo / redo (08/11/2026) — see board-history.ts. Replaces the single
+   * "undo the last new placement" that could not take back a move.
+   */
+  const [undoStack, setUndoStack] = useState<BoardOp[]>([]);
+  const [redoStack, setRedoStack] = useState<BoardOp[]>([]);
+  const remap = useRef<Remap>(new Map());
+  const record = (op: BoardOp) => {
+    setUndoStack((s) => pushBounded(s, op));
+    setRedoStack([]);
+  };
+  /** Zoom over the fitted size, and "fit the width" (08/11/2026). */
+  const [zoom, setZoom] = useState(1);
+  const [fitWidth, setFitWidth] = useState(false);
+  const zoomBy = (dir: 1 | -1) =>
+    setZoom((z) => {
+      const i = ZOOM_STEPS.indexOf(z);
+      const next = ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, Math.max(0, (i < 0 ? 0 : i) + dir))]!;
+      return next;
+    });
+  /** More placed ads moved or removed together with the one in hand (Shift+click). */
+  const [alsoSelected, setAlsoSelected] = useState<Set<string>>(() => new Set());
+  /** Shift held: placed ads stay clickable while something is in hand, to add them. */
+  const [shiftDown, setShiftDown] = useState(false);
 
   /**
    * Pressed vs dragging.
@@ -357,10 +418,15 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
   const totalPages = model.pages.length;
 
   // Both halves of a spread, whole, without scrolling — see useFittedSpread.
-  const { ref: spreadRef, size: pageSize } = useFittedSpread(
+  const { ref: spreadRef, size: fittedSize } = useFittedSpread(
     view?.pages.length ?? 1,
     model.grid.pageWidthMm / model.grid.pageHeightMm,
+    fitWidth,
   );
+  const pageSize = {
+    width: Math.floor(fittedSize.width * zoom),
+    height: Math.floor(fittedSize.height * zoom),
+  };
 
   /** The candidate rectangle under the cursor, on the page it is over. */
   const candidate: (GridRect & { pageId: string }) | null = useMemo(() => {
@@ -432,6 +498,10 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
     reasons: string[];
   } | null>(null);
 
+  const customerOfPublication = (publicationId: string): string | undefined =>
+    model.candidates.find((c) => c.publicationId === publicationId)?.customerId ??
+    model.placements.find((p) => p.publicationId === publicationId)?.customerId;
+
   const offOrderReasons = (pageId: string): string[] => {
     if (!held) return [];
     const page = model.pages.find((p) => p.id === pageId);
@@ -450,8 +520,15 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
       reasons.push(`הלקוח ביקש ${asked.label ?? "מיקום אחר"}, וזה עמוד ${page.number}.`);
     }
     if (fixedHere(held.publicationId)) {
+      const mine = customerOfPublication(held.publicationId);
       const rivals = model.placements.filter(
-        (p) => p.pageId === pageId && p.publicationId !== held.publicationId && fixedHere(p.publicationId),
+        (p) =>
+          p.pageId === pageId &&
+          p.publicationId !== held.publicationId &&
+          fixedHere(p.publicationId) &&
+          // Two ads of ONE customer on the page that customer asked for are
+          // not competing for it (08/11/2026).
+          !(mine && p.customerId === mine),
       );
       for (const r of rivals) {
         reasons.push(`גם ${r.customerName} ביקש את עמוד ${page.number}, והוא כבר משובץ כאן.`);
@@ -470,95 +547,327 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
     doCommit(pageId, cell);
   };
 
+  const actions: HistoryActions = {
+    place: (publicationId, at) =>
+      placeAdAction({ issueId: model.issueId, publicationId, ...at }),
+    move: (placementId, to) => movePlacementAction({ issueId: model.issueId, placementId, ...to }),
+    remove: (placementId) => removePlacementAction(model.issueId, placementId),
+    auto: (seed) => autoPlaceIssueAction(model.issueId, seed),
+  };
+
+  const spotOf = (placementId: string): Spot | null => {
+    const p = model.placements.find((x) => x.id === placementId);
+    return p ? { pageId: p.pageId, col: p.col, row: p.row } : null;
+  };
+  const labelOf = (publicationId: string) =>
+    model.candidates.find((c) => c.publicationId === publicationId)?.customerName ??
+    model.placements.find((p) => p.publicationId === publicationId)?.customerName ??
+    "";
+
+  /** The next ad still waiting, in list order — picked up after a drop (08/11/2026). */
+  const nextWaiting = (after: string): Held => {
+    const waiting = model.candidates.filter(
+      (c) => !c.alreadyPlaced && c.blockedReason === null && c.publicationId !== after,
+    );
+    const from = model.candidates.findIndex((c) => c.publicationId === after);
+    const next =
+      waiting.find((c) => model.candidates.indexOf(c) > from) ?? waiting[0] ?? null;
+    return next ? { kind: "publication", publicationId: next.publicationId, shape: next.shape } : null;
+  };
+
   const doCommit = (pageId: string, cell: Cell) => {
     if (!held || !editable) return;
+    const inHand = held;
+    const extras = [...alsoSelected];
 
-    // The previous notice is NOT cleared here.
-    //
-    // It used to be, and that left the board silent for the length of the round
-    // trip: the old message gone, the new one not yet written, and the hover
-    // reason liable to vanish with it the moment a re-render moved the element
-    // under the pointer. A row that empties and refills is read as a message
-    // that was dismissed. Whatever the action returns replaces it, and a
-    // success clears it explicitly below.
-    setLastPlaced(null);
+    // The previous notice is NOT cleared here: an empty row while the round
+    // trip runs reads as a message that was dismissed. Whatever the action
+    // returns replaces it, and a success clears it explicitly below.
     startTransition(async () => {
-      const result =
-        held.kind === "publication"
-          ? await placeAdAction({
-              issueId: model.issueId,
-              pageId,
-              publicationId: held.publicationId,
-              col: cell[0],
-              row: cell[1],
-            })
-          : await movePlacementAction({
-              issueId: model.issueId,
-              placementId: held.placementId,
-              pageId,
-              col: cell[0],
-              row: cell[1],
-            });
-
-      if (result.ok) {
-        setNotice(null);
-        // Only a NEW placement returns an id; a move has nothing to undo here.
-        const placedId = (result as { placementId?: string }).placementId;
-        if (held.kind === "publication" && placedId) {
-          setLastPlaced({
-            placementId: placedId,
-            label:
-              model.candidates.find((c) => c.publicationId === held.publicationId)?.customerName ??
-              "",
+      const at = { pageId, col: cell[0], row: cell[1] };
+      if (inHand.kind === "publication") {
+        const result = await actions.place(inHand.publicationId, at);
+        if (result.ok && result.placementId) {
+          setNotice(null);
+          record({
+            kind: "place",
+            label: labelOf(inHand.publicationId),
+            publicationId: inHand.publicationId,
+            placementId: result.placementId,
+            at,
           });
+          // Straight on to the next one: ten ads were ~33 clicks, a third of
+          // them re-picking from the list (habodek, 08/11/2026).
+          setHeld(nextWaiting(inHand.publicationId));
+          router.refresh();
+          return;
         }
-        setHeld(null);
-        setHover(null);
-        router.refresh();
+        fail(result.message ?? "לא הצלחנו לשבץ");
+        // A refused duplicate is the one rejection with a way forward, and only
+        // an admin has it (FR-16).
+        if (model.isAdmin && result.message?.includes("כבר משובץ")) {
+          setDuplicateFor(
+            model.candidates.find((c) => c.publicationId === inHand.publicationId) ?? null,
+          );
+        }
         return;
       }
-      fail(result.message ?? "לא הצלחנו לשבץ");
-      // A refused duplicate is the one rejection with a way forward, and only
-      // an admin has it (FR-16).
-      if (model.isAdmin && held.kind === "publication" && result.message?.includes("כבר משובץ")) {
-        setDuplicateFor(
-          model.candidates.find((c) => c.publicationId === held.publicationId) ?? null,
+
+      // A move — of the ad in hand, and of any Shift-selected with it, keeping
+      // their offsets from it. One gesture, one undo.
+      const origin = spotOf(inHand.placementId);
+      const result = await actions.move(inHand.placementId, at);
+      if (!result.ok || !origin) {
+        fail(result.message ?? "לא הצלחנו להעביר");
+        return;
+      }
+      const ops: BoardOp[] = [
+        {
+          kind: "move",
+          label: labelOf(inHand.publicationId),
+          placementId: inHand.placementId,
+          from: origin,
+          to: at,
+        },
+      ];
+      const missed: string[] = [];
+      for (const id of extras) {
+        const from = spotOf(id);
+        if (!from) continue;
+        const to = {
+          pageId,
+          col: at.col + (from.col - origin.col),
+          row: at.row + (from.row - origin.row),
+        };
+        const r = await actions.move(id, to);
+        const p = model.placements.find((x) => x.id === id);
+        if (r.ok) ops.push({ kind: "move", label: p?.customerName ?? "", placementId: id, from, to });
+        else missed.push(p?.customerName ?? "");
+      }
+      record(
+        ops.length === 1
+          ? ops[0]!
+          : { kind: "group", label: `${ops.length} מודעות`, ops },
+      );
+      if (missed.length > 0) {
+        fail(`לא הייתה כאן מקום ל: ${missed.join(", ")}. הן נשארו במקומן.`);
+      } else {
+        setNotice(null);
+      }
+      setHeld(null);
+      router.refresh();
+    });
+  };
+
+  /** Removes what is in hand (and the Shift-selected with it) — undoable, so no dialog. */
+  const removeSelected = () => {
+    if (!editable || held?.kind !== "placement") return;
+    const ids = [held.placementId, ...alsoSelected];
+    startTransition(async () => {
+      const ops: BoardOp[] = [];
+      for (const id of ids) {
+        const p = model.placements.find((x) => x.id === id);
+        if (!p) continue;
+        const r = await actions.remove(id);
+        if (!r.ok) {
+          fail(r.message ?? "לא הצלחנו להסיר");
+          break;
+        }
+        ops.push({
+          kind: "remove",
+          label: p.customerName,
+          publicationId: p.publicationId,
+          placementId: id,
+          at: { pageId: p.pageId, col: p.col, row: p.row },
+        });
+      }
+      if (ops.length > 0) {
+        record(ops.length === 1 ? ops[0]! : { kind: "group", label: `${ops.length} מודעות`, ops });
+        say(
+          ops.length === 1
+            ? `המודעה של ${ops[0]!.label} הוסרה מהעמוד — Ctrl+Z מחזיר אותה`
+            : `${ops.length} מודעות הוסרו מהעמוד — Ctrl+Z מחזיר אותן`,
         );
       }
+      setHeld(null);
+      router.refresh();
     });
   };
 
-  /** Takes back the placement just made — the same removal as by hand. */
-  const undoLast = () => {
-    if (!lastPlaced || !editable) return;
-    const target = lastPlaced;
-    setLastPlaced(null);
+  const undo = () => {
+    const op = undoStack[undoStack.length - 1];
+    if (!op || !editable || pending) return;
     startTransition(async () => {
-      const result = await removePlacementAction(model.issueId, target.placementId);
-      if (result.ok) {
-        say(`השיבוץ של ${target.label} בוטל`);
-        router.refresh();
-      } else {
-        fail(result.message ?? "לא הצלחנו לבטל את השיבוץ");
+      const r = await undoOp(op, actions, remap.current);
+      if ("error" in r) {
+        fail(r.error);
+        return;
       }
+      setUndoStack((s) => s.slice(0, -1));
+      setRedoStack((s) => pushBounded(s, r.redo));
+      setHeld(null);
+      say(`בוטל: ${describeOp(op)}`);
+      router.refresh();
     });
   };
 
-  // Ctrl+Z (⌘Z) undoes the last drop — but never while somebody is typing,
-  // where it belongs to the field.
+  const redo = () => {
+    const op = redoStack[redoStack.length - 1];
+    if (!op || !editable || pending) return;
+    startTransition(async () => {
+      const r = await redoOp(op, actions, remap.current);
+      if ("error" in r) {
+        fail(r.error);
+        return;
+      }
+      setRedoStack((s) => s.slice(0, -1));
+      setUndoStack((s) => pushBounded(s, r.undo));
+      setHeld(null);
+      say(`בוצע שוב: ${describeOp(op)}`);
+      router.refresh();
+    });
+  };
+
+  /** Auto-placement, recorded so it can be taken back in one step. */
+  const runAuto = () =>
+    startTransition(async () => {
+      const result = await autoPlaceIssueAction(model.issueId, layoutSeed);
+      if (!result.ok) {
+        fail(result.message ?? "הפעולה נכשלה");
+        return;
+      }
+      if (result.placementIds && result.placementIds.length > 0) {
+        record({
+          kind: "auto",
+          label: "שיבוץ אוטומטי",
+          placementIds: result.placementIds,
+          seed: layoutSeed,
+        });
+      }
+      setHeld(null);
+      if (result.message) say(result.message);
+      router.refresh();
+    });
+
+  /**
+   * The board's keys (08/11/2026). `code` before `key` wherever a letter is
+   * involved, so a Hebrew keyboard works the same: Z types "ז", and "/" is on
+   * the key that types "." in Hebrew.
+   */
   useEffect(() => {
-    if (!lastPlaced) return;
     const onKey = (e: KeyboardEvent) => {
-      // `code`, not only `key`: on a Hebrew keyboard Z types "ז" (see Ctrl+K).
-      const isZ = e.code === "KeyZ" || e.key.toLowerCase() === "z";
-      if (!(e.ctrlKey || e.metaKey) || !isZ || e.shiftKey) return;
+      if (e.key === "Shift") setShiftDown(e.type === "keydown");
+      if (e.type !== "keydown") return;
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
-      e.preventDefault();
-      undoLast();
+      // A dialog owns the keyboard while it is open.
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+      const mod = e.ctrlKey || e.metaKey;
+
+      if (mod && (e.code === "KeyZ" || e.key.toLowerCase() === "z")) {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if (mod && (e.code === "KeyY" || e.key.toLowerCase() === "y")) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      if (mod && (e.code === "Equal" || e.code === "NumpadAdd" || e.key === "+" || e.key === "=")) {
+        e.preventDefault();
+        zoomBy(1);
+        return;
+      }
+      if (mod && (e.code === "Minus" || e.code === "NumpadSubtract" || e.key === "-")) {
+        e.preventDefault();
+        zoomBy(-1);
+        return;
+      }
+      if (mod && (e.code === "Digit0" || e.code === "Numpad0")) {
+        e.preventDefault();
+        setZoom(1);
+        return;
+      }
+      if (mod || e.altKey) return;
+
+      if (e.key === "PageDown") {
+        e.preventDefault();
+        setViewIndex((i) => Math.min(views.length - 1, i + 1));
+        return;
+      }
+      if (e.key === "PageUp") {
+        e.preventDefault();
+        setViewIndex((i) => Math.max(0, i - 1));
+        return;
+      }
+      if (e.code === "Slash" || e.key === "/") {
+        const search = document.getElementById("board-search");
+        if (search) {
+          e.preventDefault();
+          search.focus();
+        }
+        return;
+      }
+
+      const inHand = heldRef.current;
+      if (!inHand) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setHeld(null);
+        return;
+      }
+      if ((e.key === "Delete" || e.key === "Backspace") && inHand.kind === "placement") {
+        e.preventDefault();
+        removeSelected();
+        return;
+      }
+      const arrows: Record<string, [number, number]> = {
+        // RTL: column 0 is on the right, so → walks towards it.
+        ArrowRight: [-1, 0],
+        ArrowLeft: [1, 0],
+        ArrowUp: [0, -1],
+        ArrowDown: [0, 1],
+      };
+      const step = arrows[e.key];
+      if (step) {
+        e.preventDefault();
+        const n = e.shiftKey ? 2 : 1;
+        setHover((h) => {
+          const start =
+            h ??
+            (inHand.kind === "placement"
+              ? (() => {
+                  const sp = spotOf(inHand.placementId);
+                  return sp ? { pageId: sp.pageId, cell: [sp.col, sp.row] as Cell } : null;
+                })()
+              : view?.pages[0]
+                ? { pageId: view.pages[0].id, cell: [0, 0] as Cell }
+                : null);
+          if (!start) return h;
+          const maxCol = Math.max(0, model.grid.columns - inHand.shape.cols);
+          const maxRow = Math.max(0, model.grid.rows - inHand.shape.rows);
+          const col = Math.min(maxCol, Math.max(0, start.cell[0] + step[0] * n));
+          const row = Math.min(maxRow, Math.max(0, start.cell[1] + step[1] * n));
+          return { pageId: start.pageId, cell: [col, row] };
+        });
+        return;
+      }
+      if (e.key === "Enter") {
+        const h = hoverRef.current;
+        if (h) {
+          e.preventDefault();
+          commit(h.pageId, h.cell);
+        }
+      }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKey);
+    };
   });
 
   const selectedPlacement =
@@ -568,11 +877,18 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
   const selectedPage =
     model.pages.find((p) => p.id === (selectedPlacement?.pageId ?? selectedPageId)) ??
     view?.pages[0];
+  // Which pages "remove" takes from here — a whole sheet (sheetToRemove).
+  const removal = selectedPage ? sheetToRemove(totalPages, selectedPage.number) : null;
+  const removalFirst = removal?.ok ? removal.pageNumbers[0]! : 0;
+  const removalLast = removal?.ok ? removal.pageNumbers[removal.pageNumbers.length - 1]! : 0;
 
   const run = (action: () => Promise<{ ok?: boolean; message?: string }>) =>
     startTransition(async () => {
       const result = await action();
-      if (result.ok) router.refresh();
+      if (result.ok) {
+        setHeld(null);
+        router.refresh();
+      }
       // A message on success is worth showing too — that is where the packer
       // reports how many ads it placed and how many pages it had to open.
       else if (!result.ok) fail(result.message ?? "הפעולה נכשלה");
@@ -626,8 +942,13 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
     }
     return null;
   };
+  const heldIsWaiting =
+    held?.kind === "publication" &&
+    !model.candidates.find((c) => c.publicationId === held.publicationId)?.alreadyPlaced;
   const suggestion =
-    held?.kind === "publication" ? suggestFor(held.publicationId, held.shape) : null;
+    held?.kind === "publication" && heldIsWaiting
+      ? suggestFor(held.publicationId, held.shape)
+      : null;
 
   const jumpToPage = (pageId: string) => {
     const index = viewIndexOfPage(views, pageId);
@@ -742,6 +1063,20 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                   {to === "in_layout" ? "החזרה לשיבוץ" : ISSUE_STATUS_LABELS[to]}
                 </Button>
               ))}
+            {/* Its place is kept from the start (08/11/2026): it used to appear
+                only after the first placement and push the buttons beside it
+                115px along — under the pointer. */}
+            {model.status === "draft" ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled
+                data-testid="set-status-ready-placeholder"
+                title="אפשר לסמן מוכן להדפסה אחרי שמשבצים מודעה ראשונה"
+              >
+                {ISSUE_STATUS_LABELS.ready_for_print}
+              </Button>
+            ) : null}
             <Button asChild size="sm" data-testid="go-to-check">
               <Link href={`/issues/${model.issueId}/validate`}>
                 <ClipboardCheck className="size-4" />
@@ -762,7 +1097,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                 ]
                   .filter(Boolean)
                   .join(" ")}
-                onClick={() => run(() => autoPlaceIssueAction(model.issueId, layoutSeed))}
+                onClick={runAuto}
               >
                 <Wand2 className="size-4" aria-hidden />
                 שיבוץ אוטומטי
@@ -775,7 +1110,63 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
           </>
         ) : null}
 
-        <span className="ms-auto flex items-center gap-2">
+        {/* Wraps on a phone: zoom, overview and full screen together are wider
+            than 375px, and the whole page scrolled sideways (habodek 08/11). */}
+        <span className="ms-auto flex flex-wrap items-center gap-2">
+          {overview ? null : (
+            <span
+              className="flex items-center rounded-lg border border-outline-variant"
+              data-testid="board-zoom"
+            >
+              <button
+                type="button"
+                aria-label="הקטנה"
+                title="הקטנה — Ctrl+−"
+                disabled={zoom <= ZOOM_STEPS[0]!}
+                onClick={() => zoomBy(-1)}
+                className="flex size-8 items-center justify-center hover:bg-surface-container disabled:opacity-40"
+              >
+                <ZoomOut className="size-4" aria-hidden />
+              </button>
+              <button
+                type="button"
+                data-testid="zoom-reset"
+                title="חזרה לגודל שנכנס במסך — Ctrl+0"
+                onClick={() => {
+                  setZoom(1);
+                  setFitWidth(false);
+                }}
+                className="h-8 min-w-12 px-1 text-xs hover:bg-surface-container"
+              >
+                <Ltr>{Math.round(zoom * 100)}%</Ltr>
+              </button>
+              <button
+                type="button"
+                aria-label="הגדלה"
+                title="הגדלה — Ctrl+="
+                data-testid="zoom-in"
+                disabled={zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]!}
+                onClick={() => zoomBy(1)}
+                className="flex size-8 items-center justify-center hover:bg-surface-container disabled:opacity-40"
+              >
+                <ZoomIn className="size-4" aria-hidden />
+              </button>
+              <button
+                type="button"
+                aria-pressed={fitWidth}
+                data-testid="zoom-fit-width"
+                title="התאמה לרוחב: העמוד ממלא את הרוחב, וגוללים למטה"
+                onClick={() => setFitWidth((f) => !f)}
+                className={cn(
+                  "flex h-8 items-center gap-1 border-s border-outline-variant px-2 text-xs hover:bg-surface-container",
+                  fitWidth && "bg-surface-container font-semibold",
+                )}
+              >
+                <MoveHorizontal className="size-4" aria-hidden />
+                לרוחב
+              </button>
+            </span>
+          )}
           <Button
             size="sm"
             variant={overview ? "primary" : "secondary"}
@@ -807,7 +1198,11 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
 
       <div
         className={cn(
-          "grid min-h-0 flex-1 gap-3 [grid-template-rows:minmax(0,1fr)]",
+          // One row that fills the screen only where the columns sit side by
+          // side. Below xl they stack, and squeezing a stack into one row drew
+          // the list over the page (habodek at 375, 08/11/2026) — there the
+          // stack scrolls instead.
+          "grid min-h-0 flex-1 gap-3 max-xl:auto-rows-max max-xl:overflow-y-auto xl:[grid-template-rows:minmax(0,1fr)]",
           focus
             ? listOpen
               ? "xl:grid-cols-[16rem_1fr_9rem]"
@@ -830,22 +1225,14 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
             className="hidden h-full flex-col items-center gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest py-3 text-xs font-medium text-on-surface-variant hover:bg-surface-container xl:flex"
           >
             <PanelRightOpen className="size-4" aria-hidden />
-            <span className="[writing-mode:vertical-rl]">
-              לשיבוץ <Ltr>({unplacedCount})</Ltr>
+            {/* Horizontal, short: a rotated label is not read (08/11/2026). */}
+            <span className="text-[11px] leading-4">לשיבוץ</span>
+            <span className="rounded-full bg-surface-container px-1.5 text-[11px]">
+              <Ltr>{unplacedCount}</Ltr>
             </span>
           </button>
         )}
         <div className={cn("relative h-full min-h-0", !listOpen && "xl:hidden")}>
-          <button
-            type="button"
-            data-testid="list-collapse"
-            onClick={() => setListOpen(false)}
-            aria-label="הסתרת רשימת הפרסומים, כדי שהעמוד יהיה גדול יותר"
-            className="absolute bottom-2 end-2 z-10 hidden items-center gap-1 rounded-md border border-outline-variant bg-surface-container-lowest px-2 py-1 text-xs text-on-surface-variant shadow-elevation-1 hover:bg-surface-container xl:flex"
-          >
-            <PanelRightClose className="size-4" aria-hidden />
-            הסתרת הרשימה
-          </button>
           <UnplacedPanel
             issueId={model.issueId}
             candidates={model.candidates}
@@ -874,6 +1261,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
             onPressStart={() => {
               pressed.current = true;
             }}
+            onCollapse={() => setListOpen(false)}
             onPick={(item) => {
               const dropping =
                 held?.kind === "publication" && held.publicationId === item.publicationId;
@@ -928,25 +1316,57 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
             Two lines' worth is reserved always. Anything longer scrolls inside
             the box rather than pushing anything, because a reason is worth
             reading in full and never worth moving the page for. */}
-          <div className="relative mb-2 h-14 shrink-0">
-            {lastPlaced && !held && editable ? (
+          <div
+            className={cn(
+              "relative mb-2 h-14 shrink-0",
+              // The undo button sits over the end of this row; the text leaves
+              // it room rather than running under it (08/11/2026).
+              undoStack.length + redoStack.length > 0 &&
+                !held &&
+                editable &&
+                "[&>p]:pe-[19rem]",
+            )}
+          >
+            {undoStack.length + redoStack.length > 0 && !held && editable ? (
               /* Pinned to the end of the reserved row, above whatever the row
-                 holds: it takes no height, so nothing under it moves. */
-              <button
-                type="button"
-                data-testid="undo-placement"
-                onClick={undoLast}
-                className="absolute end-2 top-2 z-10 flex h-9 items-center gap-2 rounded-lg bg-primary-container px-3 text-sm font-medium text-inverse-on-surface shadow-elevation-1 hover:bg-primary"
-              >
-                <Undo2 className="size-4" aria-hidden />
-                ביטול השיבוץ
-                <kbd
-                  className="rounded bg-inverse-on-surface/15 px-1.5 font-sans text-xs"
-                  dir="ltr"
-                >
-                  Ctrl+Z
-                </kbd>
-              </button>
+                 holds: it takes no height, so nothing under it moves. Undo
+                 names what it will take back (08/11/2026). */
+              <span className="absolute end-2 top-2 z-10 flex items-center gap-1">
+                {undoStack.length > 0 ? (
+                  <button
+                    type="button"
+                    data-testid="undo-placement"
+                    onClick={undo}
+                    disabled={pending}
+                    title={`ביטול: ${describeOp(undoStack[undoStack.length - 1]!)}`}
+                    className="flex h-9 max-w-72 items-center gap-2 rounded-lg bg-primary-container px-3 text-sm font-medium text-inverse-on-surface shadow-elevation-1 hover:bg-primary disabled:opacity-60"
+                  >
+                    <Undo2 className="size-4 shrink-0" aria-hidden />
+                    <span className="truncate">
+                      ביטול {describeOp(undoStack[undoStack.length - 1]!)}
+                    </span>
+                    <kbd
+                      className="rounded bg-inverse-on-surface/15 px-1.5 font-sans text-xs"
+                      dir="ltr"
+                    >
+                      Ctrl+Z
+                    </kbd>
+                  </button>
+                ) : null}
+                {redoStack.length > 0 ? (
+                  <button
+                    type="button"
+                    data-testid="redo-placement"
+                    onClick={redo}
+                    disabled={pending}
+                    aria-label={`חזרה על ${describeOp(redoStack[redoStack.length - 1]!)}`}
+                    title={`חזרה על ${describeOp(redoStack[redoStack.length - 1]!)} — Ctrl+Shift+Z`}
+                    className="flex size-9 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest shadow-elevation-1 hover:bg-surface-container disabled:opacity-60"
+                  >
+                    <Redo2 className="size-4" aria-hidden />
+                  </button>
+                ) : null}
+              </span>
             ) : null}
             {held && verdict ? (
               /* One testid for the whole row, whatever is in it.
@@ -1010,11 +1430,11 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                 {notice.ok && unfinished.length > 0 ? (
                   <span
                     data-testid="unfinished-after-notice"
-                    className="flex flex-wrap items-center gap-1.5 text-on-surface-variant"
+                    className="flex min-w-0 items-center gap-1.5 overflow-hidden text-on-surface-variant"
                   >
                     · עדיין יש מקום למכור ב־<Ltr>{unfinished.length}</Ltr>{" "}
                     {unfinished.length === 1 ? "עמוד" : "עמודים"}:
-                    {unfinished.map((f) => (
+                    {unfinished.slice(0, UNFINISHED_SHOWN).map((f) => (
                       <button
                         key={f.pageId}
                         type="button"
@@ -1025,20 +1445,21 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                         {pageLabel(f.pageNumber, totalPages)} · {100 - f.percent}% פנוי
                       </button>
                     ))}
+                    <MoreUnfinished count={unfinished.length} onOpen={() => setOverview(true)} />
                   </span>
                 ) : null}
               </p>
             ) : unfinished.length > 0 ? (
               <p
                 data-testid="unfinished-alert"
-                className="absolute inset-0 flex flex-wrap items-center gap-2 overflow-y-auto rounded-lg bg-status-warning-bg p-2 text-sm text-status-warning-fg"
+                className="absolute inset-0 flex items-center gap-2 overflow-hidden whitespace-nowrap rounded-lg bg-status-warning-bg p-2 text-sm text-status-warning-fg"
               >
                 <AlertTriangle className="size-4 shrink-0" />
                 <span>
                   עדיין יש מקום למכור ב־<Ltr>{unfinished.length}</Ltr>{" "}
                   {unfinished.length === 1 ? "עמוד" : "עמודים"}:
                 </span>
-                {unfinished.map((f) => (
+                {unfinished.slice(0, UNFINISHED_SHOWN).map((f) => (
                   <button
                     key={f.pageId}
                     type="button"
@@ -1052,6 +1473,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                     {pageLabel(f.pageNumber, totalPages)} · {100 - f.percent}% פנוי
                   </button>
                 ))}
+                <MoreUnfinished count={unfinished.length} onOpen={() => setOverview(true)} />
               </p>
             ) : (
               <p
@@ -1134,7 +1556,13 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                 ref={spreadRef}
                 dir="rtl"
                 data-testid="spread"
-                className="mx-auto flex h-full items-start justify-center gap-2"
+                data-zoom={zoom}
+                className={cn(
+                  "flex h-full w-full items-start gap-2",
+                  // Zoomed in, the page is bigger than the room: it scrolls
+                  // inside this box, never the board around it.
+                  zoom > 1 || fitWidth ? "overflow-auto" : "justify-center",
+                )}
               >
                 {(view?.pages ?? []).map((page) => {
                   const full = model.pages.find((p) => p.id === page.id);
@@ -1151,7 +1579,13 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                       reserved={full.reserved}
                       fill={fill}
                       editable={editable}
-                      holding={held?.kind === "publication"}
+                      // Anything in hand — a placed ad being moved too. With only
+                      // a NEW ad counted, a click meant as "put it here" on
+                      // another placed ad picked THAT one up instead, silently
+                      // (habodek, 08/11/2026). Shift keeps them clickable, to
+                      // add them to the selection.
+                      holding={Boolean(held) && !shiftDown}
+                      alsoSelectedIds={alsoSelected}
                       refusesHeld={
                         held && !full.allowedShapes.some((s) => s.id === held.shape.id)
                           ? held.shape.name
@@ -1179,7 +1613,19 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                         pressed.current = false;
                         commit(pageId, cell);
                       }}
-                      onPlacementPick={(placement) => {
+                      onPlacementPick={(placement, additive) => {
+                        // Shift+click: one more ad moved or removed with the one
+                        // in hand (08/11/2026).
+                        if (additive && held?.kind === "placement" && editable) {
+                          if (placement.id === held.placementId) return;
+                          setAlsoSelected((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(placement.id)) next.delete(placement.id);
+                            else next.add(placement.id);
+                            return next;
+                          });
+                          return;
+                        }
                         pressed.current = editable;
                         setSelectedPageId(placement.pageId);
                         setHeld((prev) =>
@@ -1221,9 +1667,11 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
           <nav
             aria-label="מעבר בין עמודים"
             data-testid="board-bottom-nav"
-            className="flex h-11 shrink-0 items-center justify-center gap-2 pt-2"
+            // Fixed height kept; on a phone the row scrolls inside itself
+            // rather than widening the page (habodek at 375, 08/11/2026).
+            className="flex h-11 shrink-0 items-center justify-start gap-2 overflow-x-auto pt-2 sm:justify-center"
           >
-            {held?.kind === "publication" && editable ? (
+            {held?.kind === "publication" && heldIsWaiting && editable ? (
               <span
                 data-testid="suggestion-bar"
                 className="me-auto flex min-w-0 items-center gap-2 rounded-full bg-status-accent-bg px-3 py-1 text-xs"
@@ -1317,7 +1765,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
               <ChevronLeft className="size-4" aria-hidden />
             </Button>
             <form
-              className="ms-4 flex items-center gap-1.5"
+              className="ms-4 hidden items-center gap-1.5 sm:flex"
               onSubmit={(e) => {
                 e.preventDefault();
                 const n = Number(new FormData(e.currentTarget).get("page"));
@@ -1408,7 +1856,7 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                     className="h-auto w-full whitespace-normal py-1.5 leading-4"
                     // Where it may place, and what it adds, are the newspaper's
                     // settings per page type — no question on every click.
-                    onClick={() => run(() => autoPlaceIssueAction(model.issueId, layoutSeed))}
+                    onClick={runAuto}
                   >
                     <Wand2 className="size-4" />
                     <span>שיבוץ אוטומטי</span>
@@ -1467,6 +1915,9 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                     setLayoutSeed(next);
                     const result = await autoPlaceIssueAction(model.issueId, next, true);
                     if (result.ok) {
+                      // What the history pointed at was just cleared away.
+                      setUndoStack([]);
+                      setRedoStack([]);
                       if (result.message) say(result.message);
                       router.refresh();
                       return;
@@ -1564,11 +2015,13 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
             type="button"
             data-testid="toggle-details"
             aria-expanded={false}
+            aria-label="פתיחת פרטים וצורות"
+            title="פרטים וצורות מותרות"
             onClick={() => setDetailsOpen(true)}
             className="flex h-full flex-col items-center gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest py-3 text-xs font-medium text-on-surface-variant shadow-elevation-1 hover:bg-surface-container"
           >
             <PanelLeftOpen className="size-4" aria-hidden />
-            <span className="[writing-mode:vertical-rl]">פרטים וצורות</span>
+            <span className="text-[11px] leading-4">פרטים</span>
           </button>
         ) : (
           <section
@@ -1631,6 +2084,17 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                         selectedPlacement.id,
                       );
                       if (result.ok) {
+                        record({
+                          kind: "remove",
+                          label: selectedPlacement.customerName,
+                          publicationId: selectedPlacement.publicationId,
+                          placementId: selectedPlacement.id,
+                          at: {
+                            pageId: selectedPlacement.pageId,
+                            col: selectedPlacement.col,
+                            row: selectedPlacement.row,
+                          },
+                        });
                         setHeld(null);
                         router.refresh();
                         return;
@@ -1648,7 +2112,15 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
               </p>
             )}
 
-            {editable && selectedPage && model.pages.length > 1 ? (
+            {/* A whole sheet, never one page (user, 08/11/2026): four inner
+                pages from the selected one, the cover and the back never.
+                The label names the pages so nobody is surprised by four. */}
+            {editable && selectedPage && removal && !removal.ok ? (
+              <p className="mt-3 text-xs text-on-surface-variant" data-testid="remove-page-refused">
+                {removal.message}
+              </p>
+            ) : null}
+            {editable && selectedPage && removal?.ok ? (
               <Button
                 size="sm"
                 variant="ghost"
@@ -1664,7 +2136,18 @@ export function PlacementBoard({ model }: { model: BoardModel }) {
                 }
               >
                 <Trash2 className="size-4" />
-                הסרת {pageLabel(selectedPage.number, totalPages)}
+                {removalFirst === removalLast ? (
+                  <>
+                    הסרת עמוד <Ltr>{removalFirst}</Ltr>
+                  </>
+                ) : (
+                  <>
+                    הסרת עמודים{" "}
+                    <Ltr>
+                      {removalFirst}–{removalLast}
+                    </Ltr>
+                  </>
+                )}
               </Button>
             ) : null}
 
@@ -1828,3 +2311,23 @@ function DuplicateDialog({
     </div>
   );
 }
+
+/** How many "room to sell" pages the one-line strip names before "+N" (08/11/2026). */
+const UNFINISHED_SHOWN = 4;
+
+/** "+3" — the rest of the pages with room, one click from the whole issue. */
+function MoreUnfinished({ count, onOpen }: { count: number; onOpen: () => void }) {
+  if (count <= UNFINISHED_SHOWN) return null;
+  return (
+    <button
+      type="button"
+      data-testid="unfinished-more"
+      onClick={onOpen}
+      title="הצגת כל הגיליון"
+      className="shrink-0 rounded-full bg-surface-container-lowest px-2 py-0.5 text-xs font-medium hover:underline"
+    >
+      <Ltr>+{count - UNFINISHED_SHOWN}</Ltr>
+    </button>
+  );
+}
+

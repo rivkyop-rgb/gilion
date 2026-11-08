@@ -25,6 +25,12 @@ export type PortalRequestLine = {
   adShapeId: string;
   dates: string[];
   advertisementId: string;
+  /**
+   * The page type the customer picked (08/11/2026). Optional: left empty the
+   * request goes to the newspaper's portal default. Anything but the default
+   * is a request the office follows up on by phone.
+   */
+  pageTypeId?: string;
 };
 
 /**
@@ -41,6 +47,16 @@ export type PortalNewspaper = {
   id: string;
   name: string;
   publicationDays: number[];
+  /**
+   * Upcoming issues already closed for print — no new ad fits (08/11/2026:
+   * "שהלקוח יוכל לבחור תאריך רק בתאריכים שמוגדר שיש עיתון").
+   */
+  closedDates?: string[];
+  /**
+   * Upcoming issues that exist. With no weekly schedule declared, these are the
+   * days the paper is known to print — offered instead of every day.
+   */
+  issueDates?: string[];
   maxAdFileSize: number;
   shapes: PortalShape[];
 };
@@ -50,8 +66,10 @@ export type PortalShape = {
   name: string;
   cols: number;
   rows: number;
+  /** Its first allowed position when confined to a region — the preview draws it there. */
+  anchor?: readonly [col: number, row: number] | null;
   /** Every page type of the newspaper that allows this shape (AllowedAdShape). */
-  pageTypes: Array<{ id: string; name: string; priced: boolean }>;
+  pageTypes: Array<{ id: string; name: string; priced: boolean; portalDefault?: boolean }>;
 };
 
 /** The uploaded file, as the server found it — never as the browser described it. */
@@ -86,7 +104,30 @@ export function dateError(
   ) {
     return `${paper.name} יוצא ${formatDays(paper.publicationDays)} בלבד`;
   }
+  if (paper?.closedDates?.includes(date)) {
+    return `הגיליון של ${paper.name} לתאריך הזה כבר נסגר לדפוס`;
+  }
+  if (
+    paper &&
+    !hasSchedule(paper.publicationDays) &&
+    paper.issueDates &&
+    paper.issueDates.length > 0 &&
+    !paper.issueDates.includes(date)
+  ) {
+    return `${paper.name} לא יוצא בתאריך הזה`;
+  }
   return null;
+}
+
+/** Whether the calendar offers a date — the same rule the server applies. */
+export function portalDateOpen(
+  paper: Pick<PortalNewspaper, "publicationDays" | "closedDates" | "issueDates">,
+  date: string,
+): boolean {
+  if (paper.closedDates?.includes(date)) return false;
+  if (hasSchedule(paper.publicationDays)) return isPublicationDay(paper.publicationDays, date);
+  if (paper.issueDates && paper.issueDates.length > 0) return paper.issueDates.includes(date);
+  return true;
 }
 
 /**
@@ -165,19 +206,42 @@ export function validatePortalRequest(
   return errors;
 }
 
+/** The name that means "an ordinary page" when nothing was configured. */
+export const INNER_PAGE_TYPE_NAME = "פנימי";
+
 /**
- * Which page type the request is filed under.
+ * The page type a request goes to when the customer does not choose one
+ * (08/11/2026): the newspaper's portal default, else the type named "פנימי",
+ * else the first priced type by name, else the first.
  *
- * AdOrderItem needs one — PriceRule is keyed by it — but "page type" is the
- * newspaper's internal vocabulary, not a question a customer can answer. The
- * first page type that has a price for the shape wins, so the pending order
- * carries a real number where one exists; otherwise the first that allows it.
- * Order is by name, so the choice is stable. Staff can still change the line
- * while the order is pending (itemsEditable), before anything is binding.
+ * It used to be only the last two — and "גב" sorts before "פנימי" and "שער"
+ * in Hebrew, so every portal request in a paper with a back page was filed,
+ * and priced, as the back page. Nobody had chosen that.
  */
-export function pickPageType(shape: PortalShape): string | null {
-  const byName = [...shape.pageTypes].sort((a, b) => a.name.localeCompare(b.name, "he"));
+export function defaultPageType(shape: PortalShape): string | null {
+  const types = shape.pageTypes;
+  const configured = types.find((p) => p.portalDefault);
+  if (configured) return configured.id;
+  const inner = types.find((p) => p.name === INNER_PAGE_TYPE_NAME);
+  if (inner) return inner.id;
+  const byName = [...types].sort((a, b) => a.name.localeCompare(b.name, "he"));
   return (byName.find((p) => p.priced) ?? byName[0])?.id ?? null;
+}
+
+/**
+ * Which page type the request is filed under: the customer's choice when it
+ * is one the shape is sold on, otherwise the default. A choice the shape is
+ * not sold on is not an error the customer can fix — the list they picked from
+ * is the list of allowed types — so it falls back rather than refusing.
+ */
+export function pickPageType(shape: PortalShape, requested?: string | null): string | null {
+  if (requested && shape.pageTypes.some((p) => p.id === requested)) return requested;
+  return defaultPageType(shape);
+}
+
+/** The customer picked something other than the default: the office calls them. */
+export function isSpecialPageRequest(shape: PortalShape, pageTypeId: string | null): boolean {
+  return pageTypeId !== null && pageTypeId !== defaultPageType(shape);
 }
 
 /**

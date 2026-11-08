@@ -21,6 +21,8 @@ export const DIRECT_TENANT_MODELS = [
   "RolePermission",
   "BusinessSettings",
   "TearSheetDelivery",
+  "SavedFilter",
+  "CreditRelease",
 ] as const;
 
 /**

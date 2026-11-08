@@ -35,7 +35,7 @@ export function PublicationStatusBadge({ status }: { status: PublicationStatus }
  * who sent it, in a colour of its own.
  */
 export function SourceBadge({ source }: { source: "internal" | "customer_portal" }) {
-  if (source !== "customer_portal") return <Badge tone="neutral">פנימי</Badge>;
+  if (source !== "customer_portal") return <Badge tone="neutral">הוזן במשרד</Badge>;
   return (
     <Badge tone="accent" data-testid="source-portal" className="font-semibold">
       <Send className="size-3" aria-hidden />

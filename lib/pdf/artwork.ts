@@ -101,3 +101,34 @@ export async function assetDataUri(key: string): Promise<string | null> {
     return null;
   }
 }
+
+/**
+ * The business's own logo for a document it sends out — the statement
+ * (08/11/2026: "שבדף חשבון יהיה את הלוגו של בעל העיתון"). Null when the
+ * business has not uploaded one: the shipped default is the PRODUCT's mark,
+ * and a customer's statement must not be signed by somebody else.
+ *
+ * The type is read from the bytes, not the key: brand uploads keep whatever
+ * name they arrived with.
+ */
+export async function brandDataUri(key: string | null | undefined): Promise<string | null> {
+  if (!key) return null;
+  try {
+    const bytes = await getObject(key);
+    if (bytes.length < 4) return null;
+    const mime =
+      bytes[0] === 0x89 && bytes[1] === 0x50
+        ? "image/png"
+        : bytes[0] === 0xff && bytes[1] === 0xd8
+          ? "image/jpeg"
+          : bytes.subarray(0, 4).toString("latin1") === "RIFF"
+            ? "image/webp"
+            : bytes.subarray(0, 256).toString("utf8").includes("<svg")
+              ? "image/svg+xml"
+              : null;
+    return mime ? `data:${mime};base64,${bytes.toString("base64")}` : null;
+  } catch (error) {
+    console.warn("[pdf] brand logo could not be loaded", key, error);
+    return null;
+  }
+}

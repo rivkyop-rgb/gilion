@@ -20,13 +20,14 @@ export const metadata: Metadata = { title: "ניהול עסקים · Gilion" };
 export default async function PlatformPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; size?: string; q?: string }>;
+  searchParams: Promise<{ page?: string; size?: string; q?: string; created?: string }>;
 }) {
   const ctx = await getTenantContext();
   requireSuperAdmin(ctx.isSuperAdmin);
 
   const all = await listBusinesses();
-  const requested = parseListParams(await searchParams);
+  const search = await searchParams;
+  const requested = parseListParams(search);
   const needle = requested.q.toLowerCase();
   const matched = needle ? all.filter((b) => b.name.toLowerCase().includes(needle)) : all;
   const list = clampPage(requested, matched.length);
@@ -50,6 +51,17 @@ export default async function PlatformPage({
           </Link>
         </Button>
       </div>
+
+      {search.created ? (
+        <p
+          role="status"
+          data-testid="business-created"
+          className="mb-4 rounded-lg bg-status-success-bg p-3 text-sm text-status-success-fg"
+        >
+          העסק &quot;{search.created}&quot; נוצר יחד עם המנהל הראשון שלו. אפשר להיכנס אליו מהשורה
+          שלו ברשימה.
+        </p>
+      ) : null}
 
       <ListToolbar
         prefix=""

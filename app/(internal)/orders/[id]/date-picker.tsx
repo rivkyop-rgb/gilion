@@ -68,6 +68,41 @@ export function MultiDatePicker({
   const toggle = (iso: string) =>
     onChange(chosen.has(iso) ? selected.filter((d) => d !== iso) : [...selected, iso].sort());
 
+  /**
+   * "Every week, N times" (08/11/2026): the habodek run sold ten weekly
+   * insertions with 13 clicks across three months. Still ticks dates — the
+   * calendar stays the truth — it only does the clicking. Counted from the
+   * LAST date ticked, so "click the first Thursday, repeat ×10" reads as it
+   * sounds. A holiday with no paper, or a date already sold, is skipped and the
+   * run goes one week further, so N is the number actually added.
+   */
+  const [repeat, setRepeat] = useState("4");
+  const [repeatNote, setRepeatNote] = useState<string | null>(null);
+  const anchor = selected.length > 0 ? selected[selected.length - 1]! : null;
+  const repeatWeekly = () => {
+    const times = Math.min(52, Math.max(1, Math.floor(Number(repeat) || 0)));
+    if (!anchor) return;
+    const added: string[] = [];
+    let skipped = 0;
+    const d = new Date(`${anchor}T12:00:00Z`);
+    for (let guard = 0; added.length < times - 1 && guard < 120; guard++) {
+      d.setUTCDate(d.getUTCDate() + 7);
+      const iso = d.toISOString().slice(0, 10);
+      const heb = jewishMonth(d.getUTCFullYear(), d.getUTCMonth()).get(iso);
+      if (taken.has(iso) || heb?.kind === "chag") {
+        skipped++;
+        continue;
+      }
+      if (!chosen.has(iso)) added.push(iso);
+    }
+    onChange([...new Set([...selected, ...added])].sort());
+    setRepeatNote(
+      skipped > 0
+        ? `נוספו ${added.length === 1 ? "תאריך אחד" : `${added.length} תאריכים`}. ${skipped === 1 ? "שבוע אחד דולג" : `${skipped} שבועות דולגו`} (חג או תאריך שכבר נמכר).`
+        : `נוספו ${added.length === 1 ? "תאריך אחד" : `${added.length} תאריכים`}.`,
+    );
+  };
+
   /** Tick every remaining print day in the month — the common "all of them" case. */
   const selectMonth = () => {
     const addable = days
@@ -203,6 +238,38 @@ export function MultiDatePicker({
             <span className="size-2.5 rounded-[2px] bg-status-muted-bg" /> חג — אין עיתון
           </span>
         </p>
+        {anchor ? (
+          <div className="flex w-full flex-wrap items-center gap-2 text-xs" data-testid="weekly-repeat">
+            <label htmlFor="weekly-repeat-times">
+              חזרה שבועית מ־<span className="ltr-isolate">{anchor.split("-").reverse().join(".")}</span>:
+            </label>
+            <input
+              id="weekly-repeat-times"
+              type="number"
+              min={2}
+              max={52}
+              dir="ltr"
+              value={repeat}
+              onChange={(e) => setRepeat(e.target.value)}
+              className="h-8 w-16 rounded-sm border border-outline-variant bg-surface-container px-2 text-sm"
+              data-testid="weekly-repeat-times"
+            />
+            <span>פעמים</span>
+            <button
+              type="button"
+              onClick={repeatWeekly}
+              className="rounded-sm border border-primary px-2 py-1 font-medium text-primary hover:bg-primary-container/20"
+              data-testid="weekly-repeat-apply"
+            >
+              הוספת התאריכים
+            </button>
+            {repeatNote ? (
+              <span role="status" className="text-on-surface-variant">
+                {repeatNote}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         {scheduled ? (
           <button
             type="button"

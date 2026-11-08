@@ -34,9 +34,18 @@ export type WinbackRow = {
   }>;
 };
 
+/** What only this tab filters by (08/11/2026: "לסנן גם לפי גודל … וכו"). */
+export type WinbackOptions = {
+  /** Only publications of this ad shape count. */
+  shapeId?: string;
+  /** At least this many publications in the period — a regular, not a one-off. */
+  minCount?: number;
+};
+
 export async function winbackReport(
   businessId: string,
   filters: ReportFilters,
+  options: WinbackOptions = {},
 ): Promise<WinbackRow[]> {
   const db = tenantDb(businessId);
   const newspaper =
@@ -54,6 +63,7 @@ export async function winbackReport(
       ...(filters.customerId && filters.customerId !== "all"
         ? { customer_id: filters.customerId }
         : {}),
+      ...(options.shapeId ? { ad_shape_id: options.shapeId } : {}),
     },
     orderBy: { publication_date: "desc" },
     take: 10000,
@@ -72,6 +82,9 @@ export async function winbackReport(
     list.push(r);
     byCustomer.set(r.customer_id, list);
   }
+  const min = Math.max(1, Math.trunc(options.minCount ?? 1));
+  for (const [id, list] of byCustomer) if (list.length < min) byCustomer.delete(id);
+  if (byCustomer.size === 0) return [];
   const ids = [...byCustomer.keys()];
 
   const [customers, later] = await Promise.all([

@@ -46,6 +46,8 @@ export type PublicationForAccount = {
   status: string;
   /** The net price frozen on the publication (conventions.md §7). */
   price: number;
+  /** With `shares` (allocateOrderPayments), which slice of the payment is this one's. */
+  id?: string;
 };
 
 export type CustomerAccount = {
@@ -73,6 +75,8 @@ export function summariseAccount(
   publications: PublicationForAccount[],
   /** Live (non-cancelled) payments per order. */
   paidByOrder: Map<string, number>,
+  /** Per publication id, from allocateOrderPayments. Wins over the proportion. */
+  shares?: ReadonlyMap<string, number>,
 ): CustomerAccount {
   // Each order's own billable total — the denominator every share divides by.
   const billableByOrder = new Map<string, number>();
@@ -105,7 +109,12 @@ export function summariseAccount(
     // Clamped to the publication's own price: a payment bigger than the order
     // is an overpayment on the ORDER, and must not make one line look like it
     // absorbed more than it ever charged.
-    const share = Math.min(apportionedPaid(p.price, billable, paid), p.price);
+    const share = Math.min(
+      shares && p.id !== undefined
+        ? (shares.get(p.id) ?? 0)
+        : apportionedPaid(p.price, billable, paid),
+      p.price,
+    );
     const open = Math.max(0, p.price - share);
 
     account.billed += p.price;

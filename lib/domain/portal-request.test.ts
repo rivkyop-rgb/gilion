@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  portalDateOpen,
   canCancelOwnRequest,
   pickPageType,
+  defaultPageType,
+  isSpecialPageRequest,
   portalOrderRecord,
   dateError,
   MAX_LINES,
@@ -168,6 +171,36 @@ describe("the record a request becomes (rules 5–7)", () => {
   it("files the request under a page type that has a price, when one does", () => {
     expect(pickPageType(weekly.shapes[0]!)).toBe("pt_inner");
   });
+
+  // 08/11/2026: "גב" sorts first in Hebrew, and every request went to the back.
+  const shape = (types: Array<{ id: string; name: string; priced: boolean; portalDefault?: boolean }>) => ({
+    id: "s",
+    name: "רבע",
+    cols: 1,
+    rows: 1,
+    pageTypes: types,
+  });
+  const back = { id: "pt_back", name: "גב", priced: true };
+  const inner = { id: "pt_in", name: "פנימי", priced: true };
+  const cover = { id: "pt_cover", name: "שער", priced: true };
+
+  it("files under 'פנימי' rather than the first name, when nothing is configured", () => {
+    expect(defaultPageType(shape([back, inner, cover]))).toBe("pt_in");
+  });
+
+  it("the newspaper's portal default wins over the name", () => {
+    expect(defaultPageType(shape([back, inner, { ...cover, portalDefault: true }]))).toBe(
+      "pt_cover",
+    );
+  });
+
+  it("the customer's choice wins when the shape is sold there, and is flagged", () => {
+    const s = shape([back, inner, cover]);
+    expect(pickPageType(s, "pt_back")).toBe("pt_back");
+    expect(isSpecialPageRequest(s, "pt_back")).toBe(true);
+    expect(isSpecialPageRequest(s, "pt_in")).toBe(false);
+    expect(pickPageType(s, "pt_elsewhere")).toBe("pt_in");
+  });
 });
 
 describe("what the customer is shown", () => {
@@ -183,5 +216,20 @@ describe("what the customer is shown", () => {
     expect(rejectionReasonToShow("rejected", null)).toBeNull();
     expect(rejectionReasonToShow("rejected", "   ")).toBeNull();
     expect(rejectionReasonToShow("approved", "leftover")).toBeNull();
+  });
+});
+
+describe("portalDateOpen", () => {
+  it("offers only print days, never a closed issue", () => {
+    const paper = { publicationDays: [4], closedDates: ["2026-11-12"], issueDates: [] };
+    expect(portalDateOpen(paper, "2026-11-19")).toBe(true); // a Thursday
+    expect(portalDateOpen(paper, "2026-11-18")).toBe(false); // a Wednesday
+    expect(portalDateOpen(paper, "2026-11-12")).toBe(false); // closed
+  });
+  it("with no weekly schedule, offers the days an issue exists", () => {
+    const paper = { publicationDays: [], issueDates: ["2026-11-20"] };
+    expect(portalDateOpen(paper, "2026-11-20")).toBe(true);
+    expect(portalDateOpen(paper, "2026-11-21")).toBe(false);
+    expect(portalDateOpen({ publicationDays: [] }, "2026-11-21")).toBe(true);
   });
 });

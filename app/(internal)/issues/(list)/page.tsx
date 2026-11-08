@@ -225,7 +225,7 @@ export default async function IssuesPage({
 
                 <div className="mt-auto flex flex-wrap gap-2">
                   <Button asChild size="sm" variant="secondary">
-                    <Link href={`/issues/${issue.id}/board`}>פתח לוח שיבוץ</Link>
+                    <Link href={`/issues/${issue.id}/board`}>לוח השיבוץ</Link>
                   </Button>
                   <Button asChild size="sm" variant="ghost" data-testid="issue-check-link">
                     <Link href={`/issues/${issue.id}/validate`}>

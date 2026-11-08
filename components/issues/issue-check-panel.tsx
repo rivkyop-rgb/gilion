@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
@@ -175,7 +175,7 @@ export function IssueCheckPanel({
                   close afterwards. */}
               <a href={`/api/issues/${issueId}/pdf?type=draft`}>
                 <FileText className="size-4" />
-                הפק PDF טיוטה
+                הפקת PDF טיוטה
               </a>
             </Button>
           ) : null}
@@ -454,6 +454,7 @@ function CloseIssueDialog({
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
+  const closeCancelRef = useRef<HTMLButtonElement>(null);
 
   return (
     <DialogPrimitive.Root
@@ -471,13 +472,19 @@ function CloseIssueDialog({
           title={disabled ? (blocking ?? undefined) : undefined}
         >
           <Lock className="size-4" />
-          סגור גיליון
+          סגירת הגיליון
         </Button>
       </DialogPrimitive.Trigger>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-primary/40" />
         <DialogPrimitive.Content
           data-testid="close-issue-dialog"
+          // Focus on "ביטול", not on the irreversible button: two Enters used
+          // to close the issue (habodek 28/10 and again 08/11/2026).
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            closeCancelRef.current?.focus();
+          }}
           className="fixed inset-x-0 top-1/2 z-50 mx-auto w-[min(31.25rem,calc(100vw-2rem))] -translate-y-1/2 rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-elevation-2"
         >
           <DialogPrimitive.Title className="mb-2 flex items-center gap-2 font-serif text-lg font-semibold">
@@ -539,10 +546,10 @@ function CloseIssueDialog({
                 })
               }
             >
-              {busy ? "מפיק PDF…" : "סגור והפק PDF"}
+              {busy ? "מפיק PDF…" : "סגירה והפקת PDF"}
             </Button>
             <DialogPrimitive.Close asChild>
-              <Button variant="ghost" disabled={busy}>
+              <Button ref={closeCancelRef} variant="ghost" disabled={busy}>
                 ביטול
               </Button>
             </DialogPrimitive.Close>

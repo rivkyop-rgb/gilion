@@ -122,10 +122,25 @@ export const UNREADABLE_MESSAGE = "הקובץ פגום ולא ניתן לפתי�
  * Step 4 — actually opening the file — needs pdf-lib and sharp and therefore
  * lives in lib/storage/upload.ts, on the other side of the purity line.
  */
+/** GIF, ZIP (docx/xlsx), BMP, TIFF, RIFF (webp) — formats we refuse by kind. */
+function isOtherKnownFormat(head: Uint8Array): boolean {
+  const ascii = String.fromCharCode(...head.subarray(0, 4));
+  return (
+    ascii.startsWith("GIF8") ||
+    ascii.startsWith("PK") ||
+    ascii.startsWith("BM") ||
+    ascii === "II*\u0000" ||
+    ascii === "MM\u0000*" ||
+    ascii === "RIFF"
+  );
+}
+
 export function checkAdFile(input: {
   size: number;
   head: Uint8Array;
   limit: SizeLimit;
+  /** The name it was uploaded under — only to tell "broken" from "wrong kind". */
+  name?: string;
 }): AdFileCheck {
   if (input.size <= 0) {
     return { ok: false, rejection: { code: "unreadable", message: "הקובץ ריק" } };
@@ -138,6 +153,18 @@ export function checkAdFile(input: {
   }
   const fileType = sniffFileType(input.head);
   if (!fileType) {
+    // Called "report.pdf" but not a PDF inside: a broken file, not a Word
+    // document. Telling the person "only PDF, JPG or PNG" about their PDF sends
+    // them looking for a setting instead of a new copy (habodek, 08/11/2026).
+    // A GIF or a Word file renamed to .pdf is still the wrong KIND — only
+    // bytes that are no known format at all read as a damaged copy.
+    if (
+      input.name &&
+      /\.(pdf|jpe?g|png)$/i.test(input.name.trim()) &&
+      !isOtherKnownFormat(input.head)
+    ) {
+      return { ok: false, rejection: { code: "type", message: UNREADABLE_MESSAGE } };
+    }
     return { ok: false, rejection: { code: "type", message: UNSUPPORTED_TYPE_MESSAGE } };
   }
   return { ok: true, fileType };

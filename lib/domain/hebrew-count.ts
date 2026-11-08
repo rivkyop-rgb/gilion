@@ -38,6 +38,16 @@ export function pagesPhrase(n: number): string {
   return counted(n, "עמוד אחד", "עמודים");
 }
 
+/** `במיקום אחד` · `ב־12 מיקומים` — where a shape may go on the page. */
+export function inPositionsPhrase(n: number): string {
+  return n === 1 ? "במיקום אחד" : `ב־${n} מיקומים`;
+}
+
+/** `פעולה אחת` · `3 פעולות`. */
+export function actionsPhrase(n: number): string {
+  return counted(n, "פעולה אחת", "פעולות");
+}
+
 /** `פרסום אחד` · `6 פרסומים`. */
 export function publicationsPhrase(n: number): string {
   return counted(n, "פרסום אחד", "פרסומים");

@@ -30,7 +30,7 @@
  * (conventions.md §7 rule 2). Rescaling the catalogue changes what can be sold
  * from now on, and cannot move an ad that has already been laid out.
  */
-import { BASE_SHAPES } from "./base-shapes";
+import { BASE_SHAPES, fitsExactly } from "./base-shapes";
 import type { DerivedGrid } from "./grid";
 import { formatCm, footprintMm } from "./grid";
 import { normalizePositions, validPositionCount, type Cell } from "./slot-geometry";
@@ -147,6 +147,16 @@ export function planRescale(
         ...unchanged,
         action: "detached",
         note: "הגודל נקבע ידנית — נשאר כפי שהוא",
+      };
+    }
+
+    // 08/11/2026: a "half" that the new grid cannot make exactly is left as it
+    // was and flagged — shrinking it to 40% would sell less than its name.
+    if (!fitsExactly(base, to)) {
+      return {
+        ...unchanged,
+        action: "unfittable",
+        note: "בגריד החדש אי אפשר לחלק בדיוק — הצורה נשארה בגודלה. כדאי לבחור מספר עמודות זוגי",
       };
     }
 

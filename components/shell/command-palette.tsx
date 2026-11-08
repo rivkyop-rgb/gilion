@@ -140,7 +140,7 @@ export function CommandPalette({
           key: `pay-${c.id}`,
           group: "לקוחות",
           label: `רישום תשלום · ${c.name}`,
-          href: `/billing?customer=${c.id}`,
+          href: `/billing/customers/${c.id}`,
           icon: "Wallet",
         });
       }

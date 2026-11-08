@@ -15,6 +15,7 @@ import {
   dashboardWeek,
   paymentStatusByOrder,
   reminderWidget,
+  setupProgress,
 } from "@/lib/data/dashboard";
 import { listPublicationsPage } from "@/lib/data/publications";
 import { listNewspapers } from "@/lib/data/newspapers";
@@ -56,6 +57,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { DashboardFilters } from "./filters";
+import { GettingStarted } from "./getting-started";
 import { WeekTable, type WeekRow } from "./week-table";
 import { OpenIssuesWidget, RemindersWidget } from "./widgets";
 
@@ -273,13 +275,28 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   };
   const shown = visibleCards(cards, counts, await internalOrdersNeedApproval(ctx.businessId));
 
+  const setup = await setupProgress(ctx.businessId);
+  const maySetUp = canWriteArea(ctx, "settings");
+
   return (
     <>
       <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title font-serif text-headline-lg font-semibold">לוח בקרה</h1>
         {/* The one gold button on the screen: the thing this business does
             most, one click from where every day starts. */}
-        {canWriteArea(ctx, "orders") ? (
+        {canWriteArea(ctx, "orders") && !setup.newspaper ? (
+          // An order with no newspaper has nothing to sell — say so here
+          // rather than on an empty form (08/11/2026).
+          <span className="flex flex-col items-end gap-1">
+            <Button variant="gold" size="lg" disabled data-testid="dashboard-new-order">
+              <Plus className="size-5" aria-hidden />
+              הזמנה חדשה
+            </Button>
+            <span className="text-xs text-on-surface-variant" data-testid="new-order-needs-paper">
+              קודם פותחים עיתון — ממנו נגזרים הגדלים והמחירים
+            </span>
+          </span>
+        ) : canWriteArea(ctx, "orders") ? (
           <Button asChild variant="gold" size="lg" data-testid="dashboard-new-order">
             <Link href="/orders/new">
               <Plus className="size-5" aria-hidden />
@@ -289,6 +306,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         ) : null}
       </div>
       <AutoOpenedNotice opened={autoOpened} />
+      {maySetUp ? <GettingStarted progress={setup} /> : null}
       {missed > 0 ? (
         <Link
           href="/publications/missed"
@@ -312,7 +330,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </Link>
       ) : null}
       <p className="mb-3 text-sm text-on-surface-variant" data-testid="dashboard-period-sentence">
-        נכנסת כ־{ROLE_LABELS[ctx.role]}. מוצגים נתוני{" "}
+        תפקיד: {ROLE_LABELS[ctx.role]}. מוצגים נתוני{" "}
         <strong className="text-on-surface">
           {filters.all ? (
             "כל הזמן"

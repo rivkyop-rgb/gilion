@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { deriveGrid, type DerivedGrid } from "./grid";
 import {
   defaultPageTypeIds,
+  isStitchableCount,
+  sheetToRemove,
   innerPageTypeId,
   pageFill,
   pageLabel,
@@ -195,5 +197,29 @@ describe("what a page is called", () => {
 
   it("calls a lone page the cover, not both at once", () => {
     expect(pageLabel(1, 1)).toBe("שער");
+  });
+});
+
+describe("sheetToRemove", () => {
+  it("removes four inner pages starting at the chosen one", () => {
+    expect(sheetToRemove(12, 5)).toEqual({ ok: true, pageNumbers: [5, 6, 7, 8] });
+  });
+  it("pulls back so the back cover stays", () => {
+    expect(sheetToRemove(12, 10)).toEqual({ ok: true, pageNumbers: [8, 9, 10, 11] });
+  });
+  it("never takes the cover or the back, and never goes below four", () => {
+    expect(sheetToRemove(12, 1).ok).toBe(false);
+    expect(sheetToRemove(12, 12).ok).toBe(false);
+    expect(sheetToRemove(4, 2).ok).toBe(false);
+  });
+  it("an issue off the multiple loses only its remainder", () => {
+    expect(sheetToRemove(10, 3)).toEqual({ ok: true, pageNumbers: [3, 4] });
+    expect(sheetToRemove(6, 2)).toEqual({ ok: true, pageNumbers: [2, 3] });
+  });
+});
+
+describe("isStitchableCount", () => {
+  it("is whole sheets of four, at least one", () => {
+    expect([3, 4, 6, 8, 0].map(isStitchableCount)).toEqual([false, true, false, true, false]);
   });
 });

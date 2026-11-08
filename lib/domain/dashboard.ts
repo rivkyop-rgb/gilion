@@ -107,7 +107,8 @@ export const DASHBOARD_CARDS: readonly DashboardCard[] = [
   {
     key: "notPlaced",
     label: "לא שובצו",
-    hint: "יש קובץ, אין מקום על עמוד",
+    // Not "no room": most are dates whose issue is not open yet (habodek).
+    hint: "יש קובץ, עוד לא על עמוד",
     tone: "accent",
     area: "publications",
   },

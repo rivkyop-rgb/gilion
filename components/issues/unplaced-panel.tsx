@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, CloudUpload, ImageOff, X } from "lucide-react";
+import { ChevronDown, CloudUpload, ImageOff, PanelRightClose, Search, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import type { PositionRequest } from "@/lib/domain/position-request";
 export type BoardCandidate = {
   publicationId: string;
   customerName: string;
+  customerId?: string;
   shape: ShapeSpec;
   previewUrl: string | null;
   adName: string | null;
@@ -100,6 +101,7 @@ export function UnplacedPanel({
   onPick,
   onPressStart,
   onJumpToPlacement,
+  onCollapse,
 }: {
   issueId: string;
   candidates: BoardCandidate[];
@@ -116,6 +118,8 @@ export function UnplacedPanel({
   onPick: (item: BoardCandidate) => void;
   onPressStart: () => void;
   onJumpToPlacement: (placement: CanvasPlacement) => void;
+  /** Folds the list to a rail. In the header, not floating over the last card. */
+  onCollapse?: () => void;
 }) {
   const [tab, setTab] = useState<"unplaced" | "placed">("unplaced");
   const [showPlaced, setShowPlaced] = useState(false);
@@ -124,8 +128,18 @@ export function UnplacedPanel({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadFor, setUploadFor] = useState<BoardCandidate | null>(null);
 
+  // A filter over the list (08/11/2026): with ten ads, three were below the
+  // fold and there was no way to find one but scrolling. "/" focuses it.
+  const [query, setQuery] = useState("");
+  const needle = query.trim().toLowerCase();
+  const matches = (c: BoardCandidate) =>
+    !needle ||
+    [c.customerName, c.shape.name, c.adName ?? "", c.details ? String(c.details.orderNumber) : ""]
+      .join(" ")
+      .toLowerCase()
+      .includes(needle);
   const unplaced = candidates.filter((c) => !c.alreadyPlaced);
-  const visible = showPlaced ? candidates : unplaced;
+  const visible = (showPlaced ? candidates : unplaced).filter(matches);
   const missingArtwork = unplaced.filter((c) => c.needsArtwork);
 
   return (
@@ -136,41 +150,55 @@ export function UnplacedPanel({
       {/* Two tabs, because the panel answers two different questions: what is
           left to do, and what has already been done. The second one used to be
           unanswerable without walking every spread and clicking every ad. */}
-      <div
-        role="tablist"
-        aria-label="פרסומים בגיליון"
-        className="mb-2 flex gap-1 rounded-lg border border-outline-variant bg-surface-container p-1"
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "unplaced"}
-          data-testid="tab-unplaced"
-          onClick={() => setTab("unplaced")}
-          className={cn(
-            "flex-1 rounded-sm px-2 py-1.5 text-sm font-medium transition-colors",
-            tab === "unplaced"
-              ? "bg-surface-container-lowest text-on-surface shadow-elevation-1 ring-1 ring-outline-variant"
-              : "text-on-surface-variant hover:text-on-surface",
-          )}
+      <div className="mb-2 flex items-center gap-1">
+        <div
+          role="tablist"
+          aria-label="פרסומים בגיליון"
+          className="flex flex-1 gap-1 rounded-lg border border-outline-variant bg-surface-container p-1"
         >
-          לא שובצו <span data-testid="unplaced-count">({unplaced.length})</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "placed"}
-          data-testid="tab-placed"
-          onClick={() => setTab("placed")}
-          className={cn(
-            "flex-1 rounded-sm px-2 py-1.5 text-sm font-medium transition-colors",
-            tab === "placed"
-              ? "bg-surface-container-lowest text-on-surface shadow-elevation-1 ring-1 ring-outline-variant"
-              : "text-on-surface-variant hover:text-on-surface",
-          )}
-        >
-          שובצו <span data-testid="placed-count">({placements.length})</span>
-        </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "unplaced"}
+            data-testid="tab-unplaced"
+            onClick={() => setTab("unplaced")}
+            className={cn(
+              "flex-1 rounded-sm px-2 py-1.5 text-sm font-medium transition-colors",
+              tab === "unplaced"
+                ? "bg-surface-container-lowest text-on-surface shadow-elevation-1 ring-1 ring-outline-variant"
+                : "text-on-surface-variant hover:text-on-surface",
+            )}
+          >
+            לא שובצו <span data-testid="unplaced-count">({unplaced.length})</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "placed"}
+            data-testid="tab-placed"
+            onClick={() => setTab("placed")}
+            className={cn(
+              "flex-1 rounded-sm px-2 py-1.5 text-sm font-medium transition-colors",
+              tab === "placed"
+                ? "bg-surface-container-lowest text-on-surface shadow-elevation-1 ring-1 ring-outline-variant"
+                : "text-on-surface-variant hover:text-on-surface",
+            )}
+          >
+            שובצו <span data-testid="placed-count">({placements.length})</span>
+          </button>
+        </div>
+        {onCollapse ? (
+          <button
+            type="button"
+            data-testid="list-collapse"
+            onClick={onCollapse}
+            aria-label="הסתרת רשימת הפרסומים, כדי שהעמוד יהיה גדול יותר"
+            title="הסתרת הרשימה"
+            className="hidden size-9 shrink-0 items-center justify-center rounded-md border border-outline-variant text-on-surface-variant hover:bg-surface-container xl:flex"
+          >
+            <PanelRightClose className="size-4" aria-hidden />
+          </button>
+        ) : null}
       </div>
 
       {tab === "placed" ? (
@@ -210,8 +238,35 @@ export function UnplacedPanel({
             </label>
           ) : null}
 
+          {unplaced.length > 3 || needle ? (
+            <label className="relative mb-2 block">
+              <span className="sr-only">חיפוש מודעה ברשימה</span>
+              <Search
+                className="pointer-events-none absolute start-2 top-1/2 size-4 -translate-y-1/2 text-on-surface-variant"
+                aria-hidden
+              />
+              <input
+                id="board-search"
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setQuery("");
+                    e.currentTarget.blur();
+                  }
+                }}
+                placeholder="חיפוש לקוח, גודל או הזמנה ( / )"
+                data-testid="board-search"
+                className="h-9 w-full rounded-md border border-outline-variant bg-surface-container-lowest ps-8 pe-2 text-sm"
+              />
+            </label>
+          ) : null}
+
           {visible.length === 0 ? (
-            <p className="text-sm text-on-surface-variant">כל הפרסומים של התאריך הזה שובצו.</p>
+            <p className="text-sm text-on-surface-variant">
+              {needle ? "אין מודעה שמתאימה לחיפוש." : "כל הפרסומים של התאריך הזה שובצו."}
+            </p>
           ) : (
             <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto" data-testid="unplaced-list">
               {visible.map((item) => {
@@ -233,6 +288,14 @@ export function UnplacedPanel({
                         onPointerDown={() => {
                           if (item.blockedReason) return;
                           onPressStart();
+                          onPick(item);
+                        }}
+                        // From the keyboard too (08/11/2026): pointer-down is not
+                        // a click, so Enter on a focused card did nothing.
+                        onKeyDown={(e) => {
+                          if (item.blockedReason || (e.key !== "Enter" && e.key !== " ")) return;
+                          e.preventDefault();
+                          e.stopPropagation();
                           onPick(item);
                         }}
                         className={cn(

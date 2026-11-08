@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Ltr } from "@/components/ui/ltr";
 import { InlineError } from "@/components/states";
-import { PRICE_ORIGIN_LABELS, priceOrigin } from "@/lib/domain/order";
+import { PRICE_ORIGIN_LABELS, priceDeviation, priceOrigin } from "@/lib/domain/order";
 import {
   formatDays,
   hasSchedule,
@@ -191,6 +191,7 @@ export function LineBuilder({
 
   const origin = priceOrigin(price.trim() === "" ? null : Number(price), suggested);
   const unitPrice = price.trim() === "" ? suggested : Number(price);
+  const deviation = priceDeviation(price.trim() === "" ? null : Number(price), suggested);
   const previewTotal = unitPrice === null ? null : unitPrice * dates.length;
 
   return (
@@ -449,6 +450,17 @@ export function LineBuilder({
               />
               <p className="mt-1 text-[11px] text-on-surface-variant" data-testid="price-origin">
                 {PRICE_ORIGIN_LABELS[origin]}
+                {deviation ? (
+                  <span
+                    data-testid="price-deviation"
+                    className={deviation.below ? "text-status-warning-fg" : undefined}
+                  >
+                    {" · "}
+                    {deviation.below ? "הנחה של " : "תוספת של "}
+                    <Ltr>{formatMoney(deviation.amount)}</Ltr> (<Ltr>{`${deviation.percent}%`}</Ltr>){" "}
+                    {deviation.below ? "מהמחירון" : "מעל המחירון"} <Ltr>{formatMoney(suggested!)}</Ltr>
+                  </span>
+                ) : null}
               </p>
             </div>
 

@@ -114,6 +114,8 @@ enum AuditAction {
   board_sale
   move_missed_publication
   credit_missed_publication
+  /// A manager let a customer past the credit block for ONE order (08/11/2026).
+  release_credit_block
 }
 
 /// An independent business in the multi-tenant system (FR-1, FR-2).
@@ -171,6 +173,14 @@ model Business {
   /// mail program installed on the computer.
   mail_client MailClient @default(gmail)
 
+  /// Credit block (user, 08/11/2026): a customer whose PRINTED, unpaid debt is
+  /// older than this many days cannot place another order until it is paid
+  /// or a manager releases them once. null = no limit by age.
+  credit_block_days   Int?
+  /// …or whose printed, unpaid debt exceeds this amount. null = no limit by
+  /// amount. Either one blocks.
+  credit_block_amount Decimal? @db.Decimal(12, 2)
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
@@ -187,6 +197,8 @@ model Business {
   settings       BusinessSettings?
 
   tear_sheet_deliveries TearSheetDelivery[]
+  saved_filters         SavedFilter[]
+  credit_releases       CreditRelease[]
 
   @@map("Business")
 }
@@ -252,7 +264,9 @@ model User {
   pdf_generations     PdfGenerationLog[]
   payments            Payment[]
 
-  tear_sheets_sent TearSheetDelivery[]
+  tear_sheets_sent        TearSheetDelivery[]
+  saved_filters           SavedFilter[]
+  credit_releases_granted CreditRelease[]
 
   @@map("User")
 }
@@ -341,18 +355,19 @@ model Customer {
   created_at          DateTime @default(now())
   updated_at          DateTime @updatedAt
 
-  business       Business            @relation(fields: [business_id], references: [id], onDelete: Restrict)
+  business        Business            @relation(fields: [business_id], references: [id], onDelete: Restrict)
   /// The people at the business, first one = main contact. Part of the
   /// customer, so they go with it.
-  contacts       CustomerContact[]
-  ad_orders      AdOrder[]
-  publications   Publication[]
+  contacts        CustomerContact[]
+  ad_orders       AdOrder[]
+  publications    Publication[]
   /// Restrict: a customer with files on record is not something to delete out
   /// from under them (stage 05 §מודל נתונים).
-  advertisements Advertisement[]
-  reminders      Reminder[]
-  payments       Payment[]
-  tear_sheets    TearSheetDelivery[]
+  advertisements  Advertisement[]
+  reminders       Reminder[]
+  payments        Payment[]
+  tear_sheets     TearSheetDelivery[]
+  credit_releases CreditRelease[]
 
   /// Not unique: two branches of one company share a tax id, and the user
   /// confirms that knowingly (03/11/2026). The form warns as it is typed.
@@ -517,18 +532,22 @@ model Newspaper {
 
 /// Cover, back, inner, premium… free text, not an enum (US-006).
 model PageType {
-  id           String   @id @default(cuid())
-  newspaper_id String
-  name         String
+  id             String   @id @default(cuid())
+  newspaper_id   String
+  name           String
   /// Auto-placement may put ads on pages of this type (newspaper settings,
   /// 27/09/2026). The cover and the back are usually switched off here.
-  auto_place   Boolean  @default(true)
+  auto_place     Boolean  @default(true)
   /// The type auto-placement ADDS when the issue runs out of room. At most one
   /// per newspaper (enforced in the action); none → the inner type by name
   /// (lib/domain/issue-layout.ts innerPageTypeId).
-  auto_grow    Boolean  @default(false)
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
+  auto_grow      Boolean  @default(false)
+  /// Where a portal request is filed when the customer does not pick a page
+  /// type (08/11/2026). At most one per newspaper (enforced in the action);
+  /// none → the type named "פנימי" (lib/domain/portal-request.ts).
+  portal_default Boolean  @default(false)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
 
   newspaper      Newspaper         @relation(fields: [newspaper_id], references: [id], onDelete: Cascade)
   allowed_shapes AllowedAdShape[]
@@ -820,45 +839,45 @@ model AdOrder {
 /// (newspaper, page_type, ad_shape), so without it no price can be derived.
 /// Documented as an implementation addition in docs/plan/04-orders-publications.md.
 model AdOrderItem {
-  id               String   @id @default(cuid())
-  order_id         String
-  newspaper_id     String
-  page_type_id     String
-  ad_shape_id      String
-  publication_date DateTime @db.Date
+  id                 String   @id @default(cuid())
+  order_id           String
+  newspaper_id       String
+  page_type_id       String
+  ad_shape_id        String
+  publication_date   DateTime @db.Date
   /// Taken from PriceRule as a default, overridable by hand. Once the order is
   /// approved this value is copied onto the Publication and frozen (FR-17).
-  price            Decimal  @db.Decimal(12, 2)
+  price              Decimal  @db.Decimal(12, 2)
   /// Set when the user knowingly ordered a date that is not one of the
   /// newspaper's `publication_days` — a special edition. Stored rather than
   /// re-derived so that later changing the newspaper's schedule cannot
   /// retroactively turn a deliberate choice into a warning.
-  off_schedule     Boolean  @default(false)
+  off_schedule       Boolean  @default(false)
   /// A page NUMBER the customer asked for on this line ("always page 5").
   /// Overrides Customer.preferred_page when both are set (the user, 31/10/2026).
-  requested_page   Int?
+  requested_page     Int?
   /// Where in the issue (the user, 03/11/2026): "page" (requested_page above),
   /// "middle", "right", "left", "first_half", "second_half" — or null.
   /// lib/domain/position-request.ts reads these five columns together.
   position_kind      String?
   /// How far from the request the ad may move: pages, or percent of the issue.
-  position_flex      Int     @default(0)
-  position_flex_unit String  @default("pages")
+  position_flex      Int      @default(0)
+  position_flex_unit String   @default("pages")
   /// Free text for whoever places it ("ליד מדור הספורט").
   position_note      String?
   /// The quantity discount this line earned, frozen at approval (backlog
   /// item 12). `price` above stays the LIST price — it is what the seller
   /// typed and what the conversation with the customer was about — and the
   /// net is what reaches the publication.
-  discount_percent Decimal  @default(0) @db.Decimal(5, 2)
+  discount_percent   Decimal  @default(0) @db.Decimal(5, 2)
   /// Which package earned it, so an invoice can name it. SetNull: retiring a
   /// package must not erase the discount an approved order already carries.
-  package_id       String?
+  package_id         String?
   /// The artwork for THIS line (backlog 26), when a request carries different
   /// files for different parts of it — a full page on one date and a quarter
   /// on another. Falls back to AdOrder.advertisement_id on approval. SetNull
   /// for the same reason as there: losing the file must not lose the line.
-  advertisement_id String?
+  advertisement_id   String?
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -1444,4 +1463,57 @@ model TearSheetDelivery {
   @@index([publication_id])
   @@index([batch_id])
   @@map("TearSheetDelivery")
+}
+
+// ---------------------------------------------------------------------------
+// 08/11/2026 — saved filters and the credit block
+// ---------------------------------------------------------------------------
+
+/// A filter somebody saved as a button on a list (user, 08/11/2026: "סינון של
+/// שלב אחד או כמה שלבים … שיישאר כלחצן … לבחור צבע + שם + לכל המשתמשים של
+/// הלקוח הזה או למשתמש הבודד הזה").
+///
+/// `query` is the list's own URL query string — the URL is already the whole
+/// state of every list, so replaying it is the whole filter, and nothing here
+/// has to know what the fields mean.
+model SavedFilter {
+  id          String   @id @default(cuid())
+  business_id String
+  /// Which list: "orders", "publications".
+  list        String
+  name        String
+  /// A palette key (lib/domain/saved-filter.ts), never a raw colour.
+  color       String
+  query       String
+  /// null = everyone in the business sees it; otherwise only this user.
+  owner_id    String?
+  created_by  String
+  created_at  DateTime @default(now())
+
+  business Business @relation(fields: [business_id], references: [id], onDelete: Cascade)
+  owner    User?    @relation(fields: [owner_id], references: [id], onDelete: Cascade)
+
+  @@index([business_id, list])
+  @@map("SavedFilter")
+}
+
+/// A manager letting a blocked customer place ONE more order (user, 08/11/2026:
+/// "כל הורדת חסימה היא חד פעמית"). Consumed by the next order created for the
+/// customer; a second order needs a second release.
+model CreditRelease {
+  id          String    @id @default(cuid())
+  business_id String
+  customer_id String
+  granted_by  String
+  created_at  DateTime  @default(now())
+  /// Set when an order used it — the release is spent.
+  used_at     DateTime?
+  order_id    String?
+
+  business Business @relation(fields: [business_id], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  granter  User     @relation(fields: [granted_by], references: [id], onDelete: Restrict)
+
+  @@index([business_id, customer_id, used_at])
+  @@map("CreditRelease")
 }

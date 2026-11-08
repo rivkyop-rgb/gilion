@@ -51,7 +51,7 @@ const SECTIONS = [
     href: "/settings/ad-shapes",
     icon: Shapes,
     title: "צורות פרסום",
-    body: "קטלוג הצורות. משותף לכל העסקים במערכת.",
+    body: "הגדלים שנמכרים בכל עיתון: חצי עמוד, רבע, רצועה ועוד.",
   },
   // Stage 11 — the admin panel. Everything below is changed by an admin
   // without a developer and without a deploy.
@@ -77,7 +77,7 @@ const SECTIONS = [
     href: "/settings/general",
     icon: Globe,
     title: "כללי",
-    body: "פרטי התקשרות, אזור זמן, פורמט תאריך ומטבע.",
+    body: "פרטי התקשרות, קישור לפורטל הלקוחות ותוכנת המייל.",
   },
 ];
 

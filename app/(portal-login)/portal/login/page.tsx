@@ -26,7 +26,7 @@ export default async function PortalLoginPage() {
       </div>
       <h1 className="mb-1 font-serif text-2xl font-semibold">כניסת לקוחות</h1>
       <p className="mb-6 text-sm text-on-surface-variant">
-        כאן מגישים בקשות פרסום ועוקבים אחריהן. הפרטים לכניסה נשלחים אלייך מהעיתון.
+        כאן מגישים בקשות פרסום ועוקבים אחריהן. פרטי הכניסה נשלחים מהעיתון.
       </p>
       <LoginForm />
       <p className="mt-6 text-center text-xs text-on-surface-variant">

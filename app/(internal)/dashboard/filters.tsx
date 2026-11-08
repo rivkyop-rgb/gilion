@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Filter } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ResetFilters } from "@/components/ui/reset-filters";
@@ -89,6 +88,9 @@ export function DashboardFilters({
     <form
       className="mb-4 flex flex-wrap items-end gap-3"
       data-testid="dashboard-filters"
+      onChange={(e) => {
+        if (e.target instanceof HTMLSelectElement) e.currentTarget.requestSubmit();
+      }}
       onSubmit={(e) => {
         e.preventDefault();
         const data = new FormData(e.currentTarget);
@@ -131,6 +133,7 @@ export function DashboardFilters({
             defaultValue={values.customer === "all" ? "" : values.customer}
             placeholder="כל הלקוחות"
             emptyText="אין לקוח בשם הזה"
+            autoSubmit
           />
         </div>
       </Field>
@@ -153,8 +156,8 @@ export function DashboardFilters({
         </select>
       </Field>
 
-      <Button type="submit" variant="secondary" data-testid="apply-filters">
-        <Filter className="size-4" />
+      {/* Every field applies itself (08/11/2026); the button stays for Enter. */}
+      <Button type="submit" variant="secondary" data-testid="apply-filters" className="sr-only">
         סינון
       </Button>
 

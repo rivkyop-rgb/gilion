@@ -15,6 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
+import { AutoSubmitForm } from "@/components/ui/auto-submit-form";
 import { Input } from "@/components/ui/input";
 import { Ltr } from "@/components/ui/ltr";
 import { EmptyState } from "@/components/states";
@@ -206,7 +207,7 @@ export default async function AdvertisementsPage({
         />
       ) : null}
 
-      <form className="mb-6 flex flex-wrap items-end gap-3">
+      <AutoSubmitForm className="mb-6 flex flex-wrap items-end gap-3" testId="ad-filters">
         <input type="hidden" name="view" value={view} />
         <input type="hidden" name="unassigned" value={unassigned} />
         {q ? <input type="hidden" name="q" value={q} /> : null}
@@ -229,6 +230,7 @@ export default async function AdvertisementsPage({
               defaultValue={customer === "all" ? "" : customer}
               placeholder="כל הלקוחות"
               emptyText="אין לקוח בשם הזה"
+              autoSubmit
             />
           </div>
         </div>
@@ -306,7 +308,9 @@ export default async function AdvertisementsPage({
           <Input id="to" name="to" type="date" dir="ltr" defaultValue={to} className="w-40" />
         </div>
 
-        <Button type="submit" variant="secondary" data-testid="apply-filters">
+        {/* Every field applies itself. The button stays for the keyboard: a
+            form with several fields and no submit button ignores Enter. */}
+        <Button type="submit" variant="secondary" data-testid="apply-filters" className="sr-only">
           סינון
         </Button>
         <ResetFilters
@@ -319,14 +323,14 @@ export default async function AdvertisementsPage({
             newspaper !== "all"
           }
         />
-      </form>
+      </AutoSubmitForm>
 
       <ListToolbar
         prefix=""
         params={list}
         total={total}
         baseHref={hrefWith({ q: undefined, size: undefined })}
-        searchLabel="שם קובץ או לקוח"
+        searchLabel="שם קובץ"
       />
 
       {model.length === 0 ? (

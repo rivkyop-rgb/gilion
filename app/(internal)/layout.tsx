@@ -78,6 +78,15 @@ export default async function InternalLayout({ children }: { children: React.Rea
 
   return (
     <div className="flex min-h-screen bg-surface" style={cssVariables(settings.colors)}>
+      {/* The first Tab stop (08/11/2026): sixteen presses used to stand between
+          the keyboard and the page's own first button. */}
+      <a
+        href="#main-content"
+        className="sr-only z-[80] rounded-lg bg-primary px-4 py-2 text-on-primary focus:not-sr-only focus:fixed focus:start-4 focus:top-4"
+        data-testid="skip-to-content"
+      >
+        דילוג לתוכן
+      </a>
       {/* The rail owns its own width: it collapses to icons on demand, and by
           itself once the screen is too narrow for a full menu beside the page. */}
       <SidebarRail
@@ -116,7 +125,7 @@ export default async function InternalLayout({ children }: { children: React.Rea
           onSignOut={signOutAction}
         />
         {/* Room under the content for the phone's bottom bar. */}
-        <main className="flex-1 pb-20 lg:pb-0">
+        <main id="main-content" tabIndex={-1} className="flex-1 pb-20 outline-none lg:pb-0">
           <ContentFrame>
             <Breadcrumbs />
             <MailClientProvider value={mail}>{children}</MailClientProvider>

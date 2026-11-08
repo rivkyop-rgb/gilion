@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BASE_SHAPES, materializeBaseShapes } from "./base-shapes";
+import { BASE_SHAPES, inexactShapesNote, materializeBaseShapes } from "./base-shapes";
 import { deriveGrid, shapeFitsGrid, type DerivedGrid } from "./grid";
 import { validPositionCount } from "./slot-geometry";
 
@@ -95,7 +95,12 @@ describe("adapting to other grids", () => {
     for (const settings of grids) {
       const grid = deriveGrid(settings) as DerivedGrid;
       for (const base of BASE_SHAPES) {
-        const shape = materializeBaseShapes(grid).find((s) => s.key === base.key)!;
+        const shape = materializeBaseShapes(grid).find((s) => s.key === base.key);
+        // 08/11/2026: on an odd column count the halves are not made at all.
+        if (!shape) {
+          expect(base.exact && grid.columns % 2 !== 0, `${base.key} missing`).toBe(true);
+          continue;
+        }
 
         // Only the ratios that mean "one nth of the page" have to tile.
         const acrossN = 1 / base.colsRatio;
@@ -146,3 +151,23 @@ describe("adapting to other grids", () => {
     }
   });
 });
+
+describe("a fraction is exact (08/11/2026)", () => {
+  const grid = (columns: number) =>
+    deriveGrid({ pageSize: "Tabloid", marginMm: 10, columns, rowHeightMm: 10, gutterMm: 0 }) as DerivedGrid;
+
+  it("does not sell 40% of a page as half of it", () => {
+    const keys = materializeBaseShapes(grid(5)).map((s) => s.key);
+    expect(keys).not.toContain("half_v");
+    expect(keys).not.toContain("quarter");
+    expect(keys).toContain("half_h");
+    const half = materializeBaseShapes(grid(6)).find((s) => s.key === "half_v")!;
+    expect(half.cols).toBe(3);
+  });
+
+  it("says so before saving, and what would fix it", () => {
+    expect(inexactShapesNote(grid(5))).toContain("4 או 6 עמודות");
+    expect(inexactShapesNote(grid(6))).toBeNull();
+  });
+});
+

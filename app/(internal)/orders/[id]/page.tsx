@@ -1,3 +1,4 @@
+import { INNER_PAGE_TYPE_NAME } from "@/lib/domain/portal-request";
 import { describePosition, effectivePosition, positionOf } from "@/lib/domain/position-request";
 import type { Metadata } from "next";
 import { RecordHistory } from "@/components/record-history";
@@ -136,6 +137,19 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         )
       : null;
 
+  // 08/11/2026: a portal line on a type other than the newspaper's default is
+  // one the customer chose on purpose — and was told the office would call.
+  const specialPortalLines =
+    order.source === "customer_portal"
+      ? order.items.filter((i) => {
+          const types = i.newspaper.page_types;
+          const def =
+            types.find((t) => t.portal_default) ??
+            types.find((t) => t.name === INNER_PAGE_TYPE_NAME);
+          return def ? i.page_type.id !== def.id : false;
+        })
+      : [];
+
   return (
     <>
       {maySeeMoney ? (
@@ -172,6 +186,16 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               </>
             ) : null}
           </p>
+          {specialPortalLines.length > 0 ? (
+            <p
+              className="basis-full rounded-sm bg-status-warning-bg px-3 py-2 text-status-warning-fg"
+              data-testid="portal-special-page"
+            >
+              הלקוח ביקש מיקום מיוחד:{" "}
+              {[...new Set(specialPortalLines.map((i) => i.page_type.name))].join(", ")}. צריך
+              ליצור איתו קשר ולתאם לפני האישור — הפורטל אמר לו שנחזור אליו.
+            </p>
+          ) : null}
         </div>
       ) : null}
 

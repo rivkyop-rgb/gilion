@@ -86,45 +86,75 @@ export default async function PortalAccountPage() {
         {publications.length === 0 ? (
           <p className="text-sm text-on-surface-variant">עדיין אין פרסומים מאושרים.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm" data-testid="portal-publications">
-              <thead className="text-on-surface-variant">
-                <tr>
-                  <th className="p-2 text-start font-medium">תאריך</th>
-                  <th className="p-2 text-start font-medium">עיתון</th>
-                  <th className="p-2 text-start font-medium">גודל</th>
-                  <th className="p-2 text-start font-medium">מצב</th>
-                  <th className="p-2 text-start font-medium">הזמנה</th>
-                  <th className="p-2 text-end font-medium">מחיר</th>
-                </tr>
-              </thead>
-              <tbody>
-                {publications.map((p) => (
-                  <tr key={p.id} className="border-t border-outline-variant">
-                    <td className="p-2">
-                      <Ltr>{DAY.format(p.publication_date)}</Ltr>
-                    </td>
-                    <td className="p-2">{p.newspaper.name}</td>
-                    <td className="p-2">{p.ad_shape.name}</td>
-                    <td className="p-2">
-                      {PUBLICATION_STATUS_LABELS[p.status as PublicationStatus]}
-                    </td>
-                    <td className="p-2">
-                      <Ltr>{requestNumber(p.order.number)}</Ltr>
-                    </td>
-                    <td
+          <>
+            {/* On a phone: one card per publication. Six columns at 375 broke
+              "ORD-" from its number and cut the price off (08/11/2026). */}
+            <ul className="space-y-2 sm:hidden" data-testid="portal-publications-cards">
+              {publications.map((p) => (
+                <li key={p.id} className="rounded-lg border border-outline-variant p-3 text-sm">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="font-semibold">
+                      <Ltr>{DAY.format(p.publication_date)}</Ltr> · {p.newspaper.name}
+                    </span>
+                    <span
                       className={cn(
-                        "whitespace-nowrap p-2 text-end",
+                        "whitespace-nowrap font-semibold",
                         p.status === "canceled" && "line-through opacity-60",
                       )}
                     >
                       <Ltr>{formatPortalMoney(p.price)}</Ltr>
-                    </td>
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-on-surface-variant">
+                    <span>{p.ad_shape.name}</span>
+                    <span>{PUBLICATION_STATUS_LABELS[p.status as PublicationStatus]}</span>
+                    <span className="whitespace-nowrap">
+                      <Ltr>{requestNumber(p.order.number)}</Ltr>
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="w-full text-sm" data-testid="portal-publications">
+                <thead className="text-on-surface-variant">
+                  <tr>
+                    <th className="p-2 text-start font-medium">תאריך</th>
+                    <th className="p-2 text-start font-medium">עיתון</th>
+                    <th className="p-2 text-start font-medium">גודל</th>
+                    <th className="p-2 text-start font-medium">מצב</th>
+                    <th className="p-2 text-start font-medium">הזמנה</th>
+                    <th className="p-2 text-end font-medium">מחיר</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {publications.map((p) => (
+                    <tr key={p.id} className="border-t border-outline-variant">
+                      <td className="p-2">
+                        <Ltr>{DAY.format(p.publication_date)}</Ltr>
+                      </td>
+                      <td className="p-2">{p.newspaper.name}</td>
+                      <td className="p-2">{p.ad_shape.name}</td>
+                      <td className="p-2">
+                        {PUBLICATION_STATUS_LABELS[p.status as PublicationStatus]}
+                      </td>
+                      <td className="whitespace-nowrap p-2">
+                        <Ltr>{requestNumber(p.order.number)}</Ltr>
+                      </td>
+                      <td
+                        className={cn(
+                          "whitespace-nowrap p-2 text-end",
+                          p.status === "canceled" && "line-through opacity-60",
+                        )}
+                      >
+                        <Ltr>{formatPortalMoney(p.price)}</Ltr>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </section>
 
@@ -148,7 +178,7 @@ export default async function PortalAccountPage() {
                   <tr key={p.id} className="border-t border-outline-variant">
                     <td className="p-2">{p.date ? <Ltr>{formatPortalDate(p.date)}</Ltr> : "—"}</td>
                     <td className="p-2">{p.invoice ? <Ltr>{p.invoice}</Ltr> : "—"}</td>
-                    <td className="p-2">
+                    <td className="whitespace-nowrap p-2">
                       {p.orderNumber ? <Ltr>{requestNumber(p.orderNumber)}</Ltr> : "—"}
                     </td>
                     <td className="whitespace-nowrap p-2 text-end">
@@ -170,8 +200,8 @@ export default async function PortalAccountPage() {
       <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-6">
         <h2 className="mb-1 font-serif text-xl font-semibold">שינוי סיסמה</h2>
         <p className="mb-5 text-sm text-on-surface-variant">
-          לפחות {MIN_PASSWORD_LENGTH} תווים. הסיסמה שקיבלת מהעיתון נמסרה בעל פה — כדאי להחליף אותה
-          בסיסמה שרק את יודעת.
+          לפחות {MIN_PASSWORD_LENGTH} תווים. הסיסמה מהעיתון נמסרה בעל פה — כדאי להחליף אותה בסיסמה
+          שרק בעל החשבון יודע.
         </p>
         <PasswordForm action={changePortalPasswordAction} />
       </section>

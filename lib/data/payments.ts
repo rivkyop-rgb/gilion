@@ -8,6 +8,7 @@
  * derived, and a screen that could type one would be able to say "paid" about
  * money nobody received.
  */
+import { agingBuckets } from "@/lib/domain/aging";
 import type { Prisma, PublicationStatus as PublicationStatusValue } from "@prisma/client";
 
 import { randomUUID } from "node:crypto";
@@ -15,12 +16,22 @@ import { randomUUID } from "node:crypto";
 import { tenantDb } from "./db";
 import { withAudit } from "./audit";
 import { derivePaymentStatus, type PaymentStatus } from "@/lib/domain/payment-status";
-import { buildReport, type ReportOrder, type ReportPublication } from "@/lib/domain/payment-report";
+import {
+  allocateOrderPayments,
+  buildReport,
+  coverageByPayment,
+  type CoverageLine,
+  type ReportOrder,
+  type ReportPublication,
+} from "@/lib/domain/payment-report";
 import { matchesLens, type PublicationLens } from "@/lib/domain/publication-report";
 import { allocatePayment, positionOf, type OpenOrder } from "@/lib/domain/payment-allocation";
 import { monthlyBreakdown } from "@/lib/domain/payment-months";
 import { orderNumberNeedle, skipFor, type ListParams } from "@/lib/domain/list-view";
-import { summariseAccount } from "@/lib/domain/customer-account";
+import { summariseAccount, type CustomerAccount } from "@/lib/domain/customer-account";
+
+/** Printed — mirrors lib/domain/customer-account.ts. */
+const RAN_STATES: string[] = ["published"];
 
 export type PaymentWriteContext = { businessId: string; userId: string };
 
@@ -710,7 +721,7 @@ export async function customerMonths(businessId: string, customerId: string) {
   const publications = await db.publication.findMany({
     where: { customer_id: customerId, order: { status: { in: ["approved", "completed"] } } },
     orderBy: { publication_date: "asc" },
-    select: { publication_date: true, price: true, order_id: true, status: true },
+    select: { id: true, publication_date: true, price: true, order_id: true, status: true },
     take: 2000,
   });
   if (publications.length === 0) return monthlyBreakdown([], new Map(), new Map());
@@ -720,9 +731,11 @@ export async function customerMonths(businessId: string, customerId: string) {
     billableTotalsByOrder(businessId, orderIds),
     paidByOrder(businessId, orderIds),
   ]);
+  const shares = await paidShares(businessId, orderIds, orderPaid);
 
   return monthlyBreakdown(
     publications.map((p) => ({
+      id: p.id,
       date: p.publication_date,
       price: Number(p.price),
       orderId: p.order_id,
@@ -730,6 +743,7 @@ export async function customerMonths(businessId: string, customerId: string) {
     })),
     orderTotals,
     orderPaid,
+    shares,
   );
 }
 
@@ -744,6 +758,7 @@ export async function customerAccount(businessId: string, customerId: string) {
     where: { customer_id: customerId },
     orderBy: { publication_date: "asc" },
     select: {
+      id: true,
       publication_date: true,
       price: true,
       order_id: true,
@@ -758,15 +773,18 @@ export async function customerAccount(businessId: string, customerId: string) {
     billableTotalsByOrder(businessId, orderIds),
     paidByOrder(businessId, orderIds),
   ]);
+  const shares = await paidShares(businessId, orderIds, orderPaid);
 
   const account = summariseAccount(
     rows.map((r) => ({
+      id: r.id,
       orderId: r.order_id,
       orderStatus: r.order.status,
       status: r.status,
       price: Number(r.price),
     })),
     orderPaid,
+    shares,
   );
 
   // The monthly table shows only what is actually charged, so it reads the
@@ -775,6 +793,7 @@ export async function customerAccount(businessId: string, customerId: string) {
     rows
       .filter((r) => BINDING_ORDER_STATUSES.includes(r.order.status))
       .map((r) => ({
+        id: r.id,
         date: r.publication_date,
         price: Number(r.price),
         orderId: r.order_id,
@@ -782,6 +801,7 @@ export async function customerAccount(businessId: string, customerId: string) {
       })),
     orderTotals,
     orderPaid,
+    shares,
   );
 
   return { account, ...monthly };
@@ -789,7 +809,7 @@ export async function customerAccount(businessId: string, customerId: string) {
 
 /**
  * The card's headline number — outstanding less credit — for a page of
- * customers at once, for the customer list's "יתרת חוב" column.
+ * customers at once, for the customer list's "יתרה פתוחה" column.
  *
  * The SAME computation as the card (`summariseAccount` over the customer's
  * publications, then the unassigned credit taken off), batched: one read of
@@ -803,21 +823,188 @@ export async function netByCustomer(
   customerIds: string[],
 ): Promise<Map<string, number>> {
   if (customerIds.length === 0) return new Map();
-  const rows = await tenantDb(businessId).publication.findMany({
-    where: { customer_id: { in: customerIds } },
-    select: {
-      customer_id: true,
-      price: true,
-      order_id: true,
-      status: true,
-      order: { select: { status: true } },
-    },
-  });
-
-  const [orderPaid, credits] = await Promise.all([
-    paidByOrder(businessId, [...new Set(rows.map((r) => r.order_id))]),
+  const [accounts, credits] = await Promise.all([
+    accountsByCustomer(businessId, customerIds),
     creditByCustomer(businessId),
   ]);
+  const net = new Map<string, number>();
+  for (const id of customerIds) {
+    const outstanding = accounts.get(id)?.account.outstanding ?? 0;
+    net.set(id, positionOf(outstanding, credits.get(id) ?? 0).net);
+  }
+  return net;
+}
+
+/** Orders that charge anything. Mirrors lib/domain/customer-account.ts. */
+const BINDING_ORDER_STATUSES = ["approved", "completed"];
+
+/**
+ * Which slice of each order's payments belongs to which publication — the
+ * single rule every money screen reads (08/11/2026): printed first, oldest
+ * first (lib/domain/payment-report.ts allocateOrderPayments).
+ *
+ * Always over EVERY billable publication of the orders asked about, so a
+ * screen that shows a period or a month gets the same number for a week as
+ * the screen that shows the whole customer.
+ */
+export async function paidShares(
+  businessId: string,
+  orderIds: string[],
+  paid?: Map<string, number>,
+): Promise<Map<string, number>> {
+  if (orderIds.length === 0) return new Map();
+  const [pubs, received] = await Promise.all([
+    tenantDb(businessId).publication.findMany({
+      where: { order_id: { in: orderIds }, status: { notIn: NOT_BILLABLE } },
+      select: { id: true, order_id: true, price: true, status: true, publication_date: true },
+    }),
+    paid ? Promise.resolve(paid) : paidByOrder(businessId, orderIds),
+  ]);
+  return allocateOrderPayments(
+    pubs.map((p) => ({
+      id: p.id,
+      orderId: p.order_id,
+      price: Number(p.price),
+      date: p.publication_date,
+      ran: RAN_STATES.includes(p.status),
+    })),
+    received,
+  );
+}
+
+/**
+ * Which publications each of a customer's payments paid for (08/11/2026: the
+ * user could not tell where "₪640" came from). Every recorded payment on an
+ * order, oldest first, down the same queue `paidShares` uses — so the lines
+ * under the payments add up to the "שולם" column of the months above them.
+ */
+export async function paymentCoverage(
+  businessId: string,
+  customerId: string,
+): Promise<Map<string, CoverageLine[]>> {
+  const payments = await tenantDb(businessId).payment.findMany({
+    where: { customer_id: customerId, status: "recorded", order_id: { not: null } },
+    select: { id: true, order_id: true, amount: true, payment_date: true, created_at: true },
+  });
+  const orderIds = [...new Set(payments.map((p) => p.order_id!))];
+  if (orderIds.length === 0) return new Map();
+  const pubs = await tenantDb(businessId).publication.findMany({
+    where: { order_id: { in: orderIds }, status: { notIn: NOT_BILLABLE } },
+    select: { id: true, order_id: true, price: true, status: true, publication_date: true },
+  });
+  return coverageByPayment(
+    pubs.map((p) => ({
+      id: p.id,
+      orderId: p.order_id,
+      price: Number(p.price),
+      date: p.publication_date,
+      ran: RAN_STATES.includes(p.status),
+    })),
+    payments.map((p) => ({
+      id: p.id,
+      orderId: p.order_id!,
+      amount: Number(p.amount),
+      date: p.payment_date ?? p.created_at,
+    })),
+  );
+}
+
+/**
+ * What `extra` more shekels on an order would cover, publication by
+ * publication (08/11/2026) — so the payment preview can say "יכסה את 19.11"
+ * instead of only naming the order. The same rule as everywhere: printed first.
+ */
+export async function coverageOf(
+  businessId: string,
+  orderId: string,
+  extra: number,
+): Promise<Array<{ date: Date; added: number; price: number; openAfter: number }>> {
+  const [pubs, paid] = await Promise.all([
+    tenantDb(businessId).publication.findMany({
+      where: { order_id: orderId, status: { notIn: NOT_BILLABLE } },
+      select: { id: true, price: true, status: true, publication_date: true },
+    }),
+    paidByOrder(businessId, [orderId]),
+  ]);
+  const slices = pubs.map((p) => ({
+    id: p.id,
+    orderId,
+    price: Number(p.price),
+    date: p.publication_date,
+    ran: RAN_STATES.includes(p.status),
+  }));
+  const before = allocateOrderPayments(slices, paid);
+  const after = allocateOrderPayments(
+    slices,
+    new Map([[orderId, (paid.get(orderId) ?? 0) + extra]]),
+  );
+  return slices
+    .map((sl) => ({
+      date: sl.date as Date,
+      price: sl.price,
+      added: round2((after.get(sl.id) ?? 0) - (before.get(sl.id) ?? 0)),
+      openAfter: round2(sl.price - (after.get(sl.id) ?? 0)),
+    }))
+    .filter((c) => c.added > 0)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
+/** A publication that printed and is not covered — one line of the aging drill-down. */
+export type OpenRan = {
+  publicationId: string;
+  orderId: string;
+  orderNumber: number;
+  newspaper: string;
+  shape: string;
+  date: Date;
+  open: number;
+};
+
+/**
+ * Per customer, the card's account and since when printed money has been
+ * open — computed once, the way the card computes it, for any number of
+ * customers. The billing table, its "debt" chip, the dashboard's "who owes
+ * money" and the debt-age column all read this, because each of them used to
+ * ask `AdOrder.payment_status = debt` — which needs EVERY publication on the
+ * order to have printed, and so said "no debt" about a weekly advertiser for
+ * the first nine weeks of a ten-week order (CLAUDE.md, "a rule stated about
+ * one entity and asked of another").
+ */
+export async function accountsByCustomer(
+  businessId: string,
+  customerIds?: string[],
+): Promise<
+  Map<
+    string,
+    {
+      account: CustomerAccount;
+      debtSince: Date | null;
+      /** Each ran publication still not covered — what aging counts. */
+      openRan: OpenRan[];
+    }
+  >
+> {
+  if (customerIds && customerIds.length === 0) return new Map();
+  const rows = await tenantDb(businessId).publication.findMany({
+    where: {
+      ...(customerIds ? { customer_id: { in: customerIds } } : {}),
+      order: { status: { in: ["approved", "completed"] } },
+    },
+    select: {
+      id: true,
+      customer_id: true,
+      order_id: true,
+      price: true,
+      status: true,
+      publication_date: true,
+      order: { select: { status: true, number: true } },
+      newspaper: { select: { name: true } },
+      ad_shape: { select: { name: true } },
+    },
+  });
+  const orderIds = [...new Set(rows.map((r) => r.order_id))];
+  const paid = await paidByOrder(businessId, orderIds);
+  const shares = await paidShares(businessId, orderIds, paid);
 
   const byCustomer = new Map<string, typeof rows>();
   for (const r of rows) {
@@ -825,25 +1012,43 @@ export async function netByCustomer(
     list.push(r);
     byCustomer.set(r.customer_id, list);
   }
-
-  const net = new Map<string, number>();
-  for (const id of customerIds) {
+  const result = new Map<
+    string,
+    { account: CustomerAccount; debtSince: Date | null; openRan: OpenRan[] }
+  >();
+  for (const [customerId, list] of byCustomer) {
     const account = summariseAccount(
-      (byCustomer.get(id) ?? []).map((r) => ({
+      list.map((r) => ({
+        id: r.id,
         orderId: r.order_id,
         orderStatus: r.order.status,
         status: r.status,
         price: Number(r.price),
       })),
-      orderPaid,
+      paid,
+      shares,
     );
-    net.set(id, positionOf(account.outstanding, credits.get(id) ?? 0).net);
+    let debtSince: Date | null = null;
+    const openRan: OpenRan[] = [];
+    for (const r of list) {
+      if (!RAN_STATES.includes(r.status)) continue;
+      const open = Number(r.price) - (shares.get(r.id) ?? 0);
+      if (open <= 0.005) continue;
+      openRan.push({
+        publicationId: r.id,
+        orderId: r.order_id,
+        orderNumber: r.order.number,
+        newspaper: r.newspaper.name,
+        shape: r.ad_shape.name,
+        date: r.publication_date,
+        open,
+      });
+      if (!debtSince || r.publication_date < debtSince) debtSince = r.publication_date;
+    }
+    result.set(customerId, { account, debtSince, openRan });
   }
-  return net;
+  return result;
 }
-
-/** Orders that charge anything. Mirrors lib/domain/customer-account.ts. */
-const BINDING_ORDER_STATUSES = ["approved", "completed"];
 
 export type BillingCustomerRow = {
   customerId: string;
@@ -856,6 +1061,8 @@ export type BillingCustomerRow = {
   /** outstanding − credit. Negative means the customer is ahead. */
   net: number;
   status: PaymentStatus;
+  /** Printed and not paid — the part of `outstanding` that is overdue. */
+  debt: number;
   orderCount: number;
   invoiceNumbers: string[];
 };
@@ -905,6 +1112,9 @@ export async function billingCustomers(
     businessId,
     orders.map((o) => o.id),
   );
+  // Debt is read per PUBLICATION, as the customer card reads it — not from
+  // the order's derived status (see accountsByCustomer).
+  const accounts = await accountsByCustomer(businessId);
 
   const byCustomer = new Map<string, BillingCustomerRow>();
   for (const order of orders) {
@@ -918,6 +1128,7 @@ export async function billingCustomers(
       credit: credits.get(order.customer_id) ?? 0,
       net: 0,
       status: "paid" as PaymentStatus,
+      debt: 0,
       orderCount: 0,
       invoiceNumbers: [],
     };
@@ -939,6 +1150,14 @@ export async function billingCustomers(
     row.status = worseOf(row.status, order.payment_status as PaymentStatus);
     byCustomer.set(order.customer_id, row);
   }
+  for (const row of byCustomer.values()) {
+    const debt = accounts.get(row.customerId)?.account.ranOpen ?? 0;
+    row.debt = debt;
+    // Anything printed and open makes the customer a debtor, whatever the
+    // order-level status says about the weeks still to come.
+    if (debt > 0) row.status = "debt";
+    else if (row.status === "debt") row.status = row.paid > 0 ? "partially_paid" : "unpaid";
+  }
 
   // A customer whose only money is a credit has no binding order, so the loop
   // above never created a row for them. They still belong on this screen —
@@ -959,6 +1178,7 @@ export async function billingCustomers(
       credit,
       net: 0,
       status: "paid",
+      debt: 0,
       orderCount: 0,
       invoiceNumbers: [],
     });
@@ -1151,7 +1371,10 @@ export async function billingReport(businessId: string, filters: ReportFilters) 
     invoiceNumbersByOrder(businessId, orderIds),
   ]);
 
+  const shares = await paidShares(businessId, orderIds, paid);
+
   const rows: ReportPublication[] = publications.map((p) => ({
+    id: p.id,
     customerId: p.customer_id,
     customerLabel: p.customer.business_name,
     newspaperId: p.newspaper_id,
@@ -1166,7 +1389,7 @@ export async function billingReport(businessId: string, filters: ReportFilters) 
     invoiceNumbers: invoices.get(orderId) ?? [],
   }));
 
-  return buildReport(rows, orders, orderTotals);
+  return buildReport(rows, orders, orderTotals, shares);
 }
 
 /** Sum of each order's billable publications — the apportioning denominator. */
@@ -1252,6 +1475,9 @@ export async function billingTotals(businessId: string) {
     billed: round2(rows.reduce((s, r) => s + r.billed, 0)),
     paid: round2(rows.reduce((s, r) => s + r.paid, 0)),
     outstanding: round2(rows.reduce((s, r) => s + r.outstanding, 0)),
+    /** The printed part of `outstanding` — the only part that is overdue. */
+    debt: round2(rows.reduce((s, r) => s + r.debt, 0)),
+    customersWithDebt: rows.filter((r) => r.debt > 0).length,
     // Money the business is holding against nothing. Its own figure and not a
     // deduction from the debt: they are owed by, and held for, different people.
     credit: round2(rows.reduce((s, r) => s + r.credit, 0)),
@@ -1286,23 +1512,15 @@ export async function billingRowFacts(
 ): Promise<Map<string, { debtSince: Date | null; lastReminder: Date | null }>> {
   if (customerIds.length === 0) return new Map();
   const db = tenantDb(businessId);
-  const [debts, reminders] = await Promise.all([
-    db.publication.groupBy({
-      by: ["customer_id"],
-      where: {
-        customer_id: { in: customerIds },
-        payment_status: "debt",
-        status: { not: "canceled" },
-      },
-      _min: { publication_date: true },
-    }),
+  const [accounts, reminders] = await Promise.all([
+    accountsByCustomer(businessId, customerIds),
     db.reminder.groupBy({
       by: ["customer_id"],
       where: { customer_id: { in: customerIds }, sent_at: { not: null } },
       _max: { sent_at: true },
     }),
   ]);
-  const since = new Map(debts.map((d) => [d.customer_id, d._min.publication_date]));
+  const since = new Map([...accounts].map(([id, a]) => [id, a.debtSince]));
   const reminded = new Map(reminders.map((r) => [r.customer_id, r._max.sent_at]));
   return new Map(
     customerIds.map((id) => [
@@ -1310,4 +1528,97 @@ export async function billingRowFacts(
       { debtSince: since.get(id) ?? null, lastReminder: reminded.get(id) ?? null },
     ]),
   );
+}
+
+/**
+ * Debt by age for the billing screen (08/11/2026) — from the same allocation
+ * the debt figure uses, so the four buckets add up to "מתוכה חוב".
+ */
+export async function debtAging(businessId: string, today = new Date()) {
+  const accounts = await accountsByCustomer(businessId);
+  const items: Array<OpenRan & { customerId: string }> = [];
+  for (const [customerId, a] of accounts) {
+    for (const o of a.openRan) items.push({ customerId, ...o });
+  }
+  const buckets = agingBuckets(items, today);
+  // Names for the drill-down (08/11/2026: "שאראה איזה לקוחות וממה מורכב הסכום").
+  const ids = [...new Set(items.map((i) => i.customerId))];
+  const names = new Map(
+    ids.length
+      ? (
+          await tenantDb(businessId).customer.findMany({
+            where: { id: { in: ids } },
+            select: { id: true, business_name: true },
+          })
+        ).map((c) => [c.id, c.business_name])
+      : [],
+  );
+  return buckets.map((b) => ({
+    ...b,
+    breakdown: b.breakdown.map((c) => ({ ...c, name: names.get(c.customerId) ?? "" })),
+  }));
+}
+
+/**
+ * Everything a customer's statement ("דף חשבון") prints (08/11/2026): every
+ * live publication on a binding order with what of it is covered, every
+ * recorded payment, and the same summary the card shows. Built from the same
+ * allocation (`paidShares`) as the billing screen, so the PDF never quotes a
+ * number the screen disagrees with.
+ */
+export async function customerStatement(businessId: string, customerId: string) {
+  const db = tenantDb(businessId);
+  const rows = await db.publication.findMany({
+    where: {
+      customer_id: customerId,
+      status: { notIn: ["canceled"] },
+      order: { status: { in: ["approved", "completed"] } },
+    },
+    orderBy: { publication_date: "asc" },
+    select: {
+      id: true,
+      publication_date: true,
+      price: true,
+      status: true,
+      order_id: true,
+      newspaper: { select: { name: true } },
+      ad_shape: { select: { name: true } },
+      order: { select: { number: true } },
+    },
+  });
+  const orderIds = [...new Set(rows.map((r) => r.order_id))];
+  const paid = await paidByOrder(businessId, orderIds);
+  const shares = await paidShares(businessId, orderIds, paid);
+  const [{ account }, payments, credit] = await Promise.all([
+    customerAccount(businessId, customerId),
+    paymentsForCustomer(businessId, customerId),
+    customerCredit(businessId, customerId),
+  ]);
+
+  return {
+    account,
+    credit,
+    publications: rows.map((r) => {
+      const price = Number(r.price);
+      const covered = Math.min(price, shares.get(r.id) ?? 0);
+      return {
+        date: r.publication_date,
+        newspaper: r.newspaper.name,
+        shape: r.ad_shape.name,
+        orderNumber: r.order.number,
+        ran: RAN_STATES.includes(r.status),
+        price,
+        covered,
+        open: Math.max(0, Math.round((price - covered) * 100) / 100),
+      };
+    }),
+    payments: payments
+      .filter((p) => p.status === "recorded")
+      .map((p) => ({
+        date: p.payment_date,
+        amount: Number(p.amount),
+        invoice: p.external_invoice_number,
+        orderNumber: p.order?.number ?? null,
+      })),
+  };
 }

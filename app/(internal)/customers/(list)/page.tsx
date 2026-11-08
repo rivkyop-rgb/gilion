@@ -127,7 +127,14 @@ export default async function CustomersPage({
         <ResetFilters href="/customers" active={Boolean(q)} />
       </form>
 
-      <ListToolbar prefix="" params={list} total={total} baseHref="/customers" searchable={false} />
+      <ListToolbar
+        prefix=""
+        params={list}
+        total={total}
+        baseHref="/customers"
+        searchable={false}
+        exportHref={`/api/export/list/customers${q ? `?q=${encodeURIComponent(q)}` : ""}`}
+      />
 
       {rows.length === 0 ? (
         <EmptyState
@@ -156,7 +163,7 @@ export default async function CustomersPage({
                 <th className="p-3 text-start font-semibold">מייל העסק</th>
                 {maySeeMoney ? (
                   <th className="p-3 text-start font-semibold" data-testid="debt-header">
-                    יתרת חוב
+                    יתרה פתוחה
                   </th>
                 ) : null}
               </tr>

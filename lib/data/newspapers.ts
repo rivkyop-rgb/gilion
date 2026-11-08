@@ -7,6 +7,7 @@
  * used to be one and now belongs to its newspaper, and its catalogue lives in
  * lib/data/ad-shapes.ts.
  */
+import { withPageTypesInOrder } from "@/lib/domain/page-type-order";
 import { Prisma } from "@prisma/client";
 
 import { basePrisma, tenantDb } from "./db";
@@ -37,7 +38,7 @@ export async function listNewspapers(businessId: string) {
 }
 
 export async function getNewspaper(businessId: string, id: string) {
-  return tenantDb(businessId).newspaper.findUnique({
+  const paper = await tenantDb(businessId).newspaper.findUnique({
     where: { id },
     include: {
       page_types: {
@@ -49,6 +50,7 @@ export async function getNewspaper(businessId: string, id: string) {
       },
     },
   });
+  return paper ? withPageTypesInOrder(paper) : null;
 }
 
 /** A newspaper's stored settings, resolved into a usable grid. */
@@ -419,7 +421,7 @@ export async function pricingData(businessId: string, newspaperId: string) {
   if (!paper) return null;
 
   return {
-    newspaper: paper,
+    newspaper: withPageTypesInOrder(paper),
     shapes,
     rules: rules.map((r) => ({
       pageTypeId: r.page_type_id,
@@ -646,6 +648,30 @@ export async function setAutoPlaceSettings(
         update: types.map((t) => ({
           where: { id: t.id },
           data: { auto_place: autoPlaceTypeIds.includes(t.id), auto_grow: t.id === growTypeId },
+        })),
+      },
+    },
+  });
+}
+
+/** Where portal requests go by default (08/11/2026). null → the type named "פנימי". */
+export async function setPortalDefaultPageType(
+  businessId: string,
+  newspaperId: string,
+  pageTypeId: string | null,
+) {
+  const db = tenantDb(businessId);
+  const types = await db.pageType.findMany({
+    where: { newspaper_id: newspaperId },
+    select: { id: true },
+  });
+  return db.newspaper.update({
+    where: { id: newspaperId },
+    data: {
+      page_types: {
+        update: types.map((t) => ({
+          where: { id: t.id },
+          data: { portal_default: t.id === pageTypeId },
         })),
       },
     },

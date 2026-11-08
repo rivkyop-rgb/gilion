@@ -29,7 +29,16 @@ const CAPTION = 22;
  * that is always whole — no scrolling to see the foot of it, which is where
  * half the ads sit.
  */
-export function useFittedSpread(pageCount: number, aspectRatio: number) {
+export function useFittedSpread(
+  pageCount: number,
+  aspectRatio: number,
+  /**
+   * Fit the WIDTH and let the page scroll down (08/11/2026). A portrait page
+   * fitted to both is limited by height, so the room freed by hiding the list
+   * went nowhere — this is what gives it to the page.
+   */
+  fitWidth = false,
+) {
   const ref = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ width: 0, height: 0 });
 
@@ -60,7 +69,10 @@ export function useFittedSpread(pageCount: number, aspectRatio: number) {
 
   const widthBudget = Math.max(0, box.width - SPREAD_GAP * (pages - 1));
   const heightFromWidth = widthBudget / pages / ratio;
-  const height = Math.max(0, Math.min(box.height - CAPTION, heightFromWidth));
+  const height = Math.max(
+    0,
+    fitWidth ? heightFromWidth : Math.min(box.height - CAPTION, heightFromWidth),
+  );
 
   return { ref, size: { width: Math.floor(height * ratio), height: Math.floor(height) } };
 }

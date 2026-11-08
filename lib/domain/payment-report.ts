@@ -105,6 +105,8 @@ export type ReportPublication = {
   /** The net price frozen on the publication (conventions.md §7). */
   price: number;
   status: string;
+  /** With `shares` (allocateOrderPayments), which slice of the payment is this one's. */
+  id?: string;
 };
 
 /** One order's money, as the report sees it. Payments are order-level. */
@@ -159,6 +161,58 @@ export function apportionedPaid(price: number, orderTotal: number, orderPaid: nu
   return orderPaid * (price / orderTotal);
 }
 
+/** One billable publication, as the allocation below needs to see it. */
+export type OrderSlice = {
+  id: string;
+  orderId: string;
+  price: number;
+  date: Date | string;
+  /** Already printed — what is owed first. */
+  ran: boolean;
+};
+
+/**
+ * How an order's payments cover its publications (08/11/2026): what already
+ * ran first, oldest first, and only then what is still to come.
+ *
+ * It used to be proportional (`apportionedPaid`), so ₪1,000 on a ten-week
+ * order closed ₪100 of the week that had already printed and spread the rest
+ * over weeks nobody had printed yet — the printed week stayed "debt" after the
+ * customer paid more than half of it. Collection works the other way: money
+ * goes against the oldest printed invoice first, and every screen reading this
+ * map says the same thing about the same week.
+ *
+ * Called with EVERY billable publication of the orders involved, never a
+ * period's slice of them: the order of coverage is a property of the whole
+ * order.
+ */
+export function allocateOrderPayments(
+  slices: readonly OrderSlice[],
+  paidByOrder: ReadonlyMap<string, number>,
+): Map<string, number> {
+  const byOrder = new Map<string, OrderSlice[]>();
+  for (const s of slices) {
+    const list = byOrder.get(s.orderId) ?? [];
+    list.push(s);
+    byOrder.set(s.orderId, list);
+  }
+  const time = (d: Date | string) => (typeof d === "string" ? Date.parse(d) : d.getTime());
+  const shares = new Map<string, number>();
+  for (const [orderId, list] of byOrder) {
+    let left = Math.max(0, paidByOrder.get(orderId) ?? 0);
+    const queue = [...list].sort(
+      (a, b) =>
+        Number(b.ran) - Number(a.ran) || time(a.date) - time(b.date) || a.id.localeCompare(b.id),
+    );
+    for (const s of queue) {
+      const share = Math.min(left, s.price);
+      shares.set(s.id, share);
+      left -= share;
+    }
+  }
+  return shares;
+}
+
 /**
  * One row per customer, sorted by what they owe.
  *
@@ -174,6 +228,8 @@ export function buildReport(
   orders: ReportOrder[],
   /** The whole order's billable total, for the proportion above. */
   orderTotals: Map<string, number>,
+  /** Per publication id, from allocateOrderPayments. Wins over the proportion. */
+  shares?: ReadonlyMap<string, number>,
 ): { rows: ReportRow[]; totals: ReportTotals } {
   const byOrder = new Map(orders.map((o) => [o.orderId, o]));
   const rows = new Map<string, ReportRow>();
@@ -198,7 +254,10 @@ export function buildReport(
 
     const order = byOrder.get(pub.orderId);
     if (order) {
-      row.paid += apportionedPaid(pub.price, orderTotals.get(pub.orderId) ?? 0, order.paidAmount);
+      row.paid +=
+        shares && pub.id !== undefined
+          ? (shares.get(pub.id) ?? 0)
+          : apportionedPaid(pub.price, orderTotals.get(pub.orderId) ?? 0, order.paidAmount);
 
       const seen = seenOrders.get(pub.customerId) ?? new Set<string>();
       if (!seen.has(pub.orderId)) {
@@ -238,4 +297,88 @@ export function buildReport(
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+export type CoveragePayment = {
+  id: string;
+  orderId: string;
+  amount: number;
+  /** Payments on one order are spent in the order they arrived. */
+  date: Date | string;
+};
+
+export type CoverageLine = { sliceId: string; date: Date | string; amount: number; price: number };
+
+/**
+ * Which publications each payment paid for (08/11/2026: "₪400 כיסו את 29.10
+ * ו־5.11 במלואם ו־₪80 מ־12.11").
+ *
+ * The same queue as `allocateOrderPayments` — printed first, then by date — fed
+ * by the order's payments one at a time, oldest first. So the lines of every
+ * payment on an order add up to exactly the shares that function gives, and
+ * the sentence under a payment never disagrees with the months above it.
+ */
+export function coverageByPayment(
+  slices: readonly OrderSlice[],
+  payments: readonly CoveragePayment[],
+): Map<string, CoverageLine[]> {
+  const time = (d: Date | string) => (typeof d === "string" ? Date.parse(d) : d.getTime());
+  const result = new Map<string, CoverageLine[]>();
+  const orders = new Set(payments.map((p) => p.orderId));
+  for (const orderId of orders) {
+    const queue = slices
+      .filter((s) => s.orderId === orderId)
+      .sort(
+        (a, b) =>
+          Number(b.ran) - Number(a.ran) || time(a.date) - time(b.date) || a.id.localeCompare(b.id),
+      )
+      .map((s) => ({ slice: s, left: s.price }));
+    const paying = payments
+      .filter((p) => p.orderId === orderId)
+      .sort((a, b) => time(a.date) - time(b.date) || a.id.localeCompare(b.id));
+    let at = 0;
+    for (const payment of paying) {
+      const lines: CoverageLine[] = [];
+      let money = Math.max(0, payment.amount);
+      while (money > 0.005 && at < queue.length) {
+        const item = queue[at]!;
+        const take = Math.min(money, item.left);
+        if (take > 0.005) {
+          lines.push({
+            sliceId: item.slice.id,
+            date: item.slice.date,
+            amount: Math.round(take * 100) / 100,
+            price: item.slice.price,
+          });
+        }
+        item.left -= take;
+        money -= take;
+        if (item.left <= 0.005) at += 1;
+      }
+      result.set(payment.id, lines);
+    }
+  }
+  return result;
+}
+
+/**
+ * The lines as one sentence: "כיסה את 29.10 ו־5.11 במלואם, ו־₪80 מתוך 12.11".
+ * `day` formats a date the way the screen does.
+ */
+export function coveragePhrase(
+  lines: readonly CoverageLine[],
+  day: (d: Date | string) => string,
+  money: (n: number) => string,
+): string | null {
+  if (lines.length === 0) return null;
+  const full = lines.filter((l) => l.amount >= l.price - 0.005).map((l) => day(l.date));
+  const part = lines.filter((l) => l.amount < l.price - 0.005);
+  const join = (xs: string[]) =>
+    xs.length <= 1 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} ו־${xs[xs.length - 1]}`;
+  const pieces: string[] = [];
+  if (full.length > 0) {
+    pieces.push(`${join(full)} ${full.length === 1 ? "במלואו" : "במלואם"}`);
+  }
+  for (const l of part) pieces.push(`${money(l.amount)} מתוך ${day(l.date)}`);
+  return `כיסה את ${pieces.length > 1 ? `${pieces.slice(0, -1).join(", ")}, ו־${pieces[pieces.length - 1]}` : pieces[0]}`;
 }

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import { getTenantContext } from "@/lib/auth/tenant";
+import { getPlatformContext } from "@/lib/auth/tenant";
 import { requireSuperAdmin } from "@/lib/auth/rbac";
 import * as data from "@/lib/data/platform";
 import { deactivationBlocked, normalizeEmail, validateNewBusiness } from "@/lib/domain/platform";
@@ -37,7 +37,7 @@ export async function createBusinessAction(
 ): Promise<FormState> {
   // The only gate. lib/data/platform.ts is not tenant-scoped by design, so
   // nothing below this line may run without it.
-  const ctx = await getTenantContext();
+  const ctx = await getPlatformContext();
   requireSuperAdmin(ctx.isSuperAdmin);
 
   const parsed = schema.safeParse({
@@ -66,7 +66,10 @@ export async function createBusinessAction(
   await data.createBusinessWithAdmin(input);
 
   revalidatePath("/platform");
-  redirect("/platform");
+  // Says it worked, and where to go next (08/11/2026) — the habodek run landed
+  // back on the list with nothing on screen admitting a business was created.
+  const created = `created=${encodeURIComponent(input.businessName)}`;
+  redirect(ctx.businessId ? `/platform?${created}` : `/select-business?${created}`);
 }
 
 /**
@@ -80,7 +83,7 @@ export async function setBusinessStatusAction(
   businessId: string,
   status: "active" | "inactive",
 ): Promise<FormState> {
-  const ctx = await getTenantContext();
+  const ctx = await getPlatformContext();
   requireSuperAdmin(ctx.isSuperAdmin);
 
   const business = await data.getBusiness(businessId);
@@ -88,7 +91,7 @@ export async function setBusinessStatusAction(
   if (business.status === status) return { message: "העסק כבר במצב הזה" };
 
   if (status === "inactive") {
-    const blocked = deactivationBlocked(businessId, ctx.businessId);
+    const blocked = ctx.businessId ? deactivationBlocked(businessId, ctx.businessId) : null;
     if (blocked) return { message: blocked };
   }
 

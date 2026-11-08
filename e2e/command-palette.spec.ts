@@ -18,7 +18,7 @@ test("Ctrl+K finds a customer and opens the billing window on them", async ({ pa
   await expect(page.getByTestId("command-item-c-cust_alpha_1")).toBeVisible();
 
   await page.getByTestId("command-item-pay-cust_alpha_1").click();
-  await page.waitForURL(/\/billing\?customer=cust_alpha_1/);
+  await page.waitForURL(/\/billing\/customers\/cust_alpha_1/);
   await expect(page.getByTestId("billing-open-cust_alpha_1")).toBeVisible();
 });
 

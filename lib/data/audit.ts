@@ -48,7 +48,8 @@ export type AuditAction =
   | "move_issue_date"
   | "board_sale"
   | "move_missed_publication"
-  | "credit_missed_publication";
+  | "credit_missed_publication"
+  | "release_credit_block";
 
 export type AuditTarget = {
   action: AuditAction;

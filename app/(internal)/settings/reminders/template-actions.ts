@@ -43,3 +43,40 @@ export async function saveReminderTemplateAction(raw: unknown): Promise<{ messag
   revalidatePath("/settings/reminders");
   return {};
 }
+
+/**
+ * The winback wording, saved from the reports tab itself (08/11/2026: "לאפשר
+ * לי לערוך פעם אחת את ההודעה … וזה ישמש לי לתבנית להבא"). Same override, same
+ * rules, as the reminder wording above.
+ */
+export async function saveWinbackTemplateAction(raw: unknown): Promise<{ message?: string }> {
+  const ctx = await getTenantContext();
+  requireArea(ctx, "settings", "write");
+  if (ctx.role !== "admin" && !ctx.isSuperAdmin) return { message: "רק מנהל יכול לשנות את הנוסח" };
+
+  const field = textFieldByKey("winback_template")!;
+  const value = String(raw ?? "")
+    .replace(/\r\n/g, "\n")
+    .trim();
+  if (value.length > field.maxLength) {
+    return { message: `הנוסח ארוך מדי — עד ${field.maxLength} תווים.` };
+  }
+
+  const before = await data.loadSettings(ctx.businessId);
+  const next: Record<string, string> = { ...before.texts };
+  if (value === "" || value === field.default) delete next.winback_template;
+  else next.winback_template = value;
+
+  await withAudit(
+    { businessId: ctx.businessId, userId: ctx.userId },
+    { action: "update_business_settings", targetType: "Business", targetId: ctx.businessId },
+    async (tx) => {
+      await data.applyPatch(tx, ctx.businessId, { text_overrides: next });
+      return { old: before.texts, new: next };
+    },
+  );
+
+  revalidatePath("/reports");
+  revalidatePath("/settings/texts");
+  return {};
+}

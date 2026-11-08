@@ -134,7 +134,7 @@ test.describe("creating a business", () => {
     await page.getByTestId("admin-password").fill("sup3rsecret");
     await page.getByTestId("create-business").click();
 
-    await page.waitForURL(/\/platform$/);
+    await page.waitForURL(/\/platform(\?created=.*)?$/);
     await expect(page.getByTestId("businesses-table")).toContainText(bizName);
 
     // The point of creating the pair together: the new admin can actually work.
@@ -193,7 +193,7 @@ test.describe("deactivating a business", () => {
     await page.getByTestId("admin-email").fill(email);
     await page.getByTestId("admin-password").fill("sup3rsecret");
     await page.getByTestId("create-business").click();
-    await page.waitForURL(/\/platform$/);
+    await page.waitForURL(/\/platform(\?created=.*)?$/);
 
     const id = await page
       .locator(`[data-testid^="business-row-"]`, { hasText: name })

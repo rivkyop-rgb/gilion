@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { agrees, counted, pagesPhrase, placedPhrase, publicationsPhrase } from "./hebrew-count";
+import {
+  actionsPhrase,
+  agrees,
+  counted,
+  inPositionsPhrase,
+  pagesPhrase,
+  placedPhrase,
+  publicationsPhrase,
+} from "./hebrew-count";
 
 /**
  * The case that shipped in five places at once: exactly one.
@@ -41,5 +49,21 @@ describe("everything else takes the number", () => {
     expect(pagesPhrase(2)).toBe("2 עמודים");
     expect(publicationsPhrase(1)).toBe("פרסום אחד");
     expect(publicationsPhrase(6)).toBe("6 פרסומים");
+  });
+});
+
+describe("every phrase at exactly one (08/11/2026)", () => {
+  // One is the number fixtures never produce. Each phrase is run with it so
+  // "1 פעולות" cannot ship again just because nobody had a single one.
+  it.each([
+    [actionsPhrase, "פעולה אחת", "3 פעולות"],
+    [inPositionsPhrase, "במיקום אחד", "ב־3 מיקומים"],
+    [pagesPhrase, "עמוד אחד", "3 עמודים"],
+    [publicationsPhrase, "פרסום אחד", "3 פרסומים"],
+    [placedPhrase, "שובץ פרסום אחד", "שובצו 3 פרסומים"],
+  ])("%o", (phrase, one, three) => {
+    expect(phrase(1)).toBe(one);
+    expect(phrase(3)).toBe(three);
+    expect(phrase(1)).not.toMatch(/^1 /);
   });
 });

@@ -22,7 +22,10 @@ export async function uploadFile(
     await page.getByTestId("upload-customer").click();
     await page.getByTestId(`option-${options.customerId}`).click();
   }
-  await page.getByTestId("submit-upload").click();
+  // An oversized file is refused in the browser (08/11/2026): the button is
+  // disabled and the error is already on screen, which `settled` accepts.
+  const submit = page.getByTestId("submit-upload");
+  if (await submit.isEnabled()) await submit.click();
   await settled(page);
 }
 

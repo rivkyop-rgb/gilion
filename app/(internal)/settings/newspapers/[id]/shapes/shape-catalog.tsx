@@ -1,5 +1,6 @@
 "use client";
 
+import { inPositionsPhrase } from "@/lib/domain/hebrew-count";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Pencil, Plus, Trash2 } from "lucide-react";
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Ltr } from "@/components/ui/ltr";
 import { InlineError, EmptyState } from "@/components/states";
 import { formatCm, type DerivedGrid } from "@/lib/domain/grid";
-import { validPositionCount, type Cell } from "@/lib/domain/slot-geometry";
+import { normalizePositions, validPositionCount, type Cell } from "@/lib/domain/slot-geometry";
 import { ShapePreview } from "../../../shape-preview";
 import { shapeSize } from "../../../shape-size";
 import { deleteAdShapeAction } from "../../../actions";
@@ -93,7 +94,16 @@ export function ShapeCatalog({
               data-testid={`shape-row-${s.id}`}
               className="flex items-center gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevation-1 p-4"
             >
-              <ShapePreview cols={s.cols} rows={s.rows} grid={grid} />
+              <ShapePreview
+                cols={s.cols}
+                rows={s.rows}
+                grid={grid}
+                at={
+                  s.positionMode === "region"
+                    ? (normalizePositions(s.allowedCells, s, grid)[0] ?? null)
+                    : null
+                }
+              />
 
               <div className="min-w-0 flex-1">
                 <p className="font-semibold">{s.name}</p>
@@ -103,7 +113,7 @@ export function ShapeCatalog({
                 <p className="mt-1 text-xs text-on-surface-variant">
                   {s.positionMode === "anywhere"
                     ? "מותרת בכל מקום בעמוד"
-                    : `מותרת ב־${validPositionCount(s, s.allowedCells, grid)} מיקומים בעמוד`}
+                    : `מותרת ${inPositionsPhrase(validPositionCount(s, s.allowedCells, grid))} בעמוד`}
                 </p>
                 {unpricedIds.includes(s.id) ? (
                   <Link

@@ -1,5 +1,7 @@
 "use server";
 
+import { CreditBlocked } from "@/lib/data/credit-block";
+
 import { recordAction } from "@/lib/data/audit";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -24,7 +26,7 @@ import {
   requireEditable,
 } from "@/lib/domain/issue-status";
 import { InvalidPublicationTransitionError } from "@/lib/domain/publication-status";
-import { PAGES_PER_SHEET } from "@/lib/domain/issue-layout";
+import { MIN_ISSUE_PAGES, PAGES_PER_SHEET, isStitchableCount } from "@/lib/domain/issue-layout";
 import { describeDate, type IssueDateSuggestion } from "@/lib/domain/issue-schedule";
 
 export type FormState = { errors?: Record<string, string>; message?: string; ok?: boolean };
@@ -56,8 +58,10 @@ function asFormState(error: unknown): FormState {
     error instanceof InvalidPublicationTransitionError ||
     error instanceof issues.DuplicateIssueError ||
     error instanceof issues.PageNotEmptyError ||
+    error instanceof issues.PageRemovalRefused ||
     error instanceof issues.IssueDateTakenError ||
-    error instanceof sales.BoardSaleRejected
+    error instanceof sales.BoardSaleRejected ||
+    error instanceof CreditBlocked
   ) {
     return { message: error.message };
   }
@@ -67,7 +71,14 @@ function asFormState(error: unknown): FormState {
 const newIssueSchema = z.object({
   newspaperId: z.string().min(1, "יש לבחור עיתון"),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "יש לבחור תאריך"),
-  pageTypeIds: z.array(z.string().min(1)).min(1, "יש להרכיב לפחות עמוד אחד"),
+  // Whole folded sheets only, at least one (user, 08/11/2026): an issue of
+  // 3, 6 or 10 pages cannot be folded and stapled.
+  pageTypeIds: z
+    .array(z.string().min(1))
+    .refine(
+      (ids) => isStitchableCount(ids.length),
+      `גיליון הוא לפחות ${MIN_ISSUE_PAGES} עמודים, ובכפולות של ${PAGES_PER_SHEET}`,
+    ),
 });
 
 export async function createIssueAction(
@@ -97,19 +108,7 @@ export async function createIssueAction(
   }
 }
 
-export async function addIssuePageAction(issueId: string, pageTypeId: string): Promise<FormState> {
-  const ctx = await requireIssueWrite();
-  try {
-    await requireOpenIssue(ctx, issueId);
-    await issues.addIssuePage(ctx.businessId, issueId, pageTypeId);
-    revalidatePath(`/issues/${issueId}/board`);
-    return { ok: true };
-  } catch (error) {
-    return asFormState(error);
-  }
-}
-
-/** The "+" on a seam: a whole sheet — two inner pages — lands after the one named. */
+/** The "+" on a seam: a whole sheet — four inner pages — lands after the one named. */
 export async function insertIssuePageAction(
   issueId: string,
   pageTypeId: string,
@@ -442,7 +441,7 @@ export async function autoPlaceIssueAction(
   seed = 1,
   /** Empty the board first — see autoPlaceIssue. */
   reset = false,
-): Promise<FormState & { placed?: number; sheetsAdded?: number }> {
+): Promise<FormState & { placed?: number; sheetsAdded?: number; placementIds?: string[] }> {
   const ctx = await requireIssueWrite();
 
   try {
@@ -474,6 +473,7 @@ export async function autoPlaceIssueAction(
       ok: true,
       placed: outcome.placed,
       sheetsAdded: outcome.sheetsAdded,
+      placementIds: outcome.placementIds,
       message:
         outcome.sheetsAdded > 0
           ? `${placedPhrase(outcome.placed)}, ונוספו ${pagesPhrase(outcome.sheetsAdded * PAGES_PER_SHEET)} פנימיים כדי שכולם ייכנסו`

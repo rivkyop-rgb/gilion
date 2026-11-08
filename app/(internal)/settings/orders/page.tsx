@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { getTenantContext, requireArea } from "@/lib/auth/tenant";
 import { internalOrdersNeedApproval } from "@/lib/data/orders";
 import { OrderApprovalForm } from "./approval-form";
+import { CreditPolicyForm } from "./credit-form";
+import { creditPolicy } from "@/lib/data/credit-block";
 
 export const metadata: Metadata = { title: "תהליך הזמנות · הגדרות · Gilion" };
 
@@ -10,7 +12,10 @@ export default async function OrderSettingsPage() {
   const ctx = await getTenantContext();
   requireArea(ctx, "settings", "write");
 
-  const current = await internalOrdersNeedApproval(ctx.businessId);
+  const [current, credit] = await Promise.all([
+    internalOrdersNeedApproval(ctx.businessId),
+    creditPolicy(ctx.businessId),
+  ]);
 
   return (
     <>
@@ -20,6 +25,7 @@ export default async function OrderSettingsPage() {
         ממתינה לאישור נפרד.
       </p>
       <OrderApprovalForm current={current} />
+      <CreditPolicyForm current={credit} mayEdit={ctx.role === "admin" || ctx.isSuperAdmin} />
     </>
   );
 }

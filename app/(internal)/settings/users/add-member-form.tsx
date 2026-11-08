@@ -80,10 +80,19 @@ export function AddMemberForm() {
       </div>
 
       <p className="mt-2 text-xs text-on-surface-variant">
-        הסיסמה מוצגת גלויה כדי שתוכלי למסור אותה. אין עדיין מסך החלפת סיסמה, אז שמרי אותה.
+        הסיסמה מוצגת גלויה כדי שתוכלי למסור אותה. אחרי הכניסה הראשונה אפשר להחליף אותה בתפריט המשתמש.
       </p>
 
       {state.message ? <InlineError>{state.message}</InlineError> : null}
+      {state.added ? (
+        <p
+          role="status"
+          data-testid="member-added"
+          className="mt-2 text-sm text-status-success-fg"
+        >
+          החשבון של {state.added} נוצר. אפשר להיכנס איתו עכשיו, עם המייל והסיסמה שהוזנו.
+        </p>
+      ) : null}
 
       <Button
         type="submit"

@@ -4,7 +4,8 @@ import { FilePick } from "@/components/ui/file-pick";
 import { useState, useTransition } from "react";
 import { useFormActionState } from "@/components/use-form-action-state";
 import { useRouter } from "next/navigation";
-import { Link2, Link2Off, Replace, Upload } from "lucide-react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { Link2, Link2Off, Replace, Upload, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -86,7 +87,6 @@ export function LinkAdCell({
       action={uploadAction}
       onReset={keepTypedOnError}
       data-testid={`row-upload-form-${publicationId}`}
-      className="absolute z-20 mt-1 w-72 rounded-lg border border-outline-variant bg-surface-container-lowest p-3 shadow-elevation-2"
     >
       {/* The only fields the server reads besides the file itself. */}
       <input type="hidden" name="publicationId" value={publicationId} />
@@ -125,6 +125,36 @@ export function LinkAdCell({
         </Button>
       </div>
     </form>
+  );
+
+  // A small dialog, not a box absolutely positioned inside the row: the
+  // table's `overflow-x-auto` clipped it, hiding half the "החלפה" button and
+  // scrolling the table sideways (habodek, 08/11/2026).
+  const uploadDialog = (
+    <DialogPrimitive.Root
+      open={mode === "upload"}
+      onOpenChange={(next) => setMode(next ? "upload" : "idle")}
+    >
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-primary/30" />
+        <DialogPrimitive.Content
+          className="fixed inset-x-0 top-1/2 z-50 mx-auto w-[min(24rem,calc(100vw-2rem))] -translate-y-1/2 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevation-2"
+          aria-describedby={undefined}
+        >
+          <div className="mb-2 flex items-start justify-between gap-2">
+            <DialogPrimitive.Title className="font-serif text-lg font-semibold">
+              {linked ? "החלפת המודעה" : "העלאה ושיוך"}
+            </DialogPrimitive.Title>
+            <DialogPrimitive.Close asChild>
+              <button type="button" aria-label="סגירה" className="rounded-sm p-1">
+                <X className="size-4 text-on-surface-variant" />
+              </button>
+            </DialogPrimitive.Close>
+          </div>
+          {uploadForm}
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 
   if (linked) {
@@ -193,7 +223,7 @@ export function LinkAdCell({
           }}
         />
 
-        {mode === "upload" ? uploadForm : null}
+        {uploadDialog}
         {error ? <InlineError>{error}</InlineError> : null}
       </div>
     );
@@ -228,7 +258,7 @@ export function LinkAdCell({
         ) : null}
       </div>
 
-      {mode === "upload" ? uploadForm : null}
+      {uploadDialog}
 
       {error ? <InlineError>{error}</InlineError> : null}
     </div>

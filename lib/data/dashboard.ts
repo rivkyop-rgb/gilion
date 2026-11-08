@@ -194,3 +194,27 @@ export async function weeklySales(
     };
   });
 }
+
+/**
+ * The four things a new business does before the product is useful
+ * (08/11/2026): a newspaper, its price list, a customer, an order. The habodek
+ * run opened an empty dashboard of zeros with nothing saying where to start.
+ * The card it feeds disappears for good once all four are done.
+ */
+export async function setupProgress(businessId: string) {
+  const db = tenantDb(businessId);
+  const [newspaper, newspapers, priced, customers, orders] = await Promise.all([
+    db.newspaper.findFirst({ select: { id: true }, orderBy: { created_at: "asc" } }),
+    db.newspaper.count(),
+    db.priceRule.count(),
+    db.customer.count(),
+    db.adOrder.count(),
+  ]);
+  return {
+    firstNewspaperId: newspaper?.id ?? null,
+    newspaper: newspapers > 0,
+    pricing: priced > 0,
+    customer: customers > 0,
+    order: orders > 0,
+  };
+}

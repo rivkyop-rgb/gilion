@@ -102,9 +102,9 @@ export async function approvedOrder(
   return orderId;
 }
 
-/** Opens one customer's row on the billing screen, by URL rather than by click. */
+/** Opens one customer's billing page, by URL rather than by click. */
 export async function openBillingRow(page: Page, customerId: string) {
-  await page.goto(`/billing?customer=${customerId}`);
+  await page.goto(`/billing/customers/${customerId}`);
   await expect(page.getByTestId(`billing-open-${customerId}`)).toBeVisible();
 }
 

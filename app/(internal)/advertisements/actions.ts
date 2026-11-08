@@ -143,7 +143,7 @@ export async function uploadAdvertisementAction(
   // Steps 1–4. `file.size` is the declared length, so an oversized file is
   // refused before its bytes are read into memory.
   const bytes = Buffer.from(await file.arrayBuffer());
-  const inspected = await inspectAdFile(bytes, file.size, limit);
+  const inspected = await inspectAdFile(bytes, file.size, limit, file.name);
 
   // A file the wrong SIZE or the wrong TYPE never becomes a row: there is
   // nothing useful to show in the library about bytes we refused to keep. A
@@ -422,7 +422,7 @@ export async function replaceAdFileAction(
   if (!limit) return { message: "אין עדיין עיתון מוגדר בעסק" };
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  const inspected = await inspectAdFile(bytes, file.size, limit);
+  const inspected = await inspectAdFile(bytes, file.size, limit, file.name);
   // A replacement is all-or-nothing: the live file stays exactly as it is
   // until a good one is ready to take its place.
   if (!inspected.ok) return { message: inspected.message };

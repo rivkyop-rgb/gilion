@@ -9,7 +9,7 @@ import { InlineError } from "@/components/states";
 import { MIN_PASSWORD_LENGTH } from "@/lib/domain/platform";
 import { createBusinessAction, type FormState } from "../actions";
 
-export function NewBusinessForm() {
+export function NewBusinessForm({ cancelHref = "/platform" }: { cancelHref?: string | null }) {
   const [state, action, pending, keepTypedOnError] = useFormActionState<FormState, FormData>(
     createBusinessAction,
     {},
@@ -85,8 +85,8 @@ export function NewBusinessForm() {
                 to read the password out to the new admin, and a masked field
                 they cannot see is a field they will mistype. */}
             <p className="mt-1 text-xs text-on-surface-variant">
-              לפחות {MIN_PASSWORD_LENGTH} תווים. מוצגת במפורש כדי שתוכלי למסור אותה — אין עדיין מסך
-              החלפת סיסמה, אז שמרי אותה.
+              לפחות {MIN_PASSWORD_LENGTH} תווים. מוצגת במפורש כדי שתוכלי למסור אותה. אחרי הכניסה
+              הראשונה אפשר להחליף אותה בתפריט המשתמש.
             </p>
             {err("adminPassword") ? <InlineError>{err("adminPassword")}</InlineError> : null}
           </div>
@@ -99,9 +99,11 @@ export function NewBusinessForm() {
         <Button type="submit" disabled={pending} data-testid="create-business">
           {pending ? "יוצרת…" : "יצירת העסק והמנהל"}
         </Button>
+        {cancelHref ? (
         <Button type="button" variant="ghost" asChild>
-          <Link href="/platform">ביטול</Link>
+          <Link href={cancelHref}>ביטול</Link>
         </Button>
+        ) : null}
       </div>
     </form>
   );

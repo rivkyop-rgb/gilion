@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { canReadArea, canWriteArea, getTenantContext, requireArea } from "@/lib/auth/tenant";
+import { SavedFilters } from "@/components/ui/saved-filters";
+import { listSavedFilters } from "@/lib/data/saved-filters";
+import { normaliseFilterQuery } from "@/lib/domain/saved-filter";
 import { listPublicationsPage, publicationDatesByNewspaper } from "@/lib/data/publications";
 import { placeableAds } from "@/lib/data/advertisements";
 import type { AdPreviewModel } from "@/components/ads/ad-preview";
@@ -72,6 +75,13 @@ export default async function PublicationsPage({
 }) {
   const ctx = await getTenantContext();
   requireArea(ctx, "publications");
+  const raw = await searchParams;
+  const currentQuery = normaliseFilterQuery(
+    new URLSearchParams(
+      Object.entries(raw).filter((e): e is [string, string] => typeof e[1] === "string"),
+    ).toString(),
+  );
+  const saved = await listSavedFilters(ctx.businessId, ctx.userId, "publications");
 
   const {
     newspaper = "all",
@@ -349,6 +359,24 @@ export default async function PublicationsPage({
         }}
       />
 
+      <SavedFilters
+        list="publications"
+        basePath="/publications"
+        currentQuery={currentQuery}
+        filters={saved.map((f) => ({
+          id: f.id,
+          name: f.name,
+          color: f.color,
+          query: f.query,
+          personal: f.owner_id !== null,
+          removable:
+            f.owner_id === ctx.userId ||
+            f.created_by === ctx.userId ||
+            ctx.role === "admin" ||
+            ctx.isSuperAdmin,
+        }))}
+      />
+
       <div className="flex flex-wrap items-start gap-2">
         <div className="min-w-0 flex-1">
           <FilterBuilder
@@ -397,7 +425,7 @@ export default async function PublicationsPage({
                 label: "מקור",
                 kind: "select",
                 options: [
-                  { value: "internal", label: "פנימי" },
+                  { value: "internal", label: "הוזן במשרד" },
                   { value: "customer_portal", label: "פורטל לקוח" },
                 ],
               },
@@ -416,7 +444,14 @@ export default async function PublicationsPage({
         />
       </div>
 
-      <ListToolbar prefix="" params={list} total={total} baseHref={listBase} searchable={false} />
+      <ListToolbar
+        prefix=""
+        params={list}
+        total={total}
+        baseHref={listBase}
+        searchable={false}
+        exportHref={hrefWith({}).replace(/^\/publications/, "/api/export/list/publications")}
+      />
 
       {rows.length === 0 ? (
         <EmptyState
